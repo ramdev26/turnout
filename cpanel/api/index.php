@@ -1,0 +1,2948 @@
+<?php
+
+require __DIR__ . '/lib/http.php';
+require __DIR__ . '/lib/db.php';
+require __DIR__ . '/lib/auth.php';
+require __DIR__ . '/lib/mail.php';
+
+set_cors_headers_for_same_domain();
+
+// Basic preflight handling (safe even for same-domain; some setups might still send it).
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+  http_response_code(204);
+  exit;
+}
+
+start_app_session();
+
+$path = get_path();
+$method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+
+// Expect API to be mounted at /api. If deployed as /api/index.php, requests will be /api/...
+// Normalize by stripping leading /api.
+if (str_starts_with($path, '/api')) {
+  $path = substr($path, 4);
+  if ($path === false || $path === '') $path = '';
+}
+
+function is_same_origin_request(): bool {
+  $origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
+  $referer = trim((string)($_SERVER['HTTP_REFERER'] ?? ''));
+  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+  if ($host === '') return false;
+
+  $hostOnly = strtolower((string)explode(':', $host)[0]);
+  $originHost = $origin !== '' ? strtolower((string)(parse_url($origin, PHP_URL_HOST) ?? '')) : '';
+  $refererHost = $referer !== '' ? strtolower((string)(parse_url($referer, PHP_URL_HOST) ?? '')) : '';
+
+  $isPrivateOrLoopback = static function (string $value): bool {
+    if ($value === '') return false;
+    if ($value === 'localhost' || $value === '::1') return true;
+    if (!filter_var($value, FILTER_VALIDATE_IP)) return false;
+    if (str_starts_with($value, '10.')) return true;
+    if (str_starts_with($value, '192.168.')) return true;
+    if (preg_match('/^172\.(1[6-9]|2[0-9]|3[0-1])\./', $value)) return true;
+    if (str_starts_with($value, '127.')) return true;
+    return false;
+  };
+
+  // Accept common local dev host aliases as same-site.
+  $localAliases = ['localhost', '127.0.0.1', '::1'];
+  $hostIsLocal = in_array($hostOnly, $localAliases, true);
+  $originIsLocal = in_array($originHost, $localAliases, true);
+  $refererIsLocal = in_array($refererHost, $localAliases, true);
+  if ($hostIsLocal && ($originIsLocal || $refererIsLocal)) return true;
+
+  // Dev mode: allow LAN-origin frontend talking to local API (e.g. 192.168.x.x:3000 -> 127.0.0.1:8000).
+  if ($hostIsLocal) {
+    $cfg = get_config();
+    $devMode = (bool)(($cfg['app'] ?? [])['dev_mode'] ?? false);
+    if ($devMode) {
+      if ($isPrivateOrLoopback($originHost) || $isPrivateOrLoopback($refererHost)) return true;
+    }
+  }
+
+  if ($originHost !== '' && $originHost === $hostOnly) return true;
+  if ($originHost === '' && $refererHost !== '' && $refererHost === $hostOnly) return true;
+  return false;
+}
+
+function enforce_write_request_integrity(string $path, string $method): void {
+  if ($method !== 'POST') return;
+  // Webhooks are cross-origin by design.
+  if ($path === '/payhere/notify') return;
+  // Public auth bootstrap endpoints are intentionally available pre-session.
+  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee') return;
+  // CSRF protection is required only for authenticated cookie sessions.
+  if (current_user_id() === null) return;
+  if (!is_same_origin_request()) {
+    json_response(403, ['error' => 'csrf_origin_mismatch']);
+  }
+}
+
+function require_organizer_user_id(): int {
+  $uid = require_user_id();
+  $user = load_user_profile($uid);
+  if (($user['role'] ?? '') !== 'organizer') json_response(403, ['error' => 'forbidden']);
+  return $uid;
+}
+
+function require_super_admin_user_id(): int {
+  $uid = require_user_id();
+  $user = load_user_profile($uid);
+  if (($user['role'] ?? '') !== 'super_admin') json_response(403, ['error' => 'forbidden']);
+  return $uid;
+}
+
+if ($path === '/uploads/banner' && $method === 'POST') {
+  require_organizer_user_id();
+
+  if (!isset($_FILES['file'])) {
+    json_response(400, ['error' => 'missing_file']);
+  }
+  $file = $_FILES['file'];
+  if (!is_array($file) || (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK)) {
+    json_response(400, ['error' => 'upload_failed']);
+  }
+
+  $tmpPath = (string)($file['tmp_name'] ?? '');
+  if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+    json_response(400, ['error' => 'invalid_upload']);
+  }
+
+  $size = (int)($file['size'] ?? 0);
+  if ($size <= 0 || $size > (5 * 1024 * 1024)) {
+    json_response(400, ['error' => 'file_too_large']);
+  }
+
+  $finfo = finfo_open(FILEINFO_MIME_TYPE);
+  $mime = $finfo ? (string)finfo_file($finfo, $tmpPath) : '';
+  if ($finfo) finfo_close($finfo);
+  $allowed = [
+    'image/jpeg' => 'jpg',
+    'image/png' => 'png',
+    'image/webp' => 'webp',
+    'image/gif' => 'gif',
+  ];
+  $ext = $allowed[$mime] ?? null;
+  if ($ext === null) {
+    json_response(400, ['error' => 'unsupported_file_type']);
+  }
+
+  $uploadDir = __DIR__ . '/uploads/banners';
+  if (!is_dir($uploadDir)) {
+    @mkdir($uploadDir, 0775, true);
+  }
+  if (!is_dir($uploadDir)) {
+    json_response(500, ['error' => 'upload_dir_unavailable']);
+  }
+
+  $name = bin2hex(random_bytes(12)) . '.' . $ext;
+  $target = $uploadDir . '/' . $name;
+  if (!move_uploaded_file($tmpPath, $target)) {
+    json_response(500, ['error' => 'save_failed']);
+  }
+
+  $bannerUrl = '/api/uploads/banners/' . $name;
+  json_response(201, ['bannerUrl' => $bannerUrl]);
+}
+
+function slugify(string $s): string {
+  $s = strtolower(trim($s));
+  $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+  $s = preg_replace('/-+/', '-', $s);
+  $s = trim($s, '-');
+  if ($s === '') $s = 'event';
+  return substr($s, 0, 160);
+}
+
+function unique_slug(PDO $pdo, string $base): string {
+  $slug = $base;
+  for ($i = 0; $i < 50; $i++) {
+    $stmt = $pdo->prepare('SELECT id FROM events WHERE slug = ? LIMIT 1');
+    $stmt->execute([$slug]);
+    if (!$stmt->fetch()) return $slug;
+    $slug = $base . '-' . substr(bin2hex(random_bytes(3)), 0, 6);
+  }
+  return $base . '-' . substr(bin2hex(random_bytes(5)), 0, 10);
+}
+
+function ensure_event_runbook_table(PDO $pdo): void {
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS event_runbook_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        priority TEXT NOT NULL DEFAULT "medium",
+        status TEXT NOT NULL DEFAULT "open",
+        due_at TEXT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runbook_event_created ON event_runbook_items(event_id, created_at DESC)');
+    return;
+  }
+
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS event_runbook_items (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      event_id BIGINT UNSIGNED NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      priority ENUM('low','medium','high') NOT NULL DEFAULT 'medium',
+      status ENUM('open','done') NOT NULL DEFAULT 'open',
+      due_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_runbook_event_created (event_id, created_at),
+      CONSTRAINT fk_runbook_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+}
+
+function ensure_user_profiles_table(PDO $pdo): void {
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS user_profiles (
+        user_id INTEGER PRIMARY KEY,
+        avatar_url TEXT NULL,
+        phone TEXT NULL,
+        bio TEXT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    return;
+  }
+
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id BIGINT UNSIGNED NOT NULL,
+      avatar_url TEXT NULL,
+      phone VARCHAR(60) NULL,
+      bio TEXT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id),
+      CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+}
+
+function ensure_payhere_tables(PDO $pdo): void {
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS order_attendee_requests (
+        order_id INTEGER PRIMARY KEY,
+        attendees_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS payhere_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        payment_id TEXT NULL,
+        status_code TEXT NOT NULL,
+        payhere_amount TEXT NULL,
+        payhere_currency TEXT NULL,
+        method TEXT NULL,
+        status_message TEXT NULL,
+        raw_post_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_payhere_tx_order ON payhere_transactions(order_id, created_at DESC)');
+    return;
+  }
+
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS order_attendee_requests (
+      order_id BIGINT UNSIGNED NOT NULL,
+      attendees_json JSON NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (order_id),
+      CONSTRAINT fk_oar_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS payhere_transactions (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      order_id BIGINT UNSIGNED NOT NULL,
+      payment_id VARCHAR(64) NULL,
+      status_code VARCHAR(16) NOT NULL,
+      payhere_amount VARCHAR(32) NULL,
+      payhere_currency VARCHAR(16) NULL,
+      method VARCHAR(32) NULL,
+      status_message TEXT NULL,
+      raw_post_json JSON NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_payhere_tx_order (order_id, created_at),
+      CONSTRAINT fk_payhere_tx_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+}
+
+function ensure_users_role_support(PDO $pdo): void {
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  try {
+    if ($driver === 'mysql') {
+      $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'");
+      $row = $stmt ? $stmt->fetch() : false;
+      $type = is_array($row) ? strtolower((string)($row['Type'] ?? '')) : '';
+      if ($type !== '' && !str_contains($type, 'super_admin')) {
+        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('organizer','attendee','super_admin') NOT NULL DEFAULT 'organizer'");
+      }
+      $stmt2 = $pdo->query("SHOW COLUMNS FROM users LIKE 'is_blocked'");
+      if (!$stmt2 || !$stmt2->fetch()) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN is_blocked TINYINT(1) NOT NULL DEFAULT 0");
+      }
+      $stmt3 = $pdo->query("SHOW COLUMNS FROM users LIKE 'status'");
+      if (!$stmt3 || !$stmt3->fetch()) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN status ENUM('active','suspended','banned') NOT NULL DEFAULT 'active'");
+      }
+      $stmt4 = $pdo->query("SHOW COLUMNS FROM users LIKE 'force_password_reset'");
+      if (!$stmt4 || !$stmt4->fetch()) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN force_password_reset TINYINT(1) NOT NULL DEFAULT 0");
+      }
+      $stmt5 = $pdo->query("SHOW COLUMNS FROM events LIKE 'event_status'");
+      if (!$stmt5 || !$stmt5->fetch()) {
+        $pdo->exec("ALTER TABLE events ADD COLUMN event_status ENUM('pending','approved','rejected','suspended') NOT NULL DEFAULT 'approved'");
+      }
+      $stmt6 = $pdo->query("SHOW COLUMNS FROM events LIKE 'is_featured'");
+      if (!$stmt6 || !$stmt6->fetch()) {
+        $pdo->exec("ALTER TABLE events ADD COLUMN is_featured TINYINT(1) NOT NULL DEFAULT 0");
+      }
+      return;
+    }
+    $pdo->exec("ALTER TABLE users ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0");
+    $pdo->exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
+    $pdo->exec("ALTER TABLE users ADD COLUMN force_password_reset INTEGER NOT NULL DEFAULT 0");
+    $pdo->exec("ALTER TABLE events ADD COLUMN event_status TEXT NOT NULL DEFAULT 'approved'");
+    $pdo->exec("ALTER TABLE events ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0");
+  } catch (Throwable $e) {
+    // Non-fatal migration guard. Ignore and continue request flow.
+  }
+}
+
+function ensure_finance_tables(PDO $pdo): void {
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS admin_settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        user_id INTEGER NULL,
+        order_id INTEGER NULL,
+        amount_cents INTEGER NOT NULL,
+        platform_fee_cents INTEGER NOT NULL,
+        organizer_amount_cents INTEGER NOT NULL,
+        payment_status TEXT NOT NULL DEFAULT "pending",
+        payhere_reference TEXT NULL,
+        is_flagged INTEGER NOT NULL DEFAULT 0,
+        admin_note TEXT NULL,
+        refund_requested INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS payouts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        organizer_id INTEGER NOT NULL,
+        total_amount_cents INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT "pending",
+        method TEXT NOT NULL DEFAULT "bank_transfer",
+        reference TEXT NULL,
+        notes TEXT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT NULL
+      )'
+    );
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS global_settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS payout_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        payout_id INTEGER NOT NULL,
+        admin_user_id INTEGER NULL,
+        action TEXT NOT NULL,
+        note TEXT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor_user_id INTEGER NULL,
+        actor_role TEXT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NULL,
+        target_id TEXT NULL,
+        details_json TEXT NULL,
+        ip_address TEXT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tx_status_created ON transactions(payment_status, created_at DESC)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_payout_org ON payouts(organizer_id, created_at DESC)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_payout_logs_payout ON payout_logs(payout_id, created_at DESC)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_logs_action_created ON logs(action, created_at DESC)");
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN force_password_reset INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN event_status TEXT NOT NULL DEFAULT 'approved'"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    return;
+  }
+
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS admin_settings (
+      setting_key VARCHAR(120) NOT NULL,
+      setting_value VARCHAR(255) NOT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (setting_key)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS transactions (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      event_id BIGINT UNSIGNED NOT NULL,
+      user_id BIGINT UNSIGNED NULL,
+      order_id BIGINT UNSIGNED NULL,
+      amount_cents INT UNSIGNED NOT NULL,
+      platform_fee_cents INT UNSIGNED NOT NULL,
+      organizer_amount_cents INT UNSIGNED NOT NULL,
+      payment_status ENUM('pending','paid','failed') NOT NULL DEFAULT 'pending',
+      payhere_reference VARCHAR(128) NULL,
+      is_flagged TINYINT(1) NOT NULL DEFAULT 0,
+      admin_note TEXT NULL,
+      refund_requested TINYINT(1) NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_tx_event (event_id),
+      KEY idx_tx_user (user_id),
+      KEY idx_tx_status_created (payment_status, created_at),
+      KEY idx_tx_order (order_id),
+      CONSTRAINT fk_tx_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      CONSTRAINT fk_tx_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+      CONSTRAINT fk_tx_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS payouts (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      organizer_id BIGINT UNSIGNED NOT NULL,
+      total_amount_cents INT UNSIGNED NOT NULL,
+      status ENUM('pending','processing','completed') NOT NULL DEFAULT 'pending',
+      method ENUM('bank_transfer') NOT NULL DEFAULT 'bank_transfer',
+      reference VARCHAR(128) NULL,
+      notes TEXT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME NULL,
+      PRIMARY KEY (id),
+      KEY idx_payout_org (organizer_id, created_at),
+      KEY idx_payout_status (status, created_at),
+      CONSTRAINT fk_payout_org FOREIGN KEY (organizer_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS global_settings (
+      setting_key VARCHAR(120) NOT NULL,
+      setting_value TEXT NOT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (setting_key)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS payout_logs (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      payout_id BIGINT UNSIGNED NOT NULL,
+      admin_user_id BIGINT UNSIGNED NULL,
+      action VARCHAR(64) NOT NULL,
+      note TEXT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_payout_logs_payout (payout_id, created_at),
+      CONSTRAINT fk_payout_logs_payout FOREIGN KEY (payout_id) REFERENCES payouts(id) ON DELETE CASCADE,
+      CONSTRAINT fk_payout_logs_admin FOREIGN KEY (admin_user_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS logs (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      actor_user_id BIGINT UNSIGNED NULL,
+      actor_role VARCHAR(40) NULL,
+      action VARCHAR(120) NOT NULL,
+      target_type VARCHAR(80) NULL,
+      target_id VARCHAR(80) NULL,
+      details_json JSON NULL,
+      ip_address VARCHAR(64) NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_logs_action_created (action, created_at),
+      KEY idx_logs_actor_created (actor_user_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+  try { $pdo->exec("ALTER TABLE users ADD COLUMN status ENUM('active','suspended','banned') NOT NULL DEFAULT 'active'"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE users ADD COLUMN force_password_reset TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE events ADD COLUMN event_status ENUM('pending','approved','rejected','suspended') NOT NULL DEFAULT 'approved'"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE events ADD COLUMN is_featured TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+}
+
+function boolish(mixed $value): bool {
+  if (is_bool($value)) return $value;
+  if (is_numeric($value)) return ((int)$value) === 1;
+  if (is_string($value)) return in_array(strtolower(trim($value)), ['1', 'true', 'yes', 'on'], true);
+  return false;
+}
+
+function write_log(PDO $pdo, ?int $actorUserId, ?string $actorRole, string $action, ?string $targetType = null, ?string $targetId = null, ?array $details = null): void {
+  ensure_finance_tables($pdo);
+  $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+  $stmt = $pdo->prepare('INSERT INTO logs (actor_user_id, actor_role, action, target_type, target_id, details_json, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  $stmt->execute([
+    $actorUserId,
+    $actorRole,
+    $action,
+    $targetType,
+    $targetId,
+    $details ? json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+    $ip !== '' ? $ip : null,
+  ]);
+}
+
+function get_platform_commission_pct(PDO $pdo): float {
+  ensure_finance_tables($pdo);
+  $stmt = $pdo->prepare('SELECT setting_value FROM admin_settings WHERE setting_key = ? LIMIT 1');
+  $stmt->execute(['commission_pct']);
+  $row = $stmt->fetch();
+  $value = $row ? (float)$row['setting_value'] : 10.0;
+  if ($value < 0) $value = 0;
+  if ($value > 100) $value = 100;
+  return $value;
+}
+
+function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, int $amountCents, string $status, ?string $reference): array {
+  $commissionPct = get_platform_commission_pct($pdo);
+  $platformFeeCents = (int)round(($amountCents * $commissionPct) / 100);
+  if ($platformFeeCents > $amountCents) $platformFeeCents = $amountCents;
+  $organizerAmountCents = $amountCents - $platformFeeCents;
+
+  $existingStmt = $pdo->prepare('SELECT id FROM transactions WHERE order_id = ? LIMIT 1');
+  $existingStmt->execute([$orderId]);
+  $existing = $existingStmt->fetch();
+  if ($existing) {
+    $upd = $pdo->prepare('UPDATE transactions SET amount_cents = ?, platform_fee_cents = ?, organizer_amount_cents = ?, payment_status = ?, payhere_reference = ? WHERE id = ?');
+    $upd->execute([$amountCents, $platformFeeCents, $organizerAmountCents, $status, $reference, (int)$existing['id']]);
+  } else {
+    $ins = $pdo->prepare('INSERT INTO transactions (event_id, user_id, order_id, amount_cents, platform_fee_cents, organizer_amount_cents, payment_status, payhere_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $ins->execute([$eventId, $userId, $orderId, $amountCents, $platformFeeCents, $organizerAmountCents, $status, $reference]);
+  }
+
+  return [
+    'commissionPct' => $commissionPct,
+    'platformFeeCents' => $platformFeeCents,
+    'organizerAmountCents' => $organizerAmountCents,
+  ];
+}
+
+function payhere_cfg(): array {
+  $cfg = get_config();
+  $p = $cfg['payhere'] ?? null;
+  if (!is_array($p)) json_response(500, ['error' => 'payhere_not_configured']);
+  $merchantId = (string)($p['merchant_id'] ?? '');
+  $merchantSecret = (string)($p['merchant_secret'] ?? '');
+  $notifyUrl = (string)($p['notify_url'] ?? '');
+  $appBase = (string)($p['app_base_url'] ?? '');
+  $sandbox = (bool)($p['sandbox'] ?? true);
+  if ($merchantId === '' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
+    json_response(500, ['error' => 'payhere_missing_credentials']);
+  }
+  if ($notifyUrl === '') {
+    json_response(500, ['error' => 'payhere_missing_notify_url', 'message' => 'Set payhere.notify_url in api/config.php to a public URL (ngrok/domain).']);
+  }
+  if ($appBase === '') {
+    json_response(500, ['error' => 'payhere_missing_app_base_url']);
+  }
+  return [
+    'sandbox' => $sandbox,
+    'merchant_id' => $merchantId,
+    'merchant_secret' => $merchantSecret,
+    'notify_url' => $notifyUrl,
+    'app_base_url' => rtrim($appBase, '/'),
+  ];
+}
+
+ensure_users_role_support(db());
+ensure_finance_tables(db());
+enforce_write_request_integrity($path, $method);
+
+function payhere_amount_format(float $amount): string {
+  return number_format($amount, 2, '.', '');
+}
+
+function payhere_hash(string $merchantId, string $orderId, float $amount, string $currency, string $merchantSecret): string {
+  $hashedSecret = strtoupper(md5($merchantSecret));
+  $amountFormatted = payhere_amount_format($amount);
+  return strtoupper(md5($merchantId . $orderId . $amountFormatted . $currency . $hashedSecret));
+}
+
+function payhere_local_md5sig(string $merchantId, string $orderId, string $payhereAmount, string $payhereCurrency, string $statusCode, string $merchantSecret): string {
+  return strtoupper(
+    md5(
+      $merchantId .
+        $orderId .
+        $payhereAmount .
+        $payhereCurrency .
+        $statusCode .
+        strtoupper(md5($merchantSecret))
+    )
+  );
+}
+
+function normalize_order_items_from_db(PDO $pdo, int $eventId, array $items): array {
+  $totalCents = 0;
+  $normalizedItems = [];
+  $ticketStmt = $pdo->prepare('SELECT id, name, price_cents FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  foreach ($items as $it) {
+    if (!is_array($it)) continue;
+    $ticketId = (int)($it['ticketId'] ?? 0);
+    $qty = (int)($it['quantity'] ?? 0);
+    if ($ticketId <= 0 || $qty <= 0) json_response(400, ['error' => 'invalid_order_item']);
+
+    $ticketStmt->execute([$ticketId, $eventId]);
+    $ticket = $ticketStmt->fetch();
+    if (!$ticket) json_response(400, ['error' => 'ticket_not_found']);
+
+    $priceCents = (int)$ticket['price_cents'];
+    $totalCents += ($priceCents * $qty);
+    $normalizedItems[] = [
+      'ticketId' => (string)$ticketId,
+      'name' => (string)$ticket['name'],
+      'quantity' => $qty,
+      'price' => $priceCents / 100,
+    ];
+  }
+  return ['totalCents' => $totalCents, 'items' => $normalizedItems];
+}
+
+// ---- Auth ----
+if ($path === '/auth/register' && $method === 'POST') {
+  $body = read_json_body();
+  $email = strtolower(trim((string)($body['email'] ?? '')));
+  $password = (string)($body['password'] ?? '');
+  $displayName = trim((string)($body['displayName'] ?? ''));
+
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_email']);
+  if (strlen($password) < 8) json_response(400, ['error' => 'password_too_short']);
+  if ($displayName === '') $displayName = 'User';
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+  $stmt->execute([$email]);
+  if ($stmt->fetch()) json_response(409, ['error' => 'email_taken']);
+
+  $hash = password_hash($password, PASSWORD_DEFAULT);
+  $ins = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, role) VALUES (?, ?, ?, ?)');
+  $ins->execute([$email, $hash, $displayName, 'organizer']);
+
+  $userId = (int)$pdo->lastInsertId();
+  regenerate_app_session();
+  $_SESSION['user_id'] = $userId;
+
+  json_response(201, ['user' => load_user_profile($userId)]);
+}
+
+if ($path === '/auth/register-attendee' && $method === 'POST') {
+  $body = read_json_body();
+  $email = strtolower(trim((string)($body['email'] ?? '')));
+  $password = (string)($body['password'] ?? '');
+  $displayName = trim((string)($body['displayName'] ?? ''));
+
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_email']);
+  if (strlen($password) < 8) json_response(400, ['error' => 'password_too_short']);
+  if ($displayName === '') $displayName = 'Attendee';
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+  $stmt->execute([$email]);
+  if ($stmt->fetch()) json_response(409, ['error' => 'email_taken']);
+
+  $hash = password_hash($password, PASSWORD_DEFAULT);
+  $ins = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, role) VALUES (?, ?, ?, ?)');
+  $ins->execute([$email, $hash, $displayName, 'attendee']);
+
+  $userId = (int)$pdo->lastInsertId();
+  regenerate_app_session();
+  $_SESSION['user_id'] = $userId;
+
+  json_response(201, ['user' => load_user_profile($userId)]);
+}
+
+if ($path === '/auth/login' && $method === 'POST') {
+  $body = read_json_body();
+  $email = strtolower(trim((string)($body['email'] ?? '')));
+  $password = (string)($body['password'] ?? '');
+
+  if ($email === '' || $password === '') json_response(400, ['error' => 'missing_credentials']);
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
+  $stmt->execute([$email]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(401, ['error' => 'invalid_credentials']);
+  $passwordHash = (string)($row['password_hash'] ?? '');
+  if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
+    json_response(401, ['error' => 'invalid_credentials']);
+  }
+  if ((int)($row['is_blocked'] ?? 0) === 1) json_response(403, ['error' => 'user_blocked']);
+  if (in_array((string)($row['status'] ?? 'active'), ['suspended', 'banned'], true)) json_response(403, ['error' => 'user_suspended']);
+
+  $userId = (int)$row['id'];
+  regenerate_app_session();
+  $_SESSION['user_id'] = $userId;
+
+  // Logging should never block a successful auth response.
+  try {
+    write_log($pdo, $userId, (string)($row['role'] ?? 'unknown'), 'user.login', 'user', (string)$userId, null);
+  } catch (Throwable $e) {}
+  json_response(200, ['user' => load_user_profile($userId), 'forcePasswordReset' => boolish($row['force_password_reset'] ?? 0)]);
+}
+
+if ($path === '/auth/logout' && $method === 'POST') {
+  $_SESSION = [];
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_destroy();
+  }
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/auth/me' && $method === 'GET') {
+  $uid = current_user_id();
+  if ($uid === null) json_response(401, ['error' => 'unauthorized']);
+  $profile = load_user_profile($uid);
+  if (($profile['isBlocked'] ?? false) === true) {
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
+    json_response(403, ['error' => 'user_blocked']);
+  }
+  $status = (string)($profile['status'] ?? 'active');
+  if (in_array($status, ['suspended', 'banned'], true)) {
+    $_SESSION = [];
+    if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
+    json_response(403, ['error' => 'user_suspended']);
+  }
+  json_response(200, ['user' => $profile]);
+}
+
+if ($path === '/me/profile' && $method === 'GET') {
+  $uid = require_user_id();
+  $pdo = db();
+  ensure_user_profiles_table($pdo);
+
+  $u = load_user_profile($uid);
+  $stmt = $pdo->prepare('SELECT avatar_url, phone, bio FROM user_profiles WHERE user_id = ? LIMIT 1');
+  $stmt->execute([$uid]);
+  $row = $stmt->fetch();
+
+  json_response(200, [
+    'profile' => [
+      'displayName' => $u['displayName'],
+      'email' => $u['email'],
+      'avatarUrl' => $row['avatar_url'] ?? null,
+      'phone' => $row['phone'] ?? null,
+      'bio' => $row['bio'] ?? null,
+    ],
+  ]);
+}
+
+if ($path === '/me/profile' && $method === 'POST') {
+  $uid = require_user_id();
+  $body = read_json_body();
+  $displayName = trim((string)($body['displayName'] ?? ''));
+  $avatarUrl = trim((string)($body['avatarUrl'] ?? ''));
+  $phone = trim((string)($body['phone'] ?? ''));
+  $bio = trim((string)($body['bio'] ?? ''));
+
+  if ($displayName === '') json_response(400, ['error' => 'invalid_display_name']);
+  if ($avatarUrl !== '' && !filter_var($avatarUrl, FILTER_VALIDATE_URL)) json_response(400, ['error' => 'invalid_avatar_url']);
+
+  $pdo = db();
+  ensure_user_profiles_table($pdo);
+
+  $updUser = $pdo->prepare('UPDATE users SET display_name = ? WHERE id = ?');
+  $updUser->execute([$displayName, $uid]);
+
+  $upsert = $pdo->prepare(
+    'INSERT INTO user_profiles (user_id, avatar_url, phone, bio, updated_at)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(user_id) DO UPDATE SET
+       avatar_url = excluded.avatar_url,
+       phone = excluded.phone,
+       bio = excluded.bio,
+       updated_at = CURRENT_TIMESTAMP'
+  );
+  try {
+    $upsert->execute([
+      $uid,
+      $avatarUrl !== '' ? $avatarUrl : null,
+      $phone !== '' ? $phone : null,
+      $bio !== '' ? $bio : null,
+    ]);
+  } catch (Throwable $e) {
+    // MySQL fallback (ON CONFLICT is SQLite-specific)
+    $mysqlUpsert = $pdo->prepare(
+      'INSERT INTO user_profiles (user_id, avatar_url, phone, bio)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         avatar_url = VALUES(avatar_url),
+         phone = VALUES(phone),
+         bio = VALUES(bio)'
+    );
+    $mysqlUpsert->execute([
+      $uid,
+      $avatarUrl !== '' ? $avatarUrl : null,
+      $phone !== '' ? $phone : null,
+      $bio !== '' ? $bio : null,
+    ]);
+  }
+
+  json_response(200, ['ok' => true, 'user' => load_user_profile($uid)]);
+}
+
+if ($path === '/me/password' && $method === 'POST') {
+  $uid = require_user_id();
+  $body = read_json_body();
+  $currentPassword = (string)($body['currentPassword'] ?? '');
+  $newPassword = (string)($body['newPassword'] ?? '');
+
+  if ($currentPassword === '' || $newPassword === '') json_response(400, ['error' => 'missing_password_fields']);
+  if (strlen($newPassword) < 8) json_response(400, ['error' => 'password_too_short']);
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$uid]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(401, ['error' => 'unauthorized']);
+  if (!password_verify($currentPassword, $row['password_hash'])) json_response(400, ['error' => 'invalid_current_password']);
+  if (password_verify($newPassword, $row['password_hash'])) json_response(400, ['error' => 'password_same_as_current']);
+
+  $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+  $upd = $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+  $upd->execute([$newHash, $uid]);
+
+  json_response(200, ['ok' => true]);
+}
+
+// ---- PayHere Checkout API ----
+if ($path === '/payhere/initiate' && $method === 'POST') {
+  $body = read_json_body();
+  $eventId = (int)($body['eventId'] ?? 0);
+  $buyerName = trim((string)($body['buyerName'] ?? ''));
+  $buyerPhone = trim((string)($body['buyerPhone'] ?? ''));
+  $buyerEmail = strtolower(trim((string)($body['buyerEmail'] ?? '')));
+  $items = $body['tickets'] ?? [];
+  $attendees = $body['attendees'] ?? [];
+
+  if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
+  if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
+  if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
+  if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
+
+  $pdo = db();
+  ensure_payhere_tables($pdo);
+
+  // Load event title for "items" field
+  $evStmt = $pdo->prepare('SELECT title FROM events WHERE id = ? LIMIT 1');
+  $evStmt->execute([$eventId]);
+  $ev = $evStmt->fetch();
+  if (!$ev) json_response(404, ['error' => 'event_not_found']);
+
+  $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
+  $totalCents = (int)$normalized['totalCents'];
+  $normalizedItems = $normalized['items'];
+
+  if ($totalCents <= 0) {
+    json_response(400, ['error' => 'payhere_requires_positive_amount']);
+  }
+
+  $buyerId = current_user_id();
+  $pdo->beginTransaction();
+  try {
+    $ins = $pdo->prepare('INSERT INTO orders (event_id, buyer_user_id, buyer_name, buyer_phone, buyer_email, tickets_json, total_amount_cents, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $ins->execute([
+      $eventId,
+      $buyerId,
+      $buyerName !== '' ? $buyerName : null,
+      $buyerPhone !== '' ? $buyerPhone : null,
+      $buyerEmail,
+      json_encode($normalizedItems, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+      $totalCents,
+      'pending',
+    ]);
+    $orderId = (int)$pdo->lastInsertId();
+
+    $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
+    $attInsert->execute([
+      $orderId,
+      json_encode($attendees, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    ]);
+    $_SESSION['last_order_id'] = $orderId;
+    upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'pending', null);
+
+    $pdo->commit();
+  } catch (Exception $e) {
+    $pdo->rollBack();
+    json_response(400, ['error' => 'payhere_initiate_failed']);
+  }
+
+  $cfg = payhere_cfg();
+  $merchantId = $cfg['merchant_id'];
+  $merchantSecret = $cfg['merchant_secret'];
+  $currency = 'LKR';
+  $amount = $totalCents / 100.0;
+  $orderIdStr = (string)$orderId;
+  $hash = payhere_hash($merchantId, $orderIdStr, $amount, $currency, $merchantSecret);
+
+  $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
+  $returnUrl = $cfg['app_base_url'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr);
+  $cancelUrl = $cfg['app_base_url'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr);
+
+  // Best-effort name split
+  $firstName = $buyerName !== '' ? explode(' ', $buyerName)[0] : 'Customer';
+  $lastName = $buyerName !== '' ? trim(substr($buyerName, strlen($firstName))) : '';
+  if ($lastName === '') $lastName = ' ';
+
+  json_response(200, [
+    'actionUrl' => $actionUrl,
+    'sandbox' => $cfg['sandbox'],
+    'fields' => [
+      'merchant_id' => $merchantId,
+      'return_url' => $returnUrl,
+      'cancel_url' => $cancelUrl,
+      'notify_url' => $cfg['notify_url'],
+      'order_id' => $orderIdStr,
+      'items' => (string)$ev['title'],
+      'currency' => $currency,
+      'amount' => payhere_amount_format($amount),
+      'first_name' => $firstName,
+      'last_name' => $lastName,
+      'email' => $buyerEmail,
+      'phone' => $buyerPhone !== '' ? $buyerPhone : '0000000000',
+      'address' => 'N/A',
+      'city' => 'N/A',
+      'country' => 'Sri Lanka',
+      'hash' => $hash,
+      'custom_1' => 'turnout',
+    ],
+    // Direct object for PayHere JS SDK popup
+    'sdkPayment' => [
+      'sandbox' => $cfg['sandbox'],
+      'merchant_id' => $merchantId,
+      'return_url' => $returnUrl,
+      'cancel_url' => $cancelUrl,
+      'notify_url' => $cfg['notify_url'],
+      'order_id' => $orderIdStr,
+      'items' => (string)$ev['title'],
+      'currency' => $currency,
+      'amount' => payhere_amount_format($amount),
+      'hash' => $hash,
+      'first_name' => $firstName,
+      'last_name' => $lastName,
+      'email' => $buyerEmail,
+      'phone' => $buyerPhone !== '' ? $buyerPhone : '0000000000',
+      'address' => 'N/A',
+      'city' => 'N/A',
+      'country' => 'Sri Lanka',
+      'custom_1' => 'turnout',
+      'custom_2' => '',
+    ],
+  ]);
+}
+
+if ($path === '/payhere/notify' && $method === 'POST') {
+  // PayHere sends application/x-www-form-urlencoded
+  $merchantId = (string)($_POST['merchant_id'] ?? '');
+  $orderId = (string)($_POST['order_id'] ?? '');
+  $paymentId = (string)($_POST['payment_id'] ?? '');
+  $payhereAmount = (string)($_POST['payhere_amount'] ?? '');
+  $payhereCurrency = (string)($_POST['payhere_currency'] ?? '');
+  $statusCode = (string)($_POST['status_code'] ?? '');
+  $md5sig = (string)($_POST['md5sig'] ?? '');
+  $methodSel = (string)($_POST['method'] ?? '');
+  $statusMessage = (string)($_POST['status_message'] ?? '');
+
+  $cfg = payhere_cfg();
+  if ($merchantId === '' || $orderId === '' || $statusCode === '' || $md5sig === '') {
+    http_response_code(400);
+    echo 'bad_request';
+    exit;
+  }
+  if ($merchantId !== $cfg['merchant_id']) {
+    http_response_code(403);
+    echo 'forbidden';
+    exit;
+  }
+
+  $local = payhere_local_md5sig($merchantId, $orderId, $payhereAmount, $payhereCurrency, $statusCode, $cfg['merchant_secret']);
+  if ($local !== $md5sig) {
+    http_response_code(403);
+    echo 'invalid_signature';
+    exit;
+  }
+
+  $pdo = db();
+  ensure_payhere_tables($pdo);
+
+  // Log transaction (idempotent enough for MVP)
+  $rawJson = json_encode($_POST, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  $txIns = $pdo->prepare('INSERT INTO payhere_transactions (order_id, payment_id, status_code, payhere_amount, payhere_currency, method, status_message, raw_post_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  $txIns->execute([(int)$orderId, $paymentId !== '' ? $paymentId : null, $statusCode, $payhereAmount !== '' ? $payhereAmount : null, $payhereCurrency !== '' ? $payhereCurrency : null, $methodSel !== '' ? $methodSel : null, $statusMessage !== '' ? $statusMessage : null, $rawJson]);
+
+  // Update order status
+  $status = 'pending';
+  if ($statusCode === '2') $status = 'paid';
+  if ($statusCode === '-1') $status = 'failed';
+  if ($statusCode === '-2' || $statusCode === '-3') $status = 'failed';
+
+  $pdo->beginTransaction();
+  try {
+    $curStmt = $pdo->prepare('SELECT status FROM orders WHERE id = ? LIMIT 1');
+    $curStmt->execute([(int)$orderId]);
+    $cur = $curStmt->fetch();
+    if (!$cur) {
+      $pdo->rollBack();
+      http_response_code(404);
+      echo 'order_not_found';
+      exit;
+    }
+    $currentStatus = (string)$cur['status'];
+    $nextStatus = $status;
+    if ($currentStatus === 'paid') $nextStatus = 'paid';
+
+    $upd = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ?');
+    $upd->execute([$nextStatus, (int)$orderId]);
+
+    if ($nextStatus === 'paid') {
+      // Create attendees if not already created
+      $check = $pdo->prepare('SELECT id FROM attendees WHERE order_id = ? LIMIT 1');
+      $check->execute([(int)$orderId]);
+      $already = $check->fetch();
+
+      if (!$already) {
+        $o = $pdo->prepare('SELECT event_id, buyer_user_id, buyer_email, buyer_phone, tickets_json, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
+        $o->execute([(int)$orderId]);
+        $orderRow = $o->fetch();
+        if ($orderRow) {
+          $eventId = (int)$orderRow['event_id'];
+          $buyerUserId = $orderRow['buyer_user_id'] !== null ? (int)$orderRow['buyer_user_id'] : null;
+          $orderTotalCents = (int)$orderRow['total_amount_cents'];
+          $buyerEmail = (string)$orderRow['buyer_email'];
+          $buyerPhone = (string)($orderRow['buyer_phone'] ?? '');
+
+          $req = $pdo->prepare('SELECT attendees_json FROM order_attendee_requests WHERE order_id = ? LIMIT 1');
+          $req->execute([(int)$orderId]);
+          $reqRow = $req->fetch();
+          $attendeesReq = $reqRow ? json_decode($reqRow['attendees_json'], true) : [];
+          if (!is_array($attendeesReq)) $attendeesReq = [];
+
+          $attIns = $pdo->prepare('INSERT INTO attendees (order_id, event_id, ticket_id, full_name, email, phone, qr_token) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          foreach ($attendeesReq as $a) {
+            if (!is_array($a)) continue;
+            $ticketId = (int)($a['ticketId'] ?? 0);
+            $fullName = trim((string)($a['fullName'] ?? ''));
+            $email = strtolower(trim((string)($a['email'] ?? $buyerEmail)));
+            $phone = trim((string)($a['phone'] ?? $buyerPhone));
+            if ($ticketId <= 0 || $fullName === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
+            $qr = bin2hex(random_bytes(16));
+            $attIns->execute([(int)$orderId, $eventId, $ticketId, $fullName, $email, $phone !== '' ? $phone : null, $qr]);
+          }
+
+          // Increment ticket sold counts
+          $items = json_decode($orderRow['tickets_json'], true);
+          if (is_array($items) && count($items) > 0) {
+            $inc = $pdo->prepare('UPDATE tickets SET sold = sold + ? WHERE id = ?');
+            foreach ($items as $it) {
+              if (!is_array($it)) continue;
+              $tid = (int)($it['ticketId'] ?? 0);
+              $qty = (int)($it['quantity'] ?? 0);
+              if ($tid > 0 && $qty > 0) $inc->execute([$qty, $tid]);
+            }
+          }
+
+          upsert_transaction($pdo, $eventId, $buyerUserId, (int)$orderId, $orderTotalCents, $nextStatus, $paymentId !== '' ? $paymentId : null);
+        }
+      }
+    } else {
+      $o = $pdo->prepare('SELECT event_id, buyer_user_id, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
+      $o->execute([(int)$orderId]);
+      $orderRow = $o->fetch();
+      if ($orderRow) {
+        upsert_transaction(
+          $pdo,
+          (int)$orderRow['event_id'],
+          $orderRow['buyer_user_id'] !== null ? (int)$orderRow['buyer_user_id'] : null,
+          (int)$orderId,
+          (int)$orderRow['total_amount_cents'],
+          $nextStatus,
+          $paymentId !== '' ? $paymentId : null
+        );
+      }
+    }
+
+    $pdo->commit();
+  } catch (Exception $e) {
+    $pdo->rollBack();
+    http_response_code(500);
+    echo 'server_error';
+    exit;
+  }
+
+  // PayHere expects 200 OK without echoing sensitive info
+  http_response_code(200);
+  echo 'ok';
+  exit;
+}
+
+// Demo seed route removed for production hardening.
+
+// ---- Events ----
+if ($path === '/events' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $stmt = db()->prepare('SELECT * FROM events WHERE organizer_user_id = ? ORDER BY created_at DESC');
+  $stmt->execute([$uid]);
+  $events = [];
+  while ($row = $stmt->fetch()) {
+    $events[] = [
+      'id' => (string)$row['id'],
+      'slug' => $row['slug'],
+      'organizerId' => (string)$row['organizer_user_id'],
+      'title' => $row['title'],
+      'description' => $row['description'],
+      'date' => gmdate('c', strtotime($row['event_date'])),
+      'location' => $row['location'],
+      'bannerUrl' => $row['banner_url'],
+      'templateId' => $row['template_id'],
+      'customization' => json_decode($row['customization_json'], true),
+      'status' => $row['status'],
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+    ];
+  }
+  json_response(200, ['events' => $events]);
+}
+
+if ($path === '/events' && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $body = read_json_body();
+
+  $requestedSlug = trim((string)($body['slug'] ?? ''));
+  $title = trim((string)($body['title'] ?? ''));
+  $description = trim((string)($body['description'] ?? ''));
+  $date = (string)($body['date'] ?? '');
+  $location = trim((string)($body['location'] ?? ''));
+  $bannerUrl = (string)($body['bannerUrl'] ?? '');
+  $templateId = (string)($body['templateId'] ?? 'template-1');
+  $tickets = $body['tickets'] ?? [];
+
+  if ($title === '' || strlen($title) < 3) json_response(400, ['error' => 'invalid_title']);
+  if ($description === '' || strlen($description) < 10) json_response(400, ['error' => 'invalid_description']);
+  if ($date === '') json_response(400, ['error' => 'invalid_date']);
+  if ($location === '') json_response(400, ['error' => 'invalid_location']);
+  if (!is_array($tickets) || count($tickets) < 1) json_response(400, ['error' => 'invalid_tickets']);
+
+  $customization = $body['customization'] ?? null;
+  if (!is_array($customization)) {
+    $customization = [
+      'primaryColor' => '#4f46e5',
+      'secondaryColor' => '#10b981',
+      'fontFamily' => 'Inter',
+      'heroText' => $title,
+      'heroSubtext' => mb_substr($description, 0, 100),
+      'layout' => 'standard',
+    ];
+  }
+
+  $pdo = db();
+  $baseSlug = $requestedSlug !== '' ? slugify($requestedSlug) : slugify($title);
+  $slug = unique_slug($pdo, $baseSlug);
+  $pdo->beginTransaction();
+  try {
+    $ins = $pdo->prepare('INSERT INTO events (organizer_user_id, slug, title, description, event_date, location, banner_url, template_id, customization_json, status, event_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $ins->execute([
+      $uid,
+      $slug,
+      $title,
+      $description,
+      date('Y-m-d H:i:s', strtotime($date)),
+      $location,
+      $bannerUrl !== '' ? $bannerUrl : 'https://picsum.photos/seed/' . time() . '/1200/600',
+      $templateId,
+      json_encode($customization, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+      'published',
+      'approved',
+    ]);
+    $eventId = (int)$pdo->lastInsertId();
+
+    $ticketIns = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, ?, ?)');
+    foreach ($tickets as $t) {
+      if (!is_array($t)) continue;
+      $name = trim((string)($t['name'] ?? ''));
+      $price = (float)($t['price'] ?? 0);
+      $quantity = (int)($t['quantity'] ?? 0);
+      $desc = isset($t['description']) ? (string)$t['description'] : null;
+      if ($name === '' || $quantity < 1) {
+        throw new Exception('invalid_ticket');
+      }
+      $ticketIns->execute([$eventId, $name, (int)round($price * 100), $quantity, 0, $desc]);
+    }
+
+    write_log($pdo, $uid, 'organizer', 'event.created', 'event', (string)$eventId, ['title' => $title]);
+    $pdo->commit();
+  } catch (Exception $e) {
+    $pdo->rollBack();
+    json_response(400, ['error' => 'event_create_failed']);
+  }
+
+  json_response(201, ['eventId' => (string)$eventId, 'slug' => $slug]);
+}
+
+if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $ticketsStmt = $pdo->prepare('SELECT name, price_cents, quantity, description FROM tickets WHERE event_id = ? ORDER BY id ASC');
+  $ticketsStmt->execute([$eventId]);
+  $sourceTickets = $ticketsStmt->fetchAll();
+
+  $baseSlug = slugify($row['slug'] . '-copy');
+  $newSlug = unique_slug($pdo, $baseSlug);
+  $newTitle = $row['title'] . ' (Copy)';
+
+  $pdo->beginTransaction();
+  try {
+    $ins = $pdo->prepare('INSERT INTO events (organizer_user_id, slug, title, description, event_date, location, banner_url, template_id, customization_json, status, event_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $ins->execute([
+      $uid,
+      $newSlug,
+      $newTitle,
+      $row['description'],
+      $row['event_date'],
+      $row['location'],
+      $row['banner_url'],
+      $row['template_id'],
+      $row['customization_json'],
+      'draft',
+      'pending',
+    ]);
+    $newEventId = (int)$pdo->lastInsertId();
+
+    $insTicket = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
+    foreach ($sourceTickets as $t) {
+      $insTicket->execute([$newEventId, $t['name'], (int)$t['price_cents'], (int)$t['quantity'], $t['description']]);
+    }
+    $pdo->commit();
+  } catch (Exception $e) {
+    $pdo->rollBack();
+    json_response(400, ['error' => 'event_duplicate_failed']);
+  }
+
+  json_response(201, ['eventId' => (string)$newEventId, 'slug' => $newSlug]);
+}
+
+// Public event details
+if (preg_match('#^/events/(\\d+)$#', $path, $m) && $method === 'GET') {
+  $eventId = (int)$m[1];
+  $stmt = db()->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  json_response(200, [
+    'event' => [
+      'id' => (string)$row['id'],
+      'slug' => $row['slug'],
+      'organizerId' => (string)$row['organizer_user_id'],
+      'title' => $row['title'],
+      'description' => $row['description'],
+      'date' => gmdate('c', strtotime($row['event_date'])),
+      'location' => $row['location'],
+      'bannerUrl' => $row['banner_url'],
+      'templateId' => $row['template_id'],
+      'customization' => json_decode($row['customization_json'], true),
+      'status' => $row['status'],
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+    ],
+  ]);
+}
+
+// Public by slug
+if (preg_match('#^/events/slug/([a-z0-9-]+)$#', $path, $m) && $method === 'GET') {
+  $slug = $m[1];
+  $stmt = db()->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
+  $stmt->execute([$slug]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  json_response(200, [
+    'event' => [
+      'id' => (string)$row['id'],
+      'slug' => $row['slug'],
+      'organizerId' => (string)$row['organizer_user_id'],
+      'title' => $row['title'],
+      'description' => $row['description'],
+      'date' => gmdate('c', strtotime($row['event_date'])),
+      'location' => $row['location'],
+      'bannerUrl' => $row['banner_url'],
+      'templateId' => $row['template_id'],
+      'customization' => json_decode($row['customization_json'], true),
+      'status' => $row['status'],
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+    ],
+  ]);
+}
+
+// Organizer: update slug
+if (preg_match('#^/events/(\\d+)/slug$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $newSlugRaw = trim((string)($body['slug'] ?? ''));
+  if ($newSlugRaw === '') json_response(400, ['error' => 'invalid_slug']);
+  $newSlug = slugify($newSlugRaw);
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT id, organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $stmt2 = $pdo->prepare('SELECT id FROM events WHERE slug = ? AND id <> ? LIMIT 1');
+  $stmt2->execute([$newSlug, $eventId]);
+  if ($stmt2->fetch()) json_response(409, ['error' => 'slug_taken']);
+
+  $upd = $pdo->prepare('UPDATE events SET slug = ? WHERE id = ?');
+  $upd->execute([$newSlug, $eventId]);
+  json_response(200, ['slug' => $newSlug]);
+}
+
+// Organizer: publish/unpublish/cancel own event
+if (preg_match('#^/events/(\\d+)/status$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $status = (string)($body['status'] ?? '');
+  if (!in_array($status, ['draft', 'published', 'cancelled'], true)) {
+    json_response(400, ['error' => 'invalid_status']);
+  }
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $upd = $pdo->prepare('UPDATE events SET status = ? WHERE id = ?');
+  $upd->execute([$status, $eventId]);
+  write_log($pdo, $uid, 'organizer', 'event.status_changed', 'event', (string)$eventId, ['status' => $status]);
+  json_response(200, ['ok' => true, 'status' => $status]);
+}
+
+if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+
+  $templateId = trim((string)($body['templateId'] ?? 'classic'));
+  $primary = trim((string)($body['primaryColor'] ?? '#4f46e5'));
+  $accent = trim((string)($body['accentColor'] ?? '#10b981'));
+  $badgeText = trim((string)($body['badgeText'] ?? 'VIP ACCESS'));
+  $footerNote = trim((string)($body['footerNote'] ?? 'Please bring this ticket and a valid ID.'));
+
+  $allowed = ['classic', 'midnight', 'sunset'];
+  if (!in_array($templateId, $allowed, true)) json_response(400, ['error' => 'invalid_template']);
+  if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary)) json_response(400, ['error' => 'invalid_primary_color']);
+  if (!preg_match('/^#[0-9a-fA-F]{6}$/', $accent)) json_response(400, ['error' => 'invalid_accent_color']);
+  if (mb_strlen($badgeText) > 40) json_response(400, ['error' => 'invalid_badge_text']);
+  if (mb_strlen($footerNote) > 160) json_response(400, ['error' => 'invalid_footer_note']);
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id, customization_json FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $customization = json_decode((string)$row['customization_json'], true);
+  if (!is_array($customization)) $customization = [];
+  $customization['ticketPdfTemplateId'] = $templateId;
+  $customization['ticketPdfPrimaryColor'] = strtolower($primary);
+  $customization['ticketPdfAccentColor'] = strtolower($accent);
+  $customization['ticketPdfBadgeText'] = $badgeText !== '' ? $badgeText : 'VIP ACCESS';
+  $customization['ticketPdfFooterNote'] = $footerNote !== '' ? $footerNote : 'Please bring this ticket and a valid ID.';
+
+  $upd = $pdo->prepare('UPDATE events SET customization_json = ? WHERE id = ?');
+  $upd->execute([json_encode($customization, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $eventId]);
+
+  json_response(200, ['customization' => $customization]);
+}
+
+if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'GET') {
+  $eventId = (int)$m[1];
+  $stmt = db()->prepare('SELECT * FROM tickets WHERE event_id = ? ORDER BY id ASC');
+  $stmt->execute([$eventId]);
+  $tickets = [];
+  while ($row = $stmt->fetch()) {
+    $tickets[] = [
+      'id' => (string)$row['id'],
+      'eventId' => (string)$row['event_id'],
+      'name' => $row['name'],
+      'price' => ((int)$row['price_cents']) / 100,
+      'quantity' => (int)$row['quantity'],
+      'sold' => (int)$row['sold'],
+      'description' => $row['description'],
+    ];
+  }
+  json_response(200, ['tickets' => $tickets]);
+}
+
+if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+
+  $name = trim((string)($body['name'] ?? ''));
+  $price = (float)($body['price'] ?? 0);
+  $quantity = (int)($body['quantity'] ?? 0);
+  $description = isset($body['description']) ? trim((string)$body['description']) : null;
+
+  if ($name === '') json_response(400, ['error' => 'invalid_ticket_name']);
+  if ($price < 0) json_response(400, ['error' => 'invalid_ticket_price']);
+  if ($quantity < 1) json_response(400, ['error' => 'invalid_ticket_quantity']);
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $ins = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
+  $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null]);
+  $ticketId = (int)$pdo->lastInsertId();
+
+  json_response(201, [
+    'ticket' => [
+      'id' => (string)$ticketId,
+      'eventId' => (string)$eventId,
+      'name' => $name,
+      'price' => $price,
+      'quantity' => $quantity,
+      'sold' => 0,
+      'description' => $description,
+    ],
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $ticketId = (int)$m[2];
+  $body = read_json_body();
+
+  $name = trim((string)($body['name'] ?? ''));
+  $price = (float)($body['price'] ?? 0);
+  $quantity = (int)($body['quantity'] ?? 0);
+  $description = isset($body['description']) ? trim((string)$body['description']) : null;
+
+  if ($name === '') json_response(400, ['error' => 'invalid_ticket_name']);
+  if ($price < 0) json_response(400, ['error' => 'invalid_ticket_price']);
+  if ($quantity < 1) json_response(400, ['error' => 'invalid_ticket_quantity']);
+
+  $pdo = db();
+  $owner = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $owner->execute([$eventId]);
+  $row = $owner->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $existing = $pdo->prepare('SELECT id, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  $existing->execute([$ticketId, $eventId]);
+  $ticket = $existing->fetch();
+  if (!$ticket) json_response(404, ['error' => 'ticket_not_found']);
+  if ($quantity < (int)$ticket['sold']) json_response(400, ['error' => 'quantity_below_sold']);
+
+  $upd = $pdo->prepare('UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ? WHERE id = ? AND event_id = ?');
+  $upd->execute([$name, (int)round($price * 100), $quantity, $description !== '' ? $description : null, $ticketId, $eventId]);
+
+  json_response(200, [
+    'ticket' => [
+      'id' => (string)$ticketId,
+      'eventId' => (string)$eventId,
+      'name' => $name,
+      'price' => $price,
+      'quantity' => $quantity,
+      'sold' => (int)$ticket['sold'],
+      'description' => $description,
+    ],
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/tickets/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $ticketId = (int)$m[2];
+  $pdo = db();
+
+  $owner = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $owner->execute([$eventId]);
+  $row = $owner->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $ticket = $pdo->prepare('SELECT sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  $ticket->execute([$ticketId, $eventId]);
+  $r = $ticket->fetch();
+  if (!$r) json_response(404, ['error' => 'ticket_not_found']);
+  if ((int)$r['sold'] > 0) json_response(400, ['error' => 'ticket_has_sales']);
+
+  $del = $pdo->prepare('DELETE FROM tickets WHERE id = ? AND event_id = ?');
+  $del->execute([$ticketId, $eventId]);
+  json_response(200, ['ok' => true]);
+}
+
+// ---- Orders ----
+if ($path === '/orders' && $method === 'POST') {
+  $body = read_json_body();
+  $eventId = (int)($body['eventId'] ?? 0);
+  $buyerName = trim((string)($body['buyerName'] ?? ''));
+  $buyerPhone = trim((string)($body['buyerPhone'] ?? ''));
+  $buyerEmail = strtolower(trim((string)($body['buyerEmail'] ?? '')));
+  $items = $body['tickets'] ?? [];
+  $attendees = $body['attendees'] ?? [];
+
+  if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
+  if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
+  if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
+
+  $pdo = db();
+  $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
+  $totalCents = (int)$normalized['totalCents'];
+  $normalizedItems = $normalized['items'];
+  // Allow free orders (0 LKR) for testing and free events.
+
+  $buyerId = current_user_id();
+  $pdo->beginTransaction();
+  try {
+    $ins = $pdo->prepare('INSERT INTO orders (event_id, buyer_user_id, buyer_name, buyer_phone, buyer_email, tickets_json, total_amount_cents, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $ins->execute([
+      $eventId,
+      $buyerId,
+      $buyerName !== '' ? $buyerName : null,
+      $buyerPhone !== '' ? $buyerPhone : null,
+      $buyerEmail,
+      json_encode($normalizedItems, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+      $totalCents,
+      'paid',
+    ]);
+    $orderId = (int)$pdo->lastInsertId();
+    $_SESSION['last_order_id'] = $orderId;
+    upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
+
+    // Create attendees (one per ticket quantity)
+    $createdAttendees = [];
+    if (is_array($attendees) && count($attendees) > 0) {
+      $attIns = $pdo->prepare('INSERT INTO attendees (order_id, event_id, ticket_id, full_name, email, phone, qr_token) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      foreach ($attendees as $a) {
+        if (!is_array($a)) continue;
+        $ticketId = (int)($a['ticketId'] ?? 0);
+        $fullName = trim((string)($a['fullName'] ?? ''));
+        $email = strtolower(trim((string)($a['email'] ?? $buyerEmail)));
+        $phone = trim((string)($a['phone'] ?? $buyerPhone));
+        if ($ticketId <= 0 || $fullName === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+          throw new Exception('invalid_attendee');
+        }
+        $qr = bin2hex(random_bytes(16));
+        $attIns->execute([$orderId, $eventId, $ticketId, $fullName, $email, $phone !== '' ? $phone : null, $qr]);
+        $createdAttendees[] = ['qrToken' => $qr, 'fullName' => $fullName, 'email' => $email];
+      }
+    }
+
+    $pdo->commit();
+
+    // Email confirmation (optional)
+    $subject = 'Your tickets are confirmed';
+    $bodyHtml =
+      '<h2>Order Confirmed</h2>' .
+      '<p>Thanks for your purchase.</p>' .
+      '<p><strong>Order ID:</strong> ' . htmlspecialchars((string)$orderId) . '</p>' .
+      '<p><strong>Total:</strong> LKR ' . number_format($totalCents / 100, 2) . '</p>' .
+      (count($createdAttendees) ? '<p><strong>QR Tokens:</strong><br/>' . implode('<br/>', array_map(fn($x) => htmlspecialchars($x['qrToken']), $createdAttendees)) . '</p>' : '');
+    send_email($buyerEmail, $subject, $bodyHtml);
+
+    json_response(201, ['orderId' => (string)$orderId]);
+  } catch (Exception $e) {
+    $pdo->rollBack();
+    json_response(400, ['error' => 'order_create_failed']);
+  }
+}
+
+if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
+  $orderId = (int)$m[1];
+  $uid = current_user_id();
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'order_not_found']);
+
+  $eventOwnerStmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $eventOwnerStmt->execute([(int)$row['event_id']]);
+  $eventOwner = $eventOwnerStmt->fetch();
+  $isBuyer = ($uid !== null) && ((int)($row['buyer_user_id'] ?? 0) === $uid);
+  $isOrganizerOwner = ($uid !== null) && ((int)($eventOwner['organizer_user_id'] ?? 0) === $uid);
+  $isRecentBuyerSession = ((int)($_SESSION['last_order_id'] ?? 0) === $orderId);
+  if (!$isBuyer && !$isOrganizerOwner && !$isRecentBuyerSession) json_response(403, ['error' => 'forbidden']);
+
+  $items = json_decode($row['tickets_json'], true);
+  if (!is_array($items)) $items = [];
+  $stmt2 = $pdo->prepare('SELECT id, ticket_id, full_name, email, phone, qr_token, checked_in_at FROM attendees WHERE order_id = ? ORDER BY id ASC');
+  $stmt2->execute([$orderId]);
+  $att = [];
+  while ($a = $stmt2->fetch()) {
+    $att[] = [
+      'id' => (string)$a['id'],
+      'ticketId' => (string)$a['ticket_id'],
+      'fullName' => $a['full_name'],
+      'email' => $a['email'],
+      'phone' => $a['phone'],
+      'qrToken' => $a['qr_token'],
+      'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
+    ];
+  }
+  json_response(200, [
+    'order' => [
+      'id' => (string)$row['id'],
+      'eventId' => (string)$row['event_id'],
+      'buyerId' => $row['buyer_user_id'] !== null ? (string)$row['buyer_user_id'] : null,
+      'buyerName' => $row['buyer_name'] ?? null,
+      'buyerPhone' => $row['buyer_phone'] ?? null,
+      'buyerEmail' => $row['buyer_email'],
+      'tickets' => $items,
+      'totalAmount' => ((int)$row['total_amount_cents']) / 100,
+      'status' => $row['status'],
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+      'attendees' => $att,
+    ],
+  ]);
+}
+
+if ($path === '/me/orders' && $method === 'GET') {
+  $uid = require_user_id();
+  $user = load_user_profile($uid);
+  $pdo = db();
+
+  $stmt = $pdo->prepare(
+    'SELECT o.*
+     FROM orders o
+     WHERE o.buyer_user_id = ?
+        OR o.buyer_email = ?
+     ORDER BY o.created_at DESC'
+  );
+  $stmt->execute([$uid, $user['email']]);
+
+  $orders = [];
+  while ($row = $stmt->fetch()) {
+    $items = json_decode($row['tickets_json'], true);
+    if (!is_array($items)) $items = [];
+
+    $eventStmt = $pdo->prepare(
+      'SELECT e.id, e.slug, e.title, e.event_date, e.location, e.banner_url, u.email AS organizer_email, u.display_name AS organizer_name
+       FROM events e
+       JOIN users u ON u.id = e.organizer_user_id
+       WHERE e.id = ?
+       LIMIT 1'
+    );
+    $eventStmt->execute([(int)$row['event_id']]);
+    $event = $eventStmt->fetch();
+
+    $attStmt = $pdo->prepare('SELECT id, ticket_id, full_name, email, phone, qr_token, checked_in_at FROM attendees WHERE order_id = ? ORDER BY id ASC');
+    $attStmt->execute([(int)$row['id']]);
+    $attendees = [];
+    while ($a = $attStmt->fetch()) {
+      $attendees[] = [
+        'id' => (string)$a['id'],
+        'ticketId' => (string)$a['ticket_id'],
+        'fullName' => $a['full_name'],
+        'email' => $a['email'],
+        'phone' => $a['phone'],
+        'qrToken' => $a['qr_token'],
+        'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
+      ];
+    }
+
+    $orders[] = [
+      'id' => (string)$row['id'],
+      'eventId' => (string)$row['event_id'],
+      'buyerId' => $row['buyer_user_id'] !== null ? (string)$row['buyer_user_id'] : null,
+      'buyerName' => $row['buyer_name'] ?? null,
+      'buyerPhone' => $row['buyer_phone'] ?? null,
+      'buyerEmail' => $row['buyer_email'],
+      'tickets' => $items,
+      'totalAmount' => ((int)$row['total_amount_cents']) / 100,
+      'status' => $row['status'],
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+      'attendees' => $attendees,
+      'event' => $event ? [
+        'id' => (string)$event['id'],
+        'slug' => $event['slug'],
+        'title' => $event['title'],
+        'date' => gmdate('c', strtotime($event['event_date'])),
+        'location' => $event['location'],
+        'bannerUrl' => $event['banner_url'],
+        'organizerEmail' => $event['organizer_email'],
+        'organizerName' => $event['organizer_name'],
+      ] : null,
+    ];
+  }
+
+  json_response(200, ['orders' => $orders]);
+}
+
+// ---- Speakers ----
+if (preg_match('#^/events/(\\d+)/speakers$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+
+  $stmt = db()->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $stmt2 = db()->prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY id DESC');
+  $stmt2->execute([$eventId]);
+  $speakers = [];
+  while ($s = $stmt2->fetch()) {
+    $speakers[] = [
+      'id' => (string)$s['id'],
+      'eventId' => (string)$s['event_id'],
+      'name' => $s['name'],
+      'title' => $s['title'],
+      'company' => $s['company'],
+      'bio' => $s['bio'],
+      'avatarUrl' => $s['avatar_url'],
+      'createdAt' => gmdate('c', strtotime($s['created_at'])),
+    ];
+  }
+  json_response(200, ['speakers' => $speakers]);
+}
+
+if (preg_match('#^/events/(\\d+)/speakers$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+
+  $name = trim((string)($body['name'] ?? ''));
+  $title = trim((string)($body['title'] ?? ''));
+  $company = trim((string)($body['company'] ?? ''));
+  $bio = trim((string)($body['bio'] ?? ''));
+  $avatarUrl = trim((string)($body['avatarUrl'] ?? ''));
+  if ($name === '') json_response(400, ['error' => 'invalid_name']);
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $ins = $pdo->prepare('INSERT INTO speakers (event_id, name, title, company, bio, avatar_url) VALUES (?, ?, ?, ?, ?, ?)');
+  $ins->execute([
+    $eventId,
+    $name,
+    $title !== '' ? $title : null,
+    $company !== '' ? $company : null,
+    $bio !== '' ? $bio : null,
+    $avatarUrl !== '' ? $avatarUrl : null,
+  ]);
+  json_response(201, ['speakerId' => (string)$pdo->lastInsertId()]);
+}
+
+if (preg_match('#^/events/(\\d+)/speakers/(\\d+)$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $speakerId = (int)$m[2];
+  $body = read_json_body();
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $stmt2 = $pdo->prepare('SELECT id FROM speakers WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt2->execute([$speakerId, $eventId]);
+  if (!$stmt2->fetch()) json_response(404, ['error' => 'speaker_not_found']);
+
+  $name = trim((string)($body['name'] ?? ''));
+  if ($name === '') json_response(400, ['error' => 'invalid_name']);
+  $title = trim((string)($body['title'] ?? ''));
+  $company = trim((string)($body['company'] ?? ''));
+  $bio = trim((string)($body['bio'] ?? ''));
+  $avatarUrl = trim((string)($body['avatarUrl'] ?? ''));
+
+  $upd = $pdo->prepare('UPDATE speakers SET name = ?, title = ?, company = ?, bio = ?, avatar_url = ? WHERE id = ? AND event_id = ?');
+  $upd->execute([
+    $name,
+    $title !== '' ? $title : null,
+    $company !== '' ? $company : null,
+    $bio !== '' ? $bio : null,
+    $avatarUrl !== '' ? $avatarUrl : null,
+    $speakerId,
+    $eventId,
+  ]);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/events/(\\d+)/speakers/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $speakerId = (int)$m[2];
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $del = $pdo->prepare('DELETE FROM speakers WHERE id = ? AND event_id = ?');
+  $del->execute([$speakerId, $eventId]);
+  json_response(200, ['ok' => true]);
+}
+
+// ---- Sessions (Agenda) ----
+if (preg_match('#^/events/(\\d+)/sessions$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+
+  $stmt = db()->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $stmt2 = db()->prepare('SELECT * FROM sessions WHERE event_id = ? ORDER BY starts_at ASC');
+  $stmt2->execute([$eventId]);
+  $sessions = [];
+  while ($s = $stmt2->fetch()) {
+    $speakerIds = json_decode($s['speaker_ids_json'], true);
+    if (!is_array($speakerIds)) $speakerIds = [];
+    $sessions[] = [
+      'id' => (string)$s['id'],
+      'eventId' => (string)$s['event_id'],
+      'title' => $s['title'],
+      'description' => $s['description'],
+      'startsAt' => gmdate('c', strtotime($s['starts_at'])),
+      'endsAt' => gmdate('c', strtotime($s['ends_at'])),
+      'location' => $s['location'],
+      'speakerIds' => array_map('strval', $speakerIds),
+      'createdAt' => gmdate('c', strtotime($s['created_at'])),
+    ];
+  }
+  json_response(200, ['sessions' => $sessions]);
+}
+
+if (preg_match('#^/events/(\\d+)/sessions$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+
+  $title = trim((string)($body['title'] ?? ''));
+  $description = trim((string)($body['description'] ?? ''));
+  $startsAt = (string)($body['startsAt'] ?? '');
+  $endsAt = (string)($body['endsAt'] ?? '');
+  $location = trim((string)($body['location'] ?? ''));
+  $speakerIds = $body['speakerIds'] ?? [];
+
+  if ($title === '' || $startsAt === '' || $endsAt === '') json_response(400, ['error' => 'invalid_session']);
+  if (!is_array($speakerIds)) $speakerIds = [];
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $ins = $pdo->prepare('INSERT INTO sessions (event_id, title, description, starts_at, ends_at, location, speaker_ids_json) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  $ins->execute([
+    $eventId,
+    $title,
+    $description !== '' ? $description : null,
+    date('Y-m-d H:i:s', strtotime($startsAt)),
+    date('Y-m-d H:i:s', strtotime($endsAt)),
+    $location !== '' ? $location : null,
+    json_encode(array_values($speakerIds), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+  ]);
+  json_response(201, ['sessionId' => (string)$pdo->lastInsertId()]);
+}
+
+if (preg_match('#^/events/(\\d+)/sessions/(\\d+)$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $sessionId = (int)$m[2];
+  $body = read_json_body();
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $stmt2 = $pdo->prepare('SELECT id FROM sessions WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt2->execute([$sessionId, $eventId]);
+  if (!$stmt2->fetch()) json_response(404, ['error' => 'session_not_found']);
+
+  $title = trim((string)($body['title'] ?? ''));
+  $description = trim((string)($body['description'] ?? ''));
+  $startsAt = (string)($body['startsAt'] ?? '');
+  $endsAt = (string)($body['endsAt'] ?? '');
+  $location = trim((string)($body['location'] ?? ''));
+  $speakerIds = $body['speakerIds'] ?? [];
+  if ($title === '' || $startsAt === '' || $endsAt === '') json_response(400, ['error' => 'invalid_session']);
+  if (!is_array($speakerIds)) $speakerIds = [];
+
+  $upd = $pdo->prepare('UPDATE sessions SET title = ?, description = ?, starts_at = ?, ends_at = ?, location = ?, speaker_ids_json = ? WHERE id = ? AND event_id = ?');
+  $upd->execute([
+    $title,
+    $description !== '' ? $description : null,
+    date('Y-m-d H:i:s', strtotime($startsAt)),
+    date('Y-m-d H:i:s', strtotime($endsAt)),
+    $location !== '' ? $location : null,
+    json_encode(array_values($speakerIds), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    $sessionId,
+    $eventId,
+  ]);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/events/(\\d+)/sessions/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $sessionId = (int)$m[2];
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $del = $pdo->prepare('DELETE FROM sessions WHERE id = ? AND event_id = ?');
+  $del->execute([$sessionId, $eventId]);
+  json_response(200, ['ok' => true]);
+}
+
+// Public: speakers + sessions by event id
+if (preg_match('#^/public/events/(\\d+)/speakers$#', $path, $m) && $method === 'GET') {
+  $eventId = (int)$m[1];
+  $stmt = db()->prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY id DESC');
+  $stmt->execute([$eventId]);
+  $speakers = [];
+  while ($s = $stmt->fetch()) {
+    $speakers[] = [
+      'id' => (string)$s['id'],
+      'name' => $s['name'],
+      'title' => $s['title'],
+      'company' => $s['company'],
+      'bio' => $s['bio'],
+      'avatarUrl' => $s['avatar_url'],
+    ];
+  }
+  json_response(200, ['speakers' => $speakers]);
+}
+
+if (preg_match('#^/public/events/(\\d+)/sessions$#', $path, $m) && $method === 'GET') {
+  $eventId = (int)$m[1];
+  $stmt = db()->prepare('SELECT * FROM sessions WHERE event_id = ? ORDER BY starts_at ASC');
+  $stmt->execute([$eventId]);
+  $sessions = [];
+  while ($s = $stmt->fetch()) {
+    $speakerIds = json_decode($s['speaker_ids_json'], true);
+    if (!is_array($speakerIds)) $speakerIds = [];
+    $sessions[] = [
+      'id' => (string)$s['id'],
+      'title' => $s['title'],
+      'description' => $s['description'],
+      'startsAt' => gmdate('c', strtotime($s['starts_at'])),
+      'endsAt' => gmdate('c', strtotime($s['ends_at'])),
+      'location' => $s['location'],
+      'speakerIds' => array_map('strval', $speakerIds),
+    ];
+  }
+  json_response(200, ['sessions' => $sessions]);
+}
+
+// ---- Attendees + Check-in ----
+if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $q = trim((string)($_GET['q'] ?? ''));
+  $limit = (int)($_GET['limit'] ?? 200);
+  if ($limit < 1) $limit = 1;
+  if ($limit > 500) $limit = 500;
+
+  if ($q !== '') {
+    $like = '%' . $q . '%';
+    $stmt2 = $pdo->prepare(
+      'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
+       FROM attendees a
+       JOIN tickets t ON t.id = a.ticket_id
+       WHERE a.event_id = ?
+         AND (a.full_name LIKE ? OR a.email LIKE ? OR a.qr_token LIKE ? OR t.name LIKE ?)
+       ORDER BY a.created_at DESC
+       LIMIT ?'
+    );
+    $stmt2->execute([$eventId, $like, $like, $like, $like, $limit]);
+  } else {
+    $stmt2 = $pdo->prepare(
+      'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
+       FROM attendees a
+       JOIN tickets t ON t.id = a.ticket_id
+       WHERE a.event_id = ?
+       ORDER BY a.created_at DESC
+       LIMIT ?'
+    );
+    $stmt2->execute([$eventId, $limit]);
+  }
+
+  $attendees = [];
+  while ($a = $stmt2->fetch()) {
+    $attendees[] = [
+      'id' => (string)$a['id'],
+      'eventId' => (string)$eventId,
+      'ticketId' => (string)$a['ticket_id'],
+      'ticketName' => $a['ticket_name'],
+      'fullName' => $a['full_name'],
+      'email' => $a['email'],
+      'phone' => $a['phone'],
+      'qrToken' => $a['qr_token'],
+      'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
+      'createdAt' => gmdate('c', strtotime($a['created_at'])),
+    ];
+  }
+
+  json_response(200, ['attendees' => $attendees]);
+}
+
+if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="attendees-event-' . $eventId . '.csv"');
+  header('Cache-Control: no-store, max-age=0');
+
+  $out = fopen('php://output', 'w');
+  fputcsv($out, ['attendee_id', 'ticket_name', 'full_name', 'email', 'phone', 'qr_token', 'checked_in_at', 'created_at']);
+
+  $stmt2 = $pdo->prepare(
+    'SELECT a.id, t.name AS ticket_name, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.event_id = ?
+     ORDER BY a.created_at DESC'
+  );
+  $stmt2->execute([$eventId]);
+  while ($a = $stmt2->fetch()) {
+    fputcsv($out, [
+      (string)$a['id'],
+      $a['ticket_name'],
+      $a['full_name'],
+      $a['email'],
+      $a['phone'],
+      $a['qr_token'],
+      $a['checked_in_at'],
+      $a['created_at'],
+    ]);
+  }
+  fclose($out);
+  exit;
+}
+
+if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $token = trim((string)($body['qrToken'] ?? ''));
+  if ($token === '') json_response(400, ['error' => 'invalid_qr_token']);
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $stmt2 = $pdo->prepare(
+    'SELECT id, checked_in_at FROM attendees WHERE event_id = ? AND qr_token = ? LIMIT 1'
+  );
+  $stmt2->execute([$eventId, $token]);
+  $a = $stmt2->fetch();
+  if (!$a) json_response(404, ['error' => 'attendee_not_found']);
+
+  if ($a['checked_in_at']) {
+    json_response(200, ['ok' => true, 'alreadyCheckedIn' => true, 'checkedInAt' => gmdate('c', strtotime($a['checked_in_at']))]);
+  }
+
+  $now = date('Y-m-d H:i:s');
+  $upd = $pdo->prepare('UPDATE attendees SET checked_in_at = ? WHERE id = ?');
+  $upd->execute([$now, (int)$a['id']]);
+  json_response(200, ['ok' => true, 'alreadyCheckedIn' => false, 'checkedInAt' => gmdate('c', strtotime($now))]);
+}
+
+// ---- Organizer runbook (private event checklist) ----
+if (preg_match('#^/events/(\\d+)/runbook$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  ensure_event_runbook_table($pdo);
+  $stmt2 = $pdo->prepare('SELECT id, title, priority, status, due_at, created_at FROM event_runbook_items WHERE event_id = ? ORDER BY status ASC, created_at DESC');
+  $stmt2->execute([$eventId]);
+  $items = [];
+  while ($r = $stmt2->fetch()) {
+    $items[] = [
+      'id' => (string)$r['id'],
+      'eventId' => (string)$eventId,
+      'title' => $r['title'],
+      'priority' => $r['priority'],
+      'status' => $r['status'],
+      'dueAt' => $r['due_at'] ? gmdate('c', strtotime($r['due_at'])) : null,
+      'createdAt' => gmdate('c', strtotime($r['created_at'])),
+    ];
+  }
+  json_response(200, ['items' => $items]);
+}
+
+if (preg_match('#^/events/(\\d+)/runbook$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $title = trim((string)($body['title'] ?? ''));
+  $priority = trim((string)($body['priority'] ?? 'medium'));
+  $dueAt = trim((string)($body['dueAt'] ?? ''));
+  if ($title === '') json_response(400, ['error' => 'invalid_title']);
+  if (!in_array($priority, ['low', 'medium', 'high'], true)) $priority = 'medium';
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  ensure_event_runbook_table($pdo);
+  $ins = $pdo->prepare('INSERT INTO event_runbook_items (event_id, title, priority, status, due_at) VALUES (?, ?, ?, ?, ?)');
+  $ins->execute([
+    $eventId,
+    $title,
+    $priority,
+    'open',
+    $dueAt !== '' ? date('Y-m-d H:i:s', strtotime($dueAt)) : null,
+  ]);
+  json_response(201, ['id' => (string)$pdo->lastInsertId()]);
+}
+
+if (preg_match('#^/events/(\\d+)/runbook/(\\d+)/toggle$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $itemId = (int)$m[2];
+  $pdo = db();
+
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  ensure_event_runbook_table($pdo);
+  $s = $pdo->prepare('SELECT status FROM event_runbook_items WHERE id = ? AND event_id = ? LIMIT 1');
+  $s->execute([$itemId, $eventId]);
+  $r = $s->fetch();
+  if (!$r) json_response(404, ['error' => 'item_not_found']);
+  $next = $r['status'] === 'done' ? 'open' : 'done';
+  $u = $pdo->prepare('UPDATE event_runbook_items SET status = ? WHERE id = ?');
+  $u->execute([$next, $itemId]);
+  json_response(200, ['status' => $next]);
+}
+
+if (preg_match('#^/events/(\\d+)/runbook/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $itemId = (int)$m[2];
+  $pdo = db();
+
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  ensure_event_runbook_table($pdo);
+  $d = $pdo->prepare('DELETE FROM event_runbook_items WHERE id = ? AND event_id = ?');
+  $d->execute([$itemId, $eventId]);
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/admin/summary' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+
+  $sumTx = $pdo->query(
+    "SELECT
+      COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN amount_cents ELSE 0 END), 0) AS total_revenue,
+      COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN platform_fee_cents ELSE 0 END), 0) AS total_platform_fee,
+      COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN organizer_amount_cents ELSE 0 END), 0) AS total_organizer_amount,
+      COALESCE(SUM(CASE WHEN payment_status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
+      COALESCE(SUM(CASE WHEN refund_requested = 1 THEN 1 ELSE 0 END), 0) AS refund_requests,
+      COUNT(*) AS tx_count,
+      COALESCE(SUM(CASE WHEN payment_status = 'paid' AND date(created_at) = date('now') THEN amount_cents ELSE 0 END), 0) AS today_revenue
+     FROM transactions"
+  )->fetch();
+  if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+    $sumTx = $pdo->query(
+      "SELECT
+        COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN amount_cents ELSE 0 END), 0) AS total_revenue,
+        COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN platform_fee_cents ELSE 0 END), 0) AS total_platform_fee,
+        COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN organizer_amount_cents ELSE 0 END), 0) AS total_organizer_amount,
+        COALESCE(SUM(CASE WHEN payment_status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
+        COALESCE(SUM(CASE WHEN refund_requested = 1 THEN 1 ELSE 0 END), 0) AS refund_requests,
+        COUNT(*) AS tx_count,
+        COALESCE(SUM(CASE WHEN payment_status = 'paid' AND DATE(created_at) = CURRENT_DATE THEN amount_cents ELSE 0 END), 0) AS today_revenue
+      FROM transactions"
+    )->fetch();
+  }
+  $sumPayouts = $pdo->query(
+    "SELECT
+      COALESCE(SUM(CASE WHEN status = 'completed' THEN total_amount_cents ELSE 0 END), 0) AS total_paid_out,
+      COALESCE(SUM(CASE WHEN status IN ('pending','processing') THEN total_amount_cents ELSE 0 END), 0) AS pending_amount,
+      COALESCE(SUM(CASE WHEN status IN ('pending','processing') THEN 1 ELSE 0 END), 0) AS pending_count
+     FROM payouts"
+  )->fetch();
+
+  $counts = $pdo->query("SELECT
+      (SELECT COUNT(*) FROM users) AS total_users,
+      (SELECT COUNT(*) FROM events) AS total_events,
+      (SELECT COUNT(*) FROM events WHERE status = 'published') AS active_events
+    ")->fetch();
+  $topEvents = $pdo->query(
+    "SELECT e.id, e.title, COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS revenue_cents
+     FROM events e
+     LEFT JOIN transactions t ON t.event_id = e.id
+     GROUP BY e.id, e.title
+     ORDER BY revenue_cents DESC
+     LIMIT 5"
+  )->fetchAll();
+  $topOrganizers = $pdo->query(
+    "SELECT u.id, u.display_name, COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS earnings_cents
+     FROM users u
+     LEFT JOIN events e ON e.organizer_user_id = u.id
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE u.role = 'organizer'
+     GROUP BY u.id, u.display_name
+     ORDER BY earnings_cents DESC
+     LIMIT 5"
+  )->fetchAll();
+  json_response(200, [
+    'summary' => [
+      'totalRevenue' => ((int)($sumTx['total_revenue'] ?? 0)) / 100,
+      'todayRevenue' => ((int)($sumTx['today_revenue'] ?? 0)) / 100,
+      'totalPlatformFees' => ((int)($sumTx['total_platform_fee'] ?? 0)) / 100,
+      'totalOrganizerEarnings' => ((int)($sumTx['total_organizer_amount'] ?? 0)) / 100,
+      'totalPaidOut' => ((int)($sumPayouts['total_paid_out'] ?? 0)) / 100,
+      'pendingPayoutAmount' => ((int)($sumPayouts['pending_amount'] ?? 0)) / 100,
+      'pendingPayoutCount' => (int)($sumPayouts['pending_count'] ?? 0),
+      'transactionCount' => (int)($sumTx['tx_count'] ?? 0),
+      'failedPayments' => (int)($sumTx['failed_count'] ?? 0),
+      'refundRequests' => (int)($sumTx['refund_requests'] ?? 0),
+      'totalUsers' => (int)($counts['total_users'] ?? 0),
+      'totalEvents' => (int)($counts['total_events'] ?? 0),
+      'activeEvents' => (int)($counts['active_events'] ?? 0),
+      'topEvents' => array_map(fn($r) => ['id' => (string)$r['id'], 'title' => $r['title'], 'revenue' => ((int)$r['revenue_cents']) / 100], $topEvents ?: []),
+      'topOrganizers' => array_map(fn($r) => ['id' => (string)$r['id'], 'name' => $r['display_name'], 'earnings' => ((int)$r['earnings_cents']) / 100], $topOrganizers ?: []),
+    ],
+  ]);
+}
+
+if ($path === '/admin/users' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  $q = trim((string)($_GET['q'] ?? ''));
+  $role = trim((string)($_GET['role'] ?? ''));
+  $status = trim((string)($_GET['status'] ?? ''));
+  $sql = 'SELECT id, email, display_name, role, is_blocked, status, force_password_reset, created_at FROM users WHERE 1=1';
+  $params = [];
+  if ($q !== '') {
+    $sql .= ' AND (LOWER(email) LIKE ? OR LOWER(display_name) LIKE ?)';
+    $like = '%' . strtolower($q) . '%';
+    $params[] = $like;
+    $params[] = $like;
+  }
+  if (in_array($role, ['organizer', 'attendee', 'super_admin'], true)) {
+    $sql .= ' AND role = ?';
+    $params[] = $role;
+  }
+  if (in_array($status, ['active', 'suspended', 'banned'], true)) {
+    $sql .= ' AND status = ?';
+    $params[] = $status;
+  }
+  $sql .= ' ORDER BY created_at DESC LIMIT 500';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  $users = [];
+  while ($u = $stmt->fetch()) {
+    $users[] = [
+      'id' => (string)$u['id'],
+      'email' => $u['email'],
+      'displayName' => $u['display_name'],
+      'role' => $u['role'],
+      'isBlocked' => (int)($u['is_blocked'] ?? 0) === 1,
+      'status' => (string)($u['status'] ?? 'active'),
+      'forcePasswordReset' => boolish($u['force_password_reset'] ?? 0),
+      'createdAt' => gmdate('c', strtotime($u['created_at'])),
+    ];
+  }
+  json_response(200, ['users' => $users]);
+}
+
+if (preg_match('#^/admin/users/(\\d+)/status$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $admin = load_user_profile($adminId);
+  $userId = (int)$m[1];
+  $body = read_json_body();
+  $status = (string)($body['status'] ?? (boolish($body['blocked'] ?? false) ? 'banned' : 'active'));
+  if (!in_array($status, ['active', 'suspended', 'banned'], true)) json_response(400, ['error' => 'invalid_user_status']);
+  $blocked = $status !== 'active';
+  $upd = db()->prepare('UPDATE users SET status = ?, is_blocked = ? WHERE id = ?');
+  $upd->execute([$status, $blocked ? 1 : 0, $userId]);
+  write_log(db(), $adminId, (string)$admin['role'], 'admin.user.status_changed', 'user', (string)$userId, ['status' => $status]);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/admin/users/(\\d+)/role$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $userId = (int)$m[1];
+  if ($adminId === $userId) json_response(400, ['error' => 'cannot_change_own_role']);
+  $role = (string)(read_json_body()['role'] ?? '');
+  if (!in_array($role, ['attendee', 'organizer', 'super_admin'], true)) json_response(400, ['error' => 'invalid_role']);
+  $upd = db()->prepare('UPDATE users SET role = ? WHERE id = ?');
+  $upd->execute([$role, $userId]);
+  write_log(db(), $adminId, 'super_admin', 'admin.user.role_changed', 'user', (string)$userId, ['role' => $role]);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/admin/users/(\\d+)/force-password-reset$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $userId = (int)$m[1];
+  $upd = db()->prepare('UPDATE users SET force_password_reset = 1 WHERE id = ?');
+  $upd->execute([$userId]);
+  write_log(db(), $adminId, 'super_admin', 'admin.user.force_password_reset', 'user', (string)$userId, null);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/admin/users/(\\d+)$#', $path, $m) && $method === 'GET') {
+  require_super_admin_user_id();
+  $userId = (int)$m[1];
+  $pdo = db();
+  $u = $pdo->prepare('SELECT id, email, display_name, role, status, created_at FROM users WHERE id = ? LIMIT 1');
+  $u->execute([$userId]);
+  $user = $u->fetch();
+  if (!$user) json_response(404, ['error' => 'user_not_found']);
+  $stats = $pdo->prepare("SELECT
+      (SELECT COUNT(*) FROM events WHERE organizer_user_id = ?) AS events_count,
+      (SELECT COUNT(*) FROM orders WHERE buyer_user_id = ?) AS orders_count,
+      (SELECT COALESCE(SUM(amount_cents),0) FROM transactions WHERE user_id = ? AND payment_status='paid') AS paid_amount_cents");
+  $stats->execute([$userId, $userId, $userId]);
+  $s = $stats->fetch();
+  json_response(200, ['user' => [
+    'id' => (string)$user['id'],
+    'email' => $user['email'],
+    'displayName' => $user['display_name'],
+    'role' => $user['role'],
+    'status' => $user['status'],
+    'createdAt' => gmdate('c', strtotime($user['created_at'])),
+    'stats' => [
+      'eventsCount' => (int)($s['events_count'] ?? 0),
+      'ordersCount' => (int)($s['orders_count'] ?? 0),
+      'paidAmount' => ((int)($s['paid_amount_cents'] ?? 0)) / 100,
+    ],
+  ]]);
+}
+
+if ($path === '/admin/events' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  $status = trim((string)($_GET['status'] ?? ''));
+  $q = trim((string)($_GET['q'] ?? ''));
+  $sql = 'SELECT e.id, e.slug, e.title, e.status, e.event_status, e.is_featured, e.created_at, u.display_name AS organizer_name FROM events e JOIN users u ON u.id = e.organizer_user_id WHERE 1=1';
+  $params = [];
+  if (in_array($status, ['pending', 'approved', 'rejected', 'suspended'], true)) {
+    $sql .= ' AND e.event_status = ?';
+    $params[] = $status;
+  }
+  if ($q !== '') {
+    $sql .= ' AND (LOWER(e.title) LIKE ? OR LOWER(e.slug) LIKE ?)';
+    $like = '%' . strtolower($q) . '%';
+    $params[] = $like;
+    $params[] = $like;
+  }
+  $sql .= ' ORDER BY e.created_at DESC LIMIT 500';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  $events = [];
+  while ($e = $stmt->fetch()) {
+    $events[] = [
+      'id' => (string)$e['id'],
+      'slug' => $e['slug'],
+      'title' => $e['title'],
+      'status' => $e['status'],
+      'eventStatus' => (string)($e['event_status'] ?? 'approved'),
+      'isFeatured' => boolish($e['is_featured'] ?? 0),
+      'organizerName' => $e['organizer_name'],
+      'createdAt' => gmdate('c', strtotime($e['created_at'])),
+    ];
+  }
+  json_response(200, ['events' => $events]);
+}
+
+if (preg_match('#^/admin/events/(\\d+)/status$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $status = (string)($body['status'] ?? '');
+  if (!in_array($status, ['draft', 'published', 'cancelled', 'blocked'], true)) json_response(400, ['error' => 'invalid_status']);
+  $upd = db()->prepare('UPDATE events SET status = ? WHERE id = ?');
+  $upd->execute([$status, $eventId]);
+  write_log(db(), $adminId, 'super_admin', 'admin.event.status_changed', 'event', (string)$eventId, ['status' => $status]);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/admin/events/(\\d+)/moderate$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $eventStatus = (string)($body['eventStatus'] ?? '');
+  $isFeatured = array_key_exists('isFeatured', $body) ? (boolish($body['isFeatured']) ? 1 : 0) : null;
+  if ($eventStatus !== '' && !in_array($eventStatus, ['pending', 'approved', 'rejected', 'suspended'], true)) {
+    json_response(400, ['error' => 'invalid_event_status']);
+  }
+  $set = [];
+  $params = [];
+  if ($eventStatus !== '') {
+    $set[] = 'event_status = ?';
+    $params[] = $eventStatus;
+  }
+  if ($isFeatured !== null) {
+    $set[] = 'is_featured = ?';
+    $params[] = $isFeatured;
+  }
+  if (!$set) json_response(400, ['error' => 'no_changes']);
+  $params[] = $eventId;
+  $upd = db()->prepare('UPDATE events SET ' . implode(', ', $set) . ' WHERE id = ?');
+  $upd->execute($params);
+  write_log(db(), $adminId, 'super_admin', 'admin.event.moderated', 'event', (string)$eventId, ['eventStatus' => $eventStatus, 'isFeatured' => $isFeatured === 1]);
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/admin/transactions' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $qStatus = trim((string)($_GET['status'] ?? ''));
+  $qEventId = (int)($_GET['eventId'] ?? 0);
+  $qOrganizerId = (int)($_GET['organizerId'] ?? 0);
+  $qFrom = trim((string)($_GET['from'] ?? ''));
+  $qTo = trim((string)($_GET['to'] ?? ''));
+  $sql = 'SELECT t.id, t.event_id, t.user_id, t.amount_cents, t.platform_fee_cents, t.organizer_amount_cents, t.payment_status, t.payhere_reference, t.is_flagged, t.admin_note, t.refund_requested, t.created_at
+     FROM transactions t
+     JOIN events e ON e.id = t.event_id
+     WHERE 1=1';
+  $params = [];
+  if (in_array($qStatus, ['pending', 'paid', 'failed'], true)) {
+    $sql .= ' AND t.payment_status = ?';
+    $params[] = $qStatus;
+  }
+  if ($qEventId > 0) {
+    $sql .= ' AND t.event_id = ?';
+    $params[] = $qEventId;
+  }
+  if ($qOrganizerId > 0) {
+    $sql .= ' AND e.organizer_user_id = ?';
+    $params[] = $qOrganizerId;
+  }
+  if ($qFrom !== '') {
+    $sql .= ' AND date(t.created_at) >= date(?)';
+    $params[] = $qFrom;
+  }
+  if ($qTo !== '') {
+    $sql .= ' AND date(t.created_at) <= date(?)';
+    $params[] = $qTo;
+  }
+  $sql .= ' ORDER BY t.created_at DESC LIMIT 500';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  $tx = [];
+  while ($r = $stmt->fetch()) {
+    $tx[] = [
+      'id' => (string)$r['id'],
+      'eventId' => (string)$r['event_id'],
+      'userId' => $r['user_id'] !== null ? (string)$r['user_id'] : null,
+      'amount' => ((int)$r['amount_cents']) / 100,
+      'platformFee' => ((int)$r['platform_fee_cents']) / 100,
+      'organizerAmount' => ((int)$r['organizer_amount_cents']) / 100,
+      'paymentStatus' => $r['payment_status'],
+      'payhereReference' => $r['payhere_reference'],
+      'isFlagged' => boolish($r['is_flagged'] ?? 0),
+      'adminNote' => $r['admin_note'],
+      'refundRequested' => boolish($r['refund_requested'] ?? 0),
+      'createdAt' => gmdate('c', strtotime($r['created_at'])),
+    ];
+  }
+  json_response(200, ['transactions' => $tx]);
+}
+
+if (preg_match('#^/admin/transactions/(\\d+)$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $txId = (int)$m[1];
+  $body = read_json_body();
+  $isFlagged = boolish($body['isFlagged'] ?? false) ? 1 : 0;
+  $adminNote = trim((string)($body['adminNote'] ?? ''));
+  $refundRequested = boolish($body['refundRequested'] ?? false) ? 1 : 0;
+  $upd = db()->prepare('UPDATE transactions SET is_flagged = ?, admin_note = ?, refund_requested = ? WHERE id = ?');
+  $upd->execute([$isFlagged, $adminNote !== '' ? $adminNote : null, $refundRequested, $txId]);
+  write_log(db(), $adminId, 'super_admin', 'admin.transaction.updated', 'transaction', (string)$txId, ['isFlagged' => $isFlagged === 1, 'refundRequested' => $refundRequested === 1]);
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/admin/organizers/balances' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $stmt = $pdo->query(
+    "SELECT
+      u.id AS organizer_id,
+      u.display_name,
+      u.email,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fees_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents,
+      COALESCE((SELECT SUM(p.total_amount_cents) FROM payouts p WHERE p.organizer_id = u.id AND p.status IN ('processing','completed')),0) AS paid_cents
+     FROM users u
+     LEFT JOIN events e ON e.organizer_user_id = u.id
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE u.role = 'organizer'
+     GROUP BY u.id, u.display_name, u.email
+     ORDER BY net_cents DESC"
+  );
+  $rows = [];
+  while ($r = $stmt->fetch()) {
+    $net = (int)$r['net_cents'];
+    $paid = (int)$r['paid_cents'];
+    $available = max(0, $net - $paid);
+    $rows[] = [
+      'organizerId' => (string)$r['organizer_id'],
+      'displayName' => $r['display_name'],
+      'email' => $r['email'],
+      'grossRevenue' => ((int)$r['gross_cents']) / 100,
+      'platformFees' => ((int)$r['fees_cents']) / 100,
+      'netEarnings' => $net / 100,
+      'paidOut' => $paid / 100,
+      'availableBalance' => $available / 100,
+    ];
+  }
+  json_response(200, ['organizers' => $rows]);
+}
+
+if ($path === '/admin/payouts' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $stmt = $pdo->query(
+    'SELECT p.id, p.organizer_id, p.total_amount_cents, p.status, p.method, p.reference, p.notes, p.created_at, p.completed_at, u.display_name
+     FROM payouts p
+     JOIN users u ON u.id = p.organizer_id
+     ORDER BY p.created_at DESC
+     LIMIT 300'
+  );
+  $payouts = [];
+  while ($r = $stmt->fetch()) {
+    $payouts[] = [
+      'id' => (string)$r['id'],
+      'organizerId' => (string)$r['organizer_id'],
+      'organizerName' => $r['display_name'],
+      'totalAmount' => ((int)$r['total_amount_cents']) / 100,
+      'status' => $r['status'],
+      'method' => $r['method'],
+      'reference' => $r['reference'],
+      'notes' => $r['notes'],
+      'createdAt' => gmdate('c', strtotime($r['created_at'])),
+      'completedAt' => $r['completed_at'] ? gmdate('c', strtotime($r['completed_at'])) : null,
+    ];
+  }
+  json_response(200, ['payouts' => $payouts]);
+}
+
+if ($path === '/admin/payouts' && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $body = read_json_body();
+  $organizerId = (int)($body['organizerId'] ?? 0);
+  $amount = (float)($body['totalAmount'] ?? 0);
+  $notes = trim((string)($body['notes'] ?? ''));
+  if ($organizerId <= 0 || $amount <= 0) json_response(400, ['error' => 'invalid_payout']);
+  $amountCents = (int)round($amount * 100);
+
+  $balStmt = $pdo->prepare(
+    "SELECT
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents,
+      COALESCE((SELECT SUM(p.total_amount_cents) FROM payouts p WHERE p.organizer_id = ? AND p.status IN ('processing','completed')),0) AS paid_cents
+     FROM events e
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE e.organizer_user_id = ?"
+  );
+  $balStmt->execute([$organizerId, $organizerId]);
+  $bal = $balStmt->fetch();
+  $available = max(0, ((int)($bal['net_cents'] ?? 0)) - ((int)($bal['paid_cents'] ?? 0)));
+  if ($amountCents > $available) json_response(400, ['error' => 'insufficient_available_balance']);
+
+  $dupStmt = $pdo->prepare("SELECT id FROM payouts WHERE organizer_id = ? AND total_amount_cents = ? AND status IN ('pending','processing') LIMIT 1");
+  $dupStmt->execute([$organizerId, $amountCents]);
+  if ($dupStmt->fetch()) json_response(409, ['error' => 'duplicate_pending_payout']);
+
+  $ins = $pdo->prepare('INSERT INTO payouts (organizer_id, total_amount_cents, status, method, notes) VALUES (?, ?, ?, ?, ?)');
+  $ins->execute([$organizerId, $amountCents, 'pending', 'bank_transfer', $notes !== '' ? $notes : null]);
+  $payoutId = (int)$pdo->lastInsertId();
+  $logStmt = $pdo->prepare('INSERT INTO payout_logs (payout_id, admin_user_id, action, note) VALUES (?, ?, ?, ?)');
+  $logStmt->execute([$payoutId, $adminId, 'created', $notes !== '' ? $notes : null]);
+  write_log($pdo, $adminId, 'super_admin', 'admin.payout.created', 'payout', (string)$payoutId, ['organizerId' => $organizerId, 'amount' => $amount]);
+  json_response(201, ['payoutId' => (string)$payoutId]);
+}
+
+if (preg_match('#^/admin/payouts/(\\d+)/mark-paid$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $payoutId = (int)$m[1];
+  $body = read_json_body();
+  $reference = trim((string)($body['reference'] ?? ''));
+  $notes = trim((string)($body['notes'] ?? ''));
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $stmt = $pdo->prepare('SELECT status FROM payouts WHERE id = ? LIMIT 1');
+  $stmt->execute([$payoutId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'payout_not_found']);
+  if ((string)$row['status'] === 'completed') json_response(400, ['error' => 'already_completed']);
+
+  $upd = $pdo->prepare('UPDATE payouts SET status = ?, reference = ?, notes = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
+  $upd->execute(['completed', $reference !== '' ? $reference : null, $notes !== '' ? $notes : null, $payoutId]);
+  $logStmt = $pdo->prepare('INSERT INTO payout_logs (payout_id, admin_user_id, action, note) VALUES (?, ?, ?, ?)');
+  $logStmt->execute([$payoutId, $adminId, 'completed', $notes !== '' ? $notes : null]);
+  write_log($pdo, $adminId, 'super_admin', 'admin.payout.completed', 'payout', (string)$payoutId, ['reference' => $reference]);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/admin/payouts/(\\d+)/status$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $payoutId = (int)$m[1];
+  $body = read_json_body();
+  $status = (string)($body['status'] ?? '');
+  $reference = trim((string)($body['reference'] ?? ''));
+  $note = trim((string)($body['note'] ?? ''));
+  if (!in_array($status, ['pending', 'processing', 'completed'], true)) json_response(400, ['error' => 'invalid_status']);
+  $upd = db()->prepare('UPDATE payouts SET status = ?, reference = ?, notes = ?, completed_at = CASE WHEN ? = \'completed\' THEN CURRENT_TIMESTAMP ELSE completed_at END WHERE id = ?');
+  $upd->execute([$status, $reference !== '' ? $reference : null, $note !== '' ? $note : null, $status, $payoutId]);
+  $logStmt = db()->prepare('INSERT INTO payout_logs (payout_id, admin_user_id, action, note) VALUES (?, ?, ?, ?)');
+  $logStmt->execute([$payoutId, $adminId, $status, $note !== '' ? $note : null]);
+  write_log(db(), $adminId, 'super_admin', 'admin.payout.status_changed', 'payout', (string)$payoutId, ['status' => $status]);
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/admin/payouts/export-csv' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $stmt = $pdo->query('SELECT p.id, p.organizer_id, u.display_name, p.total_amount_cents, p.status, p.method, p.reference, p.created_at, p.completed_at
+     FROM payouts p
+     JOIN users u ON u.id = p.organizer_id
+     ORDER BY p.created_at DESC');
+  $rows = [];
+  while ($r = $stmt->fetch()) {
+    $rows[] = [
+      'id' => (string)$r['id'],
+      'organizerId' => (string)$r['organizer_id'],
+      'organizerName' => $r['display_name'],
+      'amount' => ((int)$r['total_amount_cents']) / 100,
+      'status' => $r['status'],
+      'method' => $r['method'],
+      'reference' => $r['reference'] ?? '',
+      'createdAt' => $r['created_at'],
+      'completedAt' => $r['completed_at'] ?? '',
+    ];
+  }
+  json_response(200, ['rows' => $rows]);
+}
+
+if ($path === '/admin/settings' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $rows = $pdo->query('SELECT setting_key, setting_value FROM global_settings')->fetchAll();
+  $settings = [];
+  foreach ($rows ?: [] as $row) $settings[(string)$row['setting_key']] = $row['setting_value'];
+  $settings['commission_pct'] = (string)get_platform_commission_pct($pdo);
+  json_response(200, ['settings' => $settings]);
+}
+
+if ($path === '/admin/settings' && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $body = read_json_body();
+  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'payment_merchant_id', 'payment_merchant_secret', 'email_from', 'maintenance_mode'];
+  foreach ($allowed as $key) {
+    if (!array_key_exists($key, $body)) continue;
+    $value = (string)$body[$key];
+    $stmt = $pdo->prepare('INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value');
+    try {
+      $stmt->execute([$key, $value]);
+    } catch (Throwable $e) {
+      $stmt2 = $pdo->prepare('INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+      $stmt2->execute([$key, $value]);
+    }
+    if ($key === 'commission_pct') {
+      $c = max(0, min(100, (float)$value));
+      $stmt3 = $pdo->prepare('INSERT INTO admin_settings (setting_key, setting_value) VALUES (?, ?) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value');
+      try {
+        $stmt3->execute(['commission_pct', (string)$c]);
+      } catch (Throwable $e) {
+        $stmt4 = $pdo->prepare('INSERT INTO admin_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+        $stmt4->execute(['commission_pct', (string)$c]);
+      }
+    }
+  }
+  write_log($pdo, $adminId, 'super_admin', 'admin.settings.updated', 'setting', null, ['keys' => array_keys($body)]);
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/admin/system/cleanup-demo-data' && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $pdo = db();
+  $demoEmails = ['demo@turnout.local', 'superadmin@turnout.local'];
+  $deletedUsers = 0;
+  $deletedEvents = 0;
+  foreach ($demoEmails as $email) {
+    $eventStmt = $pdo->prepare("SELECT COUNT(*) AS c FROM events WHERE organizer_user_id IN (SELECT id FROM users WHERE email = ?)");
+    $eventStmt->execute([$email]);
+    $deletedEvents += (int)(($eventStmt->fetch())['c'] ?? 0);
+    $delStmt = $pdo->prepare('DELETE FROM users WHERE email = ?');
+    $delStmt->execute([$email]);
+    $deletedUsers += $delStmt->rowCount();
+  }
+  write_log($pdo, $adminId, 'super_admin', 'admin.system.cleanup_demo_data', 'system', null, ['deletedUsers' => $deletedUsers, 'deletedEvents' => $deletedEvents]);
+  json_response(200, ['ok' => true, 'deletedUsers' => $deletedUsers, 'deletedEvents' => $deletedEvents]);
+}
+
+if ($path === '/admin/settings/commission' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  $pct = get_platform_commission_pct($pdo);
+  json_response(200, ['commissionPct' => $pct]);
+}
+
+if ($path === '/admin/settings/commission' && $method === 'POST') {
+  require_super_admin_user_id();
+  $body = read_json_body();
+  $pct = (float)($body['commissionPct'] ?? -1);
+  if ($pct < 0 || $pct > 100) json_response(400, ['error' => 'invalid_commission_pct']);
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  $stmt = $pdo->prepare('INSERT INTO admin_settings (setting_key, setting_value) VALUES (?, ?)
+    ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value');
+  try {
+    $stmt->execute(['commission_pct', (string)$pct]);
+  } catch (Throwable $e) {
+    $stmt2 = $pdo->prepare('INSERT INTO admin_settings (setting_key, setting_value) VALUES (?, ?)
+      ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+    $stmt2->execute(['commission_pct', (string)$pct]);
+  }
+  json_response(200, ['commissionPct' => $pct]);
+}
+
+if ($path === '/admin/logs' && $method === 'GET') {
+  require_super_admin_user_id();
+  $action = trim((string)($_GET['action'] ?? ''));
+  $sql = 'SELECT id, actor_user_id, actor_role, action, target_type, target_id, details_json, ip_address, created_at FROM logs WHERE 1=1';
+  $params = [];
+  if ($action !== '') {
+    $sql .= ' AND action = ?';
+    $params[] = $action;
+  }
+  $sql .= ' ORDER BY created_at DESC LIMIT 500';
+  $stmt = db()->prepare($sql);
+  $stmt->execute($params);
+  $logs = [];
+  while ($row = $stmt->fetch()) {
+    $logs[] = [
+      'id' => (string)$row['id'],
+      'actorUserId' => $row['actor_user_id'] ? (string)$row['actor_user_id'] : null,
+      'actorRole' => $row['actor_role'],
+      'action' => $row['action'],
+      'targetType' => $row['target_type'],
+      'targetId' => $row['target_id'],
+      'details' => $row['details_json'] ? json_decode((string)$row['details_json'], true) : null,
+      'ipAddress' => $row['ip_address'],
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+    ];
+  }
+  json_response(200, ['logs' => $logs]);
+}
+
+if ($path === '/admin/dashboard' && $method === 'GET') {
+  require_super_admin_user_id();
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/admin/events/override' && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $body = read_json_body();
+  $eventId = (int)($body['eventId'] ?? 0);
+  if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
+  $fields = ['title', 'description', 'location', 'banner_url', 'status'];
+  $set = [];
+  $params = [];
+  foreach ($fields as $field) {
+    if (!array_key_exists($field, $body)) continue;
+    $set[] = $field . ' = ?';
+    $params[] = (string)$body[$field];
+  }
+  if (!$set) json_response(400, ['error' => 'no_changes']);
+  $params[] = $eventId;
+  $upd = db()->prepare('UPDATE events SET ' . implode(', ', $set) . ' WHERE id = ?');
+  $upd->execute($params);
+  write_log(db(), $adminId, 'super_admin', 'admin.event.overridden', 'event', (string)$eventId, ['fields' => array_keys($body)]);
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/organizer/earnings' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+
+  $sumStmt = $pdo->prepare(
+    "SELECT
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
+     FROM events e
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE e.organizer_user_id = ?"
+  );
+  $sumStmt->execute([$uid]);
+  $sum = $sumStmt->fetch();
+
+  $payoutStmt = $pdo->prepare(
+    "SELECT id, organizer_id, total_amount_cents, status, method, reference, notes, created_at, completed_at
+     FROM payouts
+     WHERE organizer_id = ?
+     ORDER BY created_at DESC
+     LIMIT 100"
+  );
+  $payoutStmt->execute([$uid]);
+  $payouts = [];
+  $paidOutCents = 0;
+  while ($r = $payoutStmt->fetch()) {
+    if (in_array((string)$r['status'], ['processing', 'completed'], true)) $paidOutCents += (int)$r['total_amount_cents'];
+    $payouts[] = [
+      'id' => (string)$r['id'],
+      'organizerId' => (string)$r['organizer_id'],
+      'totalAmount' => ((int)$r['total_amount_cents']) / 100,
+      'status' => $r['status'],
+      'method' => $r['method'],
+      'reference' => $r['reference'],
+      'notes' => $r['notes'],
+      'createdAt' => gmdate('c', strtotime($r['created_at'])),
+      'completedAt' => $r['completed_at'] ? gmdate('c', strtotime($r['completed_at'])) : null,
+    ];
+  }
+
+  $grossCents = (int)($sum['gross_cents'] ?? 0);
+  $feeCents = (int)($sum['fee_cents'] ?? 0);
+  $netCents = (int)($sum['net_cents'] ?? 0);
+  $availableCents = max(0, $netCents - $paidOutCents);
+
+  json_response(200, [
+    'earnings' => [
+      'grossRevenue' => $grossCents / 100,
+      'platformFees' => $feeCents / 100,
+      'netEarnings' => $netCents / 100,
+      'paidOut' => $paidOutCents / 100,
+      'availableBalance' => $availableCents / 100,
+      'payoutHistory' => $payouts,
+    ],
+  ]);
+}
+
+json_response(404, ['error' => 'not_found']);
+

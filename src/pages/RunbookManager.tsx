@@ -1,0 +1,201 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { api } from '../api/client';
+import { RunbookItem } from '../types';
+import { OrganizerShell } from '../components/organizer/OrganizerShell';
+
+export const RunbookManager: React.FC = () => {
+  const { eventId } = useParams<{ eventId: string }>();
+  const [items, setItems] = useState<RunbookItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [dueAt, setDueAt] = useState('');
+  const eventLinks = useMemo(
+    () => [
+      { to: '/dashboard', label: 'Dashboard', exact: true },
+      { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', exact: true },
+      { to: `/dashboard/events/${eventId}/agenda`, label: 'Agenda' },
+      { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in' },
+      { to: `/dashboard/events/${eventId}/runbook`, label: 'Runbook' },
+    ],
+    [eventId]
+  );
+
+  const load = async () => {
+    if (!eventId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<{ items: RunbookItem[] }>(`/api/events/${eventId}/runbook`);
+      setItems(res.items);
+    } catch (e: any) {
+      setError(e?.error || 'Failed to load runbook');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  const addItem = async () => {
+    if (!eventId || !title.trim()) return;
+    setError(null);
+    try {
+      await api.post(`/api/events/${eventId}/runbook`, { title, priority, dueAt: dueAt || undefined });
+      setTitle('');
+      setPriority('medium');
+      setDueAt('');
+      await load();
+    } catch (e: any) {
+      setError(e?.error || 'Failed to add task');
+    }
+  };
+
+  const toggleItem = async (itemId: string) => {
+    if (!eventId) return;
+    await api.post(`/api/events/${eventId}/runbook/${itemId}/toggle`);
+    await load();
+  };
+
+  const deleteItem = async (itemId: string) => {
+    if (!eventId) return;
+    await api.post(`/api/events/${eventId}/runbook/${itemId}/delete`);
+    await load();
+  };
+
+  const stats = useMemo(() => {
+    const total = items.length;
+    const done = items.filter((x) => x.status === 'done').length;
+    const overdue = items.filter((x) => x.status === 'open' && x.dueAt && new Date(x.dueAt).getTime() < Date.now()).length;
+    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { total, done, overdue, progress };
+  }, [items]);
+
+  return (
+    <OrganizerShell title="Event Runbook" subtitle="Private organizer checklist for event-day operations." links={eventLinks}>
+      <div className="mx-auto max-w-6xl py-2">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <Link
+          to={`/dashboard/events/${eventId}/settings`}
+          className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+        >
+          Back to settings
+        </Link>
+      </div>
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-4">
+        <div className="rounded-xl border border-indigo-100 bg-white p-4">
+          <div className="text-xs font-bold uppercase text-neutral-500">Tasks</div>
+          <div className="mt-1 text-2xl font-black">{stats.total}</div>
+        </div>
+        <div className="rounded-xl border border-indigo-100 bg-white p-4">
+          <div className="text-xs font-bold uppercase text-neutral-500">Done</div>
+          <div className="mt-1 text-2xl font-black text-emerald-700">{stats.done}</div>
+        </div>
+        <div className="rounded-xl border border-indigo-100 bg-white p-4">
+          <div className="text-xs font-bold uppercase text-neutral-500">Overdue</div>
+          <div className="mt-1 text-2xl font-black text-amber-700">{stats.overdue}</div>
+        </div>
+        <div className="rounded-xl border border-indigo-100 bg-white p-4">
+          <div className="text-xs font-bold uppercase text-neutral-500">Progress</div>
+          <div className="mt-1 text-2xl font-black">{stats.progress}%</div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold tracking-tight">Add runbook task</h2>
+          <div className="mt-4 grid gap-3">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Test entry gate scanners"
+              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
+            />
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
+              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
+            >
+              <option value="low">Low priority</option>
+              <option value="medium">Medium priority</option>
+              <option value="high">High priority</option>
+            </select>
+            <input
+              type="datetime-local"
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
+              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={addItem}
+              disabled={!title.trim()}
+              className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 py-3 text-sm font-semibold text-white hover:brightness-105 disabled:opacity-50"
+            >
+              Add task
+            </button>
+            {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">Runbook items</h2>
+            <button
+              type="button"
+              onClick={load}
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="py-8 text-sm text-neutral-500">Loading…</div>
+          ) : items.length === 0 ? (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">No tasks yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {items.map((item) => (
+                <div key={item.id} className="rounded-xl border border-neutral-200 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className={`text-sm font-extrabold ${item.status === 'done' ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>{item.title}</div>
+                      <div className="mt-1 text-xs text-neutral-500">
+                        Priority: <span className="font-semibold">{item.priority}</span>
+                        {item.dueAt ? ` • Due: ${new Date(item.dueAt).toLocaleString()}` : ' • No due date'}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleItem(item.id)}
+                        className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-bold hover:bg-neutral-50"
+                      >
+                        {item.status === 'done' ? 'Re-open' : 'Mark done'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteItem(item.id)}
+                        className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      </div>
+    </OrganizerShell>
+  );
+};

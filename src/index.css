@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --primary: #00e676;
+  --primary-hover: #00c765;
+  --bg: #f9fafb;
+  --bg-soft: #ffffff;
+  --text: #111827;
+  --text-muted: #6b7280;
+  --glow: rgba(0, 230, 118, 0.22);
+  --ring: rgba(0, 230, 118, 0.35);
+  --border: rgba(17, 24, 39, 0.08);
+}
+
+body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 8% -8%, rgba(0, 230, 118, 0.08), transparent 32%),
+    radial-gradient(circle at 92% 0%, rgba(16, 185, 129, 0.05), transparent 35%),
+    var(--bg);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  transition: all 220ms ease;
+}
+
+.turnout-glow {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 26px rgba(0, 0, 0, 0.08);
+}
+
+.turnout-glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+}
