@@ -1,0 +1,170 @@
+/* Premium event landing — scoped under .landing-page */
+
+.landing-page {
+  font-family: var(--landing-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.landing-display {
+  font-family: var(--landing-font-display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.landing-eyebrow {
+  font-family: var(--landing-font-body);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.landing-grain::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+.landing-hero-img {
+  animation: landing-ken-burns 24s ease-in-out infinite alternate;
+  transform-origin: center center;
+}
+
+@keyframes landing-ken-burns {
+  0% {
+    transform: scale(1.02) translate(0, 0);
+  }
+  100% {
+    transform: scale(1.08) translate(-1%, -0.5%);
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(2%, -2%) scale(1.03);
+  }
+}
+
+@keyframes landing-shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.landing-orb {
+  animation: landing-float 18s ease-in-out infinite;
+  filter: blur(80px);
+}
+
+.landing-orb-delay {
+  animation-delay: -6s;
+}
+
+.landing-glass {
+  background: var(--landing-glass-bg);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid var(--landing-glass-border);
+  box-shadow: var(--landing-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.landing-card-premium {
+  background: var(--landing-surface);
+  border: 1px solid var(--landing-border);
+  box-shadow: var(--landing-shadow);
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+}
+
+.landing-card-premium:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--landing-shadow-hover);
+}
+
+.landing-ticket-selected {
+  border-color: var(--primary) !important;
+  box-shadow:
+    var(--landing-shadow-hover),
+    0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent),
+    0 0 32px var(--landing-glow);
+}
+
+.landing-btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--secondary) 65%, var(--primary)) 100%);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 8px 24px var(--landing-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.25s ease,
+    filter 0.2s ease;
+}
+
+.landing-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 12px 36px var(--landing-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.landing-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.landing-countdown-unit {
+  background: linear-gradient(180deg, var(--landing-surface) 0%, var(--landing-surface-muted) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.landing-divider-glow {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--primary) 50%, transparent),
+    transparent
+  );
+}
+
+.landing-fade-in {
+  animation: landing-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-fade-in-delay-1 {
+  animation-delay: 0.08s;
+}
+.landing-fade-in-delay-2 {
+  animation-delay: 0.16s;
+}
+.landing-fade-in-delay-3 {
+  animation-delay: 0.24s;
+}
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

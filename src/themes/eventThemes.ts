@@ -239,8 +239,10 @@ export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customizati
 export function landingCssVars(customization: Event['customization'] | undefined): CSSProperties {
   const theme = resolveEventTheme(customization);
   const landing = theme.landing;
+  const primary = customization?.primaryColor || theme.primary;
+  const isDark = theme.ui.isDark;
   return {
-    ['--primary' as string]: customization?.primaryColor || theme.primary,
+    ['--primary' as string]: primary,
     ['--secondary' as string]: customization?.secondaryColor || theme.secondary,
     ['--landing-page-bg' as string]: landing.pageBg,
     ['--landing-surface' as string]: landing.surfaceBg,
@@ -249,6 +251,14 @@ export function landingCssVars(customization: Event['customization'] | undefined
     ['--landing-text-muted' as string]: landing.textMuted,
     ['--landing-border' as string]: landing.borderColor,
     ['--landing-shadow' as string]: landing.cardShadow,
-    ['--landing-accent' as string]: customization?.primaryColor || theme.primary,
+    ['--landing-shadow-hover' as string]: isDark
+      ? '0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.06)'
+      : '0 24px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.04)',
+    ['--landing-glow' as string]: `color-mix(in srgb, ${primary} 35%, transparent)`,
+    ['--landing-glass-bg' as string]: isDark ? 'rgba(15, 23, 42, 0.55)' : 'rgba(255, 255, 255, 0.72)',
+    ['--landing-glass-border' as string]: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.65)',
+    ['--landing-font-display' as string]: '"Fraunces", Georgia, "Times New Roman", serif',
+    ['--landing-font-body' as string]: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif',
+    ['--landing-accent' as string]: primary,
   };
 }

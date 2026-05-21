@@ -275,33 +275,35 @@ export const EventLanding: React.FC = () => {
       })}
 
       {hasSelectedTickets && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t p-3 backdrop-blur-md md:hidden" style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}>
+        <div className="landing-glass fixed inset-x-0 bottom-0 z-[60] border-t p-4 md:hidden" style={{ borderColor: 'var(--landing-border)' }}>
           <button
             type="button"
             onClick={handlePurchase}
             disabled={isPurchasing}
-            className="flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: 'var(--primary)' }}
+            className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
           >
-            {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Register free' : `Checkout · ${formatLKR(totalAmount)}`}
+            {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKR(totalAmount)}`}
           </button>
         </div>
       )}
 
       {checkoutOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
           <div
-            className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border p-6 shadow-2xl sm:max-w-lg sm:rounded-3xl"
+            className="landing-page max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border p-7 shadow-2xl sm:max-w-md sm:rounded-3xl"
             style={{
               borderColor: 'var(--landing-border)',
               background: 'var(--landing-surface)',
               color: 'var(--landing-text)',
-              boxShadow: 'var(--landing-shadow)',
+              boxShadow: 'var(--landing-shadow-hover)',
             }}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xl font-semibold tracking-tight">Complete registration</div>
+                <p className="landing-eyebrow" style={{ color: 'var(--primary)' }}>
+                  Checkout
+                </p>
+                <div className="landing-display mt-1 text-2xl">Your tickets</div>
                 <div className="mt-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                   {event.title}
                 </div>
@@ -316,7 +318,7 @@ export const EventLanding: React.FC = () => {
               </button>
             </div>
 
-            <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)' }}>
+            <div className="landing-card-premium mt-6 rounded-2xl p-5">
               {orderLines.map((line) => (
                 <div key={line.name} className="flex justify-between py-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                   <span>
@@ -376,8 +378,7 @@ export const EventLanding: React.FC = () => {
               <button
                 type="submit"
                 disabled={isPurchasing || !prefillReady}
-                className="mt-2 h-12 w-full rounded-xl text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
-                style={{ backgroundColor: 'var(--primary)' }}
+                className="landing-btn-primary mt-2 h-12 w-full rounded-2xl text-sm font-bold text-white disabled:opacity-50"
               >
                 {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Confirm registration' : 'Pay with PayHere'}
               </button>
