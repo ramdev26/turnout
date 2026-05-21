@@ -2,6 +2,15 @@
 
 Turnout is a Vite + React frontend with a PHP backend designed for cPanel hosting.
 
+## Recent production hardening updates
+
+- Added stable Vercel routing for SPA + PHP API (`/api/*` no longer falls through to SPA).
+- Added production-safe server error handling with request IDs in API responses.
+- Added API request timeout and safer client-side error normalization.
+- Added PostgreSQL compatibility path for serverless deployments.
+- Reduced repeated backend schema/bootstrap checks per request to improve latency.
+- Improved auth/loading UX so protected routes show a loader instead of a blank screen.
+
 ## Current baseline
 
 - Local dev DB baseline: **SQLite**
@@ -92,7 +101,22 @@ This project can be deployed to Vercel as a Vite SPA using the included [`vercel
 
 ### 3) Set environment variables
 
-Because your backend is PHP-based (from `cpanel/api`), host the API separately (for example cPanel) and set:
+For API runtime configuration, set environment variables in your host (Vercel/cPanel):
+
+- `APP_DEBUG=false` (recommended for production)
+- `SESSION_TOKEN_SECRET=<long-random-secret>`
+- `DATABASE_URL=<postgres://...>` **or** MySQL variables (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`)
+- `BLOB_READ_WRITE_TOKEN=<token>` (required on Vercel for durable banner uploads in Create Event)
+
+To enable banner uploads on Vercel:
+
+1. In your Vercel project, open **Storage** and create a **Blob** store (or connect an existing one).
+2. Ensure `BLOB_READ_WRITE_TOKEN` is added to Production (and Preview if needed).
+3. Redeploy so the PHP API can upload to Blob and return a public `bannerUrl`.
+
+Local PHP dev can store banners under `cpanel/api/uploads/banners/` without Blob.
+
+If frontend and API are on separate domains, set:
 
 - `VITE_API_BASE_URL=https://your-api-domain.example`
 

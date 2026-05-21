@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { formatLKR } from '../utils/money';
 import { api } from '../api/client';
 import type { Speaker, Session } from '../types';
+import { landingCssVars, resolveTemplateId } from '../themes/eventThemes';
 
 export type TemplateId = 'template-1' | 'template-2' | 'template-3' | 'template-4' | 'template-canvas';
 
@@ -26,12 +27,16 @@ export type LandingTemplateProps = {
   isPurchasing: boolean;
 };
 
-function cssVars(customization: Event['customization']): React.CSSProperties {
-  return {
-    ['--primary' as any]: customization?.primaryColor || '#39FF14',
-    ['--secondary' as any]: customization?.secondaryColor || '#9BEBAF',
-  };
-}
+const pageShellStyle = (customization: Event['customization']): React.CSSProperties => ({
+  ...landingCssVars(customization),
+  background: 'var(--landing-page-bg)',
+  minHeight: '100vh',
+});
+
+const surfaceStyle: React.CSSProperties = {
+  background: 'var(--landing-surface, #ffffff)',
+  color: 'var(--landing-text, #0f172a)',
+};
 
 function safeCanvas(design: CanvasDesign | undefined, event: Event): CanvasDesign | null {
   if (!design || design.version !== 1 || !design.canvas || !Array.isArray(design.elements)) return null;
@@ -373,8 +378,8 @@ function SectionsRenderer({
   };
 
   return (
-    <div style={cssVars(event.customization)}>
-      <div className="mx-auto w-full max-w-7xl px-6">
+    <div style={pageShellStyle(event.customization)} className="w-full transition-[background] duration-700">
+      <div className="mx-auto w-full max-w-7xl px-6 py-8">
         <div
           className="overflow-hidden rounded-3xl border shadow-sm"
           style={{ background: design.theme.contentBackground, borderColor: design.theme.border }}
@@ -587,8 +592,8 @@ function CanvasRenderer({
   };
 
   return (
-    <div style={cssVars(event.customization)}>
-      <div className="mx-auto w-full max-w-7xl px-6">
+    <div style={pageShellStyle(event.customization)} className="w-full transition-[background] duration-700">
+      <div className="mx-auto w-full max-w-7xl px-6 py-8">
         <div
           className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
           style={{ width: design.canvas.width, height: design.canvas.height, background: design.canvas.background || '#fff' }}
@@ -617,20 +622,28 @@ function CheckoutPanel({
 }) {
   const hasSelection = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
   return (
-    <div className="sticky top-24 rounded-3xl border border-indigo-100 bg-white/95 p-7 shadow-[0_14px_40px_rgba(79,70,229,0.12)]">
-      <h3 className="text-xl font-semibold tracking-tight text-neutral-900">Order summary</h3>
+    <div
+      className="sticky top-24 rounded-3xl border p-7 backdrop-blur-sm"
+      style={{
+        borderColor: 'var(--landing-border)',
+        background: 'var(--landing-surface)',
+        boxShadow: 'var(--landing-shadow)',
+        color: 'var(--landing-text)',
+      }}
+    >
+      <h3 className="text-xl font-semibold tracking-tight">Order summary</h3>
       <div className="mt-6 flex flex-col gap-4">
         {tickets
           .filter((t) => (selectedTickets[t.id] || 0) > 0)
           .map((t) => (
-            <div key={t.id} className="flex justify-between text-sm text-neutral-700">
+            <div key={t.id} className="flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
               <span>
                 {t.name} x {selectedTickets[t.id]}
               </span>
               <span className="font-bold">{formatLKR(t.price * selectedTickets[t.id])}</span>
             </div>
           ))}
-        <div className="mt-4 border-t border-neutral-100 pt-4">
+        <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--landing-border)' }}>
           <div className="flex justify-between text-xl font-semibold tracking-tight">
             <span>Total</span>
             <span style={{ color: 'var(--primary)' }}>{formatLKR(totalAmount)}</span>
@@ -646,7 +659,9 @@ function CheckoutPanel({
         <ShoppingCart className="h-5 w-5" />
         {isPurchasing ? 'Processing...' : 'Checkout Now'}
       </button>
-      <p className="mt-4 text-center text-xs text-neutral-500">{footerText || 'Secure checkout (MVP demo).'}</p>
+      <p className="mt-4 text-center text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+        {footerText || 'Secure checkout (MVP demo).'}
+      </p>
     </div>
   );
 }
@@ -667,11 +682,18 @@ function TicketsList({
       {tickets.map((ticket) => (
         <div
           key={ticket.id}
-          className="flex items-center justify-between rounded-2xl border border-indigo-100/70 bg-gradient-to-b from-white to-indigo-50/30 p-6 transition-all hover:-translate-y-0.5 hover:border-indigo-200"
+          className="flex items-center justify-between rounded-2xl border p-6 transition-all hover:-translate-y-0.5"
+          style={{
+            borderColor: 'var(--landing-border)',
+            background: 'var(--landing-surface-muted)',
+            color: 'var(--landing-text)',
+          }}
         >
           <div>
-            <h3 className="text-lg font-semibold tracking-tight text-neutral-900">{ticket.name}</h3>
-            <p className="text-sm text-neutral-500">{ticket.description || 'Standard entry ticket'}</p>
+            <h3 className="text-lg font-semibold tracking-tight">{ticket.name}</h3>
+            <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+              {ticket.description || 'Standard entry ticket'}
+            </p>
             <p className="mt-2 text-xl font-bold" style={{ color: accent }}>
               {formatLKR(ticket.price)}
             </p>
@@ -679,14 +701,16 @@ function TicketsList({
           <div className="flex items-center gap-4">
             <button
               onClick={() => onTicketChange(ticket.id, (selectedTickets[ticket.id] || 0) - 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 bg-white text-xl font-bold hover:bg-neutral-50"
+              className="flex h-10 w-10 items-center justify-center rounded-full border text-xl font-bold"
+              style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}
             >
               -
             </button>
             <span className="w-8 text-center text-lg font-bold">{selectedTickets[ticket.id] || 0}</span>
             <button
               onClick={() => onTicketChange(ticket.id, (selectedTickets[ticket.id] || 0) + 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 bg-white text-xl font-bold hover:bg-neutral-50"
+              className="flex h-10 w-10 items-center justify-center rounded-full border text-xl font-bold"
+              style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}
             >
               +
             </button>
@@ -720,8 +744,8 @@ const Template1: LandingTemplate = {
   description: 'Big banner + gradient overlay + sticky checkout.',
   previewSeed: 'cinematic-hero',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={cssVars(event.customization)}>
-      <div className="w-full bg-white">
+    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
+      <div className="w-full" style={surfaceStyle}>
         <div className="relative h-[420px] w-full">
           <img src={event.bannerUrl} alt={event.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
@@ -737,11 +761,13 @@ const Template1: LandingTemplate = {
         <div className="mx-auto grid max-w-7xl gap-12 p-12 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <section>
-              <h2 className="text-2xl font-bold text-neutral-900">About this event</h2>
-              <p className="mt-4 whitespace-pre-wrap text-lg leading-relaxed text-neutral-600">{event.description}</p>
+              <h2 className="text-2xl font-bold">About this event</h2>
+              <p className="mt-4 whitespace-pre-wrap text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+                {event.description}
+              </p>
             </section>
             <section className="mt-12">
-              <h2 className="text-2xl font-bold text-neutral-900">Tickets</h2>
+              <h2 className="text-2xl font-bold">Tickets</h2>
               <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
             </section>
           </div>
@@ -764,27 +790,30 @@ const Template2: LandingTemplate = {
   description: 'Clean centered layout, bright and airy.',
   previewSeed: 'centered-minimal',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={cssVars(event.customization)}>
-      <div className="w-full bg-white">
+    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
+      <div className="w-full" style={surfaceStyle}>
         <div className="mx-auto grid max-w-7xl gap-10 p-12 lg:grid-cols-2">
             <div>
-              <div className="inline-flex items-center rounded-full bg-neutral-100 px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-600">
+              <div
+                className="inline-flex items-center rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider"
+                style={{ background: 'var(--landing-surface-muted)', color: 'var(--landing-text-muted)' }}
+              >
                 {event.status === 'published' ? 'Live event' : event.status}
               </div>
-              <h1 className="mt-6 text-5xl font-extrabold tracking-tight text-neutral-900">
+              <h1 className="mt-6 text-5xl font-extrabold tracking-tight">
                 {event.customization?.heroText || event.title}
               </h1>
-              <p className="mt-5 text-lg leading-relaxed text-neutral-600">
+              <p className="mt-5 text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
                 {event.customization?.heroSubtext || event.description}
               </p>
-              <div className="mt-6 overflow-hidden rounded-2xl border border-neutral-200">
+              <div className="mt-6 overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--landing-border)' }}>
                 <img src={event.bannerUrl} alt={event.title} className="h-56 w-full object-cover" referrerPolicy="no-referrer" />
               </div>
               <EventMeta event={event} tone="light" />
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-neutral-900">Tickets</h2>
+              <h2 className="text-2xl font-bold">Tickets</h2>
               <TicketsList
                 tickets={tickets}
                 selectedTickets={selectedTickets}
@@ -814,8 +843,8 @@ const Template3: LandingTemplate = {
   description: 'Left gradient hero + right checkout, modern SaaS feel.',
   previewSeed: 'split-gradient',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={cssVars(event.customization)}>
-      <div className="w-full bg-white">
+    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
+      <div className="w-full" style={surfaceStyle}>
         <div className="mx-auto grid max-w-7xl lg:grid-cols-2">
           <div className="relative p-12">
             <div
@@ -825,8 +854,8 @@ const Template3: LandingTemplate = {
               }}
             />
             <div className="relative">
-              <h1 className="text-5xl font-extrabold tracking-tight text-neutral-900">{event.customization?.heroText || event.title}</h1>
-              <p className="mt-5 text-lg leading-relaxed text-neutral-700">
+              <h1 className="text-5xl font-extrabold tracking-tight">{event.customization?.heroText || event.title}</h1>
+              <p className="mt-5 text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
                 {event.customization?.heroSubtext || event.description}
               </p>
               <div className="mt-8 overflow-hidden rounded-2xl border border-white/50 bg-white/60 backdrop-blur">
@@ -839,7 +868,7 @@ const Template3: LandingTemplate = {
           </div>
 
           <div className="p-12">
-            <h2 className="text-2xl font-bold text-neutral-900">Tickets</h2>
+            <h2 className="text-2xl font-bold">Tickets</h2>
             <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
             <div className="mt-10">
               <CheckoutPanel
@@ -863,8 +892,8 @@ const Template4: LandingTemplate = {
   description: 'High-contrast “poster” style with bold typography.',
   previewSeed: 'dark-poster',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={cssVars(event.customization)}>
-      <div className="w-full bg-neutral-950 text-white">
+    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
+      <div className="w-full" style={{ background: 'transparent', color: 'var(--landing-text)' }}>
         <div className="relative">
           <img src={event.bannerUrl} alt={event.title} className="h-[360px] w-full object-cover opacity-70" referrerPolicy="no-referrer" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-neutral-950" />
@@ -957,5 +986,9 @@ export const landingTemplatesAll: LandingTemplate[] = [Template1, Template2, Tem
 
 export function getLandingTemplateAll(id: string | undefined): LandingTemplate {
   return landingTemplatesAll.find((t) => t.id === id) || Template1;
+}
+
+export function getLandingTemplateForEvent(event: Event): LandingTemplate {
+  return getLandingTemplateAll(resolveTemplateId(event));
 }
 

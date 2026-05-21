@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Event, Ticket, OrderItem, AttendeeProfile } from '../types';
 import { api } from '../api/client';
-import { getLandingTemplateAll } from '../templates/templates';
+import { getLandingTemplateForEvent } from '../templates/templates';
+import { landingCssVars } from '../themes/eventThemes';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button } from '../components/ui/Button';
@@ -194,8 +195,14 @@ export const EventLanding: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="h-11 w-11 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+      <div
+        className="flex min-h-[60vh] items-center justify-center"
+        style={{ background: 'var(--landing-page-bg, #f8fafc)' }}
+      >
+        <div
+          className="h-11 w-11 animate-spin rounded-full border-4 border-t-transparent"
+          style={{ borderColor: 'var(--landing-accent, #0f766e)', borderTopColor: 'transparent' }}
+        />
       </div>
     );
   }
@@ -212,9 +219,11 @@ export const EventLanding: React.FC = () => {
     );
   }
 
-  const template = getLandingTemplateAll(event.templateId);
+  const template = getLandingTemplateForEvent(event);
+  const themeVars = landingCssVars(event.customization);
+
   return (
-    <>
+    <div style={themeVars} className="min-h-screen transition-[background] duration-700">
       {template.render({
     event,
     tickets,
@@ -226,20 +235,43 @@ export const EventLanding: React.FC = () => {
       })}
 
       {hasSelectedTickets && (
-        <div className="fixed inset-x-0 bottom-4 z-40 mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-2xl border border-indigo-100 bg-white/95 p-2 shadow-xl backdrop-blur md:bottom-6">
-          <Button onClick={handlePurchase} disabled={isPurchasing} className="h-11 rounded-xl px-5">
+        <div
+          className="fixed inset-x-0 bottom-4 z-40 mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-2xl border p-2 shadow-xl backdrop-blur md:bottom-6"
+          style={{
+            borderColor: 'var(--landing-border)',
+            background: 'var(--landing-surface)',
+            boxShadow: 'var(--landing-shadow)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={handlePurchase}
+            disabled={isPurchasing}
+            className="h-11 rounded-xl px-5 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+            style={{ backgroundColor: 'var(--primary)' }}
+          >
             {isPurchasing ? 'Processing…' : `Checkout ${totalAmount.toFixed(2)} LKR`}
-          </Button>
+          </button>
         </div>
       )}
 
       {checkoutOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-indigo-100 bg-white p-6 shadow-2xl">
+          <div
+            className="w-full max-w-lg rounded-3xl border p-6 shadow-2xl"
+            style={{
+              borderColor: 'var(--landing-border)',
+              background: 'var(--landing-surface)',
+              color: 'var(--landing-text)',
+              boxShadow: 'var(--landing-shadow)',
+            }}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xl font-semibold tracking-tight text-neutral-900">Complete your registration</div>
-                <div className="mt-1 text-sm text-neutral-500">Secure checkout in LKR.</div>
+                <div className="text-xl font-semibold tracking-tight">Complete your registration</div>
+                <div className="mt-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                  Secure checkout in LKR.
+                </div>
               </div>
               <Button type="button" variant="ghost" size="sm" onClick={() => setCheckoutOpen(false)}>
                 Close
@@ -248,16 +280,28 @@ export const EventLanding: React.FC = () => {
 
             <form onSubmit={handleSubmit(submitCheckout)} className="mt-6 flex flex-col gap-4">
               {user?.role === 'attendee' && (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs font-semibold text-indigo-800">
+                <div
+                  className="rounded-xl border p-3 text-xs font-semibold"
+                  style={{
+                    borderColor: 'var(--landing-border)',
+                    background: 'var(--landing-surface-muted)',
+                    color: 'var(--landing-text)',
+                  }}
+                >
                   Checkout is pre-filled from your attendee profile.
                 </div>
               )}
               <Input label="Full name" {...register('buyerName')} required />
               <Input label="Email" type="email" {...register('buyerEmail')} required />
               <Input label="Phone (optional)" {...register('buyerPhone')} />
-              <Button type="submit" disabled={isPurchasing || !prefillReady} className="mt-2 h-11 rounded-xl">
+              <button
+                type="submit"
+                disabled={isPurchasing || !prefillReady}
+                className="mt-2 h-11 w-full rounded-xl text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--primary)' }}
+              >
                 {isPurchasing ? 'Processing…' : 'Confirm & Get Tickets'}
-              </Button>
+              </button>
               {payError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
                   {payError}
@@ -267,6 +311,6 @@ export const EventLanding: React.FC = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };

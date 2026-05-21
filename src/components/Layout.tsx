@@ -12,6 +12,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navigate = useNavigate();
   const location = useLocation();
 
+  const isFullscreenCreate = location.pathname === '/events/new';
+
   const handleLogout = async () => {
     setLoading(true);
     try {
@@ -101,8 +103,16 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         </div>
       </nav>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+      <main
+        className={cn(
+          'mx-auto w-full',
+          isFullscreenCreate ? 'max-w-none px-0 py-0' : 'max-w-7xl px-4 py-8 sm:px-6 lg:px-8'
+        )}
+      >
+        {children}
+      </main>
 
+      {!isFullscreenCreate && (
       <footer className="mt-14 border-t border-neutral-200 bg-white/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-sm text-neutral-500 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <p className="font-medium text-neutral-700">Turnout</p>
@@ -115,6 +125,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <p>© {new Date().getFullYear()} Turnout</p>
         </div>
       </footer>
+      )}
     </div>
   );
 };

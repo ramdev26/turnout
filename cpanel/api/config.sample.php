@@ -38,6 +38,9 @@ return [
     'cookie_httponly' => true,
     // SameSite Lax is fine for same-domain app + API
     'cookie_samesite' => 'Lax',
+    // Optional: secret used to sign stateless auth cookies across serverless instances.
+    // Set a long random value in production config.php.
+    'token_secret' => 'CHANGE_ME_LONG_RANDOM_SECRET',
   ],
   'mail' => [
     // For cPanel, you can often use PHP mail() with a domain email configured.

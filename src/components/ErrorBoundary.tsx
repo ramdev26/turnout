@@ -28,6 +28,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      const showErrorDetails = import.meta.env.DEV;
       return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-50 p-4 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-100 text-red-600">
@@ -45,9 +46,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <RefreshCcw className="h-4 w-4" />
               Refresh Page
             </button>
-            <pre className="mt-8 max-w-2xl overflow-auto rounded-lg bg-neutral-900 p-4 text-left text-xs text-neutral-400">
-              {this.state.error?.message}
-            </pre>
+            {showErrorDetails ? (
+              <pre className="mt-8 max-w-2xl overflow-auto rounded-lg bg-neutral-900 p-4 text-left text-xs text-neutral-400">
+                {this.state.error?.message}
+              </pre>
+            ) : null}
           </div>
         </div>
       );

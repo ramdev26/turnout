@@ -4,6 +4,7 @@ require __DIR__ . '/lib/http.php';
 require __DIR__ . '/lib/db.php';
 require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/mail.php';
+require __DIR__ . '/lib/banners.php';
 
 set_cors_headers_for_same_domain();
 
@@ -94,57 +95,12 @@ function require_super_admin_user_id(): int {
   return $uid;
 }
 
+if (preg_match('#^/uploads/banners/([^/]+)$#', $path, $bannerMatch) && $method === 'GET') {
+  serve_local_banner_file($bannerMatch[1]);
+}
+
 if ($path === '/uploads/banner' && $method === 'POST') {
-  require_organizer_user_id();
-
-  if (!isset($_FILES['file'])) {
-    json_response(400, ['error' => 'missing_file']);
-  }
-  $file = $_FILES['file'];
-  if (!is_array($file) || (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK)) {
-    json_response(400, ['error' => 'upload_failed']);
-  }
-
-  $tmpPath = (string)($file['tmp_name'] ?? '');
-  if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
-    json_response(400, ['error' => 'invalid_upload']);
-  }
-
-  $size = (int)($file['size'] ?? 0);
-  if ($size <= 0 || $size > (5 * 1024 * 1024)) {
-    json_response(400, ['error' => 'file_too_large']);
-  }
-
-  $finfo = finfo_open(FILEINFO_MIME_TYPE);
-  $mime = $finfo ? (string)finfo_file($finfo, $tmpPath) : '';
-  if ($finfo) finfo_close($finfo);
-  $allowed = [
-    'image/jpeg' => 'jpg',
-    'image/png' => 'png',
-    'image/webp' => 'webp',
-    'image/gif' => 'gif',
-  ];
-  $ext = $allowed[$mime] ?? null;
-  if ($ext === null) {
-    json_response(400, ['error' => 'unsupported_file_type']);
-  }
-
-  $uploadDir = __DIR__ . '/uploads/banners';
-  if (!is_dir($uploadDir)) {
-    @mkdir($uploadDir, 0775, true);
-  }
-  if (!is_dir($uploadDir)) {
-    json_response(500, ['error' => 'upload_dir_unavailable']);
-  }
-
-  $name = bin2hex(random_bytes(12)) . '.' . $ext;
-  $target = $uploadDir . '/' . $name;
-  if (!move_uploaded_file($tmpPath, $target)) {
-    json_response(500, ['error' => 'save_failed']);
-  }
-
-  $bannerUrl = '/api/uploads/banners/' . $name;
-  json_response(201, ['bannerUrl' => $bannerUrl]);
+  handle_banner_upload_post();
 }
 
 function slugify(string $s): string {
@@ -286,6 +242,8 @@ function ensure_payhere_tables(PDO $pdo): void {
 }
 
 function ensure_users_role_support(PDO $pdo): void {
+  static $checked = false;
+  if ($checked) return;
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
   try {
     if ($driver === 'mysql') {
@@ -325,9 +283,12 @@ function ensure_users_role_support(PDO $pdo): void {
   } catch (Throwable $e) {
     // Non-fatal migration guard. Ignore and continue request flow.
   }
+  $checked = true;
 }
 
 function ensure_finance_tables(PDO $pdo): void {
+  static $checked = false;
+  if ($checked) return;
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
   if ($driver === 'sqlite') {
     $pdo->exec(
@@ -408,6 +369,89 @@ function ensure_finance_tables(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    $checked = true;
+    return;
+  }
+  if ($driver === 'pgsql') {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS admin_settings (
+        setting_key VARCHAR(120) PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )"
+    );
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS transactions (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL,
+        user_id BIGINT NULL,
+        order_id BIGINT NULL,
+        amount_cents INTEGER NOT NULL,
+        platform_fee_cents INTEGER NOT NULL,
+        organizer_amount_cents INTEGER NOT NULL,
+        payment_status VARCHAR(16) NOT NULL DEFAULT 'pending',
+        payhere_reference VARCHAR(128) NULL,
+        is_flagged SMALLINT NOT NULL DEFAULT 0,
+        admin_note TEXT NULL,
+        refund_requested SMALLINT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )"
+    );
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tx_status_created ON transactions(payment_status, created_at DESC)");
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS payouts (
+        id BIGSERIAL PRIMARY KEY,
+        organizer_id BIGINT NOT NULL,
+        total_amount_cents INTEGER NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'pending',
+        method VARCHAR(32) NOT NULL DEFAULT 'bank_transfer',
+        reference VARCHAR(128) NULL,
+        notes TEXT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL
+      )"
+    );
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_payout_org ON payouts(organizer_id, created_at DESC)");
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS global_settings (
+        setting_key VARCHAR(120) PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )"
+    );
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS payout_logs (
+        id BIGSERIAL PRIMARY KEY,
+        payout_id BIGINT NOT NULL,
+        admin_user_id BIGINT NULL,
+        action VARCHAR(64) NOT NULL,
+        note TEXT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )"
+    );
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_payout_logs_payout ON payout_logs(payout_id, created_at DESC)");
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS logs (
+        id BIGSERIAL PRIMARY KEY,
+        actor_user_id BIGINT NULL,
+        actor_role VARCHAR(40) NULL,
+        action VARCHAR(120) NOT NULL,
+        target_type VARCHAR(80) NULL,
+        target_id VARCHAR(80) NULL,
+        details_json JSONB NULL,
+        ip_address VARCHAR(64) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )"
+    );
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_logs_action_created ON logs(action, created_at DESC)");
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN force_password_reset SMALLINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN event_status TEXT NOT NULL DEFAULT 'approved'"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE events ADD COLUMN is_featured SMALLINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged SMALLINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested SMALLINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    $checked = true;
     return;
   }
 
@@ -506,6 +550,7 @@ function ensure_finance_tables(PDO $pdo): void {
   try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  $checked = true;
 }
 
 function boolish(mixed $value): bool {
@@ -668,6 +713,7 @@ if ($path === '/auth/register' && $method === 'POST') {
   $userId = (int)$pdo->lastInsertId();
   regenerate_app_session();
   $_SESSION['user_id'] = $userId;
+  issue_auth_cookie($userId);
 
   json_response(201, ['user' => load_user_profile($userId)]);
 }
@@ -694,6 +740,7 @@ if ($path === '/auth/register-attendee' && $method === 'POST') {
   $userId = (int)$pdo->lastInsertId();
   regenerate_app_session();
   $_SESSION['user_id'] = $userId;
+  issue_auth_cookie($userId);
 
   json_response(201, ['user' => load_user_profile($userId)]);
 }
@@ -720,6 +767,7 @@ if ($path === '/auth/login' && $method === 'POST') {
   $userId = (int)$row['id'];
   regenerate_app_session();
   $_SESSION['user_id'] = $userId;
+  issue_auth_cookie($userId);
 
   // Logging should never block a successful auth response.
   try {
@@ -733,6 +781,7 @@ if ($path === '/auth/logout' && $method === 'POST') {
   if (session_status() === PHP_SESSION_ACTIVE) {
     session_destroy();
   }
+  clear_auth_cookie();
   json_response(200, ['ok' => true]);
 }
 
@@ -743,12 +792,14 @@ if ($path === '/auth/me' && $method === 'GET') {
   if (($profile['isBlocked'] ?? false) === true) {
     $_SESSION = [];
     if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
+    clear_auth_cookie();
     json_response(403, ['error' => 'user_blocked']);
   }
   $status = (string)($profile['status'] ?? 'active');
   if (in_array($status, ['suspended', 'banned'], true)) {
     $_SESSION = [];
     if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
+    clear_auth_cookie();
     json_response(403, ['error' => 'user_suspended']);
   }
   json_response(200, ['user' => $profile]);

@@ -13,15 +13,19 @@ export function toApiUrl(path: string): string {
 }
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
   let res: Response;
   try {
     res = await fetch(toApiUrl(path), {
       ...init,
       headers: {
+        Accept: 'application/json',
         'Content-Type': 'application/json',
         ...(init.headers || {}),
       },
       credentials: 'include',
+      signal: controller.signal,
     });
   } catch {
     const isProduction = import.meta.env.PROD;
@@ -32,6 +36,8 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       error: 'api_unreachable',
       message: guidance,
     } as ApiError;
+  } finally {
+    window.clearTimeout(timeout);
   }
 
   const text = await res.text();
@@ -45,9 +51,18 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      throw {
+        error: 'unauthorized',
+        message: 'Your session has expired. Please sign in again.',
+      } as ApiError;
+    }
+
     const fallback: ApiError = {
       error: data?.error || data?.message || `request_failed_${res.status}`,
-      message: data?.message || (text ? text.slice(0, 240) : `HTTP ${res.status}`),
+      message:
+        data?.message ||
+        (text && !/^\s*</.test(text) ? text.slice(0, 240) : `Request failed (HTTP ${res.status}).`),
     };
     throw fallback;
   }

@@ -31,9 +31,17 @@ import { AdminPayouts } from './pages/AdminPayouts';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminLogs } from './pages/AdminLogs';
 
+function FullPageLoader() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-neutral-300 border-t-[#00a95d]" />
+    </div>
+  );
+}
+
 function RequireOrganizer({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore();
-  if (loading) return null;
+  if (loading) return <FullPageLoader />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'organizer') return <Navigate to="/attendee/dashboard" replace />;
   return <>{children}</>;
@@ -41,7 +49,7 @@ function RequireOrganizer({ children }: { children: React.ReactNode }) {
 
 function RequireAttendee({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore();
-  if (loading) return null;
+  if (loading) return <FullPageLoader />;
   if (!user) return <Navigate to="/attendee/login" replace />;
   if (user.role !== 'attendee') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
@@ -49,7 +57,7 @@ function RequireAttendee({ children }: { children: React.ReactNode }) {
 
 function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore();
-  if (loading) return null;
+  if (loading) return <FullPageLoader />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'super_admin') return <Navigate to="/" replace />;
   return <>{children}</>;

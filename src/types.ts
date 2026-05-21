@@ -64,7 +64,10 @@ export type AttendeeProfile = {
   bio?: string | null;
 };
 
+export type EventThemeId = 'minimal' | 'neo-green' | 'midnight' | 'sunset';
+
 export interface EventCustomization {
+  themeId?: EventThemeId;
   primaryColor: string;
   secondaryColor: string;
   fontFamily: string;
