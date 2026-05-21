@@ -19,6 +19,7 @@ import { api, toApiUrl } from '../api/client';
 import { Attendee } from '../types';
 import { OrganizerShell } from '../components/organizer/OrganizerShell';
 import { cn } from '../utils/cn';
+import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
 type CheckinConfig = { staffPin: string; staffUrl: string };
@@ -132,13 +133,18 @@ export const CheckInManager: React.FC = () => {
 
   const checkIn = async (token?: string) => {
     if (!eventId) return;
-    const value = (token ?? qrToken).trim();
-    if (!value) return;
+    const raw = (token ?? qrToken).trim();
+    if (!raw) return;
+    const parsed = parseQrCheckInPayload(raw, eventId);
+    if (!parsed.qrToken) {
+      setErr(parsed.error === 'wrong_event' ? 'This ticket is for a different event.' : 'Invalid QR token.');
+      return;
+    }
     setCheckingIn(true);
     setMsg(null);
     setErr(null);
     try {
-      const res = await api.post<CheckinResult>(`/api/events/${eventId}/checkin`, { qrToken: value });
+      const res = await api.post<CheckinResult>(`/api/events/${eventId}/checkin`, { qrToken: parsed.qrToken });
       setLastCheckIn(res.attendee || null);
       setMsg(res.message || (res.alreadyCheckedIn ? 'Already checked in' : 'Checked in successfully'));
       setQrToken('');

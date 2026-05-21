@@ -178,6 +178,25 @@ function insert_attendees_for_order(
   return $created;
 }
 
+function normalize_qr_token_lookup(string $raw): string {
+  $token = trim($raw);
+  if ($token === '') return '';
+
+  if (str_starts_with($token, '{')) {
+    $parsed = json_decode($token, true);
+    if (is_array($parsed)) {
+      $token = trim((string)($parsed['qrToken'] ?? $parsed['token'] ?? ''));
+    }
+  }
+
+  if (preg_match('/[a-fA-F0-9]{32}/', $token, $m)) {
+    return strtolower($m[0]);
+  }
+
+  $hex = strtolower(preg_replace('/[^a-fA-F0-9]/', '', $token));
+  return strlen($hex) === 32 ? $hex : '';
+}
+
 function fetch_attendee_stats(PDO $pdo, int $eventId): array {
   $stmt = $pdo->prepare(
     'SELECT

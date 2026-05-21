@@ -2510,7 +2510,7 @@ if (preg_match('#^/events/(\\d+)/checkin/undo$#', $path, $m) && $method === 'POS
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
   $body = read_json_body();
-  $token = trim((string)($body['qrToken'] ?? ''));
+  $token = normalize_qr_token_lookup((string)($body['qrToken'] ?? ''));
   if ($token === '') json_response(400, ['error' => 'invalid_qr_token']);
   $pdo = db();
   require_event_owner($pdo, $eventId, $uid);
@@ -2519,7 +2519,7 @@ if (preg_match('#^/events/(\\d+)/checkin/undo$#', $path, $m) && $method === 'POS
     'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
      FROM attendees a
      JOIN tickets t ON t.id = a.ticket_id
-     WHERE a.event_id = ? AND a.qr_token = ?
+     WHERE a.event_id = ? AND LOWER(a.qr_token) = ?
      LIMIT 1'
   );
   $stmt2->execute([$eventId, $token]);
@@ -2535,7 +2535,7 @@ if (preg_match('#^/events/(\\d+)/checkin/undo$#', $path, $m) && $method === 'POS
 if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
   $eventId = (int)$m[1];
   $body = read_json_body();
-  $token = trim((string)($body['qrToken'] ?? ''));
+  $token = normalize_qr_token_lookup((string)($body['qrToken'] ?? ''));
   if ($token === '') json_response(400, ['error' => 'invalid_qr_token', 'message' => 'Scan a valid ticket QR code.']);
 
   $pdo = db();
@@ -2545,7 +2545,7 @@ if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
     'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
      FROM attendees a
      JOIN tickets t ON t.id = a.ticket_id
-     WHERE a.event_id = ? AND a.qr_token = ?
+     WHERE a.event_id = ? AND LOWER(a.qr_token) = ?
      LIMIT 1'
   );
   $stmt2->execute([$eventId, $token]);

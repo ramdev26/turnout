@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { api } from '../api/client';
 import { Attendee } from '../types';
-import { CheckCircle2, Lock, ScanLine, XCircle } from 'lucide-react';
+import { parseQrCheckInPayload } from '../utils/qrCheckIn';
+import { CheckCircle2, Lock, ScanLine, XCircle, Camera, Keyboard } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 const STAFF_PIN_KEY = (eventId: string) => `turnout_staff_pin_${eventId}`;
+const READER_ID = 'staff-qr-reader';
+const SCAN_COOLDOWN_MS = 2800;
 
 type CheckinResult = {
   ok: boolean;
@@ -26,17 +29,27 @@ export const StaffCheckInScanner: React.FC = () => {
   const [lastAttendee, setLastAttendee] = useState<Attendee | null>(null);
   const [status, setStatus] = useState<'idle' | 'success' | 'warning' | 'error'>('idle');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [scanLocked, setScanLocked] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [manualToken, setManualToken] = useState('');
+  const [showManual, setShowManual] = useState(false);
 
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  const containerId = 'qr-reader-container';
-  const scanCooldownRef = useRef(false);
+  const qrRef = useRef<Html5Qrcode | null>(null);
+  const storedPinRef = useRef<string | null>(null);
+  const processingRef = useRef(false);
+  const lastScannedTokenRef = useRef<string | null>(null);
+  const cooldownUntilRef = useRef(0);
+
+  useEffect(() => {
+    storedPinRef.current = storedPin;
+  }, [storedPin]);
 
   useEffect(() => {
     if (!eventId) return;
     const saved = sessionStorage.getItem(STAFF_PIN_KEY(eventId));
     if (saved) {
       setStoredPin(saved);
+      storedPinRef.current = saved;
       void verifyPin(saved, false);
     }
   }, [eventId]);
@@ -52,12 +65,16 @@ export const StaffCheckInScanner: React.FC = () => {
       setEventTitle(res.eventTitle);
       sessionStorage.setItem(STAFF_PIN_KEY(eventId), pinValue);
       setStoredPin(pinValue);
+      storedPinRef.current = pinValue;
       return true;
     } catch (e: unknown) {
       const err = e as { message?: string; error?: string };
+      if (err?.error === 'invalid_staff_pin' || err?.error === 'checkin_unauthorized') {
+        sessionStorage.removeItem(STAFF_PIN_KEY(eventId));
+        setStoredPin(null);
+        storedPinRef.current = null;
+      }
       if (showErrors) setUnlockError(err?.message || err?.error || 'Invalid PIN');
-      sessionStorage.removeItem(STAFF_PIN_KEY(eventId));
-      setStoredPin(null);
       return false;
     } finally {
       setUnlocking(false);
@@ -69,28 +86,47 @@ export const StaffCheckInScanner: React.FC = () => {
     if (ok) setPin('');
   };
 
-  const performCheckIn = useCallback(
-    async (decodedText: string) => {
-      if (!eventId || !storedPin || scanCooldownRef.current) return;
+  const playSuccessFeedback = () => {
+    try {
+      if (navigator.vibrate) navigator.vibrate(80);
+    } catch {
+      // ignore
+    }
+  };
 
-      scanCooldownRef.current = true;
-      setScanLocked(true);
+  const submitCheckIn = useCallback(
+    async (rawScan: string) => {
+      if (!eventId || !storedPinRef.current || processingRef.current) return;
+
+      const parsed = parseQrCheckInPayload(rawScan, eventId);
+      if (parsed.error === 'empty' || parsed.error === 'invalid' || !parsed.qrToken) {
+        setStatus('error');
+        setStatusMsg('Unrecognized QR code. Scan the ticket QR from the confirmation page.');
+        setLastAttendee(null);
+        return;
+      }
+      if (parsed.error === 'wrong_event') {
+        setStatus('error');
+        setStatusMsg('This ticket belongs to a different event.');
+        setLastAttendee(null);
+        return;
+      }
+
+      const now = Date.now();
+      if (parsed.qrToken === lastScannedTokenRef.current && now < cooldownUntilRef.current) {
+        return;
+      }
+
+      processingRef.current = true;
+      lastScannedTokenRef.current = parsed.qrToken;
+      cooldownUntilRef.current = now + SCAN_COOLDOWN_MS;
       setStatus('idle');
       setStatusMsg('Checking in…');
 
-      let qrToken = decodedText.trim();
-      try {
-        const parsed = JSON.parse(decodedText);
-        if (parsed && typeof parsed.qrToken === 'string') qrToken = parsed.qrToken;
-        else if (parsed && typeof parsed.token === 'string') qrToken = parsed.token;
-      } catch {
-        // raw token
-      }
-
       try {
         const res = await api.post<CheckinResult>(`/api/events/${eventId}/checkin`, {
-          qrToken,
-          staffPin: storedPin,
+          qrToken: parsed.qrToken,
+          staffPin: storedPinRef.current,
         });
         setLastAttendee(res.attendee || null);
         if (res.alreadyCheckedIn) {
@@ -99,56 +135,108 @@ export const StaffCheckInScanner: React.FC = () => {
         } else {
           setStatus('success');
           setStatusMsg(res.message || 'Checked in');
+          playSuccessFeedback();
         }
       } catch (e: unknown) {
         const err = e as { message?: string; error?: string };
         setStatus('error');
         setStatusMsg(err?.message || err?.error || 'Check-in failed');
         setLastAttendee(null);
+        lastScannedTokenRef.current = null;
+      } finally {
+        window.setTimeout(() => {
+          processingRef.current = false;
+        }, SCAN_COOLDOWN_MS);
       }
-
-      window.setTimeout(() => {
-        scanCooldownRef.current = false;
-        setScanLocked(false);
-      }, 2500);
     },
-    [eventId, storedPin]
+    [eventId]
   );
 
-  useEffect(() => {
-    if (!eventId || !storedPin) return;
-    if (scannerRef.current) return;
-
-    const scanner = new Html5QrcodeScanner(
-      containerId,
-      { fps: 10, qrbox: { width: 260, height: 260 }, rememberLastUsedCamera: true },
-      false
-    );
-
-    scanner.render(
-      (text) => void performCheckIn(text),
-      (errMsg) => {
-        if (errMsg && !String(errMsg).includes('NotFoundException')) {
-          // ignore continuous scan noise
-        }
+  const stopCamera = useCallback(async () => {
+    const instance = qrRef.current;
+    if (!instance) return;
+    try {
+      if (instance.getState() === Html5QrcodeScannerState.SCANNING) {
+        await instance.stop();
       }
-    );
+      await instance.clear();
+    } catch {
+      // ignore teardown errors
+    }
+    qrRef.current = null;
+    setCameraReady(false);
+  }, []);
 
-    scannerRef.current = scanner;
-    return () => {
-      scanner.clear().catch(() => {});
-      scannerRef.current = null;
+  const startCamera = useCallback(async () => {
+    if (!storedPinRef.current || qrRef.current) return;
+    setCameraError(null);
+
+    const reader = document.getElementById(READER_ID);
+    if (!reader) {
+      setCameraError('Scanner view not ready. Refresh the page.');
+      return;
+    }
+
+    const instance = new Html5Qrcode(READER_ID, { verbose: false });
+    qrRef.current = instance;
+
+    const onScan = (decodedText: string) => {
+      void submitCheckIn(decodedText);
     };
-  }, [eventId, storedPin, performCheckIn]);
+
+    const config = {
+      fps: 12,
+      qrbox: (w: number, h: number) => {
+        const edge = Math.min(w, h);
+        const size = Math.floor(edge * 0.72);
+        return { width: size, height: size };
+      },
+      aspectRatio: 1,
+      disableFlip: false,
+    };
+
+    const tryStart = async (constraints: { facingMode: string }) => {
+      await instance.start(constraints, config, onScan, () => {});
+    };
+
+    try {
+      await tryStart({ facingMode: 'environment' });
+      setCameraReady(true);
+    } catch {
+      try {
+        await tryStart({ facingMode: 'user' });
+        setCameraReady(true);
+        setCameraError('Using front camera. For best results, use the rear camera if available.');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Could not access camera';
+        setCameraError(
+          message.includes('NotAllowed') || message.includes('Permission')
+            ? 'Camera permission denied. Allow camera access in browser settings, or use manual entry below.'
+            : `Camera unavailable: ${message}`
+        );
+        qrRef.current = null;
+        setShowManual(true);
+      }
+    }
+  }, [submitCheckIn]);
+
+  useEffect(() => {
+    if (!storedPin) return;
+    const t = window.setTimeout(() => {
+      void startCamera();
+    }, 300);
+    return () => {
+      window.clearTimeout(t);
+      void stopCamera();
+    };
+  }, [storedPin, startCamera, stopCamera]);
 
   const signOutStaff = () => {
+    void stopCamera();
     if (eventId) sessionStorage.removeItem(STAFF_PIN_KEY(eventId));
     setStoredPin(null);
+    storedPinRef.current = null;
     setEventTitle(null);
-    if (scannerRef.current) {
-      scannerRef.current.clear().catch(() => {});
-      scannerRef.current = null;
-    }
   };
 
   if (!storedPin) {
@@ -161,7 +249,7 @@ export const StaffCheckInScanner: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-semibold">Staff check-in</h1>
-              <p className="text-sm text-white/60">Enter the 6-digit PIN from the organizer</p>
+              <p className="text-sm text-white/60">Enter the PIN from the organizer</p>
             </div>
           </div>
           <input
@@ -169,6 +257,7 @@ export const StaffCheckInScanner: React.FC = () => {
             onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
             onKeyDown={(e) => e.key === 'Enter' && void handleUnlock()}
             inputMode="numeric"
+            autoComplete="one-time-code"
             placeholder="••••••"
             className="mt-6 w-full rounded-2xl border border-white/15 bg-black/30 px-5 py-4 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none focus:border-teal-500"
           />
@@ -181,12 +270,6 @@ export const StaffCheckInScanner: React.FC = () => {
           >
             {unlocking ? 'Verifying…' : 'Start scanning'}
           </button>
-          <p className="mt-6 text-center text-xs text-white/40">
-            Organizer?{' '}
-            <Link to="/login" className="text-teal-400 underline">
-              Sign in
-            </Link>
-          </p>
         </div>
       </div>
     );
@@ -206,19 +289,31 @@ export const StaffCheckInScanner: React.FC = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-lg px-4 py-6">
-        <div
-          className={cn(
-            'overflow-hidden rounded-3xl border',
-            scanLocked ? 'pointer-events-none opacity-70' : 'border-white/10'
+      <main className="mx-auto max-w-lg px-4 py-4">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black">
+          <div id={READER_ID} className="min-h-[min(62vh,420px)] w-full [&>video]:object-cover" />
+          {!cameraReady && !cameraError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-900/90">
+              <Camera className="h-8 w-8 animate-pulse text-teal-400" />
+              <p className="text-sm text-white/70">Starting camera…</p>
+            </div>
           )}
-        >
-          <div id={containerId} />
+          {cameraReady && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="h-56 w-56 rounded-2xl border-2 border-teal-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+            </div>
+          )}
         </div>
+
+        {cameraError && (
+          <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            {cameraError}
+          </p>
+        )}
 
         <div
           className={cn(
-            'mt-6 rounded-2xl border p-5 transition-colors',
+            'mt-4 rounded-2xl border p-5 transition-colors',
             status === 'success' && 'border-emerald-500/40 bg-emerald-500/10',
             status === 'warning' && 'border-amber-500/40 bg-amber-500/10',
             status === 'error' && 'border-red-500/40 bg-red-500/10',
@@ -229,9 +324,11 @@ export const StaffCheckInScanner: React.FC = () => {
             {status === 'success' && <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-400" />}
             {status === 'warning' && <CheckCircle2 className="h-6 w-6 shrink-0 text-amber-400" />}
             {status === 'error' && <XCircle className="h-6 w-6 shrink-0 text-red-400" />}
-            {status === 'idle' && <ScanLine className="h-6 w-6 shrink-0 text-white/40" />}
-            <div>
-              <p className="text-sm font-medium text-white/90">{statusMsg || 'Point camera at ticket QR code'}</p>
+            {status === 'idle' && <ScanLine className="h-6 w-6 shrink-0 text-teal-400/80" />}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-white/90">
+                {statusMsg || (cameraReady ? 'Align QR inside the frame' : 'Preparing scanner…')}
+              </p>
               {lastAttendee && (
                 <div className="mt-3">
                   <p className="text-lg font-bold">{lastAttendee.fullName}</p>
@@ -244,14 +341,37 @@ export const StaffCheckInScanner: React.FC = () => {
           </div>
         </div>
 
-        {eventId && (
-          <p className="mt-6 text-center text-xs text-white/30">
-            Full list available to the organizer in{' '}
-            <Link to={`/dashboard/events/${eventId}/checkin`} className="text-teal-500/80 underline">
-              dashboard check-in
-            </Link>
-          </p>
+        <button
+          type="button"
+          onClick={() => setShowManual((v) => !v)}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 py-3 text-sm font-semibold text-white/80"
+        >
+          <Keyboard className="h-4 w-4" />
+          {showManual ? 'Hide manual entry' : 'Enter code manually'}
+        </button>
+
+        {showManual && (
+          <div className="mt-3 flex gap-2">
+            <input
+              value={manualToken}
+              onChange={(e) => setManualToken(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void submitCheckIn(manualToken)}
+              placeholder="Paste token or scan text"
+              className="flex-1 rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-mono text-sm text-white outline-none focus:border-teal-500"
+            />
+            <button
+              type="button"
+              onClick={() => void submitCheckIn(manualToken)}
+              className="rounded-xl bg-teal-500 px-4 py-3 text-sm font-bold text-white"
+            >
+              Go
+            </button>
+          </div>
         )}
+
+        <p className="mt-6 text-center text-xs text-white/30">
+          Tip: Hold the phone steady, brighten the screen, and fill the frame with the QR.
+        </p>
       </main>
     </div>
   );

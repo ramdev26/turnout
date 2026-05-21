@@ -228,12 +228,12 @@ export const Success: React.FC = () => {
                     <div className="rounded-lg border border-neutral-200 bg-white p-3">
                       <QRCodeCanvas
                         id={`ticket-qr-${a.id}`}
-                        value={JSON.stringify({ eventId: order.eventId, qrToken: a.qrToken })}
-                        size={112}
+                        value={a.qrToken}
+                        size={160}
                         bgColor="#ffffff"
                         fgColor="#0a0a0a"
-                        level="M"
-                        includeMargin={false}
+                        level="H"
+                        includeMargin
                       />
                     </div>
                     <div>
