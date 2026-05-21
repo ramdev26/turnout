@@ -7,6 +7,7 @@ export const PayHereReturn: React.FC = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const orderId = params.get('order_id') || '';
+  const accessToken = params.get('token') || '';
   const [status, setStatus] = useState<'loading' | 'pending' | 'paid' | 'failed'>('loading');
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -22,12 +23,13 @@ export const PayHereReturn: React.FC = () => {
     const tick = async () => {
       tries += 1;
       try {
-        const res = await api.get<{ order: Order }>(`/api/orders/${orderId}`);
+        const tokenQs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
+        const res = await api.get<{ order: Order }>(`/api/orders/${orderId}${tokenQs}`);
         const s = res.order.status;
         if (cancelled) return;
         if (s === 'paid') {
           setStatus('paid');
-          navigate(`/orders/${orderId}/success`, { replace: true });
+          navigate(`/orders/${orderId}/success${tokenQs}`, { replace: true });
           return;
         }
         if (s === 'failed') {
@@ -55,7 +57,7 @@ export const PayHereReturn: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [navigate, orderId]);
+  }, [navigate, orderId, accessToken]);
 
   return (
     <div className="mx-auto max-w-xl py-12">

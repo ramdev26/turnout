@@ -130,7 +130,7 @@ export const EventLanding: React.FC = () => {
       );
 
       if (totalAmount <= 0) {
-        const res = await api.post<{ orderId: string }>('/api/orders', {
+        const res = await api.post<{ orderId: string; accessToken?: string }>('/api/orders', {
           eventId: event.id,
           buyerName: values.buyerName,
           buyerEmail: values.buyerEmail,
@@ -139,7 +139,8 @@ export const EventLanding: React.FC = () => {
           attendees,
         });
         setCheckoutOpen(false);
-        navigate(`/orders/${res.orderId}/success`);
+        const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
+        navigate(`/orders/${res.orderId}/success${tokenQs}`);
       } else {
         const res = await api.post<{ sdkPayment: Record<string, any> }>('/api/payhere/initiate', {
           eventId: event.id,
@@ -185,9 +186,9 @@ export const EventLanding: React.FC = () => {
         };
         window.payhere.startPayment(res.sdkPayment);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Purchase failed:', error);
-      setPayError('Could not start payment. Please try again.');
+      setPayError(error?.message || error?.error || 'Could not complete checkout. Please try again.');
     } finally {
       setIsPurchasing(false);
     }

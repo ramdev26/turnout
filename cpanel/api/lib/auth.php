@@ -163,3 +163,30 @@ function load_user_profile(int $userId): array {
   ];
 }
 
+function issue_order_access_token(int $orderId): string {
+  $now = time();
+  $payload = json_encode(['oid' => $orderId, 'exp' => $now + (60 * 60 * 24 * 14)], JSON_UNESCAPED_SLASHES);
+  if (!is_string($payload) || $payload === '') return '';
+  $encoded = b64url_encode($payload);
+  $sig = hash_hmac('sha256', $encoded, auth_signing_key());
+  return $encoded . '.' . $sig;
+}
+
+function order_access_token_valid(string $token, int $orderId): bool {
+  $token = trim($token);
+  if ($token === '' || $orderId <= 0) return false;
+  $parts = explode('.', $token, 2);
+  if (count($parts) !== 2) return false;
+  $encoded = $parts[0];
+  $sig = strtolower($parts[1]);
+  $expectedSig = hash_hmac('sha256', $encoded, auth_signing_key());
+  if (!hash_equals($expectedSig, $sig)) return false;
+  $json = b64url_decode($encoded);
+  if ($json === null) return false;
+  $payload = json_decode($json, true);
+  if (!is_array($payload)) return false;
+  $oid = (int)($payload['oid'] ?? 0);
+  $exp = (int)($payload['exp'] ?? 0);
+  return $oid === $orderId && $exp > time();
+}
+

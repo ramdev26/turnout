@@ -1,46 +1,41 @@
 <?php
 // Copy this file to config.php and fill in your DB credentials.
+// On Vercel, config.php can read from environment variables (see repo config.php pattern).
 // Do not commit config.php.
+
+$env = static function (string $key, string $default = ''): string {
+  $v = getenv($key);
+  if ($v === false || $v === null) return $default;
+  return trim((string)$v);
+};
 
 return [
   'app' => [
-    // Set to false in production
-    'dev_mode' => true,
+    'dev_mode' => strtolower($env('APP_DEV_MODE', 'true')) === 'true',
   ],
   'db' => [
-    // mysql (cPanel) or sqlite (local dev)
-    'driver' => 'mysql',
-    'host' => 'localhost',
-    'name' => 'cpanel_db_name',
-    'user' => 'cpanel_db_user',
-    'pass' => 'cpanel_db_password',
-    'charset' => 'utf8mb4',
-    // sqlite only:
-    // 'path' => __DIR__ . '/data/dev.sqlite',
+    'driver' => $env('DB_DRIVER', 'sqlite'),
+    'url' => $env('DATABASE_URL'),
+    'host' => $env('DB_HOST', 'localhost'),
+    'name' => $env('DB_NAME', 'cpanel_db_name'),
+    'user' => $env('DB_USER', 'cpanel_db_user'),
+    'pass' => $env('DB_PASS', 'cpanel_db_password'),
+    'charset' => $env('DB_CHARSET', 'utf8mb4'),
+    'path' => $env('DB_PATH', __DIR__ . '/data/dev.sqlite'),
   ],
   'payhere' => [
-    // Set true for sandbox testing
-    'sandbox' => true,
-    // Fill with your PayHere merchant credentials in local config.php
-    'merchant_id' => 'CHANGE_ME',
-    'merchant_secret' => 'CHANGE_ME',
-    // Public webhook endpoint PayHere can call
-    'notify_url' => 'https://your-domain.example/api/payhere/notify',
-    // Frontend base URL for return/cancel redirects
-    'app_base_url' => 'https://your-domain.example',
+    'sandbox' => strtolower($env('PAYHERE_SANDBOX', 'true')) !== 'false',
+    'merchant_id' => $env('PAYHERE_MERCHANT_ID', 'CHANGE_ME'),
+    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'CHANGE_ME'),
+    'notify_url' => $env('PAYHERE_NOTIFY_URL', 'https://your-domain.example/api/payhere/notify'),
+    'app_base_url' => $env('APP_BASE_URL', 'https://your-domain.example'),
   ],
   'session' => [
-    // Change this in production
-    'name' => 'turnout_sess',
-    // If your site is HTTPS, set to true
-    'cookie_secure' => false,
-    // Keep true to protect against JS access
+    'name' => $env('SESSION_NAME', 'turnout_sess'),
+    'cookie_secure' => strtolower($env('SESSION_COOKIE_SECURE', 'false')) !== 'false',
     'cookie_httponly' => true,
-    // SameSite Lax is fine for same-domain app + API
-    'cookie_samesite' => 'Lax',
-    // Optional: secret used to sign stateless auth cookies across serverless instances.
-    // Set a long random value in production config.php.
-    'token_secret' => 'CHANGE_ME_LONG_RANDOM_SECRET',
+    'cookie_samesite' => $env('SESSION_COOKIE_SAMESITE', 'Lax'),
+    'token_secret' => $env('SESSION_TOKEN_SECRET', 'CHANGE_ME_LONG_RANDOM_SECRET'),
   ],
   'mail' => [
     // For cPanel, you can often use PHP mail() with a domain email configured.

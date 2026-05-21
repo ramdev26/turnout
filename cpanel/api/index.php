@@ -5,6 +5,7 @@ require __DIR__ . '/lib/db.php';
 require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/banners.php';
+require __DIR__ . '/lib/checkout.php';
 
 set_cors_headers_for_same_domain();
 
@@ -141,6 +142,22 @@ function ensure_event_runbook_table(PDO $pdo): void {
     return;
   }
 
+  if ($driver === 'pgsql') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS event_runbook_items (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        priority VARCHAR(16) NOT NULL DEFAULT \'medium\',
+        status VARCHAR(16) NOT NULL DEFAULT \'open\',
+        due_at TIMESTAMP NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_runbook_event_created ON event_runbook_items(event_id, created_at DESC)');
+    return;
+  }
+
   $pdo->exec(
     "CREATE TABLE IF NOT EXISTS event_runbook_items (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -167,6 +184,19 @@ function ensure_user_profiles_table(PDO $pdo): void {
         phone TEXT NULL,
         bio TEXT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    return;
+  }
+
+  if ($driver === 'pgsql') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS user_profiles (
+        user_id BIGINT PRIMARY KEY,
+        avatar_url TEXT NULL,
+        phone VARCHAR(60) NULL,
+        bio TEXT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
     return;
@@ -207,6 +237,32 @@ function ensure_payhere_tables(PDO $pdo): void {
         status_message TEXT NULL,
         raw_post_json TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_payhere_tx_order ON payhere_transactions(order_id, created_at DESC)');
+    return;
+  }
+
+  if ($driver === 'pgsql') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS order_attendee_requests (
+        order_id BIGINT PRIMARY KEY,
+        attendees_json JSONB NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS payhere_transactions (
+        id BIGSERIAL PRIMARY KEY,
+        order_id BIGINT NOT NULL,
+        payment_id VARCHAR(64) NULL,
+        status_code VARCHAR(16) NOT NULL,
+        payhere_amount VARCHAR(32) NULL,
+        payhere_currency VARCHAR(16) NULL,
+        method VARCHAR(32) NULL,
+        status_message TEXT NULL,
+        raw_post_json JSONB NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_payhere_tx_order ON payhere_transactions(order_id, created_at DESC)');
@@ -664,32 +720,6 @@ function payhere_local_md5sig(string $merchantId, string $orderId, string $payhe
   );
 }
 
-function normalize_order_items_from_db(PDO $pdo, int $eventId, array $items): array {
-  $totalCents = 0;
-  $normalizedItems = [];
-  $ticketStmt = $pdo->prepare('SELECT id, name, price_cents FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
-  foreach ($items as $it) {
-    if (!is_array($it)) continue;
-    $ticketId = (int)($it['ticketId'] ?? 0);
-    $qty = (int)($it['quantity'] ?? 0);
-    if ($ticketId <= 0 || $qty <= 0) json_response(400, ['error' => 'invalid_order_item']);
-
-    $ticketStmt->execute([$ticketId, $eventId]);
-    $ticket = $ticketStmt->fetch();
-    if (!$ticket) json_response(400, ['error' => 'ticket_not_found']);
-
-    $priceCents = (int)$ticket['price_cents'];
-    $totalCents += ($priceCents * $qty);
-    $normalizedItems[] = [
-      'ticketId' => (string)$ticketId,
-      'name' => (string)$ticket['name'],
-      'quantity' => $qty,
-      'price' => $priceCents / 100,
-    ];
-  }
-  return ['totalCents' => $totalCents, 'items' => $normalizedItems];
-}
-
 // ---- Auth ----
 if ($path === '/auth/register' && $method === 'POST') {
   $body = read_json_body();
@@ -922,11 +952,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $pdo = db();
   ensure_payhere_tables($pdo);
 
-  // Load event title for "items" field
-  $evStmt = $pdo->prepare('SELECT title FROM events WHERE id = ? LIMIT 1');
-  $evStmt->execute([$eventId]);
-  $ev = $evStmt->fetch();
-  if (!$ev) json_response(404, ['error' => 'event_not_found']);
+  $ev = require_publishable_event($pdo, $eventId);
 
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $totalCents = (int)$normalized['totalCents'];
@@ -957,7 +983,6 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
       $orderId,
       json_encode($attendees, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
-    $_SESSION['last_order_id'] = $orderId;
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'pending', null);
 
     $pdo->commit();
@@ -965,6 +990,8 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     $pdo->rollBack();
     json_response(400, ['error' => 'payhere_initiate_failed']);
   }
+
+  $accessToken = issue_order_access_token($orderId);
 
   $cfg = payhere_cfg();
   $merchantId = $cfg['merchant_id'];
@@ -975,8 +1002,8 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $hash = payhere_hash($merchantId, $orderIdStr, $amount, $currency, $merchantSecret);
 
   $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
-  $returnUrl = $cfg['app_base_url'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr);
-  $cancelUrl = $cfg['app_base_url'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr);
+  $returnUrl = $cfg['app_base_url'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+  $cancelUrl = $cfg['app_base_url'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
 
   // Best-effort name split
   $firstName = $buyerName !== '' ? explode(' ', $buyerName)[0] : 'Customer';
@@ -984,6 +1011,8 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   if ($lastName === '') $lastName = ' ';
 
   json_response(200, [
+    'orderId' => $orderIdStr,
+    'accessToken' => $accessToken,
     'actionUrl' => $actionUrl,
     'sandbox' => $cfg['sandbox'],
     'fields' => [
@@ -1094,15 +1123,22 @@ if ($path === '/payhere/notify' && $method === 'POST') {
     $upd->execute([$nextStatus, (int)$orderId]);
 
     if ($nextStatus === 'paid') {
+      $o = $pdo->prepare('SELECT event_id, buyer_user_id, buyer_email, buyer_phone, tickets_json, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
+      $o->execute([(int)$orderId]);
+      $orderRow = $o->fetch();
+      if ($orderRow && !payhere_amount_matches_order_cents((int)$orderRow['total_amount_cents'], $payhereAmount)) {
+        $pdo->rollBack();
+        http_response_code(400);
+        echo 'amount_mismatch';
+        exit;
+      }
+
       // Create attendees if not already created
       $check = $pdo->prepare('SELECT id FROM attendees WHERE order_id = ? LIMIT 1');
       $check->execute([(int)$orderId]);
       $already = $check->fetch();
 
       if (!$already) {
-        $o = $pdo->prepare('SELECT event_id, buyer_user_id, buyer_email, buyer_phone, tickets_json, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
-        $o->execute([(int)$orderId]);
-        $orderRow = $o->fetch();
         if ($orderRow) {
           $eventId = (int)$orderRow['event_id'];
           $buyerUserId = $orderRow['buyer_user_id'] !== null ? (int)$orderRow['buyer_user_id'] : null;
@@ -1326,29 +1362,28 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   json_response(201, ['eventId' => (string)$newEventId, 'slug' => $newSlug]);
 }
 
+// Public published events list
+if ($path === '/public/events' && $method === 'GET') {
+  $limit = min(24, max(1, (int)($_GET['limit'] ?? 12)));
+  $pdo = db();
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $sql = "SELECT * FROM events WHERE status = 'published' AND COALESCE(event_status, 'approved') = 'approved' ORDER BY created_at DESC LIMIT " . (int)$limit;
+  if ($driver === 'mysql') {
+    $sql = "SELECT * FROM events WHERE status = 'published' AND event_status = 'approved' ORDER BY created_at DESC LIMIT " . (int)$limit;
+  }
+  $stmt = $pdo->query($sql);
+  $events = [];
+  while ($row = $stmt->fetch()) {
+    $events[] = map_public_event_row($row);
+  }
+  json_response(200, ['events' => $events]);
+}
+
 // Public event details
 if (preg_match('#^/events/(\\d+)$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
-  $stmt = db()->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
-  $stmt->execute([$eventId]);
-  $row = $stmt->fetch();
-  if (!$row) json_response(404, ['error' => 'event_not_found']);
-  json_response(200, [
-    'event' => [
-      'id' => (string)$row['id'],
-      'slug' => $row['slug'],
-      'organizerId' => (string)$row['organizer_user_id'],
-      'title' => $row['title'],
-      'description' => $row['description'],
-      'date' => gmdate('c', strtotime($row['event_date'])),
-      'location' => $row['location'],
-      'bannerUrl' => $row['banner_url'],
-      'templateId' => $row['template_id'],
-      'customization' => json_decode($row['customization_json'], true),
-      'status' => $row['status'],
-      'createdAt' => gmdate('c', strtotime($row['created_at'])),
-    ],
-  ]);
+  $row = require_publishable_event(db(), $eventId);
+  json_response(200, ['event' => map_public_event_row($row)]);
 }
 
 // Public by slug
@@ -1357,23 +1392,8 @@ if (preg_match('#^/events/slug/([a-z0-9-]+)$#', $path, $m) && $method === 'GET')
   $stmt = db()->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
   $stmt->execute([$slug]);
   $row = $stmt->fetch();
-  if (!$row) json_response(404, ['error' => 'event_not_found']);
-  json_response(200, [
-    'event' => [
-      'id' => (string)$row['id'],
-      'slug' => $row['slug'],
-      'organizerId' => (string)$row['organizer_user_id'],
-      'title' => $row['title'],
-      'description' => $row['description'],
-      'date' => gmdate('c', strtotime($row['event_date'])),
-      'location' => $row['location'],
-      'bannerUrl' => $row['banner_url'],
-      'templateId' => $row['template_id'],
-      'customization' => json_decode($row['customization_json'], true),
-      'status' => $row['status'],
-      'createdAt' => gmdate('c', strtotime($row['created_at'])),
-    ],
-  ]);
+  if (!$row || !is_event_publicly_visible($row)) json_response(404, ['error' => 'event_not_found']);
+  json_response(200, ['event' => map_public_event_row($row)]);
 }
 
 // Organizer: update slug
@@ -1465,6 +1485,7 @@ if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'PO
 
 if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
+  require_publishable_event(db(), $eventId);
   $stmt = db()->prepare('SELECT * FROM tickets WHERE event_id = ? ORDER BY id ASC');
   $stmt->execute([$eventId]);
   $tickets = [];
@@ -1602,10 +1623,13 @@ if ($path === '/orders' && $method === 'POST') {
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
 
   $pdo = db();
+  require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $totalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
-  // Allow free orders (0 LKR) for testing and free events.
+  if ($totalCents > 0) {
+    json_response(400, ['error' => 'paid_orders_use_payhere', 'message' => 'Use PayHere checkout for paid tickets.']);
+  }
 
   $buyerId = current_user_id();
   $pdo->beginTransaction();
@@ -1622,8 +1646,8 @@ if ($path === '/orders' && $method === 'POST') {
       'paid',
     ]);
     $orderId = (int)$pdo->lastInsertId();
-    $_SESSION['last_order_id'] = $orderId;
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
+    increment_ticket_sold_counts($pdo, $normalizedItems);
 
     // Create attendees (one per ticket quantity)
     $createdAttendees = [];
@@ -1656,7 +1680,10 @@ if ($path === '/orders' && $method === 'POST') {
       (count($createdAttendees) ? '<p><strong>QR Tokens:</strong><br/>' . implode('<br/>', array_map(fn($x) => htmlspecialchars($x['qrToken']), $createdAttendees)) . '</p>' : '');
     send_email($buyerEmail, $subject, $bodyHtml);
 
-    json_response(201, ['orderId' => (string)$orderId]);
+    json_response(201, [
+      'orderId' => (string)$orderId,
+      'accessToken' => issue_order_access_token($orderId),
+    ]);
   } catch (Exception $e) {
     $pdo->rollBack();
     json_response(400, ['error' => 'order_create_failed']);
@@ -1666,6 +1693,7 @@ if ($path === '/orders' && $method === 'POST') {
 if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   $orderId = (int)$m[1];
   $uid = current_user_id();
+  $accessToken = trim((string)($_GET['token'] ?? ''));
   $pdo = db();
   $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
   $stmt->execute([$orderId]);
@@ -1677,8 +1705,8 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   $eventOwner = $eventOwnerStmt->fetch();
   $isBuyer = ($uid !== null) && ((int)($row['buyer_user_id'] ?? 0) === $uid);
   $isOrganizerOwner = ($uid !== null) && ((int)($eventOwner['organizer_user_id'] ?? 0) === $uid);
-  $isRecentBuyerSession = ((int)($_SESSION['last_order_id'] ?? 0) === $orderId);
-  if (!$isBuyer && !$isOrganizerOwner && !$isRecentBuyerSession) json_response(403, ['error' => 'forbidden']);
+  $hasAccessToken = order_access_token_valid($accessToken, $orderId);
+  if (!$isBuyer && !$isOrganizerOwner && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
 
   $items = json_decode($row['tickets_json'], true);
   if (!is_array($items)) $items = [];
@@ -2026,6 +2054,7 @@ if (preg_match('#^/events/(\\d+)/sessions/(\\d+)/delete$#', $path, $m) && $metho
 // Public: speakers + sessions by event id
 if (preg_match('#^/public/events/(\\d+)/speakers$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
+  require_publishable_event(db(), $eventId);
   $stmt = db()->prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY id DESC');
   $stmt->execute([$eventId]);
   $speakers = [];
@@ -2044,6 +2073,7 @@ if (preg_match('#^/public/events/(\\d+)/speakers$#', $path, $m) && $method === '
 
 if (preg_match('#^/public/events/(\\d+)/sessions$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
+  require_publishable_event(db(), $eventId);
   $stmt = db()->prepare('SELECT * FROM sessions WHERE event_id = ? ORDER BY starts_at ASC');
   $stmt->execute([$eventId]);
   $sessions = [];
@@ -2312,7 +2342,8 @@ if ($path === '/admin/summary' && $method === 'GET') {
       COALESCE(SUM(CASE WHEN payment_status = 'paid' AND date(created_at) = date('now') THEN amount_cents ELSE 0 END), 0) AS today_revenue
      FROM transactions"
   )->fetch();
-  if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+  $dbDriver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($dbDriver === 'mysql' || $dbDriver === 'pgsql') {
     $sumTx = $pdo->query(
       "SELECT
         COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN amount_cents ELSE 0 END), 0) AS total_revenue,

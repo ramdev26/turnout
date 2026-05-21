@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Order, Event } from '../types';
 import { CheckCircle, Calendar, MapPin, Ticket, ArrowRight, Download } from 'lucide-react';
 import { format } from 'date-fns';
@@ -21,6 +21,8 @@ const hexToRgb = (hex: string, fallback: [number, number, number]): [number, num
 export const Success: React.FC = () => {
   const { user } = useAuthStore();
   const { orderId } = useParams<{ orderId: string }>();
+  const [searchParams] = useSearchParams();
+  const accessToken = searchParams.get('token') || '';
   const [order, setOrder] = useState<Order | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,8 @@ export const Success: React.FC = () => {
     const fetchOrderData = async () => {
       if (!orderId) return;
       try {
-        const orderRes = await api.get<{ order: Order }>(`/api/orders/${orderId}`);
+        const tokenQs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
+        const orderRes = await api.get<{ order: Order }>(`/api/orders/${orderId}${tokenQs}`);
         setOrder(orderRes.order);
 
         const eventRes = await api.get<{ event: Event }>(`/api/events/${orderRes.order.eventId}`);
@@ -42,7 +45,7 @@ export const Success: React.FC = () => {
     };
 
     fetchOrderData();
-  }, [orderId]);
+  }, [orderId, accessToken]);
 
   if (loading) {
     return (
