@@ -38,10 +38,13 @@ return [
     'token_secret' => $env('SESSION_TOKEN_SECRET', 'CHANGE_ME_LONG_RANDOM_SECRET'),
   ],
   'mail' => [
-    // For cPanel, you can often use PHP mail() with a domain email configured.
-    // Set enabled to false to disable sending.
-    'enabled' => false,
-    'from' => 'no-reply@example.com',
+    'enabled' => strtolower($env('MAIL_ENABLED', 'false')) === 'true',
+    'from' => $env('MAIL_FROM', 'no-reply@example.com'),
+  ],
+  'domains' => [
+    'cname_target' => $env('CUSTOM_DOMAIN_CNAME_TARGET', 'cname.vercel-dns.com'),
+    'apex_ip' => $env('CUSTOM_DOMAIN_APEX_IP', '76.76.21.21'),
+    'platform_hosts' => $env('PLATFORM_HOSTS', 'localhost,127.0.0.1'),
   ],
 ];
 

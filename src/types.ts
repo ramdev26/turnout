@@ -151,6 +151,7 @@ export interface Event {
   bannerUrl: string;
   templateId: string;
   customization: EventCustomization;
+  customDomain?: string | null;
   status: 'draft' | 'published' | 'cancelled';
   createdAt: string;
 }

@@ -128,6 +128,35 @@ If this is not set, production frontend requests default to relative `/api/*` UR
 - Verify routes like `/dashboard`, `/events/:eventId`, `/attendee/dashboard` load directly (SPA fallback)
 - Verify login, event creation, checkout, and any API-backed pages
 
+## Custom domains (per event)
+
+Organizers can connect a domain like `events.yourbrand.com` to a published event from **Dashboard → Event settings → Custom domain**.
+
+### How it works
+
+1. Organizer saves the domain in Turnout (stored on the event + DNS instructions).
+2. Organizer adds DNS at their registrar (CNAME to `cname.vercel-dns.com`, or A record for apex).
+3. Domain is added to the Vercel project (automatic if API token is set, or manually in Vercel dashboard).
+4. Edge `middleware.ts` maps the custom host to `/e/{slug}` so the themed landing page loads on the custom URL.
+
+### Vercel environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `CUSTOM_DOMAIN_CNAME_TARGET` | CNAME value shown to users (default `cname.vercel-dns.com`) |
+| `CUSTOM_DOMAIN_APEX_IP` | A record for root domains (default `76.76.21.21`) |
+| `PLATFORM_HOSTS` | Comma-separated hosts that are NOT custom domains |
+| `VERCEL_API_TOKEN` | Auto-register domains on the Vercel project |
+| `VERCEL_PROJECT_ID` | Vercel project ID |
+| `VERCEL_TEAM_ID` | Optional team scope |
+
+### API endpoints
+
+- `GET /api/domain/config` — public DNS targets
+- `GET /api/events/by-host/{hostname}` — resolve host → slug (middleware)
+- `GET/POST/DELETE /api/events/{id}/domain` — organizer domain management
+- `POST /api/events/{id}/domain/verify` — check DNS / Vercel verification
+
 ### Notes
 
 - [`public/.htaccess`](public/.htaccess) is for Apache/cPanel only; Vercel uses [`vercel.json`](vercel.json) rewrites.

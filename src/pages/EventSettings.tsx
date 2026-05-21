@@ -5,6 +5,7 @@ import { Attendee, Event, Session, Speaker, Ticket } from '../types';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
 import { OrganizerShell } from '../components/organizer/OrganizerShell';
+import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 
 export const EventSettings: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -299,6 +300,15 @@ export const EventSettings: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {eventId && (
+            <CustomDomainPanel
+              eventId={eventId}
+              onUpdated={(domain) => {
+                if (event) setEvent({ ...event, customDomain: domain, customization: { ...event.customization, customDomain: domain || undefined } });
+              }}
+            />
+          )}
 
           <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
             <h2 className="text-lg font-extrabold text-neutral-900">Ticket categories</h2>

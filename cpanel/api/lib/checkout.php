@@ -11,8 +11,11 @@ function map_public_event_row(array $row): array {
     'location' => $row['location'],
     'bannerUrl' => $row['banner_url'],
     'templateId' => $row['template_id'],
-    'customization' => json_decode((string)$row['customization_json'], true),
-    'status' => $row['status'],
+      'customization' => json_decode((string)$row['customization_json'], true),
+      'customDomain' => isset($row['custom_domain']) && $row['custom_domain'] !== null && $row['custom_domain'] !== ''
+        ? (string)$row['custom_domain']
+        : null,
+      'status' => $row['status'],
     'createdAt' => gmdate('c', strtotime($row['created_at'])),
   ];
 }

@@ -6,6 +6,7 @@ require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/banners.php';
 require __DIR__ . '/lib/checkout.php';
+require __DIR__ . '/lib/domains.php';
 
 set_cors_headers_for_same_domain();
 
@@ -695,7 +696,26 @@ function payhere_cfg(): array {
 
 ensure_users_role_support(db());
 ensure_finance_tables(db());
+ensure_events_custom_domain_column(db());
 enforce_write_request_integrity($path, $method);
+
+function load_event_row_or_404(PDO $pdo, int $eventId): array {
+  $stmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  return $row;
+}
+
+function can_view_event_row(array $row, ?int $uid): bool {
+  if (is_event_publicly_visible($row)) return true;
+  if ($uid === null) return false;
+  if ((int)$row['organizer_user_id'] === $uid) return true;
+  $roleStmt = db()->prepare('SELECT role FROM users WHERE id = ? LIMIT 1');
+  $roleStmt->execute([$uid]);
+  $roleRow = $roleStmt->fetch();
+  return is_array($roleRow) && (string)($roleRow['role'] ?? '') === 'super_admin';
+}
 
 function payhere_amount_format(float $amount): string {
   return number_format($amount, 2, '.', '');
@@ -1303,6 +1323,18 @@ if ($path === '/events' && $method === 'POST') {
     }
 
     write_log($pdo, $uid, 'organizer', 'event.created', 'event', (string)$eventId, ['title' => $title]);
+
+    $customDomain = '';
+    if (is_array($customization) && !empty($customization['customDomain'])) {
+      $customDomain = (string)$customization['customDomain'];
+    }
+    if ($customDomain !== '') {
+      sync_event_custom_domain($pdo, $eventId, $customDomain);
+      if (vercel_domain_credentials() !== null) {
+        vercel_add_project_domain(normalize_event_hostname($customDomain));
+      }
+    }
+
     $pdo->commit();
   } catch (Exception $e) {
     $pdo->rollBack();
@@ -1331,9 +1363,14 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   $newSlug = unique_slug($pdo, $baseSlug);
   $newTitle = $row['title'] . ' (Copy)';
 
+  $customizationCopy = json_decode((string)$row['customization_json'], true);
+  if (!is_array($customizationCopy)) $customizationCopy = [];
+  unset($customizationCopy['customDomain'], $customizationCopy['dnsConfigured']);
+
   $pdo->beginTransaction();
   try {
-    $ins = $pdo->prepare('INSERT INTO events (organizer_user_id, slug, title, description, event_date, location, banner_url, template_id, customization_json, status, event_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    ensure_events_custom_domain_column($pdo);
+    $ins = $pdo->prepare('INSERT INTO events (organizer_user_id, slug, title, description, event_date, location, banner_url, template_id, customization_json, status, event_status, custom_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $ins->execute([
       $uid,
       $newSlug,
@@ -1343,9 +1380,10 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
       $row['location'],
       $row['banner_url'],
       $row['template_id'],
-      $row['customization_json'],
+      json_encode($customizationCopy, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
       'draft',
       'pending',
+      null,
     ]);
     $newEventId = (int)$pdo->lastInsertId();
 
@@ -1360,6 +1398,29 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   }
 
   json_response(201, ['eventId' => (string)$newEventId, 'slug' => $newSlug]);
+}
+
+// Domain setup metadata (public)
+if ($path === '/domain/config' && $method === 'GET') {
+  $creds = vercel_domain_credentials();
+  json_response(200, [
+    'cnameTarget' => domain_cname_target(),
+    'apexIp' => domain_apex_ip(),
+    'platformHosts' => domain_platform_hosts(),
+    'vercelAutoProvision' => $creds !== null,
+    'docsUrl' => 'https://vercel.com/docs/projects/domains/add-a-domain',
+  ]);
+}
+
+// Resolve custom hostname → event slug (edge middleware + diagnostics)
+if (preg_match('#^/events/by-host/(.+)$#', $path, $m) && $method === 'GET') {
+  $host = normalize_event_hostname(urldecode($m[1]));
+  if ($host === '' || is_reserved_platform_host($host)) {
+    json_response(404, ['error' => 'host_not_mapped']);
+  }
+  $slug = lookup_event_slug_by_host(db(), $host);
+  if ($slug === null) json_response(404, ['error' => 'host_not_mapped']);
+  json_response(200, ['host' => $host, 'slug' => $slug, 'path' => '/e/' . $slug]);
 }
 
 // Public published events list
@@ -1379,10 +1440,12 @@ if ($path === '/public/events' && $method === 'GET') {
   json_response(200, ['events' => $events]);
 }
 
-// Public event details
+// Public event details (organizer/admin can view drafts)
 if (preg_match('#^/events/(\\d+)$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
-  $row = require_publishable_event(db(), $eventId);
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
   json_response(200, ['event' => map_public_event_row($row)]);
 }
 
@@ -1419,6 +1482,118 @@ if (preg_match('#^/events/(\\d+)/slug$#', $path, $m) && $method === 'POST') {
   $upd = $pdo->prepare('UPDATE events SET slug = ? WHERE id = ?');
   $upd->execute([$newSlug, $eventId]);
   json_response(200, ['slug' => $newSlug]);
+}
+
+// Organizer: custom domain management
+if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $domain = (string)($row['custom_domain'] ?? '');
+  $dns = $domain !== '' ? domain_dns_instructions($domain) : null;
+  $vercel = $domain !== '' ? vercel_get_project_domain($domain) : ['ok' => false, 'skipped' => true];
+
+  json_response(200, [
+    'customDomain' => $domain !== '' ? $domain : null,
+    'publicUrl' => $domain !== '' ? ('https://' . $domain) : null,
+    'defaultUrl' => '/e/' . $row['slug'],
+    'dns' => $dns,
+    'vercel' => $vercel,
+    'cnameTarget' => domain_cname_target(),
+    'apexIp' => domain_apex_ip(),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $domainRaw = trim((string)($body['domain'] ?? ''));
+  if ($domainRaw === '') json_response(400, ['error' => 'invalid_domain']);
+
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $domain = normalize_event_hostname($domainRaw);
+  if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like events.yourbrand.com']);
+  if (is_reserved_platform_host($domain)) json_response(400, ['error' => 'domain_reserved']);
+
+  sync_event_custom_domain($pdo, $eventId, $domain);
+  $vercel = vercel_add_project_domain($domain);
+  $dns = domain_dns_instructions($domain);
+
+  json_response(200, [
+    'ok' => true,
+    'customDomain' => $domain,
+    'publicUrl' => 'https://' . $domain,
+    'dns' => $dns,
+    'vercel' => $vercel,
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'DELETE') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  sync_event_custom_domain($pdo, $eventId, null);
+  json_response(200, ['ok' => true, 'customDomain' => null]);
+}
+
+if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  $domain = (string)($row['custom_domain'] ?? '');
+  if ($domain === '') json_response(400, ['error' => 'domain_not_set']);
+
+  $vercel = vercel_get_project_domain($domain);
+  $dnsOk = false;
+  $records = @dns_get_record($domain, DNS_CNAME);
+  $target = strtolower(domain_cname_target());
+  if (is_array($records)) {
+    foreach ($records as $rec) {
+      $val = strtolower((string)($rec['target'] ?? ''));
+      if ($val !== '' && (str_contains($val, 'vercel') || $val === $target || str_ends_with($val, '.vercel-dns.com'))) {
+        $dnsOk = true;
+        break;
+      }
+    }
+  }
+  if (!$dnsOk) {
+    $aRecords = @dns_get_record($domain, DNS_A);
+    if (is_array($aRecords)) {
+      foreach ($aRecords as $rec) {
+        if ((string)($rec['ip'] ?? '') === domain_apex_ip()) {
+          $dnsOk = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if ($vercel['verified'] ?? false) {
+    $customization = json_decode((string)$row['customization_json'], true);
+    if (!is_array($customization)) $customization = [];
+    $customization['dnsConfigured'] = true;
+    $pdo->prepare('UPDATE events SET customization_json = ? WHERE id = ?')->execute([
+      json_encode($customization, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+      $eventId,
+    ]);
+  }
+
+  json_response(200, [
+    'dnsDetected' => $dnsOk,
+    'vercel' => $vercel,
+    'configured' => (bool)($vercel['verified'] ?? false) || $dnsOk,
+  ]);
 }
 
 // Organizer: publish/unpublish/cancel own event
@@ -1485,8 +1660,10 @@ if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'PO
 
 if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
-  require_publishable_event(db(), $eventId);
-  $stmt = db()->prepare('SELECT * FROM tickets WHERE event_id = ? ORDER BY id ASC');
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
+  $stmt = $pdo->prepare('SELECT * FROM tickets WHERE event_id = ? ORDER BY id ASC');
   $stmt->execute([$eventId]);
   $tickets = [];
   while ($row = $stmt->fetch()) {

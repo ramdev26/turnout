@@ -213,7 +213,7 @@ export const CreateEvent: React.FC = () => {
       customDomain: '',
       dnsProvider: 'cloudflare',
       dnsRecordType: 'CNAME',
-      dnsRecordTarget: 'sites.turnout.app',
+      dnsRecordTarget: 'cname.vercel-dns.com',
       dnsConfigured: false,
     },
   });
@@ -868,12 +868,19 @@ export const CreateEvent: React.FC = () => {
                     />
                   </div>
                   {useCustomDomain && (
-                    <input
-                      {...register('customDomain')}
-                      placeholder="events.yourbrand.com"
-                      className={fieldClass}
-                      style={fieldStyle}
-                    />
+                    <div className="space-y-2">
+                      <input
+                        {...register('customDomain')}
+                        placeholder="events.yourbrand.com"
+                        className={fieldClass}
+                        style={fieldStyle}
+                      />
+                      <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
+                        After creating the event, open <strong>Event settings</strong> for DNS records. Point a{' '}
+                        <span className="font-mono">CNAME</span> to <span className="font-mono">cname.vercel-dns.com</span>{' '}
+                        (or use the exact target shown in settings).
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
