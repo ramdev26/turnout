@@ -1,11 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CanvasElement, CanvasDesign, Event, SectionBlock, SectionDesign, Ticket } from '../types';
-import { Calendar, MapPin, ShoppingCart } from 'lucide-react';
-import { format } from 'date-fns';
-import { formatLKR } from '../utils/money';
 import { api } from '../api/client';
 import type { Speaker, Session } from '../types';
 import { landingCssVars, resolveTemplateId } from '../themes/eventThemes';
+import {
+  CheckoutPanel,
+  CountdownDisplay,
+  EventBanner,
+  EventMeta,
+  LandingTopBar,
+  SectionHeading,
+  TicketsList,
+  landingShellStyle,
+  themeDisplayName,
+} from '../components/landing/LandingShared';
 
 export type TemplateId = 'template-1' | 'template-2' | 'template-3' | 'template-4' | 'template-canvas';
 
@@ -27,26 +35,14 @@ export type LandingTemplateProps = {
   isPurchasing: boolean;
 };
 
-const pageShellStyle = (customization: Event['customization']): React.CSSProperties => ({
-  ...landingCssVars(customization),
-  background: 'var(--landing-page-bg)',
-  minHeight: '100vh',
-});
-
-const surfaceStyle: React.CSSProperties = {
-  background: 'var(--landing-surface, #ffffff)',
-  color: 'var(--landing-text, #0f172a)',
-};
-
-function safeCanvas(design: CanvasDesign | undefined, event: Event): CanvasDesign | null {
+function safeCanvas(design: CanvasDesign | undefined): CanvasDesign | null {
   if (!design || design.version !== 1 || !design.canvas || !Array.isArray(design.elements)) return null;
-  // Basic guardrails
   const width = Math.max(600, Math.min(1600, design.canvas.width || 1100));
   const height = Math.max(600, Math.min(2400, design.canvas.height || 900));
   return {
     version: 1,
     canvas: { width, height, background: design.canvas.background || '#111714' },
-    elements: design.elements.filter((e) => e && typeof e.id === 'string' && typeof e.type === 'string') as any,
+    elements: design.elements.filter((e) => e && typeof e.id === 'string' && typeof e.type === 'string') as CanvasElement[],
   };
 }
 
@@ -55,12 +51,18 @@ function safeSections(design: SectionDesign | undefined): SectionDesign | null {
   return {
     version: 1,
     theme: {
-      contentBackground: design.theme.contentBackground || '#111714',
-      border: design.theme.border || 'rgba(57, 255, 20, 0.2)',
+      contentBackground: design.theme.contentBackground || 'var(--landing-surface)',
+      border: design.theme.border || 'var(--landing-border)',
     },
-    blocks: design.blocks.filter((b) => b && typeof b.id === 'string' && typeof b.type === 'string') as any,
+    blocks: design.blocks.filter((b) => b && typeof b.id === 'string' && typeof b.type === 'string') as SectionBlock[],
   };
 }
+
+const sectionCardStyle: React.CSSProperties = {
+  borderColor: 'var(--landing-border)',
+  background: 'var(--landing-surface)',
+  color: 'var(--landing-text)',
+};
 
 function SectionsRenderer({
   event,
@@ -72,9 +74,6 @@ function SectionsRenderer({
   isPurchasing,
   design,
 }: LandingTemplateProps & { design: SectionDesign }) {
-  const primary = event.customization?.primaryColor || '#4f46e5';
-  const secondary = event.customization?.secondaryColor || '#10b981';
-
   const [speakers, setSpeakers] = useState<Speaker[] | null>(null);
   const [sessions, setSessions] = useState<Session[] | null>(null);
 
@@ -102,14 +101,11 @@ function SectionsRenderer({
     };
   }, [event.id]);
 
-  const speakerById = useMemo(() => {
-    const list = speakers || [];
-    return Object.fromEntries(list.map((s) => [s.id, s]));
-  }, [speakers]);
+  const speakerById = useMemo(() => Object.fromEntries((speakers || []).map((s) => [s.id, s])), [speakers]);
 
   const sponsors = useMemo(() => {
     const block = design.blocks.find((b) => b.type === 'sponsors');
-    const text = (block?.props as any)?.itemsText as string | undefined;
+    const text = (block?.props as { itemsText?: string })?.itemsText;
     if (!text) return [];
     return text
       .split('\n')
@@ -123,23 +119,32 @@ function SectionsRenderer({
   }, [design.blocks]);
 
   const renderBlock = (b: SectionBlock) => {
-    if (b.type === 'divider') return <div className="h-px w-full" style={{ background: b.props?.color || '#e5e5e5' }} />;
+    if (b.type === 'divider') {
+      return <div className="h-px w-full" style={{ background: b.props?.color || 'var(--landing-border)' }} />;
+    }
 
     if (b.type === 'hero') {
       const align = b.props?.align === 'center' ? 'text-center items-center' : 'text-left items-start';
       return (
-        <div className={`flex flex-col gap-4 ${align}`}>
-          <div className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-500">{b.props?.eyebrow || 'INTRODUCING'}</div>
-          <div className="text-4xl font-black tracking-tight text-neutral-900">{b.props?.title || event.title}</div>
-          <div className="text-sm leading-relaxed text-neutral-600">{b.props?.subtitle || event.description}</div>
-          <div className="overflow-hidden rounded-2xl border border-neutral-200">
+        <div className={`flex flex-col gap-5 ${align}`}>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--landing-text-muted)' }}>
+            {b.props?.eyebrow || 'Welcome'}
+          </p>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl" style={{ color: 'var(--landing-text)' }}>
+            {b.props?.title || event.customization?.heroText || event.title}
+          </h1>
+          <p className="max-w-2xl text-base leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+            {b.props?.subtitle || event.customization?.heroSubtext || event.description}
+          </p>
+          <div className="w-full overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--landing-border)' }}>
             <img
               src={b.props?.imageUrl || event.bannerUrl}
               alt={event.title}
               referrerPolicy="no-referrer"
-              className="h-56 w-full object-cover"
+              className="aspect-[16/9] w-full object-cover"
             />
           </div>
+          <EventMeta event={event} tone="light" />
         </div>
       );
     }
@@ -147,87 +152,40 @@ function SectionsRenderer({
     if (b.type === 'richText') {
       return (
         <div>
-          <div className="text-2xl font-extrabold tracking-tight text-neutral-900">{b.props?.title || 'Section title'}</div>
-          <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-neutral-600">{b.props?.text || ''}</div>
+          <SectionHeading>{b.props?.title || 'About'}</SectionHeading>
+          <p className="whitespace-pre-wrap text-base leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+            {b.props?.text || event.description}
+          </p>
         </div>
       );
     }
 
-    if (b.type === 'image') {
+    if (b.type === 'image' && b.props?.imageUrl) {
       return (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200">
-          <img src={b.props?.imageUrl} alt="" referrerPolicy="no-referrer" className="h-72 w-full object-cover" />
+        <div className="overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--landing-border)' }}>
+          <img src={b.props.imageUrl} alt="" referrerPolicy="no-referrer" className="aspect-video w-full object-cover" />
         </div>
       );
     }
 
     if (b.type === 'countdown') {
-      const now = Date.now();
-      const target = new Date(event.date).getTime();
-      const diff = Math.max(0, target - now);
-      const hours = Math.floor(diff / 3_600_000);
-      const mins = Math.floor((diff % 3_600_000) / 60_000);
-      const secs = Math.floor((diff % 60_000) / 1000);
-      return (
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
-          <div className="text-xs font-extrabold uppercase tracking-widest text-neutral-500">{b.props?.title || 'Starts in'}</div>
-          <div className="mt-2 text-3xl font-black text-neutral-900">
-            {hours.toString().padStart(2, '0')}:{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
-          </div>
-        </div>
-      );
+      return <CountdownDisplay targetIso={event.date} title={b.props?.title || 'Event starts in'} />;
     }
 
     if (b.type === 'tickets') {
-      const hasSelection = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
       return (
         <div>
-          <div className="text-2xl font-extrabold tracking-tight text-neutral-900">{b.props?.title || 'Tickets'}</div>
-          <div className="mt-6 flex flex-col gap-4">
-            {tickets.map((t) => (
-              <div key={t.id} className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-5">
-                <div>
-                  <div className="text-sm font-bold text-neutral-900">{t.name}</div>
-                  <div className="mt-1 text-xs text-neutral-500">{formatLKR(t.price)}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => onTicketChange(t.id, (selectedTickets[t.id] || 0) - 1)}
-                    className="h-10 w-10 rounded-full border border-neutral-200 bg-white text-lg font-black"
-                  >
-                    -
-                  </button>
-                  <div className="w-8 text-center text-sm font-extrabold">{selectedTickets[t.id] || 0}</div>
-                  <button
-                    type="button"
-                    onClick={() => onTicketChange(t.id, (selectedTickets[t.id] || 0) + 1)}
-                    className="h-10 w-10 rounded-full border border-neutral-200 bg-white text-lg font-black"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            ))}
+          <SectionHeading subtitle="Choose your tickets and proceed to secure checkout.">{b.props?.title || 'Tickets'}</SectionHeading>
+          <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} accent="var(--secondary)" />
+          <div className="mt-8 hidden md:block">
+            <CheckoutPanel
+              tickets={tickets}
+              selectedTickets={selectedTickets}
+              totalAmount={totalAmount}
+              onCheckout={onCheckout}
+              isPurchasing={isPurchasing}
+            />
           </div>
-
-          <div className="mt-6 flex items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
-            <div className="text-sm font-extrabold text-neutral-700">Total</div>
-            <div className="text-xl font-black" style={{ color: primary }}>
-              {formatLKR(totalAmount)}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onCheckout}
-            disabled={!hasSelection || isPurchasing}
-            className="mt-6 w-full rounded-2xl px-5 py-4 text-sm font-extrabold text-white disabled:opacity-50"
-            style={{ background: primary }}
-          >
-            {isPurchasing ? 'Processing...' : 'Checkout'}
-          </button>
-          <div className="mt-3 text-center text-xs text-neutral-400">English • LKR</div>
         </div>
       );
     }
@@ -236,42 +194,35 @@ function SectionsRenderer({
       const list = speakers;
       return (
         <div>
-          <div className="text-2xl font-extrabold tracking-tight text-neutral-900">{b.props?.title || 'Speakers'}</div>
-          {b.props?.subtitle ? <div className="mt-2 text-sm text-neutral-600">{b.props.subtitle}</div> : null}
-
+          <SectionHeading subtitle={b.props?.subtitle}>{b.props?.title || 'Speakers'}</SectionHeading>
           {list === null ? (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-2xl border border-neutral-200 bg-white p-5">
-                  <div className="h-12 w-12 rounded-full bg-neutral-100" />
-                  <div className="mt-4 h-4 w-40 rounded bg-neutral-100" />
-                  <div className="mt-2 h-3 w-24 rounded bg-neutral-100" />
-                </div>
+                <div key={i} className="h-32 animate-pulse rounded-2xl border" style={sectionCardStyle} />
               ))}
             </div>
           ) : list.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-600">
-              Speakers will appear here once the organizer adds them.
-            </div>
+            <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+              Speaker lineup coming soon.
+            </p>
           ) : (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {list.map((s) => (
-                <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-5">
+                <div key={s.id} className="rounded-2xl border p-5" style={sectionCardStyle}>
                   {s.avatarUrl ? (
-                    <img
-                      src={s.avatarUrl}
-                      alt={s.name}
-                      referrerPolicy="no-referrer"
-                      className="h-12 w-12 rounded-full object-cover"
-                    />
+                    <img src={s.avatarUrl} alt={s.name} className="h-14 w-14 rounded-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-sm font-black text-neutral-500">
+                    <div
+                      className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold"
+                      style={{ background: 'var(--landing-surface-muted)', color: 'var(--primary)' }}
+                    >
                       {s.name?.slice(0, 1).toUpperCase()}
                     </div>
                   )}
-                  <div className="mt-4 text-base font-extrabold text-neutral-900">{s.name}</div>
-                  <div className="mt-1 text-sm text-neutral-600">{[s.title, s.company].filter(Boolean).join(' • ')}</div>
-                  {s.bio ? <div className="mt-3 text-sm leading-relaxed text-neutral-600">{s.bio}</div> : null}
+                  <p className="mt-4 font-semibold">{s.name}</p>
+                  <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                    {[s.title, s.company].filter(Boolean).join(' · ')}
+                  </p>
                 </div>
               ))}
             </div>
@@ -284,37 +235,29 @@ function SectionsRenderer({
       const list = sessions;
       return (
         <div>
-          <div className="text-2xl font-extrabold tracking-tight text-neutral-900">{b.props?.title || 'Agenda'}</div>
-          {b.props?.subtitle ? <div className="mt-2 text-sm text-neutral-600">{b.props.subtitle}</div> : null}
-
+          <SectionHeading subtitle={b.props?.subtitle}>{b.props?.title || 'Agenda'}</SectionHeading>
           {list === null ? (
-            <div className="mt-6 flex flex-col gap-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-2xl border border-neutral-200 bg-white p-5">
-                  <div className="h-3 w-24 rounded bg-neutral-100" />
-                  <div className="mt-3 h-4 w-72 rounded bg-neutral-100" />
-                  <div className="mt-2 h-3 w-40 rounded bg-neutral-100" />
-                </div>
+            <div className="flex flex-col gap-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-24 animate-pulse rounded-2xl border" style={sectionCardStyle} />
               ))}
             </div>
           ) : list.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-600">
-              Sessions will appear here once the organizer adds them.
-            </div>
+            <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+              Schedule will be published soon.
+            </p>
           ) : (
-            <div className="mt-6 flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
               {list.map((s) => (
-                <div key={s.id} className="rounded-2xl border border-neutral-200 bg-white p-5">
-                  <div className="text-xs font-extrabold text-neutral-500">
-                    {new Date(s.startsAt).toLocaleString()} → {new Date(s.endsAt).toLocaleString()}
-                    {s.location ? ` • ${s.location}` : ''}
-                  </div>
-                  <div className="mt-2 text-lg font-extrabold text-neutral-900">{s.title}</div>
-                  {s.description ? <div className="mt-2 text-sm text-neutral-600">{s.description}</div> : null}
+                <div key={s.id} className="rounded-2xl border p-5" style={sectionCardStyle}>
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                    {new Date(s.startsAt).toLocaleString()} — {new Date(s.endsAt).toLocaleTimeString()}
+                  </p>
+                  <p className="mt-2 text-lg font-semibold">{s.title}</p>
                   {s.speakerIds?.length ? (
-                    <div className="mt-3 text-sm font-semibold text-neutral-700">
-                      Speakers: {s.speakerIds.map((id) => speakerById[id]?.name || 'Unknown').join(', ')}
-                    </div>
+                    <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                      {s.speakerIds.map((id) => speakerById[id]?.name || 'Speaker').join(', ')}
+                    </p>
                   ) : null}
                 </div>
               ))}
@@ -327,30 +270,29 @@ function SectionsRenderer({
     if (b.type === 'sponsors') {
       return (
         <div>
-          <div className="text-2xl font-extrabold tracking-tight text-neutral-900">{b.props?.title || 'Sponsors'}</div>
-          {b.props?.subtitle ? <div className="mt-2 text-sm text-neutral-600">{b.props.subtitle}</div> : null}
+          <SectionHeading>{b.props?.title || 'Partners'}</SectionHeading>
           {sponsors.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-600">
-              Add sponsor logos in the website builder (Sponsors block).
-            </div>
+            <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+              Our partners will be listed here.
+            </p>
           ) : (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {sponsors.map((sp, idx) => {
-                const Card = (
-                  <div className="flex items-center justify-center rounded-2xl border border-neutral-200 bg-white p-4">
+                const card = (
+                  <div className="flex h-24 items-center justify-center rounded-2xl border p-4" style={sectionCardStyle}>
                     {sp.logoUrl ? (
-                      <img src={sp.logoUrl} alt={sp.name || 'Sponsor'} referrerPolicy="no-referrer" className="h-14 object-contain" />
+                      <img src={sp.logoUrl} alt={sp.name} className="max-h-14 object-contain" referrerPolicy="no-referrer" />
                     ) : (
-                      <div className="text-sm font-extrabold text-neutral-600">{sp.name}</div>
+                      <span className="font-semibold">{sp.name}</span>
                     )}
                   </div>
                 );
                 return sp.linkUrl ? (
-                  <a key={idx} href={sp.linkUrl} target="_blank" rel="noreferrer" className="hover:opacity-95">
-                    {Card}
+                  <a key={idx} href={sp.linkUrl} target="_blank" rel="noreferrer">
+                    {card}
                   </a>
                 ) : (
-                  <div key={idx}>{Card}</div>
+                  <div key={idx}>{card}</div>
                 );
               })}
             </div>
@@ -363,13 +305,19 @@ function SectionsRenderer({
       const variant = b.props?.variant || 'primary';
       const style =
         variant === 'outline'
-          ? { background: 'transparent', color: '#0a0a0a', border: '1px solid rgba(0,0,0,0.25)' }
+          ? { background: 'transparent', color: 'var(--landing-text)', border: '2px solid var(--landing-border)' }
           : variant === 'secondary'
-            ? { background: secondary, color: '#ffffff' }
-            : { background: primary, color: '#ffffff' };
+            ? { background: 'var(--secondary)', color: '#fff' }
+            : { background: 'var(--primary)', color: '#fff' };
       return (
-        <button type="button" className="w-full rounded-2xl px-5 py-4 text-sm font-extrabold" style={style as any}>
-          {b.props?.text || 'Get Tickets'}
+        <button
+          type="button"
+          onClick={onCheckout}
+          disabled={isPurchasing}
+          className="w-full rounded-2xl px-5 py-4 text-sm font-semibold transition hover:brightness-105 disabled:opacity-50"
+          style={style}
+        >
+          {b.props?.text || 'Get tickets'}
         </button>
       );
     }
@@ -378,101 +326,33 @@ function SectionsRenderer({
   };
 
   return (
-    <div style={pageShellStyle(event.customization)} className="w-full transition-[background] duration-700">
-      <div className="mx-auto w-full max-w-7xl px-6 py-8">
-        <div
-          className="overflow-hidden rounded-3xl border shadow-sm"
-          style={{ background: design.theme.contentBackground, borderColor: design.theme.border }}
-        >
-          <div className="flex flex-col">
-            {design.blocks.map((b) => (
-              <div key={b.id} className="border-b p-10 last:border-b-0" style={{ borderColor: design.theme.border }}>
-                {renderBlock(b)}
-              </div>
-            ))}
-          </div>
+    <div style={{ ...landingCssVars(event.customization), ...landingShellStyle() }} className="w-full">
+      <LandingTopBar event={event} />
+      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:py-12">
+        <div className="flex flex-col gap-0 overflow-hidden rounded-3xl border shadow-sm" style={sectionCardStyle}>
+          {design.blocks.map((b, i) => (
+            <div
+              key={b.id}
+              className="border-b p-8 last:border-b-0 sm:p-10"
+              style={{ borderColor: 'var(--landing-border)' }}
+            >
+              {renderBlock(b)}
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function CanvasRenderer({
-  event,
-  tickets,
-  selectedTickets,
-  onTicketChange,
-  totalAmount,
-  onCheckout,
-  isPurchasing,
-}: LandingTemplateProps) {
-  const design = safeCanvas(event.customization?.canvas, event);
-  if (!design) {
-    // Fallback to template-1 if canvas is missing
-    return Template1.render({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing });
-  }
+function CanvasRenderer(props: LandingTemplateProps) {
+  const design = safeCanvas(props.event.customization?.canvas);
+  if (!design) return Template1.render(props);
+
+  const { event, tickets, selectedTickets, onTicketChange, onCheckout, isPurchasing } = props;
 
   const renderEl = (el: CanvasElement) => {
-    const base: React.CSSProperties = {
-      position: 'absolute',
-      left: el.x,
-      top: el.y,
-      width: el.w,
-      height: el.h,
-    };
-
-    if (el.type === 'divider') {
-      return (
-        <div key={el.id} style={{ ...base, display: 'flex', alignItems: 'center' }}>
-          <div style={{ height: 2, width: '100%', background: el.props?.color || '#e5e5e5' }} />
-        </div>
-      );
-    }
-
-    if (el.type === 'image') {
-      return (
-        <div key={el.id} style={base}>
-          <img
-            src={el.props?.url || event.bannerUrl}
-            alt=""
-            referrerPolicy="no-referrer"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              borderRadius: el.props?.radius ?? 24,
-            }}
-          />
-        </div>
-      );
-    }
-
-    if (el.type === 'badge') {
-      return (
-        <div key={el.id} style={{ ...base, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div
-            style={{
-              borderRadius: 9999,
-              padding: '10px 14px',
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              background: 'rgba(79,70,229,0.12)',
-              color: 'var(--primary)',
-              width: 'max-content',
-              maxWidth: '100%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {el.props?.text || 'BADGE'}
-          </div>
-        </div>
-      );
-    }
-
+    const base: React.CSSProperties = { position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h };
     if (el.type === 'button') {
       return (
         <div key={el.id} style={base}>
@@ -480,259 +360,51 @@ function CanvasRenderer({
             type="button"
             onClick={onCheckout}
             disabled={isPurchasing}
+            className="h-full w-full font-bold"
             style={{
-              width: '100%',
-              height: '100%',
               borderRadius: el.props?.radius ?? 16,
               background: el.props?.bg || 'var(--primary)',
-              color: el.props?.color || '#ffffff',
-              fontWeight: 900,
-              border: 'none',
+              color: el.props?.color || '#fff',
             }}
           >
-            {isPurchasing ? 'Processing...' : el.props?.text || 'Get Tickets'}
+            {isPurchasing ? '…' : el.props?.text || 'Get tickets'}
           </button>
         </div>
       );
     }
-
     if (el.type === 'ticketsEmbed') {
       return (
-        <div
-          key={el.id}
-          style={{
-            ...base,
-            border: '1px solid rgba(0,0,0,0.10)',
-            borderRadius: 18,
-            background: 'rgba(255,255,255,0.98)',
-            boxShadow: '0 14px 34px rgba(0,0,0,0.12)',
-            padding: 14,
-            overflow: 'hidden',
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-extrabold">{el.props?.title || 'Tickets'}</div>
-            <div className="text-xs font-bold text-neutral-400">LKR</div>
-          </div>
-          <div className="mt-3 flex flex-col gap-3">
-            {tickets.map((t) => (
-              <div key={t.id} className="rounded-xl border border-neutral-200 bg-white p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-bold">{t.name}</div>
-                    <div className="mt-1 text-xs text-neutral-500">{formatLKR(t.price)}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onTicketChange(t.id, (selectedTickets[t.id] || 0) - 1)}
-                      className="h-8 w-8 rounded-full border border-neutral-200 bg-white font-bold"
-                    >
-                      -
-                    </button>
-                    <div className="w-6 text-center text-sm font-extrabold">{selectedTickets[t.id] || 0}</div>
-                    <button
-                      type="button"
-                      onClick={() => onTicketChange(t.id, (selectedTickets[t.id] || 0) + 1)}
-                      className="h-8 w-8 rounded-full border border-neutral-200 bg-white font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div key={el.id} style={{ ...base, overflow: 'auto', borderRadius: 16, border: '1px solid var(--landing-border)', background: 'var(--landing-surface)', padding: 12 }}>
+          <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
         </div>
       );
     }
-
-    if (el.type === 'countdown') {
-      const now = Date.now();
-      const target = new Date(event.date).getTime();
-      const diff = Math.max(0, target - now);
-      const hours = Math.floor(diff / 3_600_000);
-      const mins = Math.floor((diff % 3_600_000) / 60_000);
-      const secs = Math.floor((diff % 60_000) / 1000);
+    if (el.type === 'text') {
       return (
         <div
           key={el.id}
           style={{
             ...base,
-            border: '1px solid rgba(0,0,0,0.10)',
-            borderRadius: 18,
-            background: 'rgba(255,255,255,0.98)',
-            padding: 14,
+            whiteSpace: 'pre-wrap',
+            fontSize: el.props?.size ?? 20,
+            fontWeight: el.props?.weight ?? 700,
+            color: el.props?.color || 'var(--landing-text)',
           }}
         >
-          <div className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">{el.props?.title || 'Starts in'}</div>
-          <div className="mt-2 text-2xl font-black text-neutral-900">
-            {hours.toString().padStart(2, '0')}:{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
-          </div>
+          {el.props?.text}
         </div>
       );
     }
-
-    // text (default)
-    return (
-      <div
-        key={el.id}
-        style={{
-          ...base,
-          whiteSpace: 'pre-wrap',
-          fontSize: Math.max(10, Math.min(96, el.props?.size ?? 20)),
-          fontWeight: Math.max(100, Math.min(900, el.props?.weight ?? 800)),
-          color: el.props?.color || '#0a0a0a',
-          lineHeight: 1.1,
-        }}
-      >
-        {el.props?.text || ''}
-      </div>
-    );
+    return null;
   };
 
   return (
-    <div style={pageShellStyle(event.customization)} className="w-full transition-[background] duration-700">
-      <div className="mx-auto w-full max-w-7xl px-6 py-8">
-        <div
-          className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
-          style={{ width: design.canvas.width, height: design.canvas.height, background: design.canvas.background || '#fff' }}
-        >
+    <div style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}>
+      <LandingTopBar event={event} />
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <div className="relative overflow-hidden rounded-3xl border" style={{ ...sectionCardStyle, width: design.canvas.width, height: design.canvas.height, background: design.canvas.background }}>
           {design.elements.map(renderEl)}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function CheckoutPanel({
-  tickets,
-  selectedTickets,
-  totalAmount,
-  onCheckout,
-  isPurchasing,
-  footerText,
-}: {
-  tickets: Ticket[];
-  selectedTickets: Record<string, number>;
-  totalAmount: number;
-  onCheckout: () => void;
-  isPurchasing: boolean;
-  footerText?: string;
-}) {
-  const hasSelection = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
-  return (
-    <div
-      className="sticky top-24 rounded-3xl border p-7 backdrop-blur-sm"
-      style={{
-        borderColor: 'var(--landing-border)',
-        background: 'var(--landing-surface)',
-        boxShadow: 'var(--landing-shadow)',
-        color: 'var(--landing-text)',
-      }}
-    >
-      <h3 className="text-xl font-semibold tracking-tight">Order summary</h3>
-      <div className="mt-6 flex flex-col gap-4">
-        {tickets
-          .filter((t) => (selectedTickets[t.id] || 0) > 0)
-          .map((t) => (
-            <div key={t.id} className="flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-              <span>
-                {t.name} x {selectedTickets[t.id]}
-              </span>
-              <span className="font-bold">{formatLKR(t.price * selectedTickets[t.id])}</span>
-            </div>
-          ))}
-        <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--landing-border)' }}>
-          <div className="flex justify-between text-xl font-semibold tracking-tight">
-            <span>Total</span>
-            <span style={{ color: 'var(--primary)' }}>{formatLKR(totalAmount)}</span>
-          </div>
-        </div>
-      </div>
-      <button
-        onClick={onCheckout}
-        disabled={!hasSelection || isPurchasing}
-        className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-105 disabled:opacity-50"
-        style={{ backgroundColor: 'var(--primary)' }}
-      >
-        <ShoppingCart className="h-5 w-5" />
-        {isPurchasing ? 'Processing...' : 'Checkout Now'}
-      </button>
-      <p className="mt-4 text-center text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-        {footerText || 'Secure checkout (MVP demo).'}
-      </p>
-    </div>
-  );
-}
-
-function TicketsList({
-  tickets,
-  selectedTickets,
-  onTicketChange,
-  accent = 'var(--primary)',
-}: {
-  tickets: Ticket[];
-  selectedTickets: Record<string, number>;
-  onTicketChange: (ticketId: string, quantity: number) => void;
-  accent?: string;
-}) {
-  return (
-    <div className="mt-6 flex flex-col gap-4">
-      {tickets.map((ticket) => (
-        <div
-          key={ticket.id}
-          className="flex items-center justify-between rounded-2xl border p-6 transition-all hover:-translate-y-0.5"
-          style={{
-            borderColor: 'var(--landing-border)',
-            background: 'var(--landing-surface-muted)',
-            color: 'var(--landing-text)',
-          }}
-        >
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">{ticket.name}</h3>
-            <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-              {ticket.description || 'Standard entry ticket'}
-            </p>
-            <p className="mt-2 text-xl font-bold" style={{ color: accent }}>
-              {formatLKR(ticket.price)}
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => onTicketChange(ticket.id, (selectedTickets[ticket.id] || 0) - 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border text-xl font-bold"
-              style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}
-            >
-              -
-            </button>
-            <span className="w-8 text-center text-lg font-bold">{selectedTickets[ticket.id] || 0}</span>
-            <button
-              onClick={() => onTicketChange(ticket.id, (selectedTickets[ticket.id] || 0) + 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border text-xl font-bold"
-              style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}
-            >
-              +
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EventMeta({ event, tone = 'dark' }: { event: Event; tone?: 'dark' | 'light' }) {
-  const textClass = tone === 'dark' ? 'text-white/90' : 'text-neutral-600';
-  const iconClass = tone === 'dark' ? 'text-white/80' : 'text-neutral-500';
-  return (
-    <div className={`mt-6 flex flex-wrap gap-6 text-lg font-medium ${textClass}`}>
-      <div className="flex items-center gap-2">
-        <Calendar className={`h-5 w-5 ${iconClass}`} />
-        {format(new Date(event.date), 'PPPP p')}
-      </div>
-      <div className="flex items-center gap-2">
-        <MapPin className={`h-5 w-5 ${iconClass}`} />
-        {event.location}
       </div>
     </div>
   );
@@ -741,43 +413,43 @@ function EventMeta({ event, tone = 'dark' }: { event: Event; tone?: 'dark' | 'li
 const Template1: LandingTemplate = {
   id: 'template-1',
   name: 'Cinematic Hero',
-  description: 'Big banner + gradient overlay + sticky checkout.',
+  description: 'Full-width hero with story and tickets.',
   previewSeed: 'cinematic-hero',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
-      <div className="w-full" style={surfaceStyle}>
-        <div className="relative h-[420px] w-full">
-          <img src={event.bannerUrl} alt={event.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-          <div className="absolute bottom-12 left-12 right-12 text-white">
-            <h1 className="text-5xl font-extrabold tracking-tight">{event.customization?.heroText || event.title}</h1>
-            <p className="mt-4 max-w-3xl text-lg text-white/85">
-              {event.customization?.heroSubtext || event.description}
-            </p>
-            <EventMeta event={event} tone="dark" />
-          </div>
+    <div style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}>
+      <LandingTopBar event={event} />
+      <div className="relative">
+        <EventBanner event={event} heightClass="h-[min(58vh,520px)]" overlay="dark" />
+        <div className="absolute inset-x-0 bottom-0 px-4 pb-10 pt-24 sm:px-8 lg:px-12">
+          <span className="inline-flex rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white/90 backdrop-blur">
+            {themeDisplayName(event)}
+          </span>
+          <h1 className="mt-4 max-w-4xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+            {event.customization?.heroText || event.title}
+          </h1>
+          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white/85">
+            {event.customization?.heroSubtext || event.description}
+          </p>
+          <EventMeta event={event} tone="dark" />
         </div>
+      </div>
 
-        <div className="mx-auto grid max-w-7xl gap-12 p-12 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <section>
-              <h2 className="text-2xl font-bold">About this event</h2>
-              <p className="mt-4 whitespace-pre-wrap text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
-                {event.description}
-              </p>
-            </section>
-            <section className="mt-12">
-              <h2 className="text-2xl font-bold">Tickets</h2>
-              <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
-            </section>
-          </div>
-          <CheckoutPanel
-            tickets={tickets}
-            selectedTickets={selectedTickets}
-            totalAmount={totalAmount}
-            onCheckout={onCheckout}
-            isPurchasing={isPurchasing}
-          />
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-3 lg:gap-12 lg:px-8 lg:py-16">
+        <div className="lg:col-span-2">
+          <CountdownDisplay targetIso={event.date} />
+          <section className="mt-10">
+            <SectionHeading subtitle="Everything you need to know before you book.">About this event</SectionHeading>
+            <p className="whitespace-pre-wrap text-base leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+              {event.description}
+            </p>
+          </section>
+          <section className="mt-12">
+            <SectionHeading>Tickets</SectionHeading>
+            <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
+          </section>
+        </div>
+        <div className="hidden md:block">
+          <CheckoutPanel tickets={tickets} selectedTickets={selectedTickets} totalAmount={totalAmount} onCheckout={onCheckout} isPurchasing={isPurchasing} />
         </div>
       </div>
     </div>
@@ -787,50 +459,48 @@ const Template1: LandingTemplate = {
 const Template2: LandingTemplate = {
   id: 'template-2',
   name: 'Centered Minimal',
-  description: 'Clean centered layout, bright and airy.',
+  description: 'Clean, airy layout for professional events.',
   previewSeed: 'centered-minimal',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
-      <div className="w-full" style={surfaceStyle}>
-        <div className="mx-auto grid max-w-7xl gap-10 p-12 lg:grid-cols-2">
-            <div>
-              <div
-                className="inline-flex items-center rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider"
-                style={{ background: 'var(--landing-surface-muted)', color: 'var(--landing-text-muted)' }}
-              >
-                {event.status === 'published' ? 'Live event' : event.status}
-              </div>
-              <h1 className="mt-6 text-5xl font-extrabold tracking-tight">
-                {event.customization?.heroText || event.title}
-              </h1>
-              <p className="mt-5 text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
-                {event.customization?.heroSubtext || event.description}
-              </p>
-              <div className="mt-6 overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--landing-border)' }}>
-                <img src={event.bannerUrl} alt={event.title} className="h-56 w-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <EventMeta event={event} tone="light" />
-            </div>
+    <div style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}>
+      <LandingTopBar event={event} />
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
+        <div className="text-center">
+          <span
+            className="inline-flex rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider"
+            style={{ background: 'var(--landing-surface-muted)', color: 'var(--landing-text-muted)' }}
+          >
+            {event.status === 'published' ? 'Tickets available' : event.status}
+          </span>
+          <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl" style={{ color: 'var(--landing-text)' }}>
+            {event.customization?.heroText || event.title}
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+            {event.customization?.heroSubtext || event.description}
+          </p>
+        </div>
 
-            <div>
-              <h2 className="text-2xl font-bold">Tickets</h2>
-              <TicketsList
-                tickets={tickets}
-                selectedTickets={selectedTickets}
-                onTicketChange={onTicketChange}
-                accent={'var(--secondary)'}
-              />
-              <div className="mt-10">
-                <CheckoutPanel
-                  tickets={tickets}
-                  selectedTickets={selectedTickets}
-                  totalAmount={totalAmount}
-                  onCheckout={onCheckout}
-                  isPurchasing={isPurchasing}
-                  footerText="Checkout is a demo flow (no real payment yet)."
-                />
-              </div>
+        <div className="mt-10 overflow-hidden rounded-3xl border shadow-sm" style={{ borderColor: 'var(--landing-border)' }}>
+          <EventBanner event={event} heightClass="h-64 sm:h-80" overlay="none" />
+        </div>
+
+        <div className="mt-8 flex justify-center">
+          <div className="w-full max-w-xl">
+            <EventMeta event={event} tone="light" />
+          </div>
+        </div>
+
+        <div className="mt-12 grid gap-10 lg:grid-cols-2 lg:gap-14">
+          <div>
+            <CountdownDisplay targetIso={event.date} compact />
+            <div className="mt-10">
+              <SectionHeading>Tickets</SectionHeading>
+              <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} accent="var(--secondary)" />
             </div>
+          </div>
+          <div className="hidden md:block">
+            <CheckoutPanel tickets={tickets} selectedTickets={selectedTickets} totalAmount={totalAmount} onCheckout={onCheckout} isPurchasing={isPurchasing} />
+          </div>
         </div>
       </div>
     </div>
@@ -840,45 +510,46 @@ const Template2: LandingTemplate = {
 const Template3: LandingTemplate = {
   id: 'template-3',
   name: 'Split Gradient',
-  description: 'Left gradient hero + right checkout, modern SaaS feel.',
+  description: 'Modern split layout with gradient hero.',
   previewSeed: 'split-gradient',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
-      <div className="w-full" style={surfaceStyle}>
-        <div className="mx-auto grid max-w-7xl lg:grid-cols-2">
-          <div className="relative p-12">
-            <div
-              className="absolute inset-0 opacity-90"
-              style={{
-                background: `radial-gradient(800px circle at 0% 0%, var(--primary), transparent 60%), radial-gradient(700px circle at 100% 0%, var(--secondary), transparent 55%)`,
-              }}
-            />
-            <div className="relative">
-              <h1 className="text-5xl font-extrabold tracking-tight">{event.customization?.heroText || event.title}</h1>
-              <p className="mt-5 text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
-                {event.customization?.heroSubtext || event.description}
-              </p>
-              <div className="mt-8 overflow-hidden rounded-2xl border border-white/50 bg-white/60 backdrop-blur">
-                <img src={event.bannerUrl} alt={event.title} className="h-64 w-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <div className="mt-8 rounded-2xl border border-white/60 bg-white/60 p-6 backdrop-blur">
-                <EventMeta event={event} tone="light" />
-              </div>
+    <div style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}>
+      <LandingTopBar event={event} />
+      <div className="mx-auto grid max-w-7xl lg:min-h-[calc(100vh-3.5rem)] lg:grid-cols-2">
+        <div className="relative flex flex-col justify-center px-6 py-12 lg:px-12 lg:py-16">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-90"
+            style={{
+              background: `radial-gradient(900px circle at 0% 0%, var(--primary), transparent 55%), radial-gradient(700px circle at 100% 20%, var(--secondary), transparent 50%)`,
+            }}
+          />
+          <div className="relative">
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--landing-text-muted)' }}>
+              {themeDisplayName(event)}
+            </span>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl" style={{ color: 'var(--landing-text)' }}>
+              {event.customization?.heroText || event.title}
+            </h1>
+            <p className="mt-5 text-lg leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+              {event.customization?.heroSubtext || event.description}
+            </p>
+            <div className="mt-8 overflow-hidden rounded-2xl border shadow-md" style={{ borderColor: 'var(--landing-border)' }}>
+              <EventBanner event={event} heightClass="h-56 sm:h-64" overlay="none" />
+            </div>
+            <div className="mt-8">
+              <EventMeta event={event} tone="light" />
+            </div>
+            <div className="mt-8">
+              <CountdownDisplay targetIso={event.date} compact />
             </div>
           </div>
+        </div>
 
-          <div className="p-12">
-            <h2 className="text-2xl font-bold">Tickets</h2>
-            <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
-            <div className="mt-10">
-              <CheckoutPanel
-                tickets={tickets}
-                selectedTickets={selectedTickets}
-                totalAmount={totalAmount}
-                onCheckout={onCheckout}
-                isPurchasing={isPurchasing}
-              />
-            </div>
+        <div className="border-t px-6 py-12 lg:border-l lg:border-t-0 lg:px-12 lg:py-16" style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}>
+          <SectionHeading subtitle="Select quantities and checkout securely.">Tickets</SectionHeading>
+          <TicketsList tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
+          <div className="mt-10 hidden md:block">
+            <CheckoutPanel tickets={tickets} selectedTickets={selectedTickets} totalAmount={totalAmount} onCheckout={onCheckout} isPurchasing={isPurchasing} />
           </div>
         </div>
       </div>
@@ -889,75 +560,45 @@ const Template3: LandingTemplate = {
 const Template4: LandingTemplate = {
   id: 'template-4',
   name: 'Dark Poster',
-  description: 'High-contrast “poster” style with bold typography.',
+  description: 'High-contrast poster style for nightlife and launches.',
   previewSeed: 'dark-poster',
   render: ({ event, tickets, selectedTickets, onTicketChange, totalAmount, onCheckout, isPurchasing }) => (
-    <div style={pageShellStyle(event.customization)} className="min-h-screen w-full transition-[background] duration-700">
-      <div className="w-full" style={{ background: 'transparent', color: 'var(--landing-text)' }}>
-        <div className="relative">
-          <img src={event.bannerUrl} alt={event.title} className="h-[360px] w-full object-cover opacity-70" referrerPolicy="no-referrer" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-neutral-950" />
-          <div className="absolute inset-x-0 bottom-0 p-12">
-            <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white/80">
-              {event.templateId}
-            </div>
-            <h1 className="mt-6 text-5xl font-extrabold tracking-tight">{event.customization?.heroText || event.title}</h1>
-            <p className="mt-4 max-w-3xl text-lg text-white/80">{event.customization?.heroSubtext || event.description}</p>
-            <EventMeta event={event} tone="dark" />
-          </div>
+    <div style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}>
+      <LandingTopBar event={event} />
+      <div className="relative">
+        <EventBanner event={event} heightClass="h-[min(50vh,440px)]" overlay="dark" />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--landing-page-bg)] via-black/70 to-transparent px-4 pb-8 pt-20 sm:px-8 lg:px-12">
+          <span className="inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider text-white/80" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
+            {themeDisplayName(event)}
+          </span>
+          <h1 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">{event.customization?.heroText || event.title}</h1>
+          <p className="mt-3 max-w-2xl text-lg text-white/80">{event.customization?.heroSubtext || event.description}</p>
+          <EventMeta event={event} tone="dark" />
         </div>
+      </div>
 
-        <div className="mx-auto grid max-w-7xl gap-12 p-12 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <section>
-              <h2 className="text-2xl font-bold">About</h2>
-              <p className="mt-4 whitespace-pre-wrap text-lg leading-relaxed text-white/80">{event.description}</p>
-            </section>
-            <section className="mt-12">
-              <h2 className="text-2xl font-bold">Tickets</h2>
-              <div className="mt-6 flex flex-col gap-4">
-                {tickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-6 transition-all hover:bg-white/10"
-                  >
-                    <div>
-                      <h3 className="text-lg font-bold">{ticket.name}</h3>
-                      <p className="text-sm text-white/60">{ticket.description || 'Standard entry ticket'}</p>
-                      <p className="mt-2 text-xl font-bold" style={{ color: 'var(--secondary)' }}>
-                        {formatLKR(ticket.price)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={() => onTicketChange(ticket.id, (selectedTickets[ticket.id] || 0) - 1)}
-                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5 text-xl font-bold hover:bg-white/10"
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center text-lg font-bold">{selectedTickets[ticket.id] || 0}</span>
-                      <button
-                        onClick={() => onTicketChange(ticket.id, (selectedTickets[ticket.id] || 0) + 1)}
-                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5 text-xl font-bold hover:bg-white/10"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-          <div>
-            <CheckoutPanel
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-3 lg:gap-12 lg:px-8">
+        <div className="lg:col-span-2">
+          <CountdownDisplay targetIso={event.date} />
+          <section className="mt-10">
+            <SectionHeading>About</SectionHeading>
+            <p className="whitespace-pre-wrap text-base leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+              {event.description}
+            </p>
+          </section>
+          <section className="mt-12">
+            <SectionHeading>Tickets</SectionHeading>
+            <TicketsList
               tickets={tickets}
               selectedTickets={selectedTickets}
-              totalAmount={totalAmount}
-              onCheckout={onCheckout}
-              isPurchasing={isPurchasing}
-              footerText="MVP demo checkout."
+              onTicketChange={onTicketChange}
+              accent="var(--secondary)"
+              variant="dark"
             />
-          </div>
+          </section>
+        </div>
+        <div className="hidden md:block">
+          <CheckoutPanel tickets={tickets} selectedTickets={selectedTickets} totalAmount={totalAmount} onCheckout={onCheckout} isPurchasing={isPurchasing} />
         </div>
       </div>
     </div>
@@ -972,8 +613,8 @@ export function getLandingTemplate(id: string | undefined): LandingTemplate {
 
 const CanvasTemplate: LandingTemplate = {
   id: 'template-canvas',
-  name: 'Blank Canvas (Designer)',
-  description: 'Section-based drag/drop builder designed by organizer.',
+  name: 'Custom layout',
+  description: 'Section-based or canvas designer layout.',
   previewSeed: 'blank-canvas',
   render: (props) => {
     const sections = safeSections(props.event.customization?.sections);
@@ -982,7 +623,7 @@ const CanvasTemplate: LandingTemplate = {
   },
 };
 
-export const landingTemplatesAll: LandingTemplate[] = [Template1, Template2, Template3, Template4, CanvasTemplate];
+export const landingTemplatesAll: LandingTemplate[] = [...landingTemplates, CanvasTemplate];
 
 export function getLandingTemplateAll(id: string | undefined): LandingTemplate {
   return landingTemplatesAll.find((t) => t.id === id) || Template1;
@@ -991,4 +632,3 @@ export function getLandingTemplateAll(id: string | undefined): LandingTemplate {
 export function getLandingTemplateForEvent(event: Event): LandingTemplate {
   return getLandingTemplateAll(resolveTemplateId(event));
 }
-

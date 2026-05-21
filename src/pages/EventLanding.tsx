@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Event, Ticket, OrderItem, AttendeeProfile } from '../types';
 import { api } from '../api/client';
 import { getLandingTemplateForEvent } from '../templates/templates';
-import { landingCssVars } from '../themes/eventThemes';
+import { landingCssVars, resolveEventTheme } from '../themes/eventThemes';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Field';
+import { formatLKR } from '../utils/money';
+import { ticketRemaining } from '../components/landing/LandingShared';
 
 declare global {
   interface Window {
@@ -15,7 +15,7 @@ declare global {
       onCompleted: (orderId: string) => void;
       onDismissed: () => void;
       onError: (error: string) => void;
-      startPayment: (payment: Record<string, any>) => void;
+      startPayment: (payment: Record<string, unknown>) => void;
     };
   }
 }
@@ -54,7 +54,7 @@ export const EventLanding: React.FC = () => {
       }
     };
 
-    fetchEventData();
+    void fetchEventData();
   }, [eventId, slug]);
 
   useEffect(() => {
@@ -85,30 +85,40 @@ export const EventLanding: React.FC = () => {
         setPrefillReady(true);
       }
     };
-    prefillCheckout();
+    void prefillCheckout();
   }, [reset, user]);
 
   const handleTicketChange = (ticketId: string, quantity: number) => {
-    setSelectedTickets(prev => ({
+    const ticket = tickets.find((t) => t.id === ticketId);
+    const max = ticket ? ticketRemaining(ticket) : 0;
+    setSelectedTickets((prev) => ({
       ...prev,
-      [ticketId]: Math.max(0, quantity),
+      [ticketId]: Math.max(0, Math.min(quantity, max)),
     }));
   };
 
-  const totalAmount = tickets.reduce((sum, ticket) => {
-    return sum + (ticket.price * (selectedTickets[ticket.id] || 0));
-  }, 0);
+  const totalAmount = tickets.reduce((sum, ticket) => sum + ticket.price * (selectedTickets[ticket.id] || 0), 0);
 
   const hasSelectedTickets = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
 
-  const handlePurchase = async () => {
+  const orderLines = useMemo(
+    () =>
+      tickets
+        .filter((t) => (selectedTickets[t.id] || 0) > 0)
+        .map((t) => ({ name: t.name, qty: selectedTickets[t.id], total: t.price * selectedTickets[t.id] })),
+    [selectedTickets, tickets]
+  );
+
+  const handlePurchase = () => {
     if (!event || !hasSelectedTickets) return;
     setCheckoutOpen(true);
+    setPayError(null);
   };
 
   const submitCheckout = async (values: { buyerName: string; buyerEmail: string; buyerPhone: string }) => {
     if (!event || !hasSelectedTickets) return;
     setIsPurchasing(true);
+    setPayError(null);
     try {
       const orderItems: OrderItem[] = tickets
         .filter((t) => selectedTickets[t.id] > 0)
@@ -119,7 +129,6 @@ export const EventLanding: React.FC = () => {
           price: t.price,
         }));
 
-      // Simple attendee list: one attendee per ticket qty, using buyer details (MVP)
       const attendees = orderItems.flatMap((it) =>
         Array.from({ length: it.quantity }).map(() => ({
           ticketId: it.ticketId,
@@ -142,7 +151,7 @@ export const EventLanding: React.FC = () => {
         const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
         navigate(`/orders/${res.orderId}/success${tokenQs}`);
       } else {
-        const res = await api.post<{ sdkPayment: Record<string, any> }>('/api/payhere/initiate', {
+        const res = await api.post<{ sdkPayment: Record<string, unknown> }>('/api/payhere/initiate', {
           eventId: event.id,
           buyerName: values.buyerName,
           buyerEmail: values.buyerEmail,
@@ -150,7 +159,6 @@ export const EventLanding: React.FC = () => {
           tickets: orderItems,
           attendees,
         });
-        setPayError(null);
 
         const ensureScript = async () => {
           if (window.payhere) return;
@@ -179,87 +187,111 @@ export const EventLanding: React.FC = () => {
           navigate(`/payhere/return?order_id=${encodeURIComponent(orderId)}`);
         };
         window.payhere.onDismissed = () => {
-          setPayError('Payment popup dismissed. You can try again.');
+          setPayError('Payment was cancelled. You can try again.');
         };
         window.payhere.onError = (error: string) => {
-          setPayError(error || 'PayHere error');
+          setPayError(error || 'Payment failed');
         };
         window.payhere.startPayment(res.sdkPayment);
       }
-    } catch (error: any) {
-      console.error('Purchase failed:', error);
-      setPayError(error?.message || error?.error || 'Could not complete checkout. Please try again.');
+    } catch (error: unknown) {
+      const err = error as { message?: string; error?: string };
+      setPayError(err?.message || err?.error || 'Could not complete checkout. Please try again.');
     } finally {
       setIsPurchasing(false);
     }
   };
 
+  const themeVars = event ? landingCssVars(event.customization) : landingCssVars(undefined);
+
   if (loading) {
     return (
-      <div
-        className="flex min-h-[60vh] items-center justify-center"
-        style={{ background: 'var(--landing-page-bg, #f8fafc)' }}
-      >
-        <div
-          className="h-11 w-11 animate-spin rounded-full border-4 border-t-transparent"
-          style={{ borderColor: 'var(--landing-accent, #0f766e)', borderTopColor: 'transparent' }}
-        />
+      <div className="flex min-h-screen items-center justify-center" style={{ ...themeVars, background: 'var(--landing-page-bg)' }}>
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="h-11 w-11 animate-spin rounded-full border-4 border-t-transparent"
+            style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }}
+          />
+          <p className="text-sm font-medium" style={{ color: 'var(--landing-text-muted)' }}>
+            Loading event…
+          </p>
+        </div>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="mx-auto max-w-lg rounded-3xl border border-neutral-200 bg-white px-6 py-14 text-center shadow-sm">
-        <h2 className="text-3xl font-semibold tracking-tight text-neutral-900">Event not found</h2>
-        <p className="mt-2 text-neutral-500">The event you are looking for does not exist or has been removed.</p>
-        <Button onClick={() => navigate('/')} className="mt-6">
-          Go back home
-        </Button>
+      <div className="flex min-h-screen items-center justify-center px-4" style={{ ...themeVars, background: 'var(--landing-page-bg)' }}>
+        <div
+          className="w-full max-w-md rounded-3xl border p-8 text-center"
+          style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)', color: 'var(--landing-text)' }}
+        >
+          <h2 className="text-2xl font-semibold tracking-tight">Event not found</h2>
+          <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+            This event may have been removed or the link is incorrect.
+          </p>
+          <Link
+            to="/"
+            className="mt-6 inline-flex rounded-xl px-6 py-3 text-sm font-semibold text-white"
+            style={{ backgroundColor: 'var(--primary)' }}
+          >
+            Back to home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (event.status !== 'published') {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4" style={{ ...landingCssVars(event.customization), background: 'var(--landing-page-bg)' }}>
+        <div
+          className="w-full max-w-md rounded-3xl border p-8 text-center"
+          style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)', color: 'var(--landing-text)' }}
+        >
+          <h2 className="text-2xl font-semibold tracking-tight">{event.title}</h2>
+          <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+            This event is not published yet. Check back when tickets go live.
+          </p>
+        </div>
       </div>
     );
   }
 
   const template = getLandingTemplateForEvent(event);
-  const themeVars = landingCssVars(event.customization);
+  const theme = resolveEventTheme(event.customization);
 
   return (
-    <div style={themeVars} className="min-h-screen transition-[background] duration-700">
+    <div style={landingCssVars(event.customization)} className="min-h-screen transition-[background] duration-700">
       {template.render({
-    event,
-    tickets,
-    selectedTickets,
-    onTicketChange: handleTicketChange,
-    totalAmount,
-    onCheckout: handlePurchase,
-    isPurchasing,
+        event,
+        tickets,
+        selectedTickets,
+        onTicketChange: handleTicketChange,
+        totalAmount,
+        onCheckout: handlePurchase,
+        isPurchasing,
       })}
 
       {hasSelectedTickets && (
-        <div
-          className="fixed inset-x-0 bottom-4 z-40 mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-2xl border p-2 shadow-xl backdrop-blur md:bottom-6"
-          style={{
-            borderColor: 'var(--landing-border)',
-            background: 'var(--landing-surface)',
-            boxShadow: 'var(--landing-shadow)',
-          }}
-        >
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t p-3 backdrop-blur-md md:hidden" style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}>
           <button
             type="button"
             onClick={handlePurchase}
             disabled={isPurchasing}
-            className="h-11 rounded-xl px-5 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+            className="flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold text-white disabled:opacity-50"
             style={{ backgroundColor: 'var(--primary)' }}
           >
-            {isPurchasing ? 'Processing…' : `Checkout ${totalAmount.toFixed(2)} LKR`}
+            {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Register free' : `Checkout · ${formatLKR(totalAmount)}`}
           </button>
         </div>
       )}
 
       {checkoutOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
           <div
-            className="w-full max-w-lg rounded-3xl border p-6 shadow-2xl"
+            className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border p-6 shadow-2xl sm:max-w-lg sm:rounded-3xl"
             style={{
               borderColor: 'var(--landing-border)',
               background: 'var(--landing-surface)',
@@ -269,49 +301,95 @@ export const EventLanding: React.FC = () => {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xl font-semibold tracking-tight">Complete your registration</div>
+                <div className="text-xl font-semibold tracking-tight">Complete registration</div>
                 <div className="mt-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-                  Secure checkout in LKR.
+                  {event.title}
                 </div>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setCheckoutOpen(false)}>
+              <button
+                type="button"
+                onClick={() => setCheckoutOpen(false)}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium"
+                style={{ color: 'var(--landing-text-muted)' }}
+              >
                 Close
-              </Button>
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)' }}>
+              {orderLines.map((line) => (
+                <div key={line.name} className="flex justify-between py-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                  <span>
+                    {line.name} × {line.qty}
+                  </span>
+                  <span className="font-semibold" style={{ color: 'var(--landing-text)' }}>
+                    {formatLKR(line.total)}
+                  </span>
+                </div>
+              ))}
+              <div className="mt-2 flex justify-between border-t pt-2 font-semibold" style={{ borderColor: 'var(--landing-border)' }}>
+                <span>Total</span>
+                <span style={{ color: 'var(--primary)' }}>{totalAmount <= 0 ? 'Free' : formatLKR(totalAmount)}</span>
+              </div>
             </div>
 
             <form onSubmit={handleSubmit(submitCheckout)} className="mt-6 flex flex-col gap-4">
               {user?.role === 'attendee' && (
                 <div
-                  className="rounded-xl border p-3 text-xs font-semibold"
-                  style={{
-                    borderColor: 'var(--landing-border)',
-                    background: 'var(--landing-surface-muted)',
-                    color: 'var(--landing-text)',
-                  }}
+                  className="rounded-xl border p-3 text-xs font-medium"
+                  style={{ borderColor: 'var(--landing-border)', background: theme.landing.surfaceMutedBg, color: 'var(--landing-text-muted)' }}
                 >
-                  Checkout is pre-filled from your attendee profile.
+                  Pre-filled from your attendee profile.
                 </div>
               )}
-              <Input label="Full name" {...register('buyerName')} required />
-              <Input label="Email" type="email" {...register('buyerEmail')} required />
-              <Input label="Phone (optional)" {...register('buyerPhone')} />
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                  Full name
+                </span>
+                <input
+                  {...register('buyerName', { required: true })}
+                  className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                  style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                  Email
+                </span>
+                <input
+                  type="email"
+                  {...register('buyerEmail', { required: true })}
+                  className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                  style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                  Phone (optional)
+                </span>
+                <input
+                  {...register('buyerPhone')}
+                  className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                  style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
+                />
+              </label>
               <button
                 type="submit"
                 disabled={isPurchasing || !prefillReady}
-                className="mt-2 h-11 w-full rounded-xl text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+                className="mt-2 h-12 w-full rounded-xl text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
                 style={{ backgroundColor: 'var(--primary)' }}
               >
-                {isPurchasing ? 'Processing…' : 'Confirm & Get Tickets'}
+                {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Confirm registration' : 'Pay with PayHere'}
               </button>
               {payError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
-                  {payError}
-                </div>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">{payError}</div>
               )}
             </form>
           </div>
         </div>
       )}
+
+      <div className="h-20 md:hidden" aria-hidden />
     </div>
   );
 };

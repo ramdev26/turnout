@@ -229,8 +229,9 @@ export function resolveEventTheme(customization: Event['customization'] | undefi
 }
 
 export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customization'>): TemplateId {
-  if (event.templateId && event.templateId !== 'template-1') {
-    return event.templateId as TemplateId;
+  const id = event.templateId;
+  if (id === 'template-1' || id === 'template-2' || id === 'template-3' || id === 'template-4' || id === 'template-canvas') {
+    return id;
   }
   return resolveEventTheme(event.customization).templateId;
 }
