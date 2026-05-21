@@ -7,6 +7,7 @@ require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/banners.php';
 require __DIR__ . '/lib/checkout.php';
 require __DIR__ . '/lib/domains.php';
+require __DIR__ . '/lib/checkin.php';
 
 set_cors_headers_for_same_domain();
 
@@ -975,6 +976,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $ev = require_publishable_event($pdo, $eventId);
 
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
+  validate_attendees_for_order($normalized['items'], $attendees);
   $totalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
 
@@ -1143,7 +1145,7 @@ if ($path === '/payhere/notify' && $method === 'POST') {
     $upd->execute([$nextStatus, (int)$orderId]);
 
     if ($nextStatus === 'paid') {
-      $o = $pdo->prepare('SELECT event_id, buyer_user_id, buyer_email, buyer_phone, tickets_json, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
+      $o = $pdo->prepare('SELECT event_id, buyer_user_id, buyer_name, buyer_email, buyer_phone, tickets_json, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
       $o->execute([(int)$orderId]);
       $orderRow = $o->fetch();
       if ($orderRow && !payhere_amount_matches_order_cents((int)$orderRow['total_amount_cents'], $payhereAmount)) {
@@ -1172,16 +1174,20 @@ if ($path === '/payhere/notify' && $method === 'POST') {
           $attendeesReq = $reqRow ? json_decode($reqRow['attendees_json'], true) : [];
           if (!is_array($attendeesReq)) $attendeesReq = [];
 
-          $attIns = $pdo->prepare('INSERT INTO attendees (order_id, event_id, ticket_id, full_name, email, phone, qr_token) VALUES (?, ?, ?, ?, ?, ?, ?)');
-          foreach ($attendeesReq as $a) {
-            if (!is_array($a)) continue;
-            $ticketId = (int)($a['ticketId'] ?? 0);
-            $fullName = trim((string)($a['fullName'] ?? ''));
-            $email = strtolower(trim((string)($a['email'] ?? $buyerEmail)));
-            $phone = trim((string)($a['phone'] ?? $buyerPhone));
-            if ($ticketId <= 0 || $fullName === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
-            $qr = bin2hex(random_bytes(16));
-            $attIns->execute([(int)$orderId, $eventId, $ticketId, $fullName, $email, $phone !== '' ? $phone : null, $qr]);
+          $items = json_decode($orderRow['tickets_json'], true);
+          if (!is_array($items)) $items = [];
+          $expected = expected_attendee_count_from_items($items);
+          $created = insert_attendees_for_order(
+            $pdo,
+            (int)$orderId,
+            $eventId,
+            $attendeesReq,
+            $buyerEmail,
+            $buyerPhone,
+            (string)($orderRow['buyer_name'] ?? 'Attendee')
+          );
+          if ($created !== $expected) {
+            throw new Exception('attendee_create_failed');
           }
 
           // Increment ticket sold counts
@@ -1881,6 +1887,11 @@ if ($path === '/orders' && $method === 'POST') {
     json_response(400, ['error' => 'paid_orders_use_payhere', 'message' => 'Use PayHere checkout for paid tickets.']);
   }
 
+  $expectedAttendees = expected_attendee_count_from_items($normalizedItems);
+  if ($expectedAttendees < 1) json_response(400, ['error' => 'invalid_order_items']);
+  if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
+  validate_attendees_for_order($normalizedItems, $attendees);
+
   $buyerId = current_user_id();
   $pdo->beginTransaction();
   try {
@@ -1899,23 +1910,27 @@ if ($path === '/orders' && $method === 'POST') {
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
     increment_ticket_sold_counts($pdo, $normalizedItems);
 
-    // Create attendees (one per ticket quantity)
+    $createdCount = insert_attendees_for_order(
+      $pdo,
+      $orderId,
+      $eventId,
+      $attendees,
+      $buyerEmail,
+      $buyerPhone,
+      $buyerName !== '' ? $buyerName : 'Attendee'
+    );
+    if ($createdCount !== $expectedAttendees) {
+      throw new Exception('invalid_attendee');
+    }
+    $stmtQr = $pdo->prepare('SELECT qr_token, full_name, email FROM attendees WHERE order_id = ? ORDER BY id ASC');
+    $stmtQr->execute([$orderId]);
     $createdAttendees = [];
-    if (is_array($attendees) && count($attendees) > 0) {
-      $attIns = $pdo->prepare('INSERT INTO attendees (order_id, event_id, ticket_id, full_name, email, phone, qr_token) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      foreach ($attendees as $a) {
-        if (!is_array($a)) continue;
-        $ticketId = (int)($a['ticketId'] ?? 0);
-        $fullName = trim((string)($a['fullName'] ?? ''));
-        $email = strtolower(trim((string)($a['email'] ?? $buyerEmail)));
-        $phone = trim((string)($a['phone'] ?? $buyerPhone));
-        if ($ticketId <= 0 || $fullName === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-          throw new Exception('invalid_attendee');
-        }
-        $qr = bin2hex(random_bytes(16));
-        $attIns->execute([$orderId, $eventId, $ticketId, $fullName, $email, $phone !== '' ? $phone : null, $qr]);
-        $createdAttendees[] = ['qrToken' => $qr, 'fullName' => $fullName, 'email' => $email];
-      }
+    while ($rowQr = $stmtQr->fetch()) {
+      $createdAttendees[] = [
+        'qrToken' => $rowQr['qr_token'],
+        'fullName' => $rowQr['full_name'],
+        'email' => $rowQr['email'],
+      ];
     }
 
     $pdo->commit();
@@ -2344,63 +2359,109 @@ if (preg_match('#^/public/events/(\\d+)/sessions$#', $path, $m) && $method === '
 }
 
 // ---- Attendees + Check-in ----
+if (preg_match('#^/events/(\\d+)/checkin-config$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid);
+  $pin = get_event_checkin_pin($pdo, $eventId);
+  if ($pin === null) {
+    $pin = set_event_checkin_pin($pdo, $eventId, null);
+  }
+  $cfg = get_config();
+  $base = rtrim((string)(($cfg['app'] ?? [])['base_url'] ?? ''), '/');
+  json_response(200, [
+    'staffPin' => $pin,
+    'staffUrl' => $base . '/staff/checkin/' . $eventId,
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/checkin-config$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid);
+  $regenerate = !empty($body['regenerate']);
+  $customPin = isset($body['pin']) ? (string)$body['pin'] : null;
+  if ($regenerate) {
+    $pin = set_event_checkin_pin($pdo, $eventId, null);
+  } elseif ($customPin !== null && $customPin !== '') {
+    $pin = set_event_checkin_pin($pdo, $eventId, $customPin);
+  } else {
+    $pin = get_event_checkin_pin($pdo, $eventId);
+    if ($pin === null) $pin = set_event_checkin_pin($pdo, $eventId, null);
+  }
+  $cfg = get_config();
+  $base = rtrim((string)(($cfg['app'] ?? [])['base_url'] ?? ''), '/');
+  json_response(200, [
+    'ok' => true,
+    'staffPin' => $pin,
+    'staffUrl' => $base . '/staff/checkin/' . $eventId,
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/checkin/verify-pin$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pin = normalize_checkin_pin((string)($body['staffPin'] ?? ''));
+  if ($pin === '') json_response(400, ['error' => 'invalid_staff_pin']);
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT id, title, status FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $ev = $stmt->fetch();
+  if (!$ev) json_response(404, ['error' => 'event_not_found']);
+  if ((string)$ev['status'] !== 'published') json_response(403, ['error' => 'event_not_live']);
+  if (!verify_event_checkin_pin($pdo, $eventId, $pin)) {
+    json_response(403, ['error' => 'invalid_staff_pin', 'message' => 'Incorrect PIN for this event.']);
+  }
+  json_response(200, ['ok' => true, 'eventTitle' => (string)$ev['title']]);
+}
+
 if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
 
   $pdo = db();
-  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
-  $stmt->execute([$eventId]);
-  $row = $stmt->fetch();
-  if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  require_event_owner($pdo, $eventId, $uid);
 
   $q = trim((string)($_GET['q'] ?? ''));
-  $limit = (int)($_GET['limit'] ?? 200);
+  $status = trim((string)($_GET['status'] ?? 'all'));
+  $limit = (int)($_GET['limit'] ?? 500);
   if ($limit < 1) $limit = 1;
-  if ($limit > 500) $limit = 500;
+  if ($limit > 2000) $limit = 2000;
 
+  $where = 'a.event_id = ?';
+  $params = [$eventId];
+  if ($status === 'checked_in') {
+    $where .= ' AND a.checked_in_at IS NOT NULL';
+  } elseif ($status === 'pending') {
+    $where .= ' AND a.checked_in_at IS NULL';
+  }
   if ($q !== '') {
     $like = '%' . $q . '%';
-    $stmt2 = $pdo->prepare(
-      'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
-       FROM attendees a
-       JOIN tickets t ON t.id = a.ticket_id
-       WHERE a.event_id = ?
-         AND (a.full_name LIKE ? OR a.email LIKE ? OR a.qr_token LIKE ? OR t.name LIKE ?)
-       ORDER BY a.created_at DESC
-       LIMIT ?'
-    );
-    $stmt2->execute([$eventId, $like, $like, $like, $like, $limit]);
-  } else {
-    $stmt2 = $pdo->prepare(
-      'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
-       FROM attendees a
-       JOIN tickets t ON t.id = a.ticket_id
-       WHERE a.event_id = ?
-       ORDER BY a.created_at DESC
-       LIMIT ?'
-    );
-    $stmt2->execute([$eventId, $limit]);
+    $where .= ' AND (a.full_name LIKE ? OR a.email LIKE ? OR a.qr_token LIKE ? OR t.name LIKE ?)';
+    array_push($params, $like, $like, $like, $like);
   }
+
+  $sql =
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE ' . $where . '
+     ORDER BY a.checked_in_at IS NULL DESC, a.created_at DESC
+     LIMIT ?';
+  $params[] = $limit;
+
+  $stmt2 = $pdo->prepare($sql);
+  $stmt2->execute($params);
 
   $attendees = [];
   while ($a = $stmt2->fetch()) {
-    $attendees[] = [
-      'id' => (string)$a['id'],
-      'eventId' => (string)$eventId,
-      'ticketId' => (string)$a['ticket_id'],
-      'ticketName' => $a['ticket_name'],
-      'fullName' => $a['full_name'],
-      'email' => $a['email'],
-      'phone' => $a['phone'],
-      'qrToken' => $a['qr_token'],
-      'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
-      'createdAt' => gmdate('c', strtotime($a['created_at'])),
-    ];
+    $attendees[] = attendee_api_shape($a, $eventId);
   }
 
-  json_response(200, ['attendees' => $attendees]);
+  json_response(200, ['attendees' => $attendees, 'stats' => fetch_attendee_stats($pdo, $eventId)]);
 }
 
 if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === 'GET') {
@@ -2445,35 +2506,76 @@ if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === '
   exit;
 }
 
-if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
+if (preg_match('#^/events/(\\d+)/checkin/undo$#', $path, $m) && $method === 'POST') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
   $body = read_json_body();
   $token = trim((string)($body['qrToken'] ?? ''));
   if ($token === '') json_response(400, ['error' => 'invalid_qr_token']);
-
   $pdo = db();
-  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
-  $stmt->execute([$eventId]);
-  $row = $stmt->fetch();
-  if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  require_event_owner($pdo, $eventId, $uid);
 
   $stmt2 = $pdo->prepare(
-    'SELECT id, checked_in_at FROM attendees WHERE event_id = ? AND qr_token = ? LIMIT 1'
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.event_id = ? AND a.qr_token = ?
+     LIMIT 1'
   );
   $stmt2->execute([$eventId, $token]);
   $a = $stmt2->fetch();
-  if (!$a) json_response(404, ['error' => 'attendee_not_found']);
+  if (!$a) json_response(404, ['error' => 'attendee_not_found', 'message' => 'No ticket found for this code.']);
+
+  $upd = $pdo->prepare('UPDATE attendees SET checked_in_at = NULL WHERE id = ?');
+  $upd->execute([(int)$a['id']]);
+  $a['checked_in_at'] = null;
+  json_response(200, ['ok' => true, 'attendee' => attendee_api_shape($a, $eventId)]);
+}
+
+if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $token = trim((string)($body['qrToken'] ?? ''));
+  if ($token === '') json_response(400, ['error' => 'invalid_qr_token', 'message' => 'Scan a valid ticket QR code.']);
+
+  $pdo = db();
+  require_checkin_access($pdo, $eventId, $body);
+
+  $stmt2 = $pdo->prepare(
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.event_id = ? AND a.qr_token = ?
+     LIMIT 1'
+  );
+  $stmt2->execute([$eventId, $token]);
+  $a = $stmt2->fetch();
+  if (!$a) json_response(404, ['error' => 'attendee_not_found', 'message' => 'Ticket not found. Check the QR code or token.']);
+
+  $attendee = attendee_api_shape($a, $eventId);
 
   if ($a['checked_in_at']) {
-    json_response(200, ['ok' => true, 'alreadyCheckedIn' => true, 'checkedInAt' => gmdate('c', strtotime($a['checked_in_at']))]);
+    json_response(200, [
+      'ok' => true,
+      'alreadyCheckedIn' => true,
+      'checkedInAt' => $attendee['checkedInAt'],
+      'attendee' => $attendee,
+      'message' => $attendee['fullName'] . ' was already checked in.',
+    ]);
   }
 
   $now = date('Y-m-d H:i:s');
   $upd = $pdo->prepare('UPDATE attendees SET checked_in_at = ? WHERE id = ?');
   $upd->execute([$now, (int)$a['id']]);
-  json_response(200, ['ok' => true, 'alreadyCheckedIn' => false, 'checkedInAt' => gmdate('c', strtotime($now))]);
+  $a['checked_in_at'] = $now;
+  $attendee = attendee_api_shape($a, $eventId);
+  json_response(200, [
+    'ok' => true,
+    'alreadyCheckedIn' => false,
+    'checkedInAt' => $attendee['checkedInAt'],
+    'attendee' => $attendee,
+    'message' => 'Welcome, ' . $attendee['fullName'] . '!',
+  ]);
 }
 
 // ---- Organizer runbook (private event checklist) ----

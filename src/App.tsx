@@ -191,14 +191,7 @@ export default function App() {
               </RequireOrganizer>
             }
           />
-          <Route
-            path="/staff/checkin/:eventId"
-            element={
-              <RequireOrganizer>
-                <StaffCheckInScanner />
-              </RequireOrganizer>
-            }
-          />
+          <Route path="/staff/checkin/:eventId" element={<StaffCheckInScanner />} />
           <Route path="/events/:eventId" element={<EventLanding />} />
           <Route path="/e/:slug" element={<EventLanding />} />
           <Route path="/orders/:orderId/success" element={<Success />} />

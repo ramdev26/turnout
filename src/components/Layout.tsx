@@ -15,8 +15,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isPublicLanding =
     /^\/e\/[^/]+$/.test(location.pathname) || /^\/events\/[^/]+$/.test(location.pathname);
 
+  const isStaffCheckin = /^\/staff\/checkin\/[^/]+$/.test(location.pathname);
+
   const isFullscreenFlow =
     isPublicLanding ||
+    isStaffCheckin ||
     location.pathname === '/events/new' ||
     /^\/dashboard\/events\/[^/]+\/settings$/.test(location.pathname);
 
@@ -35,7 +38,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   return (
     <div className="min-h-screen text-neutral-900">
-      {!isPublicLanding && (
+      {!isPublicLanding && !isStaffCheckin && (
       <nav className="sticky top-0 z-50 border-b border-neutral-200/80 bg-white/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">

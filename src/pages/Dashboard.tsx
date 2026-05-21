@@ -16,6 +16,7 @@ type EventInsights = {
   soldTickets: number;
   totalRevenue: number;
   totalCapacity: number;
+  attendeeTotal: number;
   checkedInCount: number;
 };
 
@@ -42,13 +43,16 @@ export const Dashboard: React.FC = () => {
           res.events.map(async (event) => {
             const [ticketsRes, attendeesRes] = await Promise.all([
               api.get<{ tickets: Ticket[] }>(`/api/events/${event.id}/tickets`),
-              api.get<{ attendees: Attendee[] }>(`/api/events/${event.id}/attendees?limit=1000`),
+              api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number } }>(
+                `/api/events/${event.id}/attendees?limit=1`
+              ),
             ]);
 
             const soldTickets = ticketsRes.tickets.reduce((sum, t) => sum + t.sold, 0);
             const totalRevenue = ticketsRes.tickets.reduce((sum, t) => sum + t.sold * t.price, 0);
             const totalCapacity = ticketsRes.tickets.reduce((sum, t) => sum + t.quantity, 0);
-            const checkedInCount = attendeesRes.attendees.filter((a) => !!a.checkedInAt).length;
+            const attendeeTotal = attendeesRes.stats?.total ?? attendeesRes.attendees.length;
+            const checkedInCount = attendeesRes.stats?.checkedIn ?? 0;
 
             return [
               event.id,
@@ -57,6 +61,7 @@ export const Dashboard: React.FC = () => {
                 soldTickets,
                 totalRevenue,
                 totalCapacity,
+                attendeeTotal,
                 checkedInCount,
               } as EventInsights,
             ] as const;
@@ -216,7 +221,7 @@ export const Dashboard: React.FC = () => {
                     </div>
                     <div>
                       <div className="font-bold text-neutral-900">
-                        {(insightsByEvent[event.id]?.checkedInCount ?? 0)}/{insightsByEvent[event.id]?.soldTickets ?? 0}
+                        {(insightsByEvent[event.id]?.checkedInCount ?? 0)}/{insightsByEvent[event.id]?.attendeeTotal ?? 0}
                       </div>
                       <div className="text-neutral-500">Checked-in</div>
                     </div>

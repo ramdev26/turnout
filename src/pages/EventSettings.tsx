@@ -123,12 +123,15 @@ export const EventSettings: React.FC = () => {
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
         api.get<{ speakers: Speaker[] }>(`/api/events/${eventId}/speakers`),
         api.get<{ sessions: Session[] }>(`/api/events/${eventId}/sessions`),
-        api.get<{ attendees: Attendee[] }>(`/api/events/${eventId}/attendees?limit=1000`),
+        api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number; pending: number } }>(
+          `/api/events/${eventId}/attendees?limit=1`
+        ),
       ]);
       setTickets(ticketsRes.tickets);
       setSpeakers(speakersRes.speakers);
       setSessions(sessionsRes.sessions);
       setAttendees(attendeesRes.attendees);
+      setAttendeeStats(attendeesRes.stats ?? { total: attendeesRes.attendees.length, checkedIn: 0, pending: 0 });
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to load event');
     } finally {
@@ -144,7 +147,9 @@ export const EventSettings: React.FC = () => {
   const staffCheckInUrl = useMemo(() => `/staff/checkin/${eventId}`, [eventId]);
   const soldTickets = useMemo(() => tickets.reduce((sum, t) => sum + t.sold, 0), [tickets]);
   const totalRevenue = useMemo(() => tickets.reduce((sum, t) => sum + t.sold * t.price, 0), [tickets]);
-  const checkedInCount = useMemo(() => attendees.filter((a) => !!a.checkedInAt).length, [attendees]);
+  const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
+  const checkedInCount = attendeeStats.checkedIn;
+  const attendeeTotal = attendeeStats.total;
   const readinessScore = useMemo(() => {
     let score = 0;
     if (slug.length >= 3) score += 20;
@@ -450,7 +455,7 @@ export const EventSettings: React.FC = () => {
                 <div>
                   <p style={{ color: ui.textMuted }}>Check-in</p>
                   <p className="font-semibold" style={{ color: ui.text }}>
-                    {checkedInCount}/{soldTickets}
+                    {checkedInCount}/{attendeeTotal || soldTickets}
                   </p>
                 </div>
                 <div>
@@ -752,6 +757,13 @@ export const EventSettings: React.FC = () => {
                     Quick actions
                   </p>
                   <div className="mt-3 flex flex-col gap-2">
+                    <Link
+                      to={`/dashboard/events/${eventId}/checkin`}
+                      className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
+                      style={{ ...cardStyle, color: ui.text }}
+                    >
+                      Open check-in &amp; staff PIN
+                    </Link>
                     <button
                       type="button"
                       onClick={copyStaffLink}
@@ -759,7 +771,7 @@ export const EventSettings: React.FC = () => {
                       style={{ ...cardStyle, color: ui.text }}
                     >
                       <Copy className="h-4 w-4" />
-                      Copy staff check-in link
+                      Copy staff scanner link
                     </button>
                     {copyMsg && (
                       <p className="text-xs" style={{ color: ui.textMuted }}>
