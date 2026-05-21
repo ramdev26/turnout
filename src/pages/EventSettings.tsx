@@ -1,65 +1,143 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api/client';
-import { Attendee, Event, Session, Speaker, Ticket } from '../types';
+import { Link, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  MapPin,
+  Plus,
+  Ticket as TicketIcon,
+  Trash2,
+} from 'lucide-react';
+import { api, toApiUrl } from '../api/client';
+import { Attendee, Event, Session, Speaker, Ticket as EventTicket } from '../types';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
-import { OrganizerShell } from '../components/organizer/OrganizerShell';
+import { cn } from '../utils/cn';
+import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
+import {
+  EVENT_THEME_IDS,
+  EVENT_THEMES,
+  resolveEventTheme,
+  type EventThemeId,
+} from '../themes/eventThemes';
+import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatScheduleDay(value: string): string {
+  if (!value) return 'Select date';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Select date';
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function formatScheduleTime(value: string): string {
+  if (!value) return '--:--';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '--:--';
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function normalizeBannerUrl(url: string): string {
+  if (!url) return '';
+  if (url.startsWith('http') || url.startsWith('/api/')) return url;
+  return toApiUrl(url);
+}
+
+const statusLabel: Record<Event['status'], string> = {
+  published: 'Published',
+  draft: 'Draft',
+  cancelled: 'Cancelled',
+};
 
 export const EventSettings: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
-  const navigate = useNavigate();
   const [event, setEvent] = useState<Event | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [themeId, setThemeId] = useState<EventThemeId>('minimal');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [location, setLocation] = useState('');
+  const [date, setDate] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
   const [slug, setSlug] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [savingSlug, setSavingSlug] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
   const [savingTicket, setSavingTicket] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [savingTicketDesign, setSavingTicketDesign] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPdfDesign, setShowPdfDesign] = useState(false);
   const [ticketPdfTemplateId, setTicketPdfTemplateId] = useState<'classic' | 'midnight' | 'sunset'>('classic');
   const [ticketPdfPrimaryColor, setTicketPdfPrimaryColor] = useState('#4f46e5');
   const [ticketPdfAccentColor, setTicketPdfAccentColor] = useState('#10b981');
   const [ticketPdfBadgeText, setTicketPdfBadgeText] = useState('VIP ACCESS');
   const [ticketPdfFooterNote, setTicketPdfFooterNote] = useState('Please bring this ticket and a valid ID.');
-  const [ticketForm, setTicketForm] = useState({
-    name: '',
-    price: 0,
-    quantity: 100,
-    description: '',
-  });
+  const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantity: 100, description: '' });
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
+  const ui = selectedTheme.ui;
+  const fieldClass = fieldClassFor(ui);
+  const fieldStyle = fieldStyleFor(ui);
+  const cardStyle = cardStyleFor(ui);
+  const cardMutedStyle = cardMutedStyleFor(ui);
+
+  const loadAll = async () => {
     if (!eventId) return;
-    (async () => {
-      try {
-        const res = await api.get<{ event: Event }>(`/api/events/${eventId}`);
-        setEvent(res.event);
-        setSlug(res.event.slug);
-        setTicketPdfTemplateId((res.event.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
-        setTicketPdfPrimaryColor(res.event.customization?.ticketPdfPrimaryColor || '#4f46e5');
-        setTicketPdfAccentColor(res.event.customization?.ticketPdfAccentColor || '#10b981');
-        setTicketPdfBadgeText(res.event.customization?.ticketPdfBadgeText || 'VIP ACCESS');
-        setTicketPdfFooterNote(res.event.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
-        const [ticketsRes, speakersRes, sessionsRes, attendeesRes] = await Promise.all([
-          api.get<{ tickets: Ticket[] }>(`/api/events/${eventId}/tickets`),
-          api.get<{ speakers: Speaker[] }>(`/api/events/${eventId}/speakers`),
-          api.get<{ sessions: Session[] }>(`/api/events/${eventId}/sessions`),
-          api.get<{ attendees: Attendee[] }>(`/api/events/${eventId}/attendees?limit=1000`),
-        ]);
-        setTickets(ticketsRes.tickets);
-        setSpeakers(speakersRes.speakers);
-        setSessions(sessionsRes.sessions);
-        setAttendees(attendeesRes.attendees);
-      } catch (e: any) {
-        setError(e?.error || 'Failed to load event');
-      }
-    })();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<{ event: Event }>(`/api/events/${eventId}`);
+      const ev = res.event;
+      setEvent(ev);
+      setTitle(ev.title);
+      setDescription(ev.description || '');
+      setLocation(ev.location);
+      setDate(toDatetimeLocalValue(new Date(ev.date)));
+      setBannerUrl(ev.bannerUrl || '');
+      setSlug(ev.slug);
+      const resolved = resolveEventTheme(ev.customization);
+      setThemeId(resolved.id);
+      setTicketPdfTemplateId((ev.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
+      setTicketPdfPrimaryColor(ev.customization?.ticketPdfPrimaryColor || resolved.primary);
+      setTicketPdfAccentColor(ev.customization?.ticketPdfAccentColor || resolved.secondary);
+      setTicketPdfBadgeText(ev.customization?.ticketPdfBadgeText || 'VIP ACCESS');
+      setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
+
+      const [ticketsRes, speakersRes, sessionsRes, attendeesRes] = await Promise.all([
+        api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
+        api.get<{ speakers: Speaker[] }>(`/api/events/${eventId}/speakers`),
+        api.get<{ sessions: Session[] }>(`/api/events/${eventId}/sessions`),
+        api.get<{ attendees: Attendee[] }>(`/api/events/${eventId}/attendees?limit=1000`),
+      ]);
+      setTickets(ticketsRes.tickets);
+      setSpeakers(speakersRes.speakers);
+      setSessions(sessionsRes.sessions);
+      setAttendees(attendeesRes.attendees);
+    } catch (e: any) {
+      setError(e?.message || e?.error || 'Failed to load event');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAll();
   }, [eventId]);
 
   const publicUrl = useMemo(() => (slug ? `/e/${slug}` : ''), [slug]);
@@ -67,135 +145,122 @@ export const EventSettings: React.FC = () => {
   const soldTickets = useMemo(() => tickets.reduce((sum, t) => sum + t.sold, 0), [tickets]);
   const totalRevenue = useMemo(() => tickets.reduce((sum, t) => sum + t.sold * t.price, 0), [tickets]);
   const checkedInCount = useMemo(() => attendees.filter((a) => !!a.checkedInAt).length, [attendees]);
-  const checkInRate = soldTickets > 0 ? Math.round((checkedInCount / soldTickets) * 100) : 0;
-  const soldOutTickets = useMemo(() => tickets.filter((t) => t.quantity > 0 && t.sold >= t.quantity).length, [tickets]);
-  const eventLinks = useMemo(
-    () => [
-      { to: '/dashboard', label: 'Dashboard', exact: true },
-      { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', exact: true },
-      { to: `/dashboard/events/${eventId}/agenda`, label: 'Agenda' },
-      { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in' },
-      { to: `/dashboard/events/${eventId}/runbook`, label: 'Runbook' },
-    ],
-    [eventId]
-  );
+  const readinessScore = useMemo(() => {
+    let score = 0;
+    if (slug.length >= 3) score += 20;
+    if (tickets.length > 0) score += 20;
+    if (speakers.length > 0) score += 20;
+    if (sessions.length > 0) score += 20;
+    if (event?.status === 'published') score += 20;
+    return score;
+  }, [event?.status, sessions.length, slug, speakers.length, tickets.length]);
 
-  const readinessChecklist = useMemo(
-    () => [
-      { label: 'Public URL is set', done: slugify(slug) === slug && slug.length >= 3 },
-      { label: 'At least one ticket type', done: tickets.length > 0 },
-      { label: 'At least one speaker', done: speakers.length > 0 },
-      { label: 'At least one session', done: sessions.length > 0 },
-      { label: 'Event is published', done: event?.status === 'published' },
-    ],
-    [event?.status, sessions.length, slug, speakers.length, tickets.length]
-  );
-  const readinessScore = Math.round((readinessChecklist.filter((x) => x.done).length / readinessChecklist.length) * 100);
-
-  const save = async () => {
-    if (!eventId) return;
-    setSaving(true);
-    setError(null);
+  const uploadBannerFile = async (file: File) => {
+    setIsUploadingBanner(true);
+    setBannerUploadError(null);
     try {
-      const next = slugify(slug);
-      const res = await api.post<{ slug: string }>(`/api/events/${eventId}/slug`, { slug: next });
-      setSlug(res.slug);
-      if (event) setEvent({ ...event, slug: res.slug });
-      window.open(`/e/${res.slug}`, '_blank', 'noopener,noreferrer');
-    } catch (e: any) {
-      setError(e?.error || 'Failed to update slug');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(toApiUrl('/api/uploads/banner'), {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const text = await res.text();
+      let data: { bannerUrl?: string; message?: string } | null = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+      if (res.ok && data?.bannerUrl) {
+        setBannerUrl(normalizeBannerUrl(data.bannerUrl));
+        return;
+      }
+      setBannerUploadError(data?.message || 'Upload failed');
+    } catch {
+      setBannerUploadError('Upload failed. Check your connection.');
     } finally {
-      setSaving(false);
+      setIsUploadingBanner(false);
     }
   };
 
-  const updateEventStatus = async (nextStatus: 'draft' | 'published' | 'cancelled') => {
+  const saveBranding = async () => {
+    if (!eventId) return;
+    setSavingBranding(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
+        themeId,
+        title: title.trim(),
+        description: description.trim(),
+        location: location.trim(),
+        date: new Date(date).toISOString(),
+        bannerUrl: bannerUrl || undefined,
+      });
+      setEvent(res.event);
+      setFeedback('Event details and theme saved.');
+    } catch (e: any) {
+      setError(e?.message || e?.error || 'Failed to save changes');
+    } finally {
+      setSavingBranding(false);
+    }
+  };
+
+  const saveSlug = async () => {
+    if (!eventId) return;
+    setSavingSlug(true);
+    setError(null);
+    try {
+      const res = await api.post<{ slug: string }>(`/api/events/${eventId}/slug`, { slug: slugify(slug) });
+      setSlug(res.slug);
+      if (event) setEvent({ ...event, slug: res.slug });
+      setFeedback('Public URL updated.');
+    } catch (e: any) {
+      setError(e?.message || e?.error || 'Failed to update URL');
+    } finally {
+      setSavingSlug(false);
+    }
+  };
+
+  const updateEventStatus = async (nextStatus: Event['status']) => {
     if (!eventId || !event) return;
     setError(null);
     try {
       const res = await api.post<{ status: Event['status'] }>(`/api/events/${eventId}/status`, { status: nextStatus });
       setEvent({ ...event, status: res.status });
+      setFeedback(nextStatus === 'published' ? 'Event is now live.' : 'Event status updated.');
     } catch (e: any) {
-      setError(e?.message || e?.error || 'Failed to update event status');
+      setError(e?.message || e?.error || 'Failed to update status');
     }
-  };
-
-  const duplicateEvent = async () => {
-    if (!eventId) return;
-    setError(null);
-    try {
-      const res = await api.post<{ eventId: string; slug: string }>(`/api/events/${eventId}/duplicate`);
-      navigate(`/dashboard/events/${res.eventId}/settings`);
-    } catch (e: any) {
-      setError(e?.error || 'Failed to duplicate event');
-    }
-  };
-
-  const copyStaffLink = async () => {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}${staffCheckInUrl}`);
-      setCopyMsg('Staff check-in link copied');
-    } catch {
-      setCopyMsg('Could not copy link');
-    } finally {
-      window.setTimeout(() => setCopyMsg(null), 2500);
-    }
-  };
-
-  const startEditTicket = (ticket: Ticket) => {
-    setEditingTicketId(ticket.id);
-    setTicketForm({
-      name: ticket.name,
-      price: ticket.price,
-      quantity: ticket.quantity,
-      description: ticket.description || '',
-    });
-  };
-
-  const resetTicketForm = () => {
-    setEditingTicketId(null);
-    setTicketForm({
-      name: '',
-      price: 0,
-      quantity: 100,
-      description: '',
-    });
   };
 
   const refreshTickets = async () => {
     if (!eventId) return;
-    const res = await api.get<{ tickets: Ticket[] }>(`/api/events/${eventId}/tickets`);
+    const res = await api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`);
     setTickets(res.tickets);
   };
 
   const saveTicket = async () => {
-    if (!eventId) return;
+    if (!eventId || !ticketForm.name.trim()) {
+      setError('Ticket name is required');
+      return;
+    }
     setSavingTicket(true);
     setError(null);
     try {
-      if (!ticketForm.name.trim()) {
-        setError('Ticket name is required');
-        return;
-      }
       if (editingTicketId) {
-        await api.post(`/api/events/${eventId}/tickets/${editingTicketId}`, {
-          name: ticketForm.name,
-          price: ticketForm.price,
-          quantity: ticketForm.quantity,
-          description: ticketForm.description || undefined,
-        });
+        await api.post(`/api/events/${eventId}/tickets/${editingTicketId}`, ticketForm);
       } else {
-        await api.post(`/api/events/${eventId}/tickets`, {
-          name: ticketForm.name,
-          price: ticketForm.price,
-          quantity: ticketForm.quantity,
-          description: ticketForm.description || undefined,
-        });
+        await api.post(`/api/events/${eventId}/tickets`, ticketForm);
       }
       await refreshTickets();
-      resetTicketForm();
+      setEditingTicketId(null);
+      setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
+      setFeedback('Tickets updated.');
     } catch (e: any) {
-      setError(e?.error || 'Failed to save ticket');
+      setError(e?.message || e?.error || 'Failed to save ticket');
     } finally {
       setSavingTicket(false);
     }
@@ -203,11 +268,13 @@ export const EventSettings: React.FC = () => {
 
   const deleteTicket = async (ticketId: string) => {
     if (!eventId) return;
-    setError(null);
     try {
       await api.post(`/api/events/${eventId}/tickets/${ticketId}/delete`);
       await refreshTickets();
-      if (editingTicketId === ticketId) resetTicketForm();
+      if (editingTicketId === ticketId) {
+        setEditingTicketId(null);
+        setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
+      }
     } catch (e: any) {
       setError(e?.error || 'Failed to delete ticket');
     }
@@ -216,7 +283,6 @@ export const EventSettings: React.FC = () => {
   const saveTicketDesign = async () => {
     if (!eventId || !event) return;
     setSavingTicketDesign(true);
-    setError(null);
     try {
       const res = await api.post<{ customization: Event['customization'] }>(`/api/events/${eventId}/ticket-design`, {
         templateId: ticketPdfTemplateId,
@@ -226,6 +292,7 @@ export const EventSettings: React.FC = () => {
         footerNote: ticketPdfFooterNote,
       });
       setEvent({ ...event, customization: { ...event.customization, ...res.customization } });
+      setFeedback('Ticket PDF design saved.');
     } catch (e: any) {
       setError(e?.error || 'Failed to save ticket design');
     } finally {
@@ -233,389 +300,507 @@ export const EventSettings: React.FC = () => {
     }
   };
 
+  const copyStaffLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${staffCheckInUrl}`);
+      setCopyMsg('Staff link copied');
+      window.setTimeout(() => setCopyMsg(null), 2500);
+    } catch {
+      setCopyMsg('Could not copy');
+    }
+  };
+
+  const navPill = (to: string, label: string, active: boolean) => (
+    <Link
+      to={to}
+      className="rounded-full border px-3 py-1.5 text-xs font-medium transition"
+      style={
+        active
+          ? { background: ui.accentSoft, borderColor: ui.accent, color: ui.accent }
+          : { ...cardStyle, color: ui.textMuted }
+      }
+    >
+      {label}
+    </Link>
+  );
+
+  if (loading) {
+    return (
+      <div
+        className="flex min-h-[calc(100vh-4rem)] items-center justify-center"
+        style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)' }}
+      >
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: ui.accent }} />
+      </div>
+    );
+  }
+
   if (!event) {
     return (
-      <div className="mx-auto max-w-2xl py-12">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-          <div className="text-lg font-bold">Event settings</div>
-          {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : <p className="mt-3 text-sm text-neutral-500">Loading…</p>}
-          <div className="mt-6">
-            <Link className="text-sm font-semibold text-indigo-600 hover:text-indigo-700" to="/dashboard">
-              Back to dashboard
-            </Link>
-          </div>
-        </div>
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <p className="text-lg font-semibold text-neutral-900">Event not found</p>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        <Link to="/dashboard" className="mt-6 inline-block text-sm font-semibold text-teal-700">
+          Back to dashboard
+        </Link>
       </div>
     );
   }
 
   return (
-    <OrganizerShell title="Event settings" subtitle={event.title} links={eventLinks}>
-      <div className="mx-auto max-w-6xl py-2">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <button
-          type="button"
-          onClick={() => navigate('/dashboard')}
-          className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-        >
-          Back to dashboard
-        </button>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-            <h2 className="text-lg font-extrabold text-neutral-900">Public website</h2>
-            <p className="mt-1 text-sm text-neutral-500">Edit your public URL and open the event website.</p>
-
-            <div className="mt-6 flex flex-col gap-2">
-              <label className="text-sm font-semibold">Public URL slug</label>
-              <input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                className="rounded-lg border border-neutral-200 px-4 py-2 focus:border-indigo-500 focus:outline-none"
-              />
-              <div className="text-xs text-neutral-500">
-                Public link: <span className="font-mono">{publicUrl}</span>
-              </div>
+    <div
+      className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background] duration-700 ease-in-out"
+      style={{ background: ui.pageBg, color: ui.text }}
+    >
+      <header
+        className="shrink-0 border-b px-4 py-4 backdrop-blur-md sm:px-8"
+        style={{ background: ui.headerBg, borderColor: ui.borderColor }}
+      >
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium transition hover:opacity-80"
+              style={{ color: ui.textMuted }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Link>
+            <div>
+              <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text }}>
+                Event settings
+              </h1>
+              <p className="text-sm" style={{ color: ui.textMuted }}>
+                {event.title}
+              </p>
             </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold"
+              style={{
+                ...cardStyle,
+                color: event.status === 'published' ? ui.accent : ui.textMuted,
+              }}
+            >
+              {statusLabel[event.status]}
+            </span>
+            {navPill(`/dashboard/events/${eventId}/settings`, 'Settings', true)}
+            {navPill(`/dashboard/events/${eventId}/agenda`, 'Agenda', false)}
+            {navPill(`/dashboard/events/${eventId}/checkin`, 'Check-in', false)}
+            {navPill(`/dashboard/events/${eventId}/runbook`, 'Runbook', false)}
+          </div>
+        </div>
+      </header>
 
-            {error && <p className="mt-4 text-sm font-semibold text-red-600">{error}</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 sm:px-8 lg:grid-cols-[360px_1fr] lg:py-8">
+          {/* Left */}
+          <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
+            <BannerUploadSquare
+              previewUrl={bannerUrl ? normalizeBannerUrl(bannerUrl) : undefined}
+              disabled={isUploadingBanner}
+              onFileSelect={(file) => void uploadBannerFile(file)}
+              frameClassName={ui.bannerFrame}
+              placeholderClassName={ui.bannerPlaceholder}
+            />
+            {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={save}
-                disabled={saving}
-                className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-indigo-700 disabled:opacity-50"
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Landing theme
+              </span>
+              <select
+                value={themeId}
+                onChange={(e) => setThemeId(e.target.value as EventThemeId)}
+                className={cn(fieldClass, 'appearance-none')}
+                style={fieldStyle}
               >
-                {saving ? 'Saving…' : 'Save slug'}
-              </button>
-              <button
-                type="button"
-                onClick={() => window.open(publicUrl, '_blank', 'noopener,noreferrer')}
-                className="rounded-xl border border-neutral-200 bg-white px-5 py-3 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-              >
-                Open website
-              </button>
+                {EVENT_THEME_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {EVENT_THEMES[id].name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Event health
+              </p>
+              <p className="mt-1 text-3xl font-bold" style={{ color: ui.text }}>
+                {readinessScore}%
+              </p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full" style={{ background: ui.borderColor }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${readinessScore}%`, background: ui.accent }} />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p style={{ color: ui.textMuted }}>Sold</p>
+                  <p className="font-semibold" style={{ color: ui.text }}>
+                    {soldTickets}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ color: ui.textMuted }}>Revenue</p>
+                  <p className="font-semibold" style={{ color: ui.text }}>
+                    {formatLKR(totalRevenue)}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ color: ui.textMuted }}>Check-in</p>
+                  <p className="font-semibold" style={{ color: ui.text }}>
+                    {checkedInCount}/{soldTickets}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ color: ui.textMuted }}>Tickets</p>
+                  <p className="font-semibold" style={{ color: ui.text }}>
+                    {tickets.length}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {eventId && (
-            <CustomDomainPanel
-              eventId={eventId}
-              onUpdated={(domain) => {
-                if (event) setEvent({ ...event, customDomain: domain, customization: { ...event.customization, customDomain: domain || undefined } });
-              }}
-            />
-          )}
+          {/* Right */}
+          <div className="flex flex-col pb-24">
+            {(error || feedback) && (
+              <div
+                className={cn(
+                  'mb-4 rounded-xl border px-4 py-3 text-sm font-medium',
+                  error ? 'border-red-200 bg-red-50 text-red-700' : ''
+                )}
+                style={!error ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.text } : undefined}
+              >
+                {error || feedback}
+              </div>
+            )}
 
-          <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-            <h2 className="text-lg font-extrabold text-neutral-900">Ticket categories</h2>
-            <p className="mt-1 text-sm text-neutral-500">Add new ticket tiers or edit existing ones even after publishing.</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <input
-                value={ticketForm.name}
-                onChange={(e) => setTicketForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Ticket name"
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
-              />
-              <input
-                value={ticketForm.price}
-                onChange={(e) => setTicketForm((prev) => ({ ...prev, price: Number(e.target.value) }))}
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder="Price"
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
-              />
-              <input
-                value={ticketForm.quantity}
-                onChange={(e) => setTicketForm((prev) => ({ ...prev, quantity: Number(e.target.value) }))}
-                type="number"
-                min={1}
-                placeholder="Quantity"
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
-              />
-              <input
-                value={ticketForm.description}
-                onChange={(e) => setTicketForm((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Description (optional)"
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm"
-              />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Event name"
+              className="mb-2 w-full border-0 bg-transparent p-0 text-3xl font-semibold tracking-tight focus:outline-none sm:text-4xl"
+              style={{ color: ui.text }}
+            />
+
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Event description"
+              rows={3}
+              className={cn(fieldClass, 'mb-5 resize-y')}
+              style={fieldStyle}
+            />
+
+            {/* Schedule */}
+            <div className="mb-5 rounded-2xl border p-5" style={cardMutedStyle}>
+              <div className="relative space-y-5">
+                <div className="absolute bottom-8 left-[7px] top-8 w-px border-l border-dashed" style={{ borderColor: ui.lineDashed }} aria-hidden />
+                <div className="relative space-y-2">
+                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                    <span className="z-10 h-3.5 w-3.5 rounded-full border-2 bg-white" style={{ borderColor: ui.dotActive }} />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                        Start
+                      </p>
+                      <p className="text-sm font-medium" style={{ color: ui.text }}>
+                        {formatScheduleDay(date)}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                      {formatScheduleTime(date)}
+                    </p>
+                  </div>
+                  <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} style={fieldStyle} />
+                </div>
+              </div>
             </div>
-            <div className="mt-3 flex gap-2">
+
+            <div className="mb-5 rounded-2xl border p-4" style={cardStyle}>
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Event location"
+                  className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
+                  style={{ color: ui.text }}
+                />
+              </div>
+            </div>
+
+            {/* Public URL */}
+            <div className="mb-5 rounded-2xl border p-5" style={cardStyle}>
+              <h2 className="text-base font-semibold" style={{ color: ui.text }}>
+                Public URL
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                Share this link with attendees
+              </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input value={slug} onChange={(e) => setSlug(e.target.value)} className={fieldClass} style={fieldStyle} />
+                <button
+                  type="button"
+                  onClick={saveSlug}
+                  disabled={savingSlug}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ backgroundColor: ui.accent }}
+                >
+                  {savingSlug ? 'Saving…' : 'Save URL'}
+                </button>
+              </div>
+              <p className="mt-2 font-mono text-xs" style={{ color: ui.textSubtle }}>
+                {typeof window !== 'undefined' ? window.location.origin : ''}
+                {publicUrl}
+              </p>
+              <button
+                type="button"
+                onClick={() => window.open(publicUrl, '_blank', 'noopener,noreferrer')}
+                className="mt-3 inline-flex items-center gap-2 text-sm font-semibold"
+                style={{ color: ui.accent }}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open public page
+              </button>
+            </div>
+
+            {eventId && (
+              <CustomDomainPanel
+                eventId={eventId}
+                ui={ui}
+                onUpdated={(domain) => {
+                  setEvent((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          customDomain: domain,
+                          customization: { ...prev.customization, customDomain: domain || undefined },
+                        }
+                      : prev
+                  );
+                }}
+              />
+            )}
+
+            {/* Tickets */}
+            <div className="mb-5 rounded-2xl border p-5" style={cardStyle}>
+              <div className="flex items-center gap-2">
+                <TicketIcon className="h-5 w-5" style={{ color: ui.accent }} />
+                <h2 className="text-base font-semibold" style={{ color: ui.text }}>
+                  Tickets
+                </h2>
+              </div>
+              <div className="mt-4 space-y-3">
+                {tickets.map((ticket) => (
+                  <div
+                    key={ticket.id}
+                    className="rounded-xl border p-4"
+                    style={cardMutedStyle}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold" style={{ color: ui.text }}>
+                          {ticket.name}
+                        </p>
+                        <p className="text-sm" style={{ color: ui.textMuted }}>
+                          {formatLKR(ticket.price)} · {ticket.sold}/{ticket.quantity} sold
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTicketId(ticket.id);
+                            setTicketForm({
+                              name: ticket.name,
+                              price: ticket.price,
+                              quantity: ticket.quantity,
+                              description: ticket.description || '',
+                            });
+                          }}
+                          className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                          style={{ ...cardStyle, color: ui.text }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteTicket(ticket.id)}
+                          className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <input
+                  placeholder="Tier name"
+                  value={ticketForm.name}
+                  onChange={(e) => setTicketForm((p) => ({ ...p, name: e.target.value }))}
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="Price (LKR)"
+                  value={ticketForm.price}
+                  onChange={(e) => setTicketForm((p) => ({ ...p, price: Number(e.target.value) }))}
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Quantity"
+                  value={ticketForm.quantity}
+                  onChange={(e) => setTicketForm((p) => ({ ...p, quantity: Number(e.target.value) }))}
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+                <input
+                  placeholder="Description (optional)"
+                  value={ticketForm.description}
+                  onChange={(e) => setTicketForm((p) => ({ ...p, description: e.target.value }))}
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+              </div>
               <button
                 type="button"
                 onClick={saveTicket}
                 disabled={savingTicket}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                style={{ backgroundColor: ui.accent }}
               >
-                {savingTicket ? 'Saving…' : editingTicketId ? 'Update Ticket' : 'Add Ticket'}
+                <Plus className="h-4 w-4" />
+                {savingTicket ? 'Saving…' : editingTicketId ? 'Update tier' : 'Add tier'}
               </button>
-              {editingTicketId && (
-                <button
-                  type="button"
-                  onClick={resetTicketForm}
-                  className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50"
-                >
-                  Cancel Edit
-                </button>
-              )}
             </div>
 
-            <div className="mt-4 space-y-2">
-              {tickets.length === 0 ? (
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">No tickets yet.</div>
-              ) : (
-                tickets.map((ticket) => (
-                  <div key={ticket.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-                    <div>
-                      <div className="text-sm font-bold text-neutral-900">
-                        {ticket.name} • LKR {ticket.price.toFixed(2)}
+            {/* Advanced */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="mb-4 flex w-full items-center justify-between py-2 text-sm font-medium"
+              style={{ color: ui.textMuted }}
+            >
+              More options (PDF tickets, staff tools)
+              <ChevronDown className={cn('h-4 w-4 transition', showAdvanced && 'rotate-180')} />
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-4">
+                <div className="rounded-2xl border p-5" style={cardStyle}>
+                  <button
+                    type="button"
+                    onClick={() => setShowPdfDesign((v) => !v)}
+                    className="flex w-full items-center justify-between text-left"
+                  >
+                    <span className="font-semibold" style={{ color: ui.text }}>
+                      Ticket PDF design
+                    </span>
+                    <ChevronDown className={cn('h-4 w-4', showPdfDesign && 'rotate-180')} style={{ color: ui.textMuted }} />
+                  </button>
+                  {showPdfDesign && (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {(['classic', 'midnight', 'sunset'] as const).map((tpl) => (
+                          <button
+                            key={tpl}
+                            type="button"
+                            onClick={() => setTicketPdfTemplateId(tpl)}
+                            className="rounded-xl border p-3 text-left text-sm font-semibold capitalize"
+                            style={
+                              ticketPdfTemplateId === tpl
+                                ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.accent }
+                                : cardStyle
+                            }
+                          >
+                            {tpl}
+                          </button>
+                        ))}
                       </div>
-                      <div className="text-xs text-neutral-500">
-                        Qty: {ticket.quantity} • Sold: {ticket.sold}
-                        {ticket.description ? ` • ${ticket.description}` : ''}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <input type="color" value={ticketPdfPrimaryColor} onChange={(e) => setTicketPdfPrimaryColor(e.target.value)} className={fieldClass} style={fieldStyle} />
+                        <input type="color" value={ticketPdfAccentColor} onChange={(e) => setTicketPdfAccentColor(e.target.value)} className={fieldClass} style={fieldStyle} />
                       </div>
-                    </div>
-                    <div className="flex gap-2">
+                      <input value={ticketPdfBadgeText} onChange={(e) => setTicketPdfBadgeText(e.target.value)} className={fieldClass} style={fieldStyle} />
+                      <input value={ticketPdfFooterNote} onChange={(e) => setTicketPdfFooterNote(e.target.value)} className={fieldClass} style={fieldStyle} />
                       <button
                         type="button"
-                        onClick={() => startEditTicket(ticket)}
-                        className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50"
+                        onClick={saveTicketDesign}
+                        disabled={savingTicketDesign}
+                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ backgroundColor: ui.accent }}
                       >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteTicket(ticket.id)}
-                        className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50"
-                      >
-                        Delete
+                        {savingTicketDesign ? 'Saving…' : 'Save PDF design'}
                       </button>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                  )}
+                </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-            <h2 className="text-lg font-extrabold text-neutral-900">Ticket PDF designer</h2>
-            <p className="mt-1 text-sm text-neutral-500">Build a signature look with prebuilt templates, custom badge text, and a live preview.</p>
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              {[
-                { id: 'classic', title: 'Classic Glow', desc: 'Clean white ticket with brand gradient header.' },
-                { id: 'midnight', title: 'Midnight Neon', desc: 'Dark premium style for nightlife or concerts.' },
-                { id: 'sunset', title: 'Sunset Festival', desc: 'Warm vibrant palette for outdoor/festival events.' },
-              ].map((tpl) => (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  onClick={() => setTicketPdfTemplateId(tpl.id as 'classic' | 'midnight' | 'sunset')}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    ticketPdfTemplateId === tpl.id ? 'border-indigo-500 bg-indigo-50' : 'border-neutral-200 bg-white hover:bg-neutral-50'
-                  }`}
-                >
-                  <div className="text-sm font-extrabold text-neutral-900">{tpl.title}</div>
-                  <div className="mt-1 text-xs text-neutral-500">{tpl.desc}</div>
-                </button>
-              ))}
-            </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wide text-neutral-500">Primary color</label>
-                <input
-                  type="color"
-                  value={ticketPdfPrimaryColor}
-                  onChange={(e) => setTicketPdfPrimaryColor(e.target.value)}
-                  className="mt-2 h-10 w-full rounded-lg border border-neutral-200 bg-white p-1"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wide text-neutral-500">Accent color</label>
-                <input
-                  type="color"
-                  value={ticketPdfAccentColor}
-                  onChange={(e) => setTicketPdfAccentColor(e.target.value)}
-                  className="mt-2 h-10 w-full rounded-lg border border-neutral-200 bg-white p-1"
-                />
-              </div>
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-neutral-500">Badge text</label>
-                <input
-                  value={ticketPdfBadgeText}
-                  onChange={(e) => setTicketPdfBadgeText(e.target.value.slice(0, 40))}
-                  placeholder="VIP ACCESS"
-                  className="rounded-lg border border-neutral-200 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-neutral-500">Footer note</label>
-                <input
-                  value={ticketPdfFooterNote}
-                  onChange={(e) => setTicketPdfFooterNote(e.target.value.slice(0, 160))}
-                  placeholder="Please bring this ticket and a valid ID."
-                  className="rounded-lg border border-neutral-200 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-            <div
-              className={`mt-5 overflow-hidden rounded-2xl border ${
-                ticketPdfTemplateId === 'midnight' ? 'border-neutral-700 bg-neutral-900' : 'border-neutral-200 bg-white'
-              }`}
-            >
-              <div
-                className="px-5 py-4"
-                style={{
-                  background:
-                    ticketPdfTemplateId === 'sunset'
-                      ? `linear-gradient(120deg, ${ticketPdfAccentColor}, ${ticketPdfPrimaryColor})`
-                      : `linear-gradient(120deg, ${ticketPdfPrimaryColor}, ${ticketPdfAccentColor})`,
-                }}
-              >
-                <div className="text-xs font-bold uppercase tracking-wider text-white/90">{ticketPdfBadgeText || 'VIP ACCESS'}</div>
-                <div className="mt-1 text-lg font-black text-white">{event.title}</div>
-              </div>
-              <div className={`grid gap-4 p-5 md:grid-cols-[1fr_120px] ${ticketPdfTemplateId === 'midnight' ? 'text-neutral-100' : 'text-neutral-800'}`}>
-                <div>
-                  <div className="text-xs uppercase tracking-wide opacity-70">Preview</div>
-                  <div className="mt-2 text-sm font-bold">Attendee Name</div>
-                  <div className="text-xs opacity-70">attendee@email.com</div>
-                  <div className="mt-3 rounded-lg px-3 py-2 font-mono text-xs" style={{ backgroundColor: ticketPdfPrimaryColor, color: '#fff' }}>
-                    QR-TOKEN-EXAMPLE
+                <div className="rounded-2xl border p-5" style={cardMutedStyle}>
+                  <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                    Quick actions
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={copyStaffLink}
+                      className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
+                      style={{ ...cardStyle, color: ui.text }}
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy staff check-in link
+                    </button>
+                    {copyMsg && (
+                      <p className="text-xs" style={{ color: ui.textMuted }}>
+                        {copyMsg}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => updateEventStatus(event.status === 'published' ? 'draft' : 'published')}
+                      className="rounded-xl border px-4 py-2.5 text-sm font-semibold"
+                      style={{ ...cardStyle, color: ui.text }}
+                    >
+                      {event.status === 'published' ? 'Unpublish event' : 'Publish event'}
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-white/80 text-xs text-neutral-500">
-                  QR AREA
-                </div>
               </div>
-              <div className={`border-t px-5 py-3 text-xs ${ticketPdfTemplateId === 'midnight' ? 'border-neutral-700 text-neutral-300' : 'border-neutral-200 text-neutral-500'}`}>
-                {ticketPdfFooterNote || 'Please bring this ticket and a valid ID.'}
-              </div>
-            </div>
-            <div className="mt-5 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={saveTicketDesign}
-                disabled={savingTicketDesign}
-                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {savingTicketDesign ? 'Saving design…' : 'Save ticket PDF design'}
-              </button>
-              <div className="text-xs text-neutral-500">Tip: changes apply to all new ticket downloads instantly.</div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-            <h2 className="text-lg font-extrabold text-neutral-900">Organizer command center</h2>
-            <p className="mt-1 text-sm text-neutral-500">Readiness scoring, ticket health, and live event ops metrics.</p>
-
-            <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-              <div className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">Readiness score</div>
-              <div className="mt-1 text-3xl font-black text-neutral-900">{readinessScore}%</div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-200">
-                <div className="h-full rounded-full bg-indigo-600" style={{ width: `${readinessScore}%` }} />
-              </div>
-              <div className="mt-4 space-y-2 text-sm">
-                {readinessChecklist.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <span className="text-neutral-700">{item.label}</span>
-                    <span className={item.done ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{item.done ? 'Done' : 'Pending'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-neutral-200 p-4">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">Revenue</div>
-                <div className="mt-1 text-xl font-black text-neutral-900">{formatLKR(totalRevenue)}</div>
-                <div className="mt-1 text-xs text-neutral-500">{soldTickets} tickets sold</div>
-              </div>
-              <div className="rounded-xl border border-neutral-200 p-4">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">Check-in rate</div>
-                <div className="mt-1 text-xl font-black text-neutral-900">{checkInRate}%</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {checkedInCount} checked-in of {soldTickets} sold
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
-              <div className="font-extrabold text-neutral-800">Ticket health alerts</div>
-              {tickets.length === 0 ? (
-                <div className="mt-2 text-neutral-600">No tickets configured yet.</div>
-              ) : soldOutTickets > 0 ? (
-                <div className="mt-2 text-amber-700">
-                  {soldOutTickets} ticket tier{soldOutTickets > 1 ? 's are' : ' is'} sold out. Consider adding a new tier or increasing capacity.
-                </div>
-              ) : (
-                <div className="mt-2 text-emerald-700">All ticket tiers still have capacity.</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="h-fit rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm xl:sticky xl:top-24">
-          <h2 className="text-lg font-extrabold text-neutral-900">Event management</h2>
-          <p className="mt-1 text-sm text-neutral-500">Quick links and staff operations.</p>
-
-          <div className="mt-5 flex flex-col gap-3">
-            <Link
-              to={`/dashboard/events/${eventId}/agenda`}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-            >
-              Agenda & Speakers
-            </Link>
-            <Link
-              to={`/dashboard/events/${eventId}/checkin`}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-            >
-              Attendees & Check-in
-            </Link>
-            <Link
-              to={`/dashboard/events/${eventId}/runbook`}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-            >
-              Event runbook
-            </Link>
-            <button
-              type="button"
-              onClick={copyStaffLink}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-            >
-              Copy staff scanner link
-              <div className="mt-1 font-mono text-xs font-medium text-neutral-500">{staffCheckInUrl}</div>
-            </button>
-            <button
-              type="button"
-              onClick={duplicateEvent}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-            >
-              Duplicate this event
-              <div className="mt-1 text-xs font-medium text-neutral-500">Clones tickets + design into a new draft event</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => updateEventStatus(event.status === 'published' ? 'draft' : 'published')}
-              className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-            >
-              {event.status === 'published' ? 'Unpublish event' : 'Publish event'}
-              <div className="mt-1 text-xs font-medium text-neutral-500">
-                Current status: <span className="font-semibold">{event.status}</span>
-              </div>
-            </button>
-            {copyMsg && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800">{copyMsg}</div>}
+            )}
           </div>
         </div>
       </div>
 
-      </div>
-    </OrganizerShell>
+      <footer
+        className="shrink-0 border-t px-4 py-4 backdrop-blur-md sm:px-8"
+        style={{ background: ui.footerBg, borderColor: ui.borderColor }}
+      >
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm" style={{ color: ui.textSubtle }}>
+            Changes to theme and event details apply to your public landing page.
+          </p>
+          <button
+            type="button"
+            onClick={saveBranding}
+            disabled={savingBranding}
+            className="w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition hover:brightness-105 disabled:opacity-40 sm:w-auto"
+            style={{ backgroundColor: ui.accent }}
+          >
+            {savingBranding ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </footer>
+    </div>
   );
 };
-

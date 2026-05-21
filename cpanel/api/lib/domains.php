@@ -1,5 +1,18 @@
 <?php
 
+function is_event_theme_id(string $id): bool {
+  return array_key_exists($id, event_theme_catalog());
+}
+
+function event_theme_catalog(): array {
+  return [
+    'minimal' => ['primary' => '#0f766e', 'secondary' => '#64748b', 'templateId' => 'template-2'],
+    'neo-green' => ['primary' => '#34d399', 'secondary' => '#10b981', 'templateId' => 'template-3'],
+    'midnight' => ['primary' => '#818cf8', 'secondary' => '#a78bfa', 'templateId' => 'template-4'],
+    'sunset' => ['primary' => '#f97316', 'secondary' => '#ec4899', 'templateId' => 'template-1'],
+  ];
+}
+
 function normalize_event_hostname(string $host): string {
   $host = strtolower(trim($host));
   $host = preg_replace('#^https?://#', '', $host);

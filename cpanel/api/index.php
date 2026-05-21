@@ -1619,6 +1619,79 @@ if (preg_match('#^/events/(\\d+)/status$#', $path, $m) && $method === 'POST') {
   json_response(200, ['ok' => true, 'status' => $status]);
 }
 
+if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+
+  $customization = json_decode((string)$row['customization_json'], true);
+  if (!is_array($customization)) $customization = [];
+
+  $themeId = trim((string)($body['themeId'] ?? ''));
+  if ($themeId !== '' && is_event_theme_id($themeId)) {
+    $theme = event_theme_catalog()[$themeId];
+    $customization['themeId'] = $themeId;
+    $customization['primaryColor'] = $theme['primary'];
+    $customization['secondaryColor'] = $theme['secondary'];
+  }
+
+  if (array_key_exists('bannerUrl', $body)) {
+    $nextBanner = trim((string)$body['bannerUrl']);
+    if ($nextBanner !== '') $row['banner_url'] = $nextBanner;
+  }
+
+  if (array_key_exists('title', $body)) {
+    $title = trim((string)$body['title']);
+    if (strlen($title) >= 3) $row['title'] = $title;
+    else json_response(400, ['error' => 'invalid_title']);
+  }
+  if (array_key_exists('description', $body)) {
+    $row['description'] = trim((string)$body['description']);
+  }
+  if (array_key_exists('location', $body)) {
+    $location = trim((string)$body['location']);
+    if ($location === '') json_response(400, ['error' => 'invalid_location']);
+    $row['location'] = $location;
+  }
+  if (array_key_exists('date', $body)) {
+    $date = trim((string)$body['date']);
+    if ($date === '') json_response(400, ['error' => 'invalid_date']);
+    $row['event_date'] = date('Y-m-d H:i:s', strtotime($date));
+  }
+
+  $templateId = trim((string)($body['templateId'] ?? ''));
+  if ($templateId !== '' && in_array($templateId, ['template-1', 'template-2', 'template-3', 'template-4', 'template-canvas'], true)) {
+    $row['template_id'] = $templateId;
+  } elseif ($themeId !== '' && is_event_theme_id($themeId)) {
+    $row['template_id'] = event_theme_catalog()[$themeId]['templateId'];
+  }
+
+  $customization['heroText'] = $row['title'];
+  if (!empty($row['description'])) {
+    $customization['heroSubtext'] = mb_substr((string)$row['description'], 0, 100);
+  }
+
+  $upd = $pdo->prepare(
+    'UPDATE events SET title = ?, description = ?, event_date = ?, location = ?, banner_url = ?, template_id = ?, customization_json = ? WHERE id = ?'
+  );
+  $upd->execute([
+    $row['title'],
+    $row['description'],
+    $row['event_date'],
+    $row['location'],
+    $row['banner_url'],
+    $row['template_id'],
+    json_encode($customization, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    $eventId,
+  ]);
+
+  $fresh = load_event_row_or_404($pdo, $eventId);
+  json_response(200, ['event' => map_public_event_row($fresh)]);
+}
+
 if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'POST') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
