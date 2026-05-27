@@ -24,8 +24,11 @@ export function clearAuthToken(): void {
   setAuthToken(null);
 }
 
-export function persistAuthTokenFromResponse(data: { authToken?: string } | null | undefined): void {
-  if (data?.authToken && typeof data.authToken === 'string') {
-    setAuthToken(data.authToken);
+export function persistAuthTokenFromResponse(
+  data: { authToken?: string; sessionToken?: string } | null | undefined
+): void {
+  const token = data?.authToken || data?.sessionToken;
+  if (token && typeof token === 'string') {
+    setAuthToken(token);
   }
 }

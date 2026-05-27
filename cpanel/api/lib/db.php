@@ -6,11 +6,13 @@ function get_config(): array {
 
   $configPath = __DIR__ . '/../config.php';
   if (!file_exists($configPath)) {
-    $sample = __DIR__ . '/../config.sample.php';
+    $configPath = __DIR__ . '/../config.sample.php';
+  }
+  if (!file_exists($configPath)) {
     json_response(500, [
       'error' => 'server_not_configured',
       'message' => 'Missing api/config.php. Copy config.sample.php to config.php and set DB credentials.',
-      'sample' => basename($sample),
+      'sample' => 'config.sample.php',
     ]);
   }
 

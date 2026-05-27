@@ -1,5 +1,14 @@
 <?php
 
+const TURNOUT_API_BRIDGE_VERSION = '2026-05-27-auth-bridge-v1';
+
+if (isset($_GET['turnout_api_version'])) {
+  header('Content-Type: application/json; charset=utf-8');
+  header('X-Turnout-Bridge: ' . TURNOUT_API_BRIDGE_VERSION);
+  echo json_encode(['bridge' => TURNOUT_API_BRIDGE_VERSION]);
+  exit;
+}
+
 // Vercel PHP runtimes often strip Authorization before it reaches $_SERVER.
 if (!isset($_SERVER['HTTP_AUTHORIZATION']) || trim((string)$_SERVER['HTTP_AUTHORIZATION']) === '') {
   if (!empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
