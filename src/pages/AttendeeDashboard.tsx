@@ -4,6 +4,9 @@ import { api } from '../api/client';
 import { Order } from '../types';
 import { EmptyState } from '../components/ui/Feedback';
 import { AttendeeShell } from '../components/attendee/AttendeeShell';
+import { FlowStatCard, FlowCard, FlowAlert, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardStyleFor } from '../themes/flowUi';
+import { cn } from '../utils/cn';
 
 function downloadTextFile(filename: string, text: string) {
   const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
@@ -109,8 +112,16 @@ export const AttendeeDashboard: React.FC = () => {
     });
   }, [activeFilter, orders]);
 
+  const ui = APP_FLOW_UI;
+
   if (loading) {
-    return <div className="flex h-64 items-center justify-center text-sm text-neutral-500">Loading attendee dashboard...</div>;
+    return (
+      <AttendeeShell title="Attendee Portal" subtitle="Loading your tickets…">
+        <div className="flex h-64 items-center justify-center text-sm" style={{ color: ui.textMuted }}>
+          Loading attendee dashboard...
+        </div>
+      </AttendeeShell>
+    );
   }
 
   return (
@@ -118,25 +129,28 @@ export const AttendeeDashboard: React.FC = () => {
       <div className="flex flex-col gap-8">
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm"><div className="text-xs font-bold uppercase text-neutral-500">Tickets</div><div className="mt-1 text-2xl font-black">{stats.tickets}</div></div>
-        <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm"><div className="text-xs font-bold uppercase text-neutral-500">Upcoming events</div><div className="mt-1 text-2xl font-black">{stats.upcoming}</div></div>
-        <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm"><div className="text-xs font-bold uppercase text-neutral-500">Checked in</div><div className="mt-1 text-2xl font-black">{stats.checkedIn}</div></div>
+        <FlowStatCard label="Tickets" value={stats.tickets} />
+        <FlowStatCard label="Upcoming events" value={stats.upcoming} />
+        <FlowStatCard label="Checked in" value={stats.checkedIn} accent={ui.accent} />
       </div>
 
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+      {error && <FlowAlert variant="error">{error}</FlowAlert>}
 
-      <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+      <FlowCard>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-extrabold">My ticket wallet</h2>
-          <div className="flex gap-2">
+          <h2 className="text-xl font-semibold" style={{ color: ui.text }}>My ticket wallet</h2>
+          <div className="flex flex-wrap gap-2">
             {(['all', 'upcoming', 'past'] as const).map((f) => (
               <button
                 key={f}
                 type="button"
                 onClick={() => setActiveFilter(f)}
-                className={`rounded-lg px-3 py-2 text-xs font-bold ${
-                  activeFilter === f ? 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white' : 'border border-neutral-200 text-neutral-700 hover:bg-neutral-50'
-                }`}
+                className={cn('rounded-lg px-3 py-2 text-xs font-bold capitalize')}
+                style={
+                  activeFilter === f
+                    ? { backgroundColor: ui.accent, color: '#fff' }
+                    : { ...cardStyleFor(ui), color: ui.textMuted }
+                }
               >
                 {f === 'all' ? 'All' : f === 'upcoming' ? 'Upcoming' : 'Past'}
               </button>
@@ -150,7 +164,7 @@ export const AttendeeDashboard: React.FC = () => {
         ) : (
           <div className="mt-5 space-y-4">
             {visibleOrders.map((order) => (
-              <div key={order.id} className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
+              <div key={order.id} className="rounded-2xl border p-4 shadow-sm" style={cardStyleFor(ui)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-base font-extrabold text-neutral-900">{order.event?.title || `Event #${order.eventId}`}</div>
@@ -285,7 +299,7 @@ export const AttendeeDashboard: React.FC = () => {
             ))}
           </div>
         )}
-      </div>
+      </FlowCard>
 
       {focusPass && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4">

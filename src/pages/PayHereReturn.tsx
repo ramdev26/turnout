@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { Order } from '../types';
+import { EVENT_THEMES } from '../themes/eventThemes';
+import { cardStyleFor } from '../themes/flowUi';
+
+const ui = EVENT_THEMES.minimal.ui;
 
 export const PayHereReturn: React.FC = () => {
   const [params] = useSearchParams();
@@ -39,7 +44,7 @@ export const PayHereReturn: React.FC = () => {
         }
         setStatus('pending');
         setMsg('Payment is being confirmed. Please wait…');
-      } catch (e: any) {
+      } catch {
         if (cancelled) return;
         setStatus('pending');
         setMsg('Waiting for payment confirmation…');
@@ -60,30 +65,43 @@ export const PayHereReturn: React.FC = () => {
   }, [navigate, orderId, accessToken]);
 
   return (
-    <div className="mx-auto max-w-xl py-12">
-      <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-extrabold text-neutral-900">PayHere return</h1>
-        <p className="mt-2 text-sm text-neutral-600">{msg || 'Loading…'}</p>
-        <div className="mt-6 flex gap-3">
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-          >
-            Refresh
-          </button>
-          <Link
-            to="/"
-            className="rounded-xl bg-[#00E676] px-4 py-2 text-sm font-bold text-[#062013] hover:bg-[#00C765]"
-          >
-            Go home
-          </Link>
-        </div>
-        <div className="mt-4 text-xs text-neutral-500">
-          Order: <span className="font-mono">{orderId || '—'}</span> • Status: <span className="font-mono">{status}</span>
+    <div
+      className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12"
+      style={{ background: ui.pageBg }}
+    >
+      <div className="w-full max-w-md">
+        <div className="rounded-2xl border p-8 shadow-sm text-center" style={cardStyleFor(ui)}>
+          {status === 'loading' || status === 'pending' ? (
+            <Loader2 className="mx-auto h-12 w-12 animate-spin" style={{ color: ui.accent }} />
+          ) : null}
+          <h1 className="mt-4 text-2xl font-semibold" style={{ color: ui.text }}>
+            {status === 'failed' ? 'Payment failed' : 'Confirming payment…'}
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
+            {msg || 'Loading…'}
+          </p>
+          <div className="mt-2 text-xs font-mono" style={{ color: ui.textMuted }}>
+            Order: {orderId || '—'} · Status: {status}
+          </div>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-xl border px-5 py-2.5 text-sm font-semibold"
+              style={{ ...cardStyleFor(ui), color: ui.text }}
+            >
+              Refresh
+            </button>
+            <Link
+              to="/"
+              className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+              style={{ backgroundColor: ui.accent }}
+            >
+              Go home
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 };
-

@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { Session, Speaker } from '../types';
-import { OrganizerShell } from '../components/organizer/OrganizerShell';
+import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
+import { FlowPage, FlowCard, FlowInput, FlowTextarea, FlowButton, FlowAlert } from '../components/flow/FlowPrimitives';
+import { eventWorkspaceNav } from '../utils/organizerNav';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardMutedStyleFor } from '../themes/flowUi';
 
 export const AgendaManager: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -27,16 +31,8 @@ export const AgendaManager: React.FC = () => {
   const [seSpeakerIds, setSeSpeakerIds] = useState<string[]>([]);
 
   const speakerById = useMemo(() => Object.fromEntries(speakers.map((s) => [s.id, s])), [speakers]);
-  const eventLinks = useMemo(
-    () => [
-      { to: '/dashboard', label: 'Dashboard', exact: true },
-      { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', exact: true },
-      { to: `/dashboard/events/${eventId}/agenda`, label: 'Agenda' },
-      { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in' },
-      { to: `/dashboard/events/${eventId}/runbook`, label: 'Runbook' },
-    ],
-    [eventId]
-  );
+  const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
+  const ui = APP_FLOW_UI;
 
   const loadAll = async () => {
     if (!eventId) return;
@@ -112,70 +108,33 @@ export const AgendaManager: React.FC = () => {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+        <div
+          className="h-12 w-12 animate-spin rounded-full border-4 border-t-transparent"
+          style={{ borderColor: ui.accent, borderTopColor: 'transparent' }}
+        />
       </div>
     );
   }
 
   return (
-    <OrganizerShell title="Agenda & Speakers" subtitle="Add speakers and sessions (Backstage-style)." links={eventLinks}>
-      <div className="mx-auto max-w-6xl py-2">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <Link
-          to={`/dashboard/events/${eventId}/settings`}
-          className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-        >
-          Back to settings
-        </Link>
-      </div>
-
-      {error && <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+    <OrganizerFlowShell title="Agenda & Speakers" subtitle="Add speakers and sessions." navLinks={navLinks} maxWidth="wide">
+      <FlowPage className="max-w-6xl">
+      {error && <FlowAlert variant="error">{error}</FlowAlert>}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold tracking-tight text-neutral-900">Speakers</h2>
+        <FlowCard>
+          <h2 className="text-xl font-semibold" style={{ color: ui.text }}>Speakers</h2>
           <div className="mt-4 grid gap-3">
-            <input
-              value={spName}
-              onChange={(e) => setSpName(e.target.value)}
-              placeholder="Name"
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
+            <FlowInput value={spName} onChange={(e) => setSpName(e.target.value)} placeholder="Name" />
             <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                value={spTitle}
-                onChange={(e) => setSpTitle(e.target.value)}
-                placeholder="Title (optional)"
-                className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-              />
-              <input
-                value={spCompany}
-                onChange={(e) => setSpCompany(e.target.value)}
-                placeholder="Company (optional)"
-                className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-              />
+              <FlowInput value={spTitle} onChange={(e) => setSpTitle(e.target.value)} placeholder="Title (optional)" />
+              <FlowInput value={spCompany} onChange={(e) => setSpCompany(e.target.value)} placeholder="Company (optional)" />
             </div>
-            <input
-              value={spAvatarUrl}
-              onChange={(e) => setSpAvatarUrl(e.target.value)}
-              placeholder="Avatar URL (optional)"
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
-            <textarea
-              value={spBio}
-              onChange={(e) => setSpBio(e.target.value)}
-              placeholder="Bio (optional)"
-              rows={3}
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={addSpeaker}
-              disabled={!spName.trim()}
-              className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 py-3 text-sm font-semibold text-white hover:brightness-105 disabled:opacity-50"
-            >
+            <FlowInput value={spAvatarUrl} onChange={(e) => setSpAvatarUrl(e.target.value)} placeholder="Avatar URL (optional)" />
+            <FlowTextarea value={spBio} onChange={(e) => setSpBio(e.target.value)} placeholder="Bio (optional)" rows={3} />
+            <FlowButton type="button" onClick={addSpeaker} disabled={!spName.trim()} className="w-full">
               Add speaker
-            </button>
+            </FlowButton>
           </div>
 
           <div className="mt-6 flex flex-col gap-3">
@@ -201,45 +160,19 @@ export const AgendaManager: React.FC = () => {
               ))
             )}
           </div>
-        </div>
+        </FlowCard>
 
-        <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold tracking-tight text-neutral-900">Sessions</h2>
+        <FlowCard>
+          <h2 className="text-xl font-semibold" style={{ color: ui.text }}>Sessions</h2>
           <div className="mt-4 grid gap-3">
-            <input
-              value={seTitle}
-              onChange={(e) => setSeTitle(e.target.value)}
-              placeholder="Session title"
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
-            <textarea
-              value={seDescription}
-              onChange={(e) => setSeDescription(e.target.value)}
-              placeholder="Description (optional)"
-              rows={3}
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
+            <FlowInput value={seTitle} onChange={(e) => setSeTitle(e.target.value)} placeholder="Session title" />
+            <FlowTextarea value={seDescription} onChange={(e) => setSeDescription(e.target.value)} placeholder="Description (optional)" rows={3} />
             <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                value={seStartsAt}
-                onChange={(e) => setSeStartsAt(e.target.value)}
-                type="datetime-local"
-                className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-              />
-              <input
-                value={seEndsAt}
-                onChange={(e) => setSeEndsAt(e.target.value)}
-                type="datetime-local"
-                className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-              />
+              <FlowInput value={seStartsAt} onChange={(e) => setSeStartsAt(e.target.value)} type="datetime-local" />
+              <FlowInput value={seEndsAt} onChange={(e) => setSeEndsAt(e.target.value)} type="datetime-local" />
             </div>
-            <input
-              value={seLocation}
-              onChange={(e) => setSeLocation(e.target.value)}
-              placeholder="Location (optional)"
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+            <FlowInput value={seLocation} onChange={(e) => setSeLocation(e.target.value)} placeholder="Location (optional)" />
+            <div className="rounded-xl border p-4" style={cardMutedStyleFor(ui)}>
               <div className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">Speakers for this session</div>
               <div className="mt-3 flex flex-col gap-2">
                 {speakers.length === 0 ? (
@@ -266,14 +199,9 @@ export const AgendaManager: React.FC = () => {
                 )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={addSession}
-              disabled={!seTitle.trim() || !seStartsAt || !seEndsAt}
-              className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 py-3 text-sm font-semibold text-white hover:brightness-105 disabled:opacity-50"
-            >
+            <FlowButton type="button" onClick={addSession} disabled={!seTitle.trim() || !seStartsAt || !seEndsAt} className="w-full">
               Add session
-            </button>
+            </FlowButton>
           </div>
 
           <div className="mt-6 flex flex-col gap-3">
@@ -308,10 +236,10 @@ export const AgendaManager: React.FC = () => {
               ))
             )}
           </div>
-        </div>
+        </FlowCard>
       </div>
-      </div>
-    </OrganizerShell>
+      </FlowPage>
+    </OrganizerFlowShell>
   );
 };
 

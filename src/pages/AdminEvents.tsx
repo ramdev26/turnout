@@ -1,9 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { AdminShell } from '../components/admin/AdminShell';
-import { Button } from '../components/ui/Button';
+import { FlowCard, FlowAlert, FlowButton, FlowInput, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardMutedStyleFor } from '../themes/flowUi';
 
-type AdminEvent = { id: string; title: string; status: string; eventStatus: 'pending' | 'approved' | 'rejected' | 'suspended'; isFeatured: boolean; organizerName: string };
+type AdminEvent = {
+  id: string;
+  title: string;
+  status: string;
+  eventStatus: 'pending' | 'approved' | 'rejected' | 'suspended';
+  isFeatured: boolean;
+  organizerName: string;
+};
 
 export const AdminEvents: React.FC = () => {
   const [events, setEvents] = useState<AdminEvent[]>([]);
@@ -11,6 +19,8 @@ export const AdminEvents: React.FC = () => {
   const [status, setStatus] = useState<'all' | AdminEvent['eventStatus']>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const ui = APP_FLOW_UI;
+
   const load = async () => {
     setError(null);
     try {
@@ -18,45 +28,52 @@ export const AdminEvents: React.FC = () => {
       if (q.trim() !== '') params.set('q', q.trim());
       if (status !== 'all') params.set('status', status);
       setEvents((await api.get<{ events: AdminEvent[] }>(`/api/admin/events?${params.toString()}`)).events);
-    } catch (e: any) {
-      setError(e?.error || 'Failed to load events');
+    } catch (e: unknown) {
+      const err = e as { error?: string };
+      setError(err?.error || 'Failed to load events');
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => { void load(); }, []);
 
+  const selectStyle = { borderColor: ui.borderColor, background: ui.fieldBg, color: ui.text };
+
   return (
     <AdminShell title="Event Control" subtitle="Moderate approvals, publishing and featured events.">
-      <div className="space-y-2 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <div className="mb-3 grid gap-2 md:grid-cols-3">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title or slug..." className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm" />
-          <select value={status} onChange={(e) => setStatus(e.target.value as 'all' | AdminEvent['eventStatus'])} className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
+      <FlowCard>
+        <div className="mb-3 grid gap-2 sm:grid-cols-3">
+          <FlowInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title or slug..." />
+          <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="rounded-xl border px-3 py-2 text-sm outline-none" style={selectStyle}>
             <option value="all">All moderation statuses</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
             <option value="suspended">Suspended</option>
           </select>
-          <Button onClick={load}>Filter</Button>
+          <FlowButton onClick={() => void load()}>Filter</FlowButton>
         </div>
-        {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-        {loading ? <div className="text-sm text-neutral-500">Loading events...</div> : null}
-        {events.map((e) => (
-          <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-            <div className="text-sm">
-              <div className="font-semibold text-neutral-900">{e.title}</div>
-              <div className="text-xs text-neutral-500">{e.organizerName} • {e.eventStatus} • {e.status}</div>
+        {error && <FlowAlert variant="error">{error}</FlowAlert>}
+        {loading && <div className="text-sm" style={{ color: ui.textMuted }}>Loading events...</div>}
+        <div className="mt-2 space-y-2">
+          {events.map((e) => (
+            <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5" style={cardMutedStyleFor(ui)}>
+              <div className="text-sm min-w-0">
+                <div className="font-semibold" style={{ color: ui.text }}>{e.title}</div>
+                <div className="text-xs" style={{ color: ui.textMuted }}>{e.organizerName} · {e.eventStatus} · {e.status}</div>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <FlowButton variant="secondary" onClick={async () => { await api.post(`/api/admin/events/${e.id}/moderate`, { eventStatus: 'approved' }); await load(); }}>Approve</FlowButton>
+                <FlowButton variant="secondary" onClick={async () => { await api.post(`/api/admin/events/${e.id}/moderate`, { eventStatus: 'rejected' }); await load(); }}>Reject</FlowButton>
+                <FlowButton variant="secondary" onClick={async () => { await api.post(`/api/admin/events/${e.id}/status`, { status: 'blocked' }); await load(); }}>Unpublish</FlowButton>
+                <FlowButton onClick={async () => { await api.post(`/api/admin/events/${e.id}/moderate`, { isFeatured: !e.isFeatured }); await load(); }}>
+                  {e.isFeatured ? 'Unfeature' : 'Feature'}
+                </FlowButton>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="secondary" onClick={async () => { await api.post(`/api/admin/events/${e.id}/moderate`, { eventStatus: 'approved' }); await load(); }}>Approve</Button>
-              <Button size="sm" variant="secondary" onClick={async () => { await api.post(`/api/admin/events/${e.id}/moderate`, { eventStatus: 'rejected' }); await load(); }}>Reject</Button>
-              <Button size="sm" variant="secondary" onClick={async () => { await api.post(`/api/admin/events/${e.id}/status`, { status: 'blocked' }); await load(); }}>Unpublish</Button>
-              <Button size="sm" onClick={async () => { await api.post(`/api/admin/events/${e.id}/moderate`, { isFeatured: !e.isFeatured }); await load(); }}>{e.isFeatured ? 'Unfeature' : 'Feature'}</Button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </FlowCard>
     </AdminShell>
   );
 };

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { AdminShell } from '../components/admin/AdminShell';
+import { FlowCard, FlowAlert, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardMutedStyleFor } from '../themes/flowUi';
 import { OrganizerPayout } from '../types';
 import { formatLKR } from '../utils/money';
-import { Button } from '../components/ui/Button';
 
 type OrganizerBalance = { organizerId: string; displayName: string; availableBalance: number };
 
@@ -12,6 +13,8 @@ export const AdminPayouts: React.FC = () => {
   const [balances, setBalances] = useState<OrganizerBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const ui = APP_FLOW_UI;
+
   const load = async () => {
     setError(null);
     try {
@@ -21,13 +24,15 @@ export const AdminPayouts: React.FC = () => {
       ]);
       setPayouts(p.payouts);
       setBalances(b.organizers);
-    } catch (e: any) {
-      setError(e?.error || 'Failed to load payouts');
+    } catch (e: unknown) {
+      const err = e as { error?: string };
+      setError(err?.error || 'Failed to load payouts');
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => { void load(); }, []);
+
   const downloadCsv = async () => {
     const payload = await api.get<{ rows: Array<Record<string, string | number>> }>('/api/admin/payouts/export-csv');
     const rows = payload.rows ?? [];
@@ -45,39 +50,47 @@ export const AdminPayouts: React.FC = () => {
 
   return (
     <AdminShell title="Payout Control" subtitle="Create, approve, reject payouts and export payout report data.">
-      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-neutral-900">Pending Balances</h2>
-          <Button variant="secondary" onClick={downloadCsv}>Export CSV</Button>
+      {error && <FlowAlert variant="error">{error}</FlowAlert>}
+      {loading && <div className="text-sm" style={{ color: ui.textMuted }}>Loading payouts...</div>}
+
+      <FlowCard>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold" style={{ color: ui.text }}>Pending Balances</h2>
+          <FlowButton variant="secondary" onClick={() => void downloadCsv()}>Export CSV</FlowButton>
         </div>
-        {error ? <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-        {loading ? <div className="text-sm text-neutral-500">Loading payouts...</div> : null}
         <div className="space-y-2">
           {balances.map((o) => (
-            <div key={o.organizerId} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-              <div className="text-sm font-medium text-neutral-900">{o.displayName}</div>
-              <div className="flex gap-2">
-                <span className="text-sm font-semibold text-emerald-700">{formatLKR(o.availableBalance)}</span>
-                <Button size="sm" onClick={async () => { await api.post('/api/admin/payouts', { organizerId: o.organizerId, totalAmount: o.availableBalance, notes: 'Auto from control panel' }); await load(); }}>Pay Now</Button>
+            <div key={o.organizerId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5" style={cardMutedStyleFor(ui)}>
+              <div className="text-sm font-medium" style={{ color: ui.text }}>{o.displayName}</div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold" style={{ color: ui.accent }}>{formatLKR(o.availableBalance)}</span>
+                <FlowButton onClick={async () => { await api.post('/api/admin/payouts', { organizerId: o.organizerId, totalAmount: o.availableBalance, notes: 'Auto from control panel' }); await load(); }}>
+                  Pay Now
+                </FlowButton>
               </div>
             </div>
           ))}
         </div>
-      </section>
-      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-lg font-bold text-neutral-900">Payout History</h2>
+      </FlowCard>
+
+      <FlowCard>
+        <h2 className="mb-3 text-lg font-semibold" style={{ color: ui.text }}>Payout History</h2>
         <div className="space-y-2">
           {payouts.map((p) => (
-            <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-              <div className="text-sm font-medium text-neutral-900">#{p.id} • {formatLKR(p.totalAmount)} • {p.status}</div>
+            <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5" style={cardMutedStyleFor(ui)}>
+              <div className="text-sm font-medium" style={{ color: ui.text }}>#{p.id} · {formatLKR(p.totalAmount)} · {p.status}</div>
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" onClick={async () => { await api.post(`/api/admin/payouts/${p.id}/status`, { status: 'processing', note: 'Processing transfer' }); await load(); }}>Processing</Button>
-                <Button size="sm" onClick={async () => { await api.post(`/api/admin/payouts/${p.id}/status`, { status: 'completed', reference: `BANK-${Date.now()}` }); await load(); }}>Complete</Button>
+                <FlowButton variant="secondary" onClick={async () => { await api.post(`/api/admin/payouts/${p.id}/status`, { status: 'processing', note: 'Processing transfer' }); await load(); }}>
+                  Processing
+                </FlowButton>
+                <FlowButton onClick={async () => { await api.post(`/api/admin/payouts/${p.id}/status`, { status: 'completed', reference: `BANK-${Date.now()}` }); await load(); }}>
+                  Complete
+                </FlowButton>
               </div>
             </div>
           ))}
         </div>
-      </section>
+      </FlowCard>
     </AdminShell>
   );
 };

@@ -1,6 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { OrganizerShell } from '../components/organizer/OrganizerShell';
+import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
+import { FlowPage } from '../components/flow/FlowPrimitives';
+import { organizerMainNav } from '../utils/organizerNav';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardStyleFor } from '../themes/flowUi';
 
 type ThemeOption = {
   id: string;
@@ -38,29 +42,41 @@ const THEMES: ThemeOption[] = [
 
 export const EventThemes: React.FC = () => {
   const navigate = useNavigate();
+  const ui = APP_FLOW_UI;
 
   return (
-    <OrganizerShell
+    <OrganizerFlowShell
       title="Choose a Prebuilt Theme"
       subtitle="Pick a theme first. You will land on the event form with this style pre-applied."
+      navLinks={organizerMainNav}
+      backTo="/dashboard"
     >
-      <div className="grid gap-5 md:grid-cols-2">
-        {THEMES.map((theme) => (
-          <button
-            key={theme.id}
-            type="button"
-            onClick={() => navigate(`/events/new?theme=${encodeURIComponent(theme.id)}`)}
-            className="overflow-hidden rounded-2xl border border-neutral-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className={`h-32 bg-gradient-to-br ${theme.gradient}`} />
-            <div className="space-y-1 p-5">
-              <h3 className="text-lg font-bold text-neutral-900">{theme.name}</h3>
-              <p className="text-sm text-neutral-600">{theme.description}</p>
-              <div className="pt-2 text-sm font-semibold text-[#00a95d]">Use this theme →</div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </OrganizerShell>
+      <FlowPage>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {THEMES.map((theme) => (
+            <button
+              key={theme.id}
+              type="button"
+              onClick={() => navigate(`/events/new?theme=${encodeURIComponent(theme.id)}`)}
+              className="overflow-hidden rounded-2xl border text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              style={cardStyleFor(ui)}
+            >
+              <div className={`h-28 bg-gradient-to-br sm:h-32 ${theme.gradient}`} />
+              <div className="space-y-1 p-5">
+                <h3 className="text-lg font-semibold" style={{ color: ui.text }}>
+                  {theme.name}
+                </h3>
+                <p className="text-sm" style={{ color: ui.textMuted }}>
+                  {theme.description}
+                </p>
+                <div className="pt-2 text-sm font-semibold" style={{ color: ui.accent }}>
+                  Use this theme →
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </FlowPage>
+    </OrganizerFlowShell>
   );
 };

@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { RunbookItem } from '../types';
-import { OrganizerShell } from '../components/organizer/OrganizerShell';
+import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
+import { FlowPage, FlowCard, FlowStatCard, FlowInput, FlowButton, FlowAlert } from '../components/flow/FlowPrimitives';
+import { eventWorkspaceNav } from '../utils/organizerNav';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 
 export const RunbookManager: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -12,16 +15,8 @@ export const RunbookManager: React.FC = () => {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [dueAt, setDueAt] = useState('');
-  const eventLinks = useMemo(
-    () => [
-      { to: '/dashboard', label: 'Dashboard', exact: true },
-      { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', exact: true },
-      { to: `/dashboard/events/${eventId}/agenda`, label: 'Agenda' },
-      { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in' },
-      { to: `/dashboard/events/${eventId}/runbook`, label: 'Runbook' },
-    ],
-    [eventId]
-  );
+  const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
+  const ui = APP_FLOW_UI;
 
   const load = async () => {
     if (!eventId) return;
@@ -77,74 +72,39 @@ export const RunbookManager: React.FC = () => {
   }, [items]);
 
   return (
-    <OrganizerShell title="Event Runbook" subtitle="Private organizer checklist for event-day operations." links={eventLinks}>
-      <div className="mx-auto max-w-6xl py-2">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <Link
-          to={`/dashboard/events/${eventId}/settings`}
-          className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-        >
-          Back to settings
-        </Link>
-      </div>
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-indigo-100 bg-white p-4">
-          <div className="text-xs font-bold uppercase text-neutral-500">Tasks</div>
-          <div className="mt-1 text-2xl font-black">{stats.total}</div>
-        </div>
-        <div className="rounded-xl border border-indigo-100 bg-white p-4">
-          <div className="text-xs font-bold uppercase text-neutral-500">Done</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{stats.done}</div>
-        </div>
-        <div className="rounded-xl border border-indigo-100 bg-white p-4">
-          <div className="text-xs font-bold uppercase text-neutral-500">Overdue</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{stats.overdue}</div>
-        </div>
-        <div className="rounded-xl border border-indigo-100 bg-white p-4">
-          <div className="text-xs font-bold uppercase text-neutral-500">Progress</div>
-          <div className="mt-1 text-2xl font-black">{stats.progress}%</div>
-        </div>
+    <OrganizerFlowShell title="Event Runbook" subtitle="Private organizer checklist for event-day operations." navLinks={navLinks} maxWidth="wide">
+      <FlowPage className="max-w-6xl">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <FlowStatCard label="Tasks" value={stats.total} />
+        <FlowStatCard label="Done" value={stats.done} accent={ui.accent} />
+        <FlowStatCard label="Overdue" value={stats.overdue} />
+        <FlowStatCard label="Progress" value={`${stats.progress}%`} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold tracking-tight">Add runbook task</h2>
+        <FlowCard>
+          <h2 className="text-lg font-semibold" style={{ color: ui.text }}>Add runbook task</h2>
           <div className="mt-4 grid gap-3">
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Test entry gate scanners"
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
+            <FlowInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Test entry gate scanners" />
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
+              className="rounded-xl border px-4 py-2.5 text-sm outline-none"
+              style={{ borderColor: ui.borderColor, background: ui.fieldBg, color: ui.text }}
             >
               <option value="low">Low priority</option>
               <option value="medium">Medium priority</option>
               <option value="high">High priority</option>
             </select>
-            <input
-              type="datetime-local"
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
-              className="rounded-lg border border-neutral-200 px-4 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={addItem}
-              disabled={!title.trim()}
-              className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500 py-3 text-sm font-semibold text-white hover:brightness-105 disabled:opacity-50"
-            >
+            <FlowInput type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+            <FlowButton type="button" onClick={addItem} disabled={!title.trim()} className="w-full">
               Add task
-            </button>
-            {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
+            </FlowButton>
+            {error && <FlowAlert variant="error">{error}</FlowAlert>}
           </div>
-        </div>
+        </FlowCard>
 
-        <div className="lg:col-span-2 rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+        <FlowCard className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold tracking-tight">Runbook items</h2>
             <button
@@ -193,9 +153,9 @@ export const RunbookManager: React.FC = () => {
               ))}
             </div>
           )}
-        </div>
+        </FlowCard>
       </div>
-      </div>
-    </OrganizerShell>
+      </FlowPage>
+    </OrganizerFlowShell>
   );
 };

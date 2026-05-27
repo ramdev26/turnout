@@ -5,9 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
-import { Card } from '../components/ui/Card';
-import { Input } from '../components/ui/Field';
-import { Button } from '../components/ui/Button';
+import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
+import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cn } from '../utils/cn';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -22,8 +23,9 @@ export const Login: React.FC = () => {
   const { setUser } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
   const [loginAs, setLoginAs] = useState<'organizer' | 'attendee'>('organizer');
+  const ui = APP_FLOW_UI;
 
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
 
   const {
     register,
@@ -34,7 +36,7 @@ export const Login: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      const res = await api.post<{ user: any }>('/api/auth/login', values);
+      const res = await api.post<{ user: { role: string } }>('/api/auth/login', values);
       if (loginAs === 'organizer' && !['organizer', 'super_admin'].includes(res.user.role)) {
         setServerError('This account is attendee type. Switch to "Attendee" and try again.');
         return;
@@ -43,7 +45,7 @@ export const Login: React.FC = () => {
         setServerError('This account is organizer type. Switch to "Organizer" and try again.');
         return;
       }
-      setUser(res.user);
+      setUser(res.user as Parameters<typeof setUser>[0]);
       const destination =
         res.user.role === 'super_admin'
           ? '/admin/dashboard'
@@ -51,56 +53,60 @@ export const Login: React.FC = () => {
             ? '/attendee/dashboard'
             : from;
       navigate(destination, { replace: true });
-    } catch (e: any) {
-      setServerError(e?.message || e?.error || 'Login failed');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setServerError(err?.message || err?.error || 'Login failed');
     }
   };
 
   return (
-    <div className="mx-auto max-w-md py-10">
-      <Card className="rounded-3xl p-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">Sign in</h1>
-        <p className="mt-2 text-neutral-500">Choose account type, then continue.</p>
-
-        <div className="mt-6 grid grid-cols-2 gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-1">
+    <AuthFlowLayout title="Sign in" subtitle="Choose account type, then continue.">
+      <div className="grid grid-cols-2 gap-2 rounded-xl border p-1" style={{ borderColor: ui.borderColor, background: ui.fieldBg }}>
+        {(['organizer', 'attendee'] as const).map((role) => (
           <button
+            key={role}
             type="button"
-            onClick={() => setLoginAs('organizer')}
-            className={`rounded-lg px-3 py-2 text-sm font-bold transition ${
-              loginAs === 'organizer' ? 'bg-[#00E676] text-[#062013] shadow-[0_8px_18px_rgba(0,230,118,0.25)]' : 'text-neutral-600 hover:bg-white'
-            }`}
+            onClick={() => setLoginAs(role)}
+            className={cn('rounded-lg px-3 py-2.5 text-sm font-semibold transition')}
+            style={
+              loginAs === role
+                ? { backgroundColor: ui.accent, color: '#fff' }
+                : { color: ui.textMuted }
+            }
           >
-            Event Organizer
+            {role === 'organizer' ? 'Event Organizer' : 'Attendee'}
           </button>
-          <button
-            type="button"
-            onClick={() => setLoginAs('attendee')}
-            className={`rounded-lg px-3 py-2 text-sm font-bold transition ${
-              loginAs === 'attendee' ? 'bg-[#00E676] text-[#062013] shadow-[0_8px_18px_rgba(0,230,118,0.25)]' : 'text-neutral-600 hover:bg-white'
-            }`}
-          >
-            Attendee
-          </button>
-        </div>
+        ))}
+      </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-4">
-          <Input label="Email" {...register('email')} type="email" placeholder="you@example.com" error={errors.email?.message} />
-          <Input label="Password" {...register('password')} type="password" error={errors.password?.message} />
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5">
+          <FlowLabel>Email</FlowLabel>
+          <FlowInput {...register('email')} type="email" placeholder="you@example.com" />
+          {errors.email?.message && <span className="text-xs text-red-600">{errors.email.message}</span>}
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <FlowLabel>Password</FlowLabel>
+          <FlowInput {...register('password')} type="password" />
+          {errors.password?.message && <span className="text-xs text-red-600">{errors.password.message}</span>}
+        </label>
 
-          {serverError && <p className="text-sm font-medium text-red-600">{serverError}</p>}
-          <Button type="submit" disabled={isSubmitting} className="mt-2 h-11 w-full rounded-xl">
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
-          </Button>
-        </form>
+        {serverError && <FlowAlert variant="error">{serverError}</FlowAlert>}
+        <FlowButton type="submit" disabled={isSubmitting} className="mt-2 h-11 w-full">
+          {isSubmitting ? 'Signing in...' : 'Sign in'}
+        </FlowButton>
+      </form>
 
-        <p className="mt-6 text-sm text-neutral-600">
-          Don&apos;t have an account?{' '}
-          <Link to={loginAs === 'attendee' ? '/attendee/signup' : '/signup'} className="font-semibold text-[#00a95d] hover:text-[#008e4f]">
-            {loginAs === 'attendee' ? 'Create attendee account' : 'Create organizer account'}
-          </Link>
-        </p>
-      </Card>
-    </div>
+      <p className="mt-6 text-center text-sm sm:text-left" style={{ color: ui.textMuted }}>
+        Don&apos;t have an account?{' '}
+        <Link
+          to={loginAs === 'attendee' ? '/attendee/signup' : '/signup'}
+          className="font-semibold"
+          style={{ color: ui.accent }}
+        >
+          {loginAs === 'attendee' ? 'Create attendee account' : 'Create organizer account'}
+        </Link>
+      </p>
+    </AuthFlowLayout>
   );
 };
-

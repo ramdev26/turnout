@@ -3,6 +3,8 @@ import { api } from '../api/client';
 import { AdminSummary } from '../types';
 import { formatLKR } from '../utils/money';
 import { AdminShell } from '../components/admin/AdminShell';
+import { FlowStatCard, FlowCard, FlowAlert, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardMutedStyleFor } from '../themes/flowUi';
 
 export const AdminDashboard: React.FC = () => {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
@@ -29,57 +31,51 @@ export const AdminDashboard: React.FC = () => {
     })();
   }, []);
 
-  if (loading) return <div className="py-8 text-sm text-neutral-500">Loading admin dashboard…</div>;
-  if (error) return <div className="py-8 text-sm font-semibold text-red-600">{error}</div>;
+  const ui = APP_FLOW_UI;
+  if (loading) return <AdminShell title="Super Admin Dashboard"><div className="py-8 text-sm" style={{ color: ui.textMuted }}>Loading…</div></AdminShell>;
+  if (error) return <AdminShell title="Super Admin Dashboard"><FlowAlert variant="error">{error}</FlowAlert></AdminShell>;
 
   return (
     <AdminShell title="Super Admin Dashboard" subtitle="Real-time platform visibility and control.">
       {summary && (
-        <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-4">
-          <StatCard label="Total Users" value={String(summary.totalUsers ?? 0)} />
-          <StatCard label="Total Events" value={String(summary.totalEvents ?? 0)} />
-          <StatCard label="Active Events" value={String(summary.activeEvents ?? 0)} />
-          <StatCard label="Revenue" value={formatLKR(summary.totalRevenue)} />
-          <StatCard label="Today Revenue" value={formatLKR(summary.todayRevenue ?? 0)} />
-          <StatCard label="Platform Fees" value={formatLKR(summary.totalPlatformFees)} />
-          <StatCard label="Paid Out" value={formatLKR(summary.totalPaidOut)} />
-          <StatCard label="Pending Payouts" value={formatLKR(summary.pendingPayoutAmount)} />
-          <StatCard label="Transactions" value={String(summary.transactionCount)} />
-          <StatCard label="Failed Payments" value={String(summary.failedPayments ?? 0)} />
-          <StatCard label="Refund Requests" value={String(summary.refundRequests ?? 0)} />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <FlowStatCard label="Total Users" value={summary.totalUsers ?? 0} />
+          <FlowStatCard label="Total Events" value={summary.totalEvents ?? 0} />
+          <FlowStatCard label="Active Events" value={summary.activeEvents ?? 0} accent={ui.accent} />
+          <FlowStatCard label="Revenue" value={formatLKR(summary.totalRevenue)} />
+          <FlowStatCard label="Today Revenue" value={formatLKR(summary.todayRevenue ?? 0)} accent={ui.accent} />
+          <FlowStatCard label="Platform Fees" value={formatLKR(summary.totalPlatformFees)} />
+          <FlowStatCard label="Paid Out" value={formatLKR(summary.totalPaidOut)} />
+          <FlowStatCard label="Pending Payouts" value={formatLKR(summary.pendingPayoutAmount)} />
+          <FlowStatCard label="Transactions" value={summary.transactionCount} />
+          <FlowStatCard label="Failed Payments" value={summary.failedPayments ?? 0} />
+          <FlowStatCard label="Refund Requests" value={summary.refundRequests ?? 0} />
         </div>
       )}
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-lg font-bold text-neutral-900">Top Performing Events</h2>
+        <FlowCard>
+          <h2 className="mb-3 text-lg font-semibold" style={{ color: ui.text }}>Top Performing Events</h2>
           <div className="space-y-2">
             {(summary?.topEvents ?? []).map((event) => (
-              <div key={event.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
-                <span className="font-medium text-neutral-900">{event.title}</span>
-                <span className="font-semibold text-emerald-700">{formatLKR(event.revenue)}</span>
+              <div key={event.id} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm" style={cardMutedStyleFor(ui)}>
+                <span className="font-medium" style={{ color: ui.text }}>{event.title}</span>
+                <span className="font-semibold" style={{ color: ui.accent }}>{formatLKR(event.revenue)}</span>
               </div>
             ))}
           </div>
-        </section>
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-lg font-bold text-neutral-900">Top Organizers</h2>
+        </FlowCard>
+        <FlowCard>
+          <h2 className="mb-3 text-lg font-semibold" style={{ color: ui.text }}>Top Organizers</h2>
           <div className="space-y-2">
             {(summary?.topOrganizers ?? []).map((org) => (
-              <div key={org.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
-                <span className="font-medium text-neutral-900">{org.name}</span>
-                <span className="font-semibold text-emerald-700">{formatLKR(org.earnings)}</span>
+              <div key={org.id} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm" style={cardMutedStyleFor(ui)}>
+                <span className="font-medium" style={{ color: ui.text }}>{org.name}</span>
+                <span className="font-semibold" style={{ color: ui.accent }}>{formatLKR(org.earnings)}</span>
               </div>
             ))}
           </div>
-        </section>
+        </FlowCard>
       </div>
     </AdminShell>
   );
 };
-
-const StatCard = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-    <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</div>
-    <div className="mt-1 text-2xl font-bold text-neutral-900">{value}</div>
-  </div>
-);

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   CheckCircle2,
   Copy,
   Download,
@@ -17,8 +16,11 @@ import {
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
 import { Attendee } from '../types';
-import { OrganizerShell } from '../components/organizer/OrganizerShell';
+import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
+import { FlowPage, FlowStatCard, FlowAlert, FlowInput, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { eventWorkspaceNav } from '../utils/organizerNav';
 import { cn } from '../utils/cn';
+import { cardStyleFor } from '../themes/flowUi';
 import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
@@ -48,16 +50,8 @@ export const CheckInManager: React.FC = () => {
   const [lastCheckIn, setLastCheckIn] = useState<Attendee | null>(null);
   const [showTokens, setShowTokens] = useState(false);
 
-  const eventLinks = useMemo(
-    () => [
-      { to: '/dashboard', label: 'Dashboard', exact: true },
-      { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', exact: true },
-      { to: `/dashboard/events/${eventId}/agenda`, label: 'Agenda' },
-      { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in' },
-      { to: `/dashboard/events/${eventId}/runbook`, label: 'Runbook' },
-    ],
-    [eventId]
-  );
+  const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
+  const ui = APP_FLOW_UI;
 
   const load = useCallback(async () => {
     if (!eventId) return;
@@ -194,64 +188,52 @@ export const CheckInManager: React.FC = () => {
   if (loading && attendees.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
+        <div
+          className="h-12 w-12 animate-spin rounded-full border-4 border-t-transparent"
+          style={{ borderColor: ui.accent, borderTopColor: 'transparent' }}
+        />
       </div>
     );
   }
 
   return (
-    <OrganizerShell
+    <OrganizerFlowShell
       title="Attendees & Check-in"
       subtitle={stats.total > 0 ? `${stats.checkedIn} of ${stats.total} checked in (${pct}%)` : 'Manage arrivals and door access'}
-      links={eventLinks}
+      navLinks={navLinks}
+      maxWidth="wide"
     >
-      <div className="mx-auto max-w-6xl space-y-6 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <FlowPage className="max-w-6xl">
+        <div className="flex flex-wrap justify-end gap-2">
           <Link
-            to={`/dashboard/events/${eventId}/settings`}
-            className="inline-flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-neutral-900"
+            to={`/staff/checkin/${eventId}`}
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+            style={{ backgroundColor: ui.accent }}
           >
-            <ArrowLeft className="h-4 w-4" />
-            Event settings
+            <ScanLine className="h-4 w-4" />
+            Open scanner
           </Link>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              to={`/staff/checkin/${eventId}`}
-              className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800"
-            >
-              <ScanLine className="h-4 w-4" />
-              Open scanner
-            </Link>
-            <button
-              type="button"
-              onClick={() => void exportCsv()}
-              className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
-              <Download className="h-4 w-4" />
-              Export CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
-          </div>
+          <FlowButton variant="secondary" onClick={() => void exportCsv()}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </FlowButton>
+          <FlowButton variant="secondary" onClick={() => void load()}>
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </FlowButton>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <StatCard icon={<Users className="h-5 w-5" />} label="Registered" value={stats.total} />
-          <StatCard icon={<UserCheck className="h-5 w-5 text-emerald-600" />} label="Checked in" value={stats.checkedIn} accent="emerald" />
-          <StatCard icon={<Clock className="h-5 w-5 text-amber-600" />} label="Waiting" value={stats.pending} accent="amber" />
+          <FlowStatCard label="Registered" value={stats.total} icon={<Users className="h-5 w-5" />} />
+          <FlowStatCard label="Checked in" value={stats.checkedIn} icon={<UserCheck className="h-5 w-5" />} accent={ui.accent} />
+          <FlowStatCard label="Waiting" value={stats.pending} icon={<Clock className="h-5 w-5" />} />
         </div>
 
-        <div className="rounded-2xl border border-neutral-200 bg-gradient-to-br from-neutral-50 to-white p-5 shadow-sm">
+        <div className="rounded-2xl border p-5 shadow-sm" style={cardStyleFor(ui)}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-                <Shield className="h-4 w-4 text-teal-600" />
+              <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
+                <Shield className="h-4 w-4" style={{ color: ui.accent }} />
                 Staff door access
               </div>
               <p className="mt-1 max-w-xl text-sm text-neutral-500">
@@ -294,16 +276,8 @@ export const CheckInManager: React.FC = () => {
           {copyHint && <p className="mt-2 text-xs font-medium text-emerald-700">{copyHint}</p>}
         </div>
 
-        {(msg || err) && (
-          <div
-            className={cn(
-              'rounded-xl border px-4 py-3 text-sm font-medium',
-              err ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            )}
-          >
-            {err || msg}
-          </div>
-        )}
+        {err && <FlowAlert variant="error">{err}</FlowAlert>}
+        {msg && !err && <FlowAlert variant="success">{msg}</FlowAlert>}
 
         {lastCheckIn && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
@@ -316,33 +290,32 @@ export const CheckInManager: React.FC = () => {
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-neutral-900">
-              <QrCode className="h-5 w-5 text-teal-600" />
+          <div className="rounded-2xl border p-6 shadow-sm" style={cardStyleFor(ui)}>
+            <h2 className="flex items-center gap-2 text-lg font-semibold" style={{ color: ui.text }}>
+              <QrCode className="h-5 w-5" style={{ color: ui.accent }} />
               Manual check-in
             </h2>
-            <p className="mt-1 text-sm text-neutral-500">Paste a token from a ticket QR or search the list below.</p>
-            <div className="mt-4 flex gap-2">
-              <input
+            <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+              Paste a token from a ticket QR or search the list below.
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <FlowInput
                 value={qrToken}
                 onChange={(e) => setQrToken(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && void checkIn()}
                 placeholder="QR token"
-                className="flex-1 rounded-xl border border-neutral-200 px-4 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                className="flex-1"
               />
-              <button
-                type="button"
-                onClick={() => void checkIn()}
-                disabled={checkingIn || !qrToken.trim()}
-                className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
-              >
+              <FlowButton onClick={() => void checkIn()} disabled={checkingIn || !qrToken.trim()} className="shrink-0">
                 {checkingIn ? 'Checking…' : 'Check in'}
-              </button>
+              </FlowButton>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-neutral-900">Quick tips</h2>
+          <div className="rounded-2xl border p-6 shadow-sm" style={cardStyleFor(ui)}>
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Quick tips
+            </h2>
             <ul className="mt-3 space-y-2 text-sm text-neutral-600">
               <li>· Use the scanner on a phone at the entrance for fastest flow.</li>
               <li>· Each ticket has its own QR — one check-in per attendee row.</li>
@@ -351,7 +324,7 @@ export const CheckInManager: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        <div className="rounded-2xl border shadow-sm" style={cardStyleFor(ui)}>
           <div className="flex flex-col gap-4 border-b border-neutral-100 p-5 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold text-neutral-900">Attendee list</h2>
             <div className="flex flex-wrap gap-2">
@@ -362,8 +335,13 @@ export const CheckInManager: React.FC = () => {
                   onClick={() => setStatusFilter(f)}
                   className={cn(
                     'rounded-full px-3 py-1.5 text-xs font-bold capitalize',
-                    statusFilter === f ? 'bg-teal-600 text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    statusFilter === f ? 'text-white' : ''
                   )}
+                  style={
+                    statusFilter === f
+                      ? { backgroundColor: ui.accent }
+                      : { background: ui.fieldBg, color: ui.textMuted }
+                  }
                 >
                   {f === 'checked_in' ? 'Checked in' : f}
                 </button>
@@ -428,7 +406,8 @@ export const CheckInManager: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => void checkIn(a.qrToken)}
-                          className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700"
+                          className="rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+                          style={{ backgroundColor: ui.accent }}
                         >
                           Check in
                         </button>
@@ -450,36 +429,7 @@ export const CheckInManager: React.FC = () => {
             )}
           </div>
         </div>
-      </div>
-    </OrganizerShell>
+      </FlowPage>
+    </OrganizerFlowShell>
   );
 };
-
-function StatCard({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  accent?: 'emerald' | 'amber';
-}) {
-  return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-2 text-neutral-500">{icon}</div>
-      <p className="mt-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{label}</p>
-      <p
-        className={cn(
-          'mt-1 text-3xl font-bold tabular-nums',
-          accent === 'emerald' && 'text-emerald-700',
-          accent === 'amber' && 'text-amber-700',
-          !accent && 'text-neutral-900'
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
