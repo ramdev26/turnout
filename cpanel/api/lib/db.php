@@ -4,11 +4,15 @@ function get_config(): array {
   static $cfg = null;
   if ($cfg !== null) return $cfg;
 
-  $configPath = __DIR__ . '/../config.php';
-  if (!file_exists($configPath)) {
-    $configPath = __DIR__ . '/../config.sample.php';
+  $configPath = null;
+  foreach (['config.php', 'config.vercel.php', 'config.sample.php'] as $name) {
+    $candidate = __DIR__ . '/../' . $name;
+    if (file_exists($candidate)) {
+      $configPath = $candidate;
+      break;
+    }
   }
-  if (!file_exists($configPath)) {
+  if ($configPath === null) {
     json_response(500, [
       'error' => 'server_not_configured',
       'message' => 'Missing api/config.php. Copy config.sample.php to config.php and set DB credentials.',
