@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
+import { persistAuthTokenFromResponse } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 
@@ -32,7 +33,11 @@ export const AttendeeSignup: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      const res = await api.post<{ user: Parameters<typeof setUser>[0] }>('/api/auth/register-attendee', values);
+      const res = await api.post<{ user: Parameters<typeof setUser>[0]; authToken?: string }>(
+        '/api/auth/register-attendee',
+        values
+      );
+      persistAuthTokenFromResponse(res);
       setUser(res.user);
       navigate('/attendee/dashboard', { replace: true });
     } catch (e: unknown) {

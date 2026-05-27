@@ -11,6 +11,7 @@ import { Success } from './pages/Success';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { api } from './api/client';
+import { clearAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
 import { AgendaManager } from './pages/AgendaManager';
 import { CheckInManager } from './pages/CheckInManager';
@@ -73,7 +74,10 @@ export default function App() {
         const res = await api.get<{ user: any }>('/api/auth/me');
         if (!cancelled) setUser(res.user);
       } catch {
-        if (!cancelled) setUser(null);
+        if (!cancelled) {
+          clearAuthToken();
+          setUser(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

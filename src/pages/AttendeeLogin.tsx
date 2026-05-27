@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
+import { persistAuthTokenFromResponse } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 
@@ -31,11 +32,15 @@ export const AttendeeLogin: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      const res = await api.post<{ user: Parameters<typeof setUser>[0] & { role: string } }>('/api/auth/login', values);
+      const res = await api.post<{ user: Parameters<typeof setUser>[0] & { role: string }; authToken?: string }>(
+        '/api/auth/login',
+        values
+      );
       if (res.user.role !== 'attendee') {
         setServerError('This is an organizer account. Use the organizer sign-in instead.');
         return;
       }
+      persistAuthTokenFromResponse(res);
       setUser(res.user);
       navigate('/attendee/dashboard', { replace: true });
     } catch (e: unknown) {

@@ -8,6 +8,7 @@ import { Button } from './ui/Button';
 import { Skeleton } from './ui/Feedback';
 import { EVENT_THEMES } from '../themes/eventThemes';
 import { cardStyleFor } from '../themes/flowUi';
+import { clearAuthToken } from '../api/authToken';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -41,6 +42,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     } catch {
       // ignore
     } finally {
+      clearAuthToken();
       setUser(null);
       setLoading(false);
       navigate('/');

@@ -67,7 +67,7 @@ export const AdminSettings: React.FC = () => {
             { key: 'commission_pct', label: 'Commission %', placeholder: '10' },
             { key: 'payment_merchant_id', label: 'PayHere Merchant ID', placeholder: '' },
             { key: 'payment_merchant_secret', label: 'PayHere Merchant Secret', placeholder: '' },
-            { key: 'email_from', label: 'Email From', placeholder: 'noreply@...' },
+            { key: 'email_from', label: 'Email From', placeholder: 'admin@bigturnout.co' },
           ].map(({ key, label, placeholder }) => (
             <label key={key} className="flex flex-col gap-1.5">
               <FlowLabel>{label}</FlowLabel>

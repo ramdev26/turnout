@@ -3,6 +3,8 @@ export type ApiError = {
   message?: string;
 };
 
+import { getAuthToken } from './authToken';
+
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 
 export function toApiUrl(path: string): string {
@@ -15,6 +17,7 @@ export function toApiUrl(path: string): string {
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 15000);
+  const token = getAuthToken();
   let res: Response;
   try {
     res = await fetch(toApiUrl(path), {
@@ -22,6 +25,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init.headers || {}),
       },
       credentials: 'include',
@@ -41,10 +45,10 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   const text = await res.text();
-  let data: any = null;
+  let data: Record<string, unknown> | null = null;
   if (text) {
     try {
-      data = JSON.parse(text);
+      data = JSON.parse(text) as Record<string, unknown>;
     } catch {
       data = null;
     }
@@ -54,14 +58,14 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (res.status === 401) {
       throw {
         error: 'unauthorized',
-        message: 'Your session has expired. Please sign in again.',
+        message: (data?.message as string) || 'Your session has expired. Please sign in again.',
       } as ApiError;
     }
 
     const fallback: ApiError = {
-      error: data?.error || data?.message || `request_failed_${res.status}`,
+      error: (data?.error as string) || (data?.message as string) || `request_failed_${res.status}`,
       message:
-        data?.message ||
+        (data?.message as string) ||
         (text && !/^\s*</.test(text) ? text.slice(0, 240) : `Request failed (HTTP ${res.status}).`),
     };
     throw fallback;
@@ -79,4 +83,3 @@ export const api = {
     }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: 'DELETE' }),
 };
-

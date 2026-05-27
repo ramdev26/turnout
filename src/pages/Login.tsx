@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
+import { persistAuthTokenFromResponse } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
@@ -36,7 +37,7 @@ export const Login: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      const res = await api.post<{ user: { role: string } }>('/api/auth/login', values);
+      const res = await api.post<{ user: { role: string }; authToken?: string }>('/api/auth/login', values);
       if (loginAs === 'organizer' && !['organizer', 'super_admin'].includes(res.user.role)) {
         setServerError('This account is attendee type. Switch to "Attendee" and try again.');
         return;
@@ -45,6 +46,7 @@ export const Login: React.FC = () => {
         setServerError('This account is organizer type. Switch to "Organizer" and try again.');
         return;
       }
+      persistAuthTokenFromResponse(res);
       setUser(res.user as Parameters<typeof setUser>[0]);
       const destination =
         res.user.role === 'super_admin'

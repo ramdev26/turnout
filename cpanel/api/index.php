@@ -30,45 +30,7 @@ if (str_starts_with($path, '/api')) {
 }
 
 function is_same_origin_request(): bool {
-  $origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
-  $referer = trim((string)($_SERVER['HTTP_REFERER'] ?? ''));
-  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
-  if ($host === '') return false;
-
-  $hostOnly = strtolower((string)explode(':', $host)[0]);
-  $originHost = $origin !== '' ? strtolower((string)(parse_url($origin, PHP_URL_HOST) ?? '')) : '';
-  $refererHost = $referer !== '' ? strtolower((string)(parse_url($referer, PHP_URL_HOST) ?? '')) : '';
-
-  $isPrivateOrLoopback = static function (string $value): bool {
-    if ($value === '') return false;
-    if ($value === 'localhost' || $value === '::1') return true;
-    if (!filter_var($value, FILTER_VALIDATE_IP)) return false;
-    if (str_starts_with($value, '10.')) return true;
-    if (str_starts_with($value, '192.168.')) return true;
-    if (preg_match('/^172\.(1[6-9]|2[0-9]|3[0-1])\./', $value)) return true;
-    if (str_starts_with($value, '127.')) return true;
-    return false;
-  };
-
-  // Accept common local dev host aliases as same-site.
-  $localAliases = ['localhost', '127.0.0.1', '::1'];
-  $hostIsLocal = in_array($hostOnly, $localAliases, true);
-  $originIsLocal = in_array($originHost, $localAliases, true);
-  $refererIsLocal = in_array($refererHost, $localAliases, true);
-  if ($hostIsLocal && ($originIsLocal || $refererIsLocal)) return true;
-
-  // Dev mode: allow LAN-origin frontend talking to local API (e.g. 192.168.x.x:3000 -> 127.0.0.1:8000).
-  if ($hostIsLocal) {
-    $cfg = get_config();
-    $devMode = (bool)(($cfg['app'] ?? [])['dev_mode'] ?? false);
-    if ($devMode) {
-      if ($isPrivateOrLoopback($originHost) || $isPrivateOrLoopback($refererHost)) return true;
-    }
-  }
-
-  if ($originHost !== '' && $originHost === $hostOnly) return true;
-  if ($originHost === '' && $refererHost !== '' && $refererHost === $hostOnly) return true;
-  return false;
+  return is_trusted_origin_request();
 }
 
 function enforce_write_request_integrity(string $path, string $method): void {
@@ -766,7 +728,7 @@ if ($path === '/auth/register' && $method === 'POST') {
   $_SESSION['user_id'] = $userId;
   issue_auth_cookie($userId);
 
-  json_response(201, ['user' => load_user_profile($userId)]);
+  json_response(201, auth_success_payload($userId));
 }
 
 if ($path === '/auth/register-attendee' && $method === 'POST') {
@@ -793,7 +755,7 @@ if ($path === '/auth/register-attendee' && $method === 'POST') {
   $_SESSION['user_id'] = $userId;
   issue_auth_cookie($userId);
 
-  json_response(201, ['user' => load_user_profile($userId)]);
+  json_response(201, auth_success_payload($userId));
 }
 
 if ($path === '/auth/login' && $method === 'POST') {
@@ -824,7 +786,7 @@ if ($path === '/auth/login' && $method === 'POST') {
   try {
     write_log($pdo, $userId, (string)($row['role'] ?? 'unknown'), 'user.login', 'user', (string)$userId, null);
   } catch (Throwable $e) {}
-  json_response(200, ['user' => load_user_profile($userId), 'forcePasswordReset' => boolish($row['force_password_reset'] ?? 0)]);
+  json_response(200, auth_success_payload($userId, ['forcePasswordReset' => boolish($row['force_password_reset'] ?? 0)]));
 }
 
 if ($path === '/auth/logout' && $method === 'POST') {
@@ -838,7 +800,9 @@ if ($path === '/auth/logout' && $method === 'POST') {
 
 if ($path === '/auth/me' && $method === 'GET') {
   $uid = current_user_id();
-  if ($uid === null) json_response(401, ['error' => 'unauthorized']);
+  if ($uid === null) {
+    json_response(401, ['error' => 'unauthorized', 'message' => 'Please sign in again.']);
+  }
   $profile = load_user_profile($uid);
   if (($profile['isBlocked'] ?? false) === true) {
     $_SESSION = [];
@@ -1203,6 +1167,7 @@ if ($path === '/payhere/notify' && $method === 'POST') {
           }
 
           upsert_transaction($pdo, $eventId, $buyerUserId, (int)$orderId, $orderTotalCents, $nextStatus, $paymentId !== '' ? $paymentId : null);
+          send_order_confirmation_email($pdo, (int)$orderId);
         }
       }
     } else {
@@ -1922,28 +1887,9 @@ if ($path === '/orders' && $method === 'POST') {
     if ($createdCount !== $expectedAttendees) {
       throw new Exception('invalid_attendee');
     }
-    $stmtQr = $pdo->prepare('SELECT qr_token, full_name, email FROM attendees WHERE order_id = ? ORDER BY id ASC');
-    $stmtQr->execute([$orderId]);
-    $createdAttendees = [];
-    while ($rowQr = $stmtQr->fetch()) {
-      $createdAttendees[] = [
-        'qrToken' => $rowQr['qr_token'],
-        'fullName' => $rowQr['full_name'],
-        'email' => $rowQr['email'],
-      ];
-    }
-
     $pdo->commit();
 
-    // Email confirmation (optional)
-    $subject = 'Your tickets are confirmed';
-    $bodyHtml =
-      '<h2>Order Confirmed</h2>' .
-      '<p>Thanks for your purchase.</p>' .
-      '<p><strong>Order ID:</strong> ' . htmlspecialchars((string)$orderId) . '</p>' .
-      '<p><strong>Total:</strong> LKR ' . number_format($totalCents / 100, 2) . '</p>' .
-      (count($createdAttendees) ? '<p><strong>QR Tokens:</strong><br/>' . implode('<br/>', array_map(fn($x) => htmlspecialchars($x['qrToken']), $createdAttendees)) . '</p>' : '');
-    send_email($buyerEmail, $subject, $bodyHtml);
+    send_order_confirmation_email($pdo, $orderId);
 
     json_response(201, [
       'orderId' => (string)$orderId,
