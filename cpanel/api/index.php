@@ -790,8 +790,10 @@ if ($path === '/auth/login' && $method === 'POST') {
   try {
     write_log($pdo, $userId, (string)($row['role'] ?? 'unknown'), 'user.login', 'user', (string)$userId, null);
   } catch (Throwable $e) {}
+  $token = issue_auth_token($userId);
   $payload = auth_success_payload($userId, ['forcePasswordReset' => boolish($row['force_password_reset'] ?? 0)]);
-  $payload['authToken'] = issue_auth_token($userId);
+  $payload['authToken'] = $token;
+  $payload['sessionToken'] = $token;
   json_response(200, $payload);
 }
 

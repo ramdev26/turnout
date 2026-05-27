@@ -49,6 +49,7 @@ function json_response(int $status, $data): void {
   http_response_code($status);
   header('Content-Type: application/json; charset=utf-8');
   header('Cache-Control: no-store, max-age=0');
+  header('X-Turnout-Api: 2026-05-27-auth2');
   header('X-Request-Id: ' . request_id());
   echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
   exit;
