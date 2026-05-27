@@ -728,7 +728,9 @@ if ($path === '/auth/register' && $method === 'POST') {
   $_SESSION['user_id'] = $userId;
   issue_auth_cookie($userId);
 
-  json_response(201, auth_success_payload($userId));
+  $payload = auth_success_payload($userId);
+  $payload['authToken'] = issue_auth_token($userId);
+  json_response(201, $payload);
 }
 
 if ($path === '/auth/register-attendee' && $method === 'POST') {
@@ -755,7 +757,9 @@ if ($path === '/auth/register-attendee' && $method === 'POST') {
   $_SESSION['user_id'] = $userId;
   issue_auth_cookie($userId);
 
-  json_response(201, auth_success_payload($userId));
+  $payload = auth_success_payload($userId);
+  $payload['authToken'] = issue_auth_token($userId);
+  json_response(201, $payload);
 }
 
 if ($path === '/auth/login' && $method === 'POST') {
@@ -786,7 +790,9 @@ if ($path === '/auth/login' && $method === 'POST') {
   try {
     write_log($pdo, $userId, (string)($row['role'] ?? 'unknown'), 'user.login', 'user', (string)$userId, null);
   } catch (Throwable $e) {}
-  json_response(200, auth_success_payload($userId, ['forcePasswordReset' => boolish($row['force_password_reset'] ?? 0)]));
+  $payload = auth_success_payload($userId, ['forcePasswordReset' => boolish($row['force_password_reset'] ?? 0)]);
+  $payload['authToken'] = issue_auth_token($userId);
+  json_response(200, $payload);
 }
 
 if ($path === '/auth/logout' && $method === 'POST') {
