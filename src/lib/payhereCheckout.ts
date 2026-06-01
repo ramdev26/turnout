@@ -121,6 +121,7 @@ export function submitPayHereCheckoutForm(
   for (const [key, value] of Object.entries(fields)) {
     if (skip.has(key)) continue;
     if (value === undefined || value === null) continue;
+    if (value === '') continue;
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = key;

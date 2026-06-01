@@ -669,14 +669,14 @@ function payhere_cfg(): array {
     ]);
   }
 
-  // URLs: derive from the current request host so checkout/notify always return
-  // to the same origin the customer is on (works on any domain, no env needed).
-  $base = payhere_request_base_url();
-  if ($base === '') $base = rtrim((string)($p['app_base_url'] ?? ''), '/');
-  if ($base === '') {
+  // Merchant secrets are domain-specific in PayHere. Prefer configured APP_BASE_URL
+  // (must match an approved domain in PayHere Integrations) over preview hostnames.
+  $configuredBase = rtrim((string)($p['app_base_url'] ?? ''), '/');
+  $requestBase = rtrim(payhere_request_base_url(), '/');
+  $appBase = $configuredBase !== '' ? $configuredBase : $requestBase;
+  if ($appBase === '') {
     json_response(500, ['error' => 'payhere_missing_app_base_url']);
   }
-  $appBase = rtrim($base, '/');
   $notifyUrl = $appBase . '/api/payhere/notify';
 
   return [
@@ -736,7 +736,7 @@ function payhere_checkout_payment(
   string $merchantId,
   string $merchantSecret,
   string $orderIdStr,
-  float $amount,
+  int $totalCents,
   string $currency,
   string $itemsTitle,
   string $firstName,
@@ -746,7 +746,7 @@ function payhere_checkout_payment(
   string $returnUrl,
   string $cancelUrl
 ): array {
-  $amountFormatted = payhere_amount_format($amount);
+  $amountFormatted = payhere_amount_format_cents($totalCents);
   $hash = payhere_hash($merchantId, $orderIdStr, $amountFormatted, $currency, $merchantSecret);
   if ($hash === '') {
     json_response(500, [
@@ -798,6 +798,62 @@ function payhere_local_md5sig(string $merchantId, string $orderId, string $payhe
 
 function payhere_notify_signature_valid(string $localMd5sig, string $receivedMd5sig): bool {
   return hash_equals(strtoupper($localMd5sig), strtoupper(trim($receivedMd5sig)));
+}
+
+/** Server-side probe: POST a test checkout to PayHere with current credentials. */
+function payhere_sandbox_probe(array $cfg): array {
+  $merchantId = $cfg['merchant_id'];
+  $orderId = 'probe' . (string)time();
+  $amount = '10.00';
+  $currency = 'LKR';
+  $hash = payhere_hash($merchantId, $orderId, $amount, $currency, $cfg['merchant_secret']);
+  $base = $cfg['app_base_url'];
+  $postFields = [
+    'merchant_id' => $merchantId,
+    'return_url' => $base . '/payhere/return',
+    'cancel_url' => $base . '/payhere/cancel',
+    'notify_url' => $cfg['notify_url'],
+    'order_id' => $orderId,
+    'items' => 'Turnout probe',
+    'amount' => $amount,
+    'currency' => $currency,
+    'hash' => $hash,
+    'first_name' => 'Test',
+    'last_name' => 'User',
+    'email' => 'test@example.com',
+    'phone' => '0771234567',
+    'address' => 'N/A',
+    'city' => 'Colombo',
+    'country' => 'Sri Lanka',
+  ];
+  $url = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
+  $ctx = stream_context_create([
+    'http' => [
+      'method' => 'POST',
+      'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+      'content' => http_build_query($postFields),
+      'timeout' => 15,
+      'ignore_errors' => true,
+    ],
+  ]);
+  $resp = @file_get_contents($url, false, $ctx);
+  $accepted = is_string($resp) && str_contains($resp, '"status":1');
+  $unauthorized = is_string($resp) && str_contains($resp, 'Unauthorized');
+  $host = parse_url($base, PHP_URL_HOST) ?: $base;
+
+  return [
+    'accepted' => $accepted,
+    'unauthorized' => $unauthorized,
+    'sandbox' => (bool)$cfg['sandbox'],
+    'merchantId' => $merchantId,
+    'appBaseUrl' => $base,
+    'notifyUrl' => $cfg['notify_url'],
+    'message' => $accepted
+      ? 'PayHere accepted a probe checkout with the configured credentials.'
+      : ($unauthorized
+        ? "PayHere returned Unauthorized. Regenerate the Merchant Secret in sandbox PayHere → Integrations for approved domain \"{$host}\" and update PAYHERE_MERCHANT_SECRET (or config.vercel.php). The secret must match merchant {$merchantId}."
+        : 'PayHere did not accept the probe checkout. Verify merchant ID, secret, and domain approval.'),
+  ];
 }
 
 // ---- Auth ----
@@ -1088,7 +1144,6 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $merchantId = $cfg['merchant_id'];
   $merchantSecret = $cfg['merchant_secret'];
   $currency = 'LKR';
-  $amount = $totalCents / 100.0;
   $orderIdStr = (string)$orderId;
   $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
   $returnUrl = $cfg['app_base_url'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
@@ -1104,7 +1159,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     $merchantId,
     $merchantSecret,
     $orderIdStr,
-    $amount,
+    $totalCents,
     $currency,
     (string)$ev['title'],
     $firstName,
@@ -3259,6 +3314,11 @@ if ($path === '/admin/payouts/export-csv' && $method === 'GET') {
     ];
   }
   json_response(200, ['rows' => $rows]);
+}
+
+if ($path === '/admin/payhere/check' && $method === 'GET') {
+  require_super_admin_user_id();
+  json_response(200, payhere_sandbox_probe(payhere_cfg()));
 }
 
 if ($path === '/admin/settings' && $method === 'GET') {

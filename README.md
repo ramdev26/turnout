@@ -217,3 +217,15 @@ Use any valid name, CVV, and expiry. Any other card number simulates failure.
 2. Checkout on your **deployed HTTPS** domain (promote latest Vercel build).
 3. Pay with a sandbox test card above.
 4. Confirm order status becomes `paid` and attendees are created.
+
+### Troubleshooting: "Unauthorized payment request"
+
+PayHere shows this when the **Merchant Secret does not match** your Merchant ID and the **approved domain** on the return/notify URLs—not when Rs. 43,000 vs Rs. 10 is wrong.
+
+1. Log in to [sandbox.payhere.lk](https://sandbox.payhere.lk) → **Integrations** (or Settings → Domains & Credentials).
+2. Add **`turnout-omega.vercel.app`** (host only, no `https://`) and wait until **Approved**.
+3. Copy the **Merchant Secret shown for that domain** (not an old secret from another domain).
+4. Set it in Vercel: `PAYHERE_MERCHANT_ID=1236076`, `PAYHERE_MERCHANT_SECRET=<paste>`, or update `cpanel/api/config.vercel.php` and remove conflicting env vars.
+5. As super admin, call `GET /api/admin/payhere/check` — response `accepted: true` means PayHere accepts your credentials.
+
+Ensure `APP_BASE_URL` / `payhere.app_base_url` matches the domain you approved in PayHere.

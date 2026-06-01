@@ -81,9 +81,16 @@ function increment_ticket_sold_counts(PDO $pdo, array $normalizedItems): void {
   }
 }
 
+/** Format order total cents as PayHere amount string (e.g. 4300000 → "43000.00"). */
+function payhere_amount_format_cents(int $totalCents): string {
+  $negative = $totalCents < 0;
+  $cents = abs($totalCents);
+  return ($negative ? '-' : '') . sprintf('%d.%02d', intdiv($cents, 100), $cents % 100);
+}
+
 function payhere_amount_matches_order_cents(int $totalCents, string $payhereAmount): bool {
   if ($payhereAmount === '') return false;
-  $expected = payhere_amount_format($totalCents / 100.0);
+  $expected = payhere_amount_format_cents($totalCents);
   if ($payhereAmount === $expected) return true;
   return abs(((float)$payhereAmount) - ($totalCents / 100.0)) < 0.02;
 }
