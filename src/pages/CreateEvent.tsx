@@ -20,7 +20,8 @@ import { useAuthStore } from '../store/useAuthStore';
 import { EventCustomization } from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
-import { LandingCustomizer, LandingDesignPreview, type LandingDesignValue } from '../components/organizer/LandingCustomizer';
+import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
+import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { cn } from '../utils/cn';
 import {
   EVENT_THEME_IDS,
@@ -446,7 +447,7 @@ export const CreateEvent: React.FC = () => {
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 sm:px-8 lg:grid-cols-[360px_1fr] lg:gap-10 lg:py-8">
+          <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:grid-cols-[360px_1fr] lg:gap-10 lg:py-8 lg:pb-72">
             {/* Left column */}
             <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
               <BannerUploadSquare
@@ -493,28 +494,9 @@ export const CreateEvent: React.FC = () => {
                 </button>
               </div>
 
-              {/* Landing design */}
-              <div className="rounded-2xl border p-4" style={cardStyle}>
-                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Landing design
-                </p>
-                <p className="mt-1 mb-4 text-xs" style={{ color: ui.textSubtle }}>
-                  Personalize colour, style, font, and display.
-                </p>
-                <LandingCustomizer value={design} onChange={setDesign} ui={ui} />
-              </div>
-
-              {/* Live preview */}
-              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Live preview
-                </p>
-                <LandingDesignPreview
-                  value={design}
-                  title={title || 'Your event title'}
-                  bannerUrl={bannerUrl ? normalizeBannerUrl(bannerUrl) : undefined}
-                />
-              </div>
+              <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
+                Fine-tune colour, style, font, and display in the design bar at the bottom.
+              </p>
             </div>
 
             {/* Right column */}
@@ -923,35 +905,41 @@ export const CreateEvent: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={isSubmitting || !canSubmit}
+                className="mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ backgroundColor: ui.accent }}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting && canSubmit) e.currentTarget.style.backgroundColor = ui.accentHover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = ui.accent;
+                }}
+              >
+                {isSubmitting ? 'Creating…' : 'Create Event'}
+              </button>
+              {!canSubmit && (
+                <p className="mt-2 text-center text-xs" style={{ color: ui.textSubtle }}>
+                  Add event name, start time, and location to continue.
+                </p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Sticky footer CTA */}
-        <div
-          className="shrink-0 border-t px-4 py-4 backdrop-blur-md transition-[background,border-color] duration-700 sm:px-8"
-          style={{ background: ui.footerBg, borderColor: ui.borderColor }}
-        >
-          <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm" style={{ color: ui.textSubtle }}>
-              {canSubmit ? 'Ready to publish your event.' : 'Add event name, start time, and location to continue.'}
-            </p>
-            <button
-              type="submit"
-              disabled={isSubmitting || !canSubmit}
-              className="w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:min-w-[220px]"
-              style={{ backgroundColor: ui.accent }}
-              onMouseEnter={(e) => {
-                if (!isSubmitting && canSubmit) e.currentTarget.style.backgroundColor = ui.accentHover;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = ui.accent;
-              }}
-            >
-              {isSubmitting ? 'Creating…' : 'Create Event'}
-            </button>
-          </div>
-        </div>
+        {/* Floating landing design dock */}
+        <LandingDesignDock
+          themeId={themeId as EventThemeId}
+          onThemeChange={(id) => {
+            setThemeId(id);
+            setSearchParams({ theme: id });
+          }}
+          design={design}
+          onDesignChange={setDesign}
+        />
       </form>
     </div>
   );
