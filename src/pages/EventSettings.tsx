@@ -17,12 +17,14 @@ import { formatLKR } from '../utils/money';
 import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
+import { LandingCustomizer, LandingDesignPreview, type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import {
   EVENT_THEME_IDS,
   EVENT_THEMES,
   resolveEventTheme,
   type EventThemeId,
 } from '../themes/eventThemes';
+import { resolveLandingFontKey } from '../themes/landingFonts';
 import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 
 function toDatetimeLocalValue(date: Date): string {
@@ -64,6 +66,14 @@ export const EventSettings: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [themeId, setThemeId] = useState<EventThemeId>('minimal');
+  const [design, setDesign] = useState<LandingDesignValue>({
+    primaryColor: '#059669',
+    secondaryColor: '#10b981',
+    fontFamily: 'fraunces',
+    displayMode: 'auto',
+    landingStyle: 'glass',
+  });
+  const [savingDesign, setSavingDesign] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
@@ -113,6 +123,19 @@ export const EventSettings: React.FC = () => {
       setSlug(ev.slug);
       const resolved = resolveEventTheme(ev.customization);
       setThemeId(resolved.id);
+      setDesign({
+        primaryColor: ev.customization?.primaryColor || resolved.primary,
+        secondaryColor: ev.customization?.secondaryColor || resolved.secondary,
+        fontFamily: resolveLandingFontKey(ev.customization?.fontFamily),
+        displayMode:
+          ev.customization?.displayMode === 'light' || ev.customization?.displayMode === 'dark'
+            ? ev.customization.displayMode
+            : 'auto',
+        landingStyle:
+          ev.customization?.landingStyle === 'minimal' || ev.customization?.landingStyle === 'bold'
+            ? ev.customization.landingStyle
+            : 'glass',
+      });
       setTicketPdfTemplateId((ev.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
       setTicketPdfPrimaryColor(ev.customization?.ticketPdfPrimaryColor || resolved.primary);
       setTicketPdfAccentColor(ev.customization?.ticketPdfAccentColor || resolved.secondary);
@@ -203,6 +226,11 @@ export const EventSettings: React.FC = () => {
         location: location.trim(),
         date: new Date(date).toISOString(),
         bannerUrl: bannerUrl || undefined,
+        primaryColor: design.primaryColor,
+        secondaryColor: design.secondaryColor,
+        fontFamily: design.fontFamily,
+        displayMode: design.displayMode,
+        landingStyle: design.landingStyle,
       });
       setEvent(res.event);
       setFeedback('Event details and theme saved.');
@@ -211,6 +239,39 @@ export const EventSettings: React.FC = () => {
     } finally {
       setSavingBranding(false);
     }
+  };
+
+  const saveDesign = async () => {
+    if (!eventId || !event) return;
+    setSavingDesign(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
+        themeId,
+        primaryColor: design.primaryColor,
+        secondaryColor: design.secondaryColor,
+        fontFamily: design.fontFamily,
+        displayMode: design.displayMode,
+        landingStyle: design.landingStyle,
+      });
+      setEvent(res.event);
+      setFeedback('Landing design saved. Your public page is updated.');
+    } catch (e: any) {
+      setError(e?.message || e?.error || 'Failed to save landing design');
+    } finally {
+      setSavingDesign(false);
+    }
+  };
+
+  const applyThemePreset = (nextThemeId: EventThemeId) => {
+    setThemeId(nextThemeId);
+    const theme = EVENT_THEMES[nextThemeId];
+    setDesign((prev) => ({
+      ...prev,
+      primaryColor: theme.primary,
+      secondaryColor: theme.secondary,
+    }));
   };
 
   const saveSlug = async () => {
@@ -413,11 +474,11 @@ export const EventSettings: React.FC = () => {
 
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                Landing theme
+                Starting theme
               </span>
               <select
                 value={themeId}
-                onChange={(e) => setThemeId(e.target.value as EventThemeId)}
+                onChange={(e) => applyThemePreset(e.target.value as EventThemeId)}
                 className={cn(fieldClass, 'appearance-none')}
                 style={fieldStyle}
               >
@@ -428,6 +489,19 @@ export const EventSettings: React.FC = () => {
                 ))}
               </select>
             </label>
+
+            <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Live preview
+              </p>
+              <div className="mt-3">
+                <LandingDesignPreview
+                  value={design}
+                  title={title || event.title}
+                  bannerUrl={bannerUrl ? normalizeBannerUrl(bannerUrl) : undefined}
+                />
+              </div>
+            </div>
 
             <div className="rounded-2xl border p-4" style={cardMutedStyle}>
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
@@ -498,6 +572,32 @@ export const EventSettings: React.FC = () => {
               className={cn(fieldClass, 'mb-5 resize-y')}
               style={fieldStyle}
             />
+
+            {/* Landing design */}
+            <div className="mb-5 rounded-2xl border p-5" style={cardStyle}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold" style={{ color: ui.text }}>
+                    Landing design
+                  </h2>
+                  <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                    Personalize the colour, style, font, and display of your public page.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={saveDesign}
+                  disabled={savingDesign}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ backgroundColor: ui.accent }}
+                >
+                  {savingDesign ? 'Saving…' : 'Save design'}
+                </button>
+              </div>
+              <div className="mt-5">
+                <LandingCustomizer value={design} onChange={setDesign} ui={ui} />
+              </div>
+            </div>
 
             {/* Schedule */}
             <div className="mb-5 rounded-2xl border p-5" style={cardMutedStyle}>
