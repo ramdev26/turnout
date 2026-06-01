@@ -83,6 +83,8 @@ export interface EventCustomization {
   displayMode?: LandingDisplayMode;
   /** Landing surface style: frosted glass, clean minimal, or bold solid */
   landingStyle?: LandingStyle;
+  /** When true, the event date/time is "to be announced" (no fixed schedule) */
+  scheduleTba?: boolean;
   heroText: string;
   heroSubtext: string;
   layout: 'standard' | 'centered' | 'split';

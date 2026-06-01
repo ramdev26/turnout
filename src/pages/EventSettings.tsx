@@ -79,6 +79,7 @@ export const EventSettings: React.FC = () => {
   const [shortDescription, setShortDescription] = useState('');
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
+  const [scheduleTba, setScheduleTba] = useState(false);
   const [bannerUrl, setBannerUrl] = useState('');
   const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(true);
@@ -121,6 +122,7 @@ export const EventSettings: React.FC = () => {
       setShortDescription(ev.customization?.heroSubtext || '');
       setLocation(ev.location);
       setDate(toDatetimeLocalValue(new Date(ev.date)));
+      setScheduleTba(!!ev.customization?.scheduleTba);
       setBannerUrl(ev.bannerUrl || '');
       setSlug(ev.slug);
       const resolved = resolveEventTheme(ev.customization);
@@ -230,6 +232,7 @@ export const EventSettings: React.FC = () => {
         date: new Date(date).toISOString(),
         bannerUrl: bannerUrl || undefined,
         heroSubtext: shortDescription.trim(),
+        scheduleTba,
         eventCategory: design.eventCategory,
         primaryColor: design.primaryColor,
         secondaryColor: design.secondaryColor,
@@ -606,26 +609,55 @@ export const EventSettings: React.FC = () => {
 
             {/* Schedule */}
             <div className="mb-5 rounded-2xl border p-5" style={cardMutedStyle}>
-              <div className="relative space-y-5">
-                <div className="absolute bottom-8 left-[7px] top-8 w-px border-l border-dashed" style={{ borderColor: ui.lineDashed }} aria-hidden />
-                <div className="relative space-y-2">
-                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-                    <span className="z-10 h-3.5 w-3.5 rounded-full border-2 bg-white" style={{ borderColor: ui.dotActive }} />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                        Start
-                      </p>
-                      <p className="text-sm font-medium" style={{ color: ui.text }}>
-                        {formatScheduleDay(date)}
-                      </p>
-                    </div>
-                    <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                      {formatScheduleTime(date)}
-                    </p>
-                  </div>
-                  <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} style={fieldStyle} />
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  When
+                </p>
+                <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleTba(true)}
+                    className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                    style={scheduleTba ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                  >
+                    To be announced
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleTba(false)}
+                    className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                    style={!scheduleTba ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                  >
+                    Set date &amp; time
+                  </button>
                 </div>
               </div>
+              {scheduleTba ? (
+                <p className="text-sm" style={{ color: ui.textMuted }}>
+                  Date &amp; time to be announced. Switch to “Set date &amp; time” to add a schedule.
+                </p>
+              ) : (
+                <div className="relative space-y-5">
+                  <div className="absolute bottom-8 left-[7px] top-8 w-px border-l border-dashed" style={{ borderColor: ui.lineDashed }} aria-hidden />
+                  <div className="relative space-y-2">
+                    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                      <span className="z-10 h-3.5 w-3.5 rounded-full border-2 bg-white" style={{ borderColor: ui.dotActive }} />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                          Start
+                        </p>
+                        <p className="text-sm font-medium" style={{ color: ui.text }}>
+                          {formatScheduleDay(date)}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                        {formatScheduleTime(date)}
+                      </p>
+                    </div>
+                    <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} style={fieldStyle} />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mb-5 rounded-2xl border p-4" style={cardStyle}>
