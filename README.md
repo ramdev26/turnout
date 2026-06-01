@@ -164,20 +164,56 @@ Organizers can connect a domain like `events.yourbrand.com` to a published event
 
 ## PayHere setup
 
-PayHere uses the **JavaScript SDK** (onsite popup checkout). Sandbox credentials are baked into [`cpanel/api/config.vercel.php`](cpanel/api/config.vercel.php) for testing. For production, set `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET`, and `PAYHERE_SANDBOX=false` in your deployment environment (or `cpanel/api/config.php` locally).
+Turnout uses the same **PayHere Checkout API** as Express/Node samples ([PayHere docs](https://support.payhere.lk/api-&-mobile-sdk/checkout-api)), but the backend is **PHP** (`/api/payhere/initiate`, `/api/payhere/notify`) and the frontend loads PayHere’s **JavaScript SDK** (`payhere.startPayment`).
 
-The server generates the payment `hash` securely (PHP equivalent of PayHere’s Node formula: `MD5(merchantId + orderId + amount + currency + MD5(merchantSecret).toUpperCase()).toUpperCase()`, with `amount` as two decimals e.g. `1500.00`). Return, cancel, and `notify_url` are derived from the current domain (`/api/payhere/notify`).
+### Credentials
 
-PayHere server callbacks (`POST` form fields to `/api/payhere/notify`) are verified with the official `md5sig` formula before any order is marked paid (`status_code == 2`). Invalid signatures are rejected with HTTP 403.
+Sandbox defaults live in [`cpanel/api/config.vercel.php`](cpanel/api/config.vercel.php) (currently merchant `1236076`). Override with `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET`, and `PAYHERE_SANDBOX` on Vercel for production.
 
-## PayHere callback check
+In PayHere sandbox: **Settings → Domains & Credentials** → add your site host (e.g. `turnout-omega.vercel.app`, not `https://`) → wait for approval → copy the **Merchant Secret for that domain**. Secrets are per domain; a secret for `localhost` will not work on Vercel.
 
-After deployment, verify PayHere callback URL is reachable:
-- `https://your-domain.example/api/payhere/notify`
+### Action URLs
 
-Then test full flow:
-1. Register/Login
-2. Create Event + publish
-3. Checkout
-4. Complete PayHere payment
-5. Confirm order status changes to `paid` and attendee records are created
+| Mode | Checkout URL |
+|------|----------------|
+| Sandbox | `https://sandbox.payhere.lk/pay/checkout` |
+| Live | `https://www.payhere.lk/pay/checkout` |
+
+The JS SDK picks the URL from `sandbox: true/false` on the payment object.
+
+### Required checkout fields
+
+Our server sends all mandatory fields (including `hash`):
+
+`merchant_id`, `return_url`, `cancel_url`, `notify_url`, `order_id`, `items`, `currency`, `amount`, `hash`, `first_name`, `last_name`, `email`, `phone`, `address`, `city`, `country`
+
+`hash` is generated server-side: `UPPER(MD5(merchantId + orderId + amount + currency + UPPER(MD5(merchantSecret))))` with `amount` like `1500.00`.
+
+### Notify URL (HTTPS required)
+
+PayHere posts payment status to:
+
+`https://your-domain.example/api/payhere/notify`
+
+**Must be HTTPS on a public host.** PayHere does not send `notify_url` callbacks to plain `http://` (local `127.0.0.1` only works with a tunnel such as ngrok pointing at your API). Orders are marked **paid** only after `md5sig` verification (`status_code == 2`).
+
+### Return flow (like a `/check` route)
+
+After checkout, the customer hits `/payhere/return`, which polls `/api/orders/:id` until the notify handler has confirmed payment—same idea as posting to a `/check` endpoint in Node samples.
+
+### Sandbox test cards
+
+| Brand | Number |
+|-------|--------|
+| Visa | `4916217501611292` |
+| MasterCard | `5307732125531191` |
+| AMEX | `346781005510225` |
+
+Use any valid name, CVV, and expiry. Any other card number simulates failure.
+
+### End-to-end test
+
+1. Register / log in, create and publish an event with a paid ticket.
+2. Checkout on your **deployed HTTPS** domain (promote latest Vercel build).
+3. Pay with a sandbox test card above.
+4. Confirm order status becomes `paid` and attendees are created.
