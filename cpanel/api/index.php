@@ -778,6 +778,10 @@ function payhere_checkout_payment(
   ];
 }
 
+/**
+ * PayHere notify_url signature (md5sig) per official docs:
+ * UPPER(MD5(merchant_id + order_id + payhere_amount + payhere_currency + status_code + UPPER(MD5(merchant_secret))))
+ */
 function payhere_local_md5sig(string $merchantId, string $orderId, string $payhereAmount, string $payhereCurrency, string $statusCode, string $merchantSecret): string {
   $secretDigest = strtoupper(md5(trim($merchantSecret)));
   return strtoupper(
@@ -790,6 +794,10 @@ function payhere_local_md5sig(string $merchantId, string $orderId, string $payhe
         $secretDigest
     )
   );
+}
+
+function payhere_notify_signature_valid(string $localMd5sig, string $receivedMd5sig): bool {
+  return hash_equals(strtoupper($localMd5sig), strtoupper(trim($receivedMd5sig)));
 }
 
 // ---- Auth ----
@@ -1119,7 +1127,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
 }
 
 if ($path === '/payhere/notify' && $method === 'POST') {
-  // PayHere sends application/x-www-form-urlencoded
+  // PayHere sends application/x-www-form-urlencoded (not JSON).
   $merchantId = (string)($_POST['merchant_id'] ?? '');
   $orderId = (string)($_POST['order_id'] ?? '');
   $paymentId = (string)($_POST['payment_id'] ?? '');
@@ -1142,8 +1150,16 @@ if ($path === '/payhere/notify' && $method === 'POST') {
     exit;
   }
 
-  $local = payhere_local_md5sig($merchantId, $orderId, $payhereAmount, $payhereCurrency, $statusCode, $cfg['merchant_secret']);
-  if ($local !== $md5sig) {
+  // Verify md5sig before trusting any payment status (PayHere security requirement).
+  $localMd5sig = payhere_local_md5sig(
+    $merchantId,
+    $orderId,
+    $payhereAmount,
+    $payhereCurrency,
+    $statusCode,
+    $cfg['merchant_secret']
+  );
+  if (!payhere_notify_signature_valid($localMd5sig, $md5sig)) {
     http_response_code(403);
     echo 'invalid_signature';
     exit;

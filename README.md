@@ -166,7 +166,9 @@ Organizers can connect a domain like `events.yourbrand.com` to a published event
 
 PayHere uses the **JavaScript SDK** (onsite popup checkout). Sandbox credentials are baked into [`cpanel/api/config.vercel.php`](cpanel/api/config.vercel.php) for testing. For production, set `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET`, and `PAYHERE_SANDBOX=false` in your deployment environment (or `cpanel/api/config.php` locally).
 
-The server generates the payment `hash` securely (PHP equivalent of PayHere’s Node formula: `MD5(merchantId + orderId + amount + currency + MD5(merchantSecret).toUpperCase()).toUpperCase()`, with `amount` as two decimals e.g. `1500.00`). Return, cancel, and `notify_url` are derived from the current domain (`/api/payhere/notify`). PayHere notifications are verified server-side with the `md5sig` checksum before an order is marked paid.
+The server generates the payment `hash` securely (PHP equivalent of PayHere’s Node formula: `MD5(merchantId + orderId + amount + currency + MD5(merchantSecret).toUpperCase()).toUpperCase()`, with `amount` as two decimals e.g. `1500.00`). Return, cancel, and `notify_url` are derived from the current domain (`/api/payhere/notify`).
+
+PayHere server callbacks (`POST` form fields to `/api/payhere/notify`) are verified with the official `md5sig` formula before any order is marked paid (`status_code == 2`). Invalid signatures are rejected with HTTP 403.
 
 ## PayHere callback check
 
