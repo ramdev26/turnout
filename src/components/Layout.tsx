@@ -86,7 +86,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                         <Wallet className="h-4 w-4" />
                         Earnings
                       </NavLink>
-                      <NavLink to="/events/themes" active={path.startsWith('/events/')} themed={useThemedBar}>
+                      <NavLink to="/events/new" active={path.startsWith('/events/')} themed={useThemedBar}>
                         <Plus className="h-4 w-4" />
                         Create
                       </NavLink>
@@ -164,7 +164,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                       <>
                         <MobileNavLink to="/dashboard" label="Dashboard" />
                         <MobileNavLink to="/dashboard/earnings" label="Earnings" />
-                        <MobileNavLink to="/events/themes" label="Create" />
+                        <MobileNavLink to="/events/new" label="Create" />
                       </>
                     )}
                     {user.role === 'attendee' && <MobileNavLink to="/attendee/dashboard" label="Events" />}

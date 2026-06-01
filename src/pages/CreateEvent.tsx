@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,7 +11,6 @@ import {
   Globe,
   MapPin,
   Plus,
-  Shuffle,
   Ticket,
   Trash2,
   Users,
@@ -24,11 +23,11 @@ import { type LandingDesignValue } from '../components/organizer/LandingCustomiz
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { cn } from '../utils/cn';
 import {
-  EVENT_THEME_IDS,
   EVENT_THEMES,
   type CreateThemeUI,
   type EventThemeId,
 } from '../themes/eventThemes';
+import { EVENT_CATEGORIES } from '../themes/eventCategories';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -90,8 +89,6 @@ const eventSchema = z
   });
 
 type EventFormValues = z.infer<typeof eventSchema>;
-
-const THEME_IDS = EVENT_THEME_IDS;
 
 function fieldClassFor(ui: CreateThemeUI): string {
   return cn(
@@ -176,10 +173,8 @@ function Toggle({
 export const CreateEvent: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [themeId, setThemeId] = useState<EventThemeId>(
-    (searchParams.get('theme') as EventThemeId) || 'minimal'
-  );
+  // Single base theme (Minimal). Event "category" presets drive the styling.
+  const themeId: EventThemeId = 'minimal';
   const [ticketMode, setTicketMode] = useState<'free' | 'paid'>('free');
   const [freeUnlimited, setFreeUnlimited] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -192,12 +187,16 @@ export const CreateEvent: React.FC = () => {
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const ui = selectedTheme.ui;
   const fieldClass = fieldClassFor(ui);
-  const [design, setDesign] = useState<LandingDesignValue>({
-    primaryColor: selectedTheme.primary,
-    secondaryColor: selectedTheme.secondary,
-    fontFamily: 'fraunces',
-    displayMode: 'auto',
-    landingStyle: 'glass',
+  const [design, setDesign] = useState<LandingDesignValue>(() => {
+    const cat = EVENT_CATEGORIES[0];
+    return {
+      eventCategory: cat.id,
+      primaryColor: cat.primaryColor,
+      secondaryColor: cat.secondaryColor,
+      fontFamily: cat.fontFamily,
+      displayMode: 'auto',
+      landingStyle: cat.landingStyle,
+    };
   });
 
   const {
@@ -237,19 +236,6 @@ export const CreateEvent: React.FC = () => {
   const tickets = watch('tickets');
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
-
-  useEffect(() => {
-    const fromUrl = searchParams.get('theme');
-    if (fromUrl && EVENT_THEMES[fromUrl as EventThemeId] && fromUrl !== themeId) {
-      setThemeId(fromUrl as EventThemeId);
-    }
-  }, [searchParams, themeId]);
-
-  // When the starting theme changes, seed the colour from it (font/style/display kept).
-  useEffect(() => {
-    const theme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
-    setDesign((prev) => ({ ...prev, primaryColor: theme.primary, secondaryColor: theme.secondary }));
-  }, [themeId]);
 
   useEffect(() => {
     if (!endDate && date) {
@@ -319,13 +305,6 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
-  const shuffleTheme = () => {
-    const others = THEME_IDS.filter((id) => id !== themeId);
-    const next = others[Math.floor(Math.random() * others.length)] || 'minimal';
-    setThemeId(next);
-    setSearchParams({ theme: next });
-  };
-
   const onSubmit = async (data: EventFormValues) => {
     if (!user) return;
     setSubmitError(null);
@@ -342,6 +321,7 @@ export const CreateEvent: React.FC = () => {
     try {
       const customization: EventCustomization = {
         themeId: selectedTheme.id,
+        eventCategory: design.eventCategory,
         primaryColor: design.primaryColor,
         secondaryColor: design.secondaryColor,
         fontFamily: design.fontFamily,
@@ -459,43 +439,17 @@ export const CreateEvent: React.FC = () => {
               />
               {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-              <div className="flex gap-2">
-                <label className="flex flex-1 flex-col gap-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                    Starting theme
-                  </span>
-                  <div className="relative">
-                    <select
-                      value={themeId}
-                      onChange={(e) => {
-                        setThemeId(e.target.value);
-                        setSearchParams({ theme: e.target.value });
-                      }}
-                      className={cn(fieldClass, 'appearance-none pr-10')}
-                      style={fieldStyle}
-                    >
-                      {THEME_IDS.map((id) => (
-                        <option key={id} value={id}>
-                          {EVENT_THEMES[id as EventThemeId].name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-                  </div>
-                </label>
-                <button
-                  type="button"
-                  onClick={shuffleTheme}
-                  className="mt-6 grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl border transition hover:shadow-sm"
-                  style={{ ...fieldStyle, color: ui.text }}
-                  title="Shuffle theme"
-                >
-                  <Shuffle className="h-4 w-4" />
-                </button>
+              <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Theme
+                </p>
+                <p className="mt-0.5 text-sm font-medium" style={{ color: ui.text }}>
+                  Minimal
+                </p>
               </div>
 
               <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
-                Fine-tune colour, style, font, and display in the design bar at the bottom.
+                Pick an event type and fine-tune colour, style, font, and display in the design bar at the bottom.
               </p>
             </div>
 
@@ -931,15 +885,7 @@ export const CreateEvent: React.FC = () => {
         </div>
 
         {/* Floating landing design dock */}
-        <LandingDesignDock
-          themeId={themeId as EventThemeId}
-          onThemeChange={(id) => {
-            setThemeId(id);
-            setSearchParams({ theme: id });
-          }}
-          design={design}
-          onDesignChange={setDesign}
-        />
+        <LandingDesignDock design={design} onDesignChange={setDesign} />
       </form>
     </div>
   );

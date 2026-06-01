@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Check, Contrast, Palette } from 'lucide-react';
-import { EVENT_THEME_IDS, EVENT_THEMES, type EventThemeId } from '../../themes/eventThemes';
+import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
 import {
   COLOR_PRESETS,
@@ -21,18 +21,18 @@ const SEG_BORDER = 'rgba(255, 255, 255, 0.10)';
 const TEXT = '#f5f5f4';
 const TEXT_MUTED = 'rgba(245, 245, 244, 0.55)';
 
-const ThemeThumb: React.FC<{
-  themeId: EventThemeId;
+const CategoryThumb: React.FC<{
+  category: (typeof EVENT_CATEGORIES)[number];
   active: boolean;
   onClick: () => void;
-}> = ({ themeId, active, onClick }) => {
-  const theme = EVENT_THEMES[themeId];
+}> = ({ category, active, onClick }) => {
+  const Icon = category.icon;
   return (
     <button
       type="button"
       onClick={onClick}
       className="group flex shrink-0 flex-col items-center gap-1.5"
-      title={theme.name}
+      title={category.name}
     >
       <span
         className={cn(
@@ -40,23 +40,20 @@ const ThemeThumb: React.FC<{
           active ? 'ring-2 ring-offset-2' : 'opacity-80 hover:opacity-100'
         )}
         style={{
-          background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
-          ['--tw-ring-color' as string]: theme.primary,
+          background: `linear-gradient(135deg, ${category.primaryColor}, ${category.secondaryColor})`,
+          ['--tw-ring-color' as string]: category.primaryColor,
           ['--tw-ring-offset-color' as string]: DOCK_BG,
         }}
       >
-        <span className="h-5 w-9 rounded-md bg-white/85 shadow-sm" />
+        <Icon className="h-5 w-5 text-white drop-shadow" />
         {active && (
           <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-black/40">
             <Check className="h-2.5 w-2.5 text-white" />
           </span>
         )}
       </span>
-      <span
-        className="text-[11px] font-medium"
-        style={{ color: active ? TEXT : TEXT_MUTED }}
-      >
-        {theme.name}
+      <span className="text-[11px] font-medium" style={{ color: active ? TEXT : TEXT_MUTED }}>
+        {category.name}
       </span>
     </button>
   );
@@ -111,13 +108,9 @@ function Popover({ children }: { children: React.ReactNode }) {
 }
 
 export function LandingDesignDock({
-  themeId,
-  onThemeChange,
   design,
   onDesignChange,
 }: {
-  themeId: EventThemeId;
-  onThemeChange: (id: EventThemeId) => void;
   design: LandingDesignValue;
   onDesignChange: (next: LandingDesignValue) => void;
 }) {
@@ -127,6 +120,19 @@ export function LandingDesignDock({
 
   const update = (patch: Partial<LandingDesignValue>) => onDesignChange({ ...design, ...patch });
   const toggle = (control: DockControl) => setOpen((cur) => (cur === control ? null : control));
+
+  const applyCategory = (id: string) => {
+    const cat = resolveEventCategory(id);
+    onDesignChange({
+      ...design,
+      eventCategory: cat.id,
+      fontFamily: cat.fontFamily,
+      primaryColor: cat.primaryColor,
+      secondaryColor: cat.secondaryColor,
+      landingStyle: cat.landingStyle,
+    });
+  };
+  const activeCategory = design.eventCategory || 'default';
 
   useEffect(() => {
     loadLandingFont(design.fontFamily);
@@ -194,10 +200,15 @@ export function LandingDesignDock({
           </span>
         </button>
 
-        {/* Theme thumbnails */}
+        {/* Event category thumbnails */}
         <div className="flex items-start justify-center gap-3 overflow-x-auto pb-1">
-          {EVENT_THEME_IDS.map((id) => (
-            <ThemeThumb key={id} themeId={id} active={themeId === id} onClick={() => onThemeChange(id)} />
+          {EVENT_CATEGORIES.map((cat) => (
+            <CategoryThumb
+              key={cat.id}
+              category={cat}
+              active={activeCategory === cat.id}
+              onClick={() => applyCategory(cat.id)}
+            />
           ))}
         </div>
 

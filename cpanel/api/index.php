@@ -1650,6 +1650,13 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization['landingStyle'] = $landingStyle;
     }
   }
+  if (array_key_exists('eventCategory', $body)) {
+    $eventCategory = trim((string)$body['eventCategory']);
+    $allowedCategories = ['default', 'music', 'sports', 'business', 'arts', 'wellness', 'nightlife', 'tech'];
+    if (in_array($eventCategory, $allowedCategories, true)) {
+      $customization['eventCategory'] = $eventCategory;
+    }
+  }
 
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);

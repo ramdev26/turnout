@@ -131,10 +131,10 @@ export const Dashboard: React.FC = () => {
               Ready to launch something new?
             </p>
             <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-              Pick a theme and publish your next event landing page.
+              Create and publish your next event landing page.
             </p>
           </div>
-          <FlowLinkButton to="/events/themes" primary className="w-full sm:w-auto">
+          <FlowLinkButton to="/events/new" primary className="w-full sm:w-auto">
             <Plus className="h-4 w-4" />
             Create New Event
           </FlowLinkButton>
@@ -170,7 +170,7 @@ export const Dashboard: React.FC = () => {
               title="No events found"
               description="Start by creating your first event landing page."
               action={
-                <FlowLinkButton to="/events/themes" primary>
+                <FlowLinkButton to="/events/new" primary>
                   Create Event
                 </FlowLinkButton>
               }

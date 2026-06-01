@@ -10,9 +10,11 @@ import {
   type LandingFontKey,
 } from '../../themes/landingFonts';
 import type { LandingDisplayMode, LandingStyle } from '../../types';
+import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { cn } from '../../utils/cn';
 
 export type LandingDesignValue = {
+  eventCategory: string;
   primaryColor: string;
   secondaryColor: string;
   fontFamily: LandingFontKey;
@@ -74,6 +76,18 @@ export function LandingCustomizer({
 
   const update = (patch: Partial<LandingDesignValue>) => onChange({ ...value, ...patch });
 
+  const applyCategory = (id: string) => {
+    const cat = resolveEventCategory(id);
+    onChange({
+      ...value,
+      eventCategory: cat.id,
+      fontFamily: cat.fontFamily,
+      primaryColor: cat.primaryColor,
+      secondaryColor: cat.secondaryColor,
+      landingStyle: cat.landingStyle,
+    });
+  };
+
   const activePresetId = COLOR_PRESETS.find(
     (p) => p.primary.toLowerCase() === value.primaryColor.toLowerCase()
   )?.id;
@@ -84,6 +98,33 @@ export function LandingCustomizer({
 
   return (
     <div className="space-y-6">
+      {/* Event category */}
+      <div className="space-y-3">
+        <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Event type</SectionLabel>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {EVENT_CATEGORIES.map((cat) => {
+            const Icon = cat.icon;
+            const active = (value.eventCategory || 'default') === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => applyCategory(cat.id)}
+                className="flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-center transition"
+                style={
+                  active
+                    ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.text }
+                    : { borderColor: ui.borderColor, background: ui.cardBg, color: ui.text }
+                }
+              >
+                <Icon className="h-4 w-4" style={{ color: active ? ui.accent : ui.textMuted }} />
+                <span className="text-xs font-semibold">{cat.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Colour */}
       <div className="space-y-3">
         <SectionLabel icon={<Palette className="h-3.5 w-3.5" />}>Colour</SectionLabel>
