@@ -658,8 +658,8 @@ function payhere_cfg(): array {
   $cfg = get_config();
   $p = is_array($cfg['payhere'] ?? null) ? $cfg['payhere'] : [];
 
-  $merchantId = (string)($p['merchant_id'] ?? '');
-  $merchantSecret = (string)($p['merchant_secret'] ?? '');
+  $merchantId = trim((string)($p['merchant_id'] ?? ''));
+  $merchantSecret = trim((string)($p['merchant_secret'] ?? ''));
   $sandbox = (bool)($p['sandbox'] ?? true);
 
   if ($merchantId === '' || $merchantId === 'CHANGE_ME' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
@@ -716,9 +716,58 @@ function payhere_amount_format(float $amount): string {
 }
 
 function payhere_hash(string $merchantId, string $orderId, float $amount, string $currency, string $merchantSecret): string {
+  $merchantSecret = trim($merchantSecret);
   $hashedSecret = strtoupper(md5($merchantSecret));
   $amountFormatted = payhere_amount_format($amount);
   return strtoupper(md5($merchantId . $orderId . $amountFormatted . $currency . $hashedSecret));
+}
+
+/** Checkout fields for PayHere JS SDK / Checkout API (hash is mandatory). */
+function payhere_checkout_payment(
+  array $cfg,
+  string $merchantId,
+  string $merchantSecret,
+  string $orderIdStr,
+  float $amount,
+  string $currency,
+  string $itemsTitle,
+  string $firstName,
+  string $lastName,
+  string $buyerEmail,
+  string $buyerPhone,
+  string $returnUrl,
+  string $cancelUrl
+): array {
+  $amountFormatted = payhere_amount_format($amount);
+  $hash = payhere_hash($merchantId, $orderIdStr, $amount, $currency, $merchantSecret);
+  if ($hash === '') {
+    json_response(500, [
+      'error' => 'payhere_hash_failed',
+      'message' => 'Could not generate PayHere checkout hash.',
+    ]);
+  }
+
+  return [
+    'sandbox' => (bool)$cfg['sandbox'],
+    'merchant_id' => (string)$merchantId,
+    'return_url' => $returnUrl,
+    'cancel_url' => $cancelUrl,
+    'notify_url' => (string)$cfg['notify_url'],
+    'order_id' => $orderIdStr,
+    'items' => $itemsTitle,
+    'currency' => $currency,
+    'amount' => $amountFormatted,
+    'first_name' => $firstName,
+    'last_name' => $lastName,
+    'email' => $buyerEmail,
+    'phone' => $buyerPhone,
+    'address' => 'N/A',
+    'city' => 'N/A',
+    'country' => 'Sri Lanka',
+    'hash' => $hash,
+    'custom_1' => 'turnout',
+    'custom_2' => '',
+  ];
 }
 
 function payhere_local_md5sig(string $merchantId, string $orderId, string $payhereAmount, string $payhereCurrency, string $statusCode, string $merchantSecret): string {
@@ -1024,8 +1073,6 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $currency = 'LKR';
   $amount = $totalCents / 100.0;
   $orderIdStr = (string)$orderId;
-  $hash = payhere_hash($merchantId, $orderIdStr, $amount, $currency, $merchantSecret);
-
   $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
   $returnUrl = $cfg['app_base_url'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
   $cancelUrl = $cfg['app_base_url'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
@@ -1035,52 +1082,30 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $lastName = $buyerName !== '' ? trim(substr($buyerName, strlen($firstName))) : '';
   if ($lastName === '') $lastName = ' ';
 
+  $checkout = payhere_checkout_payment(
+    $cfg,
+    $merchantId,
+    $merchantSecret,
+    $orderIdStr,
+    $amount,
+    $currency,
+    (string)$ev['title'],
+    $firstName,
+    $lastName,
+    $buyerEmail,
+    $buyerPhone !== '' ? $buyerPhone : '0000000000',
+    $returnUrl,
+    $cancelUrl
+  );
+
   json_response(200, [
     'orderId' => $orderIdStr,
     'accessToken' => $accessToken,
     'actionUrl' => $actionUrl,
     'sandbox' => $cfg['sandbox'],
-    'fields' => [
-      'merchant_id' => $merchantId,
-      'return_url' => $returnUrl,
-      'cancel_url' => $cancelUrl,
-      'notify_url' => $cfg['notify_url'],
-      'order_id' => $orderIdStr,
-      'items' => (string)$ev['title'],
-      'currency' => $currency,
-      'amount' => payhere_amount_format($amount),
-      'first_name' => $firstName,
-      'last_name' => $lastName,
-      'email' => $buyerEmail,
-      'phone' => $buyerPhone !== '' ? $buyerPhone : '0000000000',
-      'address' => 'N/A',
-      'city' => 'N/A',
-      'country' => 'Sri Lanka',
-      'hash' => $hash,
-      'custom_1' => 'turnout',
-    ],
-    // Direct object for PayHere JS SDK popup
-    'sdkPayment' => [
-      'sandbox' => $cfg['sandbox'],
-      'merchant_id' => $merchantId,
-      'return_url' => $returnUrl,
-      'cancel_url' => $cancelUrl,
-      'notify_url' => $cfg['notify_url'],
-      'order_id' => $orderIdStr,
-      'items' => (string)$ev['title'],
-      'currency' => $currency,
-      'amount' => payhere_amount_format($amount),
-      'hash' => $hash,
-      'first_name' => $firstName,
-      'last_name' => $lastName,
-      'email' => $buyerEmail,
-      'phone' => $buyerPhone !== '' ? $buyerPhone : '0000000000',
-      'address' => 'N/A',
-      'city' => 'N/A',
-      'country' => 'Sri Lanka',
-      'custom_1' => 'turnout',
-      'custom_2' => '',
-    ],
+    'hash' => $checkout['hash'],
+    'fields' => $checkout,
+    'sdkPayment' => $checkout,
   ]);
 }
 

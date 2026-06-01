@@ -9,6 +9,10 @@ import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatLKR } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
+import {
+  buildPayHerePaymentFromInitiate,
+  type PayHereInitiateResponse,
+} from '../lib/payhereCheckout';
 
 declare global {
   interface Window {
@@ -153,7 +157,7 @@ export const EventLanding: React.FC = () => {
         const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
         navigate(`/orders/${res.orderId}/success${tokenQs}`);
       } else {
-        const res = await api.post<{ sdkPayment: Record<string, unknown> }>('/api/payhere/initiate', {
+        const res = await api.post<PayHereInitiateResponse>('/api/payhere/initiate', {
           eventId: event.id,
           buyerName: values.buyerName,
           buyerEmail: values.buyerEmail,
@@ -161,6 +165,9 @@ export const EventLanding: React.FC = () => {
           tickets: orderItems,
           attendees,
         });
+
+        const payment = buildPayHerePaymentFromInitiate(res);
+        const accessToken = res.accessToken ?? '';
 
         const ensureScript = async () => {
           if (window.payhere) return;
@@ -186,7 +193,8 @@ export const EventLanding: React.FC = () => {
 
         window.payhere.onCompleted = (orderId: string) => {
           setCheckoutOpen(false);
-          navigate(`/payhere/return?order_id=${encodeURIComponent(orderId)}`);
+          const tokenQs = accessToken ? `&token=${encodeURIComponent(accessToken)}` : '';
+          navigate(`/payhere/return?order_id=${encodeURIComponent(orderId)}${tokenQs}`);
         };
         window.payhere.onDismissed = () => {
           setPayError('Payment was cancelled. You can try again.');
@@ -194,7 +202,7 @@ export const EventLanding: React.FC = () => {
         window.payhere.onError = (error: string) => {
           setPayError(error || 'Payment failed');
         };
-        window.payhere.startPayment(res.sdkPayment);
+        window.payhere.startPayment(payment);
       }
     } catch (error: unknown) {
       const err = error as { message?: string; error?: string };
