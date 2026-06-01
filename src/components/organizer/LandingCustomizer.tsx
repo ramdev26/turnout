@@ -27,7 +27,7 @@ type ColorPreset = {
   secondary: string;
 };
 
-const COLOR_PRESETS: ColorPreset[] = [
+export const COLOR_PRESETS: ColorPreset[] = [
   { id: 'emerald', name: 'Emerald', primary: '#059669', secondary: '#10b981' },
   { id: 'teal', name: 'Teal', primary: '#0d9488', secondary: '#2dd4bf' },
   { id: 'ocean', name: 'Ocean', primary: '#2563eb', secondary: '#38bdf8' },
@@ -38,13 +38,13 @@ const COLOR_PRESETS: ColorPreset[] = [
   { id: 'slate', name: 'Slate', primary: '#475569', secondary: '#94a3b8' },
 ];
 
-const STYLE_OPTIONS: { id: LandingStyle; name: string; hint: string }[] = [
+export const STYLE_OPTIONS: { id: LandingStyle; name: string; hint: string }[] = [
   { id: 'glass', name: 'Glass', hint: 'Frosted & layered' },
   { id: 'minimal', name: 'Minimal', hint: 'Flat & clean' },
   { id: 'bold', name: 'Bold', hint: 'Solid & punchy' },
 ];
 
-const DISPLAY_OPTIONS: { id: LandingDisplayMode; name: string }[] = [
+export const DISPLAY_OPTIONS: { id: LandingDisplayMode; name: string }[] = [
   { id: 'auto', name: 'Auto' },
   { id: 'light', name: 'Light' },
   { id: 'dark', name: 'Dark' },
