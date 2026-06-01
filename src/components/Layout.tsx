@@ -25,14 +25,17 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isAdminConsole = /^\/admin/.test(path);
   const isAuthPage = path === '/login' || path === '/signup' || path === '/attendee/signup';
 
+  const isMarketingHome = path === '/';
+
   const isFullscreenFlow =
     isPublicLanding ||
     isStaffCheckin ||
+    isMarketingHome ||
     path === '/events/new' ||
     /^\/dashboard\/events\/[^/]+\/settings$/.test(path);
 
   const isAppFlow = isOrganizerConsole || isAttendeeConsole || isAdminConsole || isAuthPage;
-  const hideChrome = isFullscreenFlow || isPublicLanding || isStaffCheckin;
+  const hideChrome = isFullscreenFlow || isPublicLanding || isStaffCheckin || isMarketingHome;
   const useThemedBar = isAppFlow && !hideChrome;
 
   const handleLogout = async () => {
