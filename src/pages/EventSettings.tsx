@@ -19,7 +19,6 @@ import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { LandingCustomizer, LandingDesignPreview, type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import {
-  EVENT_THEME_IDS,
   EVENT_THEMES,
   resolveEventTheme,
   type EventThemeId,
@@ -67,6 +66,7 @@ export const EventSettings: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [themeId, setThemeId] = useState<EventThemeId>('minimal');
   const [design, setDesign] = useState<LandingDesignValue>({
+    eventCategory: 'default',
     primaryColor: '#059669',
     secondaryColor: '#10b981',
     fontFamily: 'fraunces',
@@ -124,6 +124,7 @@ export const EventSettings: React.FC = () => {
       const resolved = resolveEventTheme(ev.customization);
       setThemeId(resolved.id);
       setDesign({
+        eventCategory: ev.customization?.eventCategory || 'default',
         primaryColor: ev.customization?.primaryColor || resolved.primary,
         secondaryColor: ev.customization?.secondaryColor || resolved.secondary,
         fontFamily: resolveLandingFontKey(ev.customization?.fontFamily),
@@ -226,6 +227,7 @@ export const EventSettings: React.FC = () => {
         location: location.trim(),
         date: new Date(date).toISOString(),
         bannerUrl: bannerUrl || undefined,
+        eventCategory: design.eventCategory,
         primaryColor: design.primaryColor,
         secondaryColor: design.secondaryColor,
         fontFamily: design.fontFamily,
@@ -249,6 +251,7 @@ export const EventSettings: React.FC = () => {
     try {
       const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
         themeId,
+        eventCategory: design.eventCategory,
         primaryColor: design.primaryColor,
         secondaryColor: design.secondaryColor,
         fontFamily: design.fontFamily,
@@ -262,16 +265,6 @@ export const EventSettings: React.FC = () => {
     } finally {
       setSavingDesign(false);
     }
-  };
-
-  const applyThemePreset = (nextThemeId: EventThemeId) => {
-    setThemeId(nextThemeId);
-    const theme = EVENT_THEMES[nextThemeId];
-    setDesign((prev) => ({
-      ...prev,
-      primaryColor: theme.primary,
-      secondaryColor: theme.secondary,
-    }));
   };
 
   const saveSlug = async () => {
@@ -472,23 +465,14 @@ export const EventSettings: React.FC = () => {
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                Starting theme
-              </span>
-              <select
-                value={themeId}
-                onChange={(e) => applyThemePreset(e.target.value as EventThemeId)}
-                className={cn(fieldClass, 'appearance-none')}
-                style={fieldStyle}
-              >
-                {EVENT_THEME_IDS.map((id) => (
-                  <option key={id} value={id}>
-                    {EVENT_THEMES[id].name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Theme
+              </p>
+              <p className="mt-0.5 text-sm font-medium" style={{ color: ui.text }}>
+                Minimal
+              </p>
+            </div>
 
             <div className="rounded-2xl border p-4" style={cardMutedStyle}>
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>

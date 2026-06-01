@@ -69,7 +69,7 @@ export const Home: React.FC = () => {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                to={user ? '/dashboard' : '/events/themes'}
+                to={user ? '/events/new' : '/signup'}
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
                 style={{ backgroundColor: ui.accent }}
               >
@@ -170,7 +170,7 @@ export const Home: React.FC = () => {
               No published events yet.
             </p>
             <Link
-              to="/events/themes"
+              to={user ? '/events/new' : '/signup'}
               className="mt-4 inline-block text-sm font-semibold"
               style={{ color: ui.accent }}
             >

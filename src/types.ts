@@ -74,6 +74,8 @@ export type LandingStyle = 'glass' | 'minimal' | 'bold';
 
 export interface EventCustomization {
   themeId?: EventThemeId;
+  /** Event category preset (Music, Sports, etc.) applied under the Minimal theme */
+  eventCategory?: string;
   primaryColor: string;
   secondaryColor: string;
   fontFamily: string;
