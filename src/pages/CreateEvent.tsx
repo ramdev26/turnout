@@ -40,6 +40,7 @@ const eventSchema = z
     title: z.string().min(3, 'Event name must be at least 3 characters'),
     slug: z.string().optional(),
     description: z.string().optional(),
+    shortDescription: z.string().max(160, 'Keep it under 160 characters').optional(),
     date: z.string().min(1, 'Start time is required'),
     endDate: z.string().optional(),
     location: z.string().min(1, 'Location is required'),
@@ -211,6 +212,7 @@ export const CreateEvent: React.FC = () => {
     defaultValues: {
       title: '',
       description: '',
+      shortDescription: '',
       date: defaultStartDate(),
       endDate: '',
       location: '',
@@ -328,7 +330,10 @@ export const CreateEvent: React.FC = () => {
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
         heroText: data.title,
-        heroSubtext: (data.description || '').substring(0, 100) || `Join us for ${data.title}`,
+        heroSubtext:
+          (data.shortDescription || '').trim() ||
+          (data.description || '').substring(0, 100) ||
+          `Join us for ${data.title}`,
         layout: 'centered',
         customDomain: data.useCustomDomain ? (data.customDomain || '').trim() : undefined,
         dnsProvider: data.useCustomDomain ? data.dnsProvider : undefined,
@@ -562,6 +567,26 @@ export const CreateEvent: React.FC = () => {
                 </div>
               </div>
 
+              {/* Short description (hero subtitle) */}
+              <div className="mb-4 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardStyle}>
+                <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Short description
+                </label>
+                <input
+                  {...register('shortDescription')}
+                  placeholder="One-line tagline shown under the title (optional)"
+                  className="mt-1.5 w-full border-0 bg-transparent p-0 text-sm focus:outline-none"
+                  style={{ color: ui.text }}
+                  maxLength={160}
+                />
+                <p className="mt-1 text-xs" style={{ color: ui.textSubtle }}>
+                  Appears under the event title on your landing page. Leave blank to use the start of the description.
+                </p>
+                {errors.shortDescription && (
+                  <p className="mt-1 text-xs text-rose-600">{errors.shortDescription.message}</p>
+                )}
+              </div>
+
               {/* Description */}
               <div className="mb-6 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardStyle}>
                 <div className="flex items-start gap-3">
@@ -569,7 +594,7 @@ export const CreateEvent: React.FC = () => {
                   <textarea
                     {...register('description')}
                     rows={3}
-                    placeholder="Add Description (optional)"
+                    placeholder="Add full Description (optional)"
                     className="min-h-[72px] w-full resize-none border-0 bg-transparent p-0 text-sm focus:outline-none"
                     style={{ color: ui.text }}
                   />
