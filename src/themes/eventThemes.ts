@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Event, LandingDisplayMode, LandingStyle } from '../types';
 import type { TemplateId } from '../templates/templates';
+import { isEventCategoryId, resolveEventCategory } from './eventCategories';
 import { resolveLandingFont } from './landingFonts';
 
 export type EventThemeId = 'minimal' | 'neo-green' | 'midnight' | 'sunset';
@@ -212,32 +213,56 @@ export function isEventThemeId(value: string | undefined | null): value is Event
 /** Loosely-typed customization input; landing helpers only read a subset. */
 export type LandingCustomizationInput = Partial<Event['customization']> | undefined;
 
-export function resolveEventTheme(customization: LandingCustomizationInput): EventThemeDefinition {
-  const themeId = customization?.themeId;
-  if (isEventThemeId(themeId)) {
-    return EVENT_THEMES[themeId];
+/**
+ * Maps stored customization to what the public landing should render.
+ * Legacy events (no eventCategory, old themeId/colors) use the Default category
+ * under the Minimal theme so every old page loads consistently.
+ */
+export function normalizeLandingCustomization(
+  customization: LandingCustomizationInput
+): NonNullable<LandingCustomizationInput> {
+  const category = resolveEventCategory(
+    isEventCategoryId(customization?.eventCategory) ? customization.eventCategory : 'default'
+  );
+  const legacy = !isEventCategoryId(customization?.eventCategory);
+
+  if (legacy) {
+    return {
+      ...(customization ?? {}),
+      themeId: 'minimal',
+      eventCategory: 'default',
+      primaryColor: category.primaryColor,
+      secondaryColor: category.secondaryColor,
+      fontFamily: category.fontFamily,
+      landingStyle: category.landingStyle,
+    };
   }
 
-  const primary = customization?.primaryColor?.toLowerCase();
-  if (primary === '#34d399' || primary === '#10b981' || primary === '#059669') {
-    return EVENT_THEMES['neo-green'];
-  }
-  if (primary === '#818cf8' || primary === '#4f46e5' || primary === '#7c3aed') {
-    return EVENT_THEMES.midnight;
-  }
-  if (primary === '#f97316' || primary === '#ec4899' || primary === '#ea580c') {
-    return EVENT_THEMES.sunset;
-  }
+  return {
+    ...(customization ?? {}),
+    themeId: 'minimal',
+    eventCategory: category.id,
+    primaryColor: customization?.primaryColor ?? category.primaryColor,
+    secondaryColor: customization?.secondaryColor ?? category.secondaryColor,
+    fontFamily: customization?.fontFamily ?? category.fontFamily,
+    landingStyle:
+      customization?.landingStyle === 'minimal' ||
+      customization?.landingStyle === 'bold' ||
+      customization?.landingStyle === 'glass'
+        ? customization.landingStyle
+        : category.landingStyle,
+  };
+}
 
+/** Public landings always use the Minimal theme definition. */
+export function resolveEventTheme(_customization?: LandingCustomizationInput): EventThemeDefinition {
   return EVENT_THEMES.minimal;
 }
 
+/** Editorial template (template-2) is the default; canvas layouts are preserved. */
 export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customization'>): TemplateId {
-  const id = event.templateId;
-  if (id === 'template-1' || id === 'template-2' || id === 'template-3' || id === 'template-4' || id === 'template-canvas') {
-    return id;
-  }
-  return resolveEventTheme(event.customization).templateId;
+  if (event.templateId === 'template-canvas') return 'template-canvas';
+  return 'template-2';
 }
 
 type LandingSurfaces = {
@@ -258,16 +283,15 @@ export function resolveDisplayMode(
   customization: LandingCustomizationInput,
   theme = resolveEventTheme(customization)
 ): { mode: LandingDisplayMode; isDark: boolean } {
+  const c = normalizeLandingCustomization(customization);
   const mode: LandingDisplayMode =
-    customization?.displayMode === 'light' || customization?.displayMode === 'dark'
-      ? customization.displayMode
-      : 'auto';
+    c.displayMode === 'light' || c.displayMode === 'dark' ? c.displayMode : 'auto';
   const isDark = mode === 'auto' ? theme.ui.isDark : mode === 'dark';
   return { mode, isDark };
 }
 
 export function resolveLandingStyle(customization: LandingCustomizationInput): LandingStyle {
-  const style = customization?.landingStyle;
+  const style = normalizeLandingCustomization(customization).landingStyle;
   return style === 'minimal' || style === 'bold' ? style : 'glass';
 }
 
@@ -307,8 +331,9 @@ function resolveLandingSurfaces(
   customization: LandingCustomizationInput,
   theme = resolveEventTheme(customization)
 ): LandingSurfaces {
-  const { isDark } = resolveDisplayMode(customization, theme);
-  const primary = customization?.primaryColor || theme.primary;
+  const c = normalizeLandingCustomization(customization);
+  const { isDark } = resolveDisplayMode(c, theme);
+  const primary = c.primaryColor || theme.primary;
   const themeIsDark = theme.ui.isDark;
 
   // When the requested mode matches the theme's native lightness, keep its
@@ -360,13 +385,14 @@ function applyStyleOverrides(style: LandingStyle, surfaces: LandingSurfaces, pri
 }
 
 export function landingCssVars(customization: LandingCustomizationInput): CSSProperties {
-  const theme = resolveEventTheme(customization);
-  const primary = customization?.primaryColor || theme.primary;
-  const secondary = customization?.secondaryColor || theme.secondary;
-  const style = resolveLandingStyle(customization);
-  const surfaces = applyStyleOverrides(style, resolveLandingSurfaces(customization, theme), primary);
+  const c = normalizeLandingCustomization(customization);
+  const theme = resolveEventTheme(c);
+  const primary = c.primaryColor || theme.primary;
+  const secondary = c.secondaryColor || theme.secondary;
+  const style = resolveLandingStyle(c);
+  const surfaces = applyStyleOverrides(style, resolveLandingSurfaces(c, theme), primary);
   const isDark = surfaces.isDark;
-  const font = resolveLandingFont(customization?.fontFamily);
+  const font = resolveLandingFont(c.fontFamily);
   const radius = style === 'bold' ? '1.75rem' : style === 'minimal' ? '1rem' : '1.5rem';
 
   return {

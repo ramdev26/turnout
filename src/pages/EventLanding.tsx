@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Event, Ticket, OrderItem, AttendeeProfile } from '../types';
 import { api } from '../api/client';
 import { getLandingTemplateForEvent } from '../templates/templates';
-import { landingCssVars, resolveEventTheme } from '../themes/eventThemes';
+import { landingCssVars, normalizeLandingCustomization } from '../themes/eventThemes';
 import { loadLandingFont } from '../themes/landingFonts';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
@@ -61,7 +61,7 @@ export const EventLanding: React.FC = () => {
   useEffect(() => {
     if (!event) return;
     document.title = `${event.title} | Turnout`;
-    loadLandingFont(event.customization?.fontFamily);
+    loadLandingFont(normalizeLandingCustomization(event.customization).fontFamily);
   }, [event]);
 
   useEffect(() => {
@@ -262,7 +262,6 @@ export const EventLanding: React.FC = () => {
   }
 
   const template = getLandingTemplateForEvent(event);
-  const theme = resolveEventTheme(event.customization);
 
   return (
     <div style={landingCssVars(event.customization)} className="min-h-screen transition-[background] duration-700">

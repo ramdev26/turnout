@@ -20,7 +20,7 @@ import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { LandingCustomizer, LandingDesignPreview, type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import {
   EVENT_THEMES,
-  resolveEventTheme,
+  normalizeLandingCustomization,
   type EventThemeId,
 } from '../themes/eventThemes';
 import { resolveLandingFontKey } from '../themes/landingFonts';
@@ -125,25 +125,22 @@ export const EventSettings: React.FC = () => {
       setScheduleTba(!!ev.customization?.scheduleTba);
       setBannerUrl(ev.bannerUrl || '');
       setSlug(ev.slug);
-      const resolved = resolveEventTheme(ev.customization);
-      setThemeId(resolved.id);
+      const landing = normalizeLandingCustomization(ev.customization);
+      const minimal = EVENT_THEMES.minimal;
+      setThemeId('minimal');
       setDesign({
-        eventCategory: ev.customization?.eventCategory || 'default',
-        primaryColor: ev.customization?.primaryColor || resolved.primary,
-        secondaryColor: ev.customization?.secondaryColor || resolved.secondary,
-        fontFamily: resolveLandingFontKey(ev.customization?.fontFamily),
+        eventCategory: landing.eventCategory || 'default',
+        primaryColor: landing.primaryColor || minimal.primary,
+        secondaryColor: landing.secondaryColor || minimal.secondary,
+        fontFamily: resolveLandingFontKey(landing.fontFamily),
         displayMode:
-          ev.customization?.displayMode === 'light' || ev.customization?.displayMode === 'dark'
-            ? ev.customization.displayMode
-            : 'auto',
+          landing.displayMode === 'light' || landing.displayMode === 'dark' ? landing.displayMode : 'auto',
         landingStyle:
-          ev.customization?.landingStyle === 'minimal' || ev.customization?.landingStyle === 'bold'
-            ? ev.customization.landingStyle
-            : 'glass',
+          landing.landingStyle === 'minimal' || landing.landingStyle === 'bold' ? landing.landingStyle : 'glass',
       });
       setTicketPdfTemplateId((ev.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
-      setTicketPdfPrimaryColor(ev.customization?.ticketPdfPrimaryColor || resolved.primary);
-      setTicketPdfAccentColor(ev.customization?.ticketPdfAccentColor || resolved.secondary);
+      setTicketPdfPrimaryColor(ev.customization?.ticketPdfPrimaryColor || landing.primaryColor || minimal.primary);
+      setTicketPdfAccentColor(ev.customization?.ticketPdfAccentColor || landing.secondaryColor || minimal.secondary);
       setTicketPdfBadgeText(ev.customization?.ticketPdfBadgeText || 'VIP ACCESS');
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
 
