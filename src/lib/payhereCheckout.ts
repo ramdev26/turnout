@@ -90,3 +90,53 @@ export function buildPayHerePaymentFromInitiate(res: PayHereInitiateResponse): P
     custom_2: pick('custom_2'),
   };
 }
+
+const PAYHERE_CHECKOUT_LIVE = 'https://www.payhere.lk/pay/checkout';
+const PAYHERE_CHECKOUT_SANDBOX = 'https://sandbox.payhere.lk/pay/checkout';
+
+/** Action URL from initiate response (Checkout API step 1). */
+export function resolvePayHereActionUrl(res: PayHereInitiateResponse): string {
+  if (res.actionUrl) return res.actionUrl;
+  const sandbox =
+    res.sandbox === true ||
+    res.fields?.sandbox === true ||
+    res.sdkPayment?.sandbox === true;
+  return sandbox ? PAYHERE_CHECKOUT_SANDBOX : PAYHERE_CHECKOUT_LIVE;
+}
+
+/**
+ * Official PayHere Checkout API: POST an HTML form to the gateway.
+ * @see https://support.payhere.lk/api-&-mobile-sdk/checkout-api
+ */
+export function submitPayHereCheckoutForm(
+  actionUrl: string,
+  fields: Record<string, unknown>
+): void {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = actionUrl;
+  form.style.display = 'none';
+
+  const skip = new Set(['sandbox']);
+  for (const [key, value] of Object.entries(fields)) {
+    if (skip.has(key)) continue;
+    if (value === undefined || value === null) continue;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = String(value);
+    form.appendChild(input);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
+/** Validate initiate payload and redirect to PayHere via form POST. */
+export function redirectToPayHereCheckout(res: PayHereInitiateResponse): void {
+  const fields = buildPayHerePaymentFromInitiate(res);
+  if (!fields.hash) {
+    throw new Error('PayHere hash missing from server.');
+  }
+  submitPayHereCheckoutForm(resolvePayHereActionUrl(res), fields as unknown as Record<string, unknown>);
+}

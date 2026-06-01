@@ -164,7 +164,7 @@ Organizers can connect a domain like `events.yourbrand.com` to a published event
 
 ## PayHere setup
 
-Turnout uses the same **PayHere Checkout API** as Express/Node samples ([PayHere docs](https://support.payhere.lk/api-&-mobile-sdk/checkout-api)), but the backend is **PHP** (`/api/payhere/initiate`, `/api/payhere/notify`) and the frontend loads PayHere’s **JavaScript SDK** (`payhere.startPayment`).
+Turnout implements the official **PayHere Checkout API** ([docs](https://support.payhere.lk/api-&-mobile-sdk/checkout-api)): PHP builds the signed POST fields (`/api/payhere/initiate`), the browser submits an HTML form to `sandbox.payhere.lk` or `www.payhere.lk`, and PayHere callbacks hit `/api/payhere/notify`.
 
 ### Credentials
 
@@ -179,7 +179,7 @@ In PayHere sandbox: **Settings → Domains & Credentials** → add your site hos
 | Sandbox | `https://sandbox.payhere.lk/pay/checkout` |
 | Live | `https://www.payhere.lk/pay/checkout` |
 
-The JS SDK picks the URL from `sandbox: true/false` on the payment object.
+The form `action` is `https://sandbox.payhere.lk/pay/checkout` (sandbox) or `https://www.payhere.lk/pay/checkout` (live).
 
 ### Required checkout fields
 

@@ -9,21 +9,7 @@ import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatLKR } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
-import {
-  buildPayHerePaymentFromInitiate,
-  type PayHereInitiateResponse,
-} from '../lib/payhereCheckout';
-
-declare global {
-  interface Window {
-    payhere?: {
-      onCompleted: (orderId: string) => void;
-      onDismissed: () => void;
-      onError: (error: string) => void;
-      startPayment: (payment: Record<string, unknown>) => void;
-    };
-  }
-}
+import { redirectToPayHereCheckout, type PayHereInitiateResponse } from '../lib/payhereCheckout';
 
 export const EventLanding: React.FC = () => {
   const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
@@ -166,48 +152,9 @@ export const EventLanding: React.FC = () => {
           attendees,
         });
 
-        const payment = buildPayHerePaymentFromInitiate(res);
-        const accessToken = res.accessToken ?? '';
-
-        const ensureScript = async () => {
-          if (window.payhere) return;
-          await new Promise<void>((resolve, reject) => {
-            const existing = document.querySelector('script[data-payhere-sdk="1"]') as HTMLScriptElement | null;
-            if (existing) {
-              existing.addEventListener('load', () => resolve(), { once: true });
-              existing.addEventListener('error', () => reject(new Error('Failed to load PayHere SDK')), { once: true });
-              return;
-            }
-            const s = document.createElement('script');
-            s.src = 'https://www.payhere.lk/lib/payhere.js';
-            s.async = true;
-            s.dataset.payhereSdk = '1';
-            s.onload = () => resolve();
-            s.onerror = () => reject(new Error('Failed to load PayHere SDK'));
-            document.body.appendChild(s);
-          });
-        };
-
-        await ensureScript();
-        if (!window.payhere) throw new Error('PayHere SDK not available');
-
-        window.payhere.onCompleted = (orderId: string) => {
-          setCheckoutOpen(false);
-          const tokenQs = accessToken ? `&token=${encodeURIComponent(accessToken)}` : '';
-          navigate(`/payhere/return?order_id=${encodeURIComponent(orderId)}${tokenQs}`);
-        };
-        window.payhere.onDismissed = () => {
-          setPayError('Payment was cancelled. You can try again.');
-        };
-        window.payhere.onError = (error: string) => {
-          const msg = error || 'Payment failed';
-          setPayError(
-            msg.includes('initilize') || msg.includes('initialize')
-              ? 'PayHere could not start checkout. Check that your domain is approved in PayHere Integrations and try again.'
-              : msg
-          );
-        };
-        window.payhere.startPayment(payment);
+        // Official Checkout API: POST form to PayHere (return/cancel URLs set server-side).
+        setCheckoutOpen(false);
+        redirectToPayHereCheckout(res);
       }
     } catch (error: unknown) {
       const err = error as { message?: string; error?: string };
