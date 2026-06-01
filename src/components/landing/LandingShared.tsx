@@ -265,7 +265,9 @@ export function HeroCTA({ onGetTickets: _onGetTickets, light = false }: { onGetT
 }
 
 export function EventMeta({ event, tone = 'dark' }: { event: Event; tone?: 'dark' | 'light' }) {
-  const dateStr = format(new Date(event.date), 'EEEE, MMMM d · h:mm a');
+  const dateStr = event.customization?.scheduleTba
+    ? 'Date to be announced'
+    : format(new Date(event.date), 'EEEE, MMMM d · h:mm a');
   const chipStyle =
     tone === 'dark'
       ? { background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.95)' }
@@ -303,12 +305,30 @@ export function CountdownDisplay({
   targetIso,
   title = 'Countdown to opening',
   compact = false,
+  tba = false,
 }: {
   targetIso: string;
   title?: string;
   compact?: boolean;
+  tba?: boolean;
 }) {
-  const { days, hours, mins, secs, done } = useCountdown(targetIso);
+  const { days, hours, mins, secs, done } = useCountdown(targetIso, !tba);
+
+  if (tba) {
+    return (
+      <div className={`landing-card-premium rounded-3xl ${compact ? 'p-5' : 'p-7'}`}>
+        <p className="landing-eyebrow" style={{ color: 'var(--landing-text-muted)' }}>
+          When
+        </p>
+        <div className="landing-display mt-2 text-2xl sm:text-3xl" style={{ color: 'var(--landing-text)' }}>
+          Date to be announced
+        </div>
+        <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+          Reserve your spot now — we’ll share the date &amp; time soon.
+        </p>
+      </div>
+    );
+  }
 
   const units = [
     { label: 'Days', value: days },

@@ -1657,6 +1657,9 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization['eventCategory'] = $eventCategory;
     }
   }
+  if (array_key_exists('scheduleTba', $body)) {
+    $customization['scheduleTba'] = (bool)$body['scheduleTba'];
+  }
 
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);

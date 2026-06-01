@@ -139,7 +139,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
       return ticketsMain(props);
     }
     if (b.type === 'countdown') {
-      return <CountdownDisplay targetIso={event.date} title={b.props?.title} />;
+      return <CountdownDisplay targetIso={event.date} title={b.props?.title} tba={!!event.customization?.scheduleTba} />;
     }
     if (b.type === 'button') {
       return (
@@ -241,7 +241,7 @@ const Template1: LandingTemplate = {
         <LandingContentGrid
           main={
             <div className="space-y-14">
-              <CountdownDisplay targetIso={props.event.date} />
+              <CountdownDisplay targetIso={props.event.date} tba={!!props.event.customization?.scheduleTba} />
               <AboutBlock event={props.event} />
               {ticketsMain(props)}
             </div>
@@ -276,7 +276,7 @@ const Template2: LandingTemplate = {
       <LandingContentGrid
         main={
           <div className="space-y-14">
-            <CountdownDisplay targetIso={props.event.date} compact />
+            <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
             <AboutBlock event={props.event} />
             {ticketsMain(props)}
           </div>
@@ -305,7 +305,7 @@ const Template3: LandingTemplate = {
           </div>
           <EventMeta event={props.event} tone="light" />
           <div className="mt-10">
-            <CountdownDisplay targetIso={props.event.date} compact />
+            <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
           </div>
         </div>
         <div
@@ -345,7 +345,7 @@ const Template4: LandingTemplate = {
         <LandingContentGrid
           main={
             <div className="space-y-14">
-              <CountdownDisplay targetIso={props.event.date} />
+              <CountdownDisplay targetIso={props.event.date} tba={!!props.event.customization?.scheduleTba} />
               <AboutBlock event={props.event} />
               {ticketsMain(props, 'dark')}
             </div>

@@ -184,6 +184,8 @@ export const CreateEvent: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  // Default: "When" / to-be-announced. Organizers can opt in to a fixed schedule.
+  const [hasSchedule, setHasSchedule] = useState(false);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const ui = selectedTheme.ui;
@@ -329,6 +331,7 @@ export const CreateEvent: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        scheduleTba: !hasSchedule,
         heroText: data.title,
         heroSubtext:
           (data.shortDescription || '').trim() ||
@@ -495,6 +498,43 @@ export const CreateEvent: React.FC = () => {
 
               {/* Schedule — no timezone */}
               <div className="mb-5 rounded-2xl border p-5 transition-[background,border-color] duration-700" style={cardMutedStyle}>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    When
+                  </p>
+                  <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
+                    <button
+                      type="button"
+                      onClick={() => setHasSchedule(false)}
+                      className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                      style={!hasSchedule ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                    >
+                      To be announced
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHasSchedule(true)}
+                      className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                      style={hasSchedule ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                    >
+                      Set date &amp; time
+                    </button>
+                  </div>
+                </div>
+
+                {!hasSchedule ? (
+                  <div className="flex items-center gap-3">
+                    <CalendarDays className="h-5 w-5 shrink-0" style={{ color: ui.textSubtle }} />
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: ui.text }}>
+                        Date &amp; time to be announced
+                      </p>
+                      <p className="text-xs" style={{ color: ui.textSubtle }}>
+                        Attendees can reserve now; add the schedule whenever you’re ready.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
                 <div className="relative space-y-5">
                   <div
                     className="absolute bottom-8 left-[7px] top-8 w-px border-l border-dashed"
@@ -546,6 +586,7 @@ export const CreateEvent: React.FC = () => {
                     {errors.endDate && <p className="text-xs text-rose-600">{errors.endDate.message}</p>}
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Location */}
