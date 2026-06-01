@@ -20,6 +20,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { EventCustomization } from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
+import { LandingCustomizer, LandingDesignPreview, type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { cn } from '../utils/cn';
 import {
   EVENT_THEME_IDS,
@@ -190,6 +191,13 @@ export const CreateEvent: React.FC = () => {
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const ui = selectedTheme.ui;
   const fieldClass = fieldClassFor(ui);
+  const [design, setDesign] = useState<LandingDesignValue>({
+    primaryColor: selectedTheme.primary,
+    secondaryColor: selectedTheme.secondary,
+    fontFamily: 'fraunces',
+    displayMode: 'auto',
+    landingStyle: 'glass',
+  });
 
   const {
     register,
@@ -235,6 +243,12 @@ export const CreateEvent: React.FC = () => {
       setThemeId(fromUrl as EventThemeId);
     }
   }, [searchParams, themeId]);
+
+  // When the starting theme changes, seed the colour from it (font/style/display kept).
+  useEffect(() => {
+    const theme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
+    setDesign((prev) => ({ ...prev, primaryColor: theme.primary, secondaryColor: theme.secondary }));
+  }, [themeId]);
 
   useEffect(() => {
     if (!endDate && date) {
@@ -327,11 +341,11 @@ export const CreateEvent: React.FC = () => {
     try {
       const customization: EventCustomization = {
         themeId: selectedTheme.id,
-        primaryColor: selectedTheme.primary,
-        secondaryColor: selectedTheme.secondary,
-        fontFamily: 'fraunces',
-        displayMode: 'auto',
-        landingStyle: 'glass',
+        primaryColor: design.primaryColor,
+        secondaryColor: design.secondaryColor,
+        fontFamily: design.fontFamily,
+        displayMode: design.displayMode,
+        landingStyle: design.landingStyle,
         heroText: data.title,
         heroSubtext: (data.description || '').substring(0, 100) || `Join us for ${data.title}`,
         layout: 'centered',
@@ -447,7 +461,7 @@ export const CreateEvent: React.FC = () => {
               <div className="flex gap-2">
                 <label className="flex flex-1 flex-col gap-1.5">
                   <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                    Theme
+                    Starting theme
                   </span>
                   <div className="relative">
                     <select
@@ -477,6 +491,29 @@ export const CreateEvent: React.FC = () => {
                 >
                   <Shuffle className="h-4 w-4" />
                 </button>
+              </div>
+
+              {/* Landing design */}
+              <div className="rounded-2xl border p-4" style={cardStyle}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Landing design
+                </p>
+                <p className="mt-1 mb-4 text-xs" style={{ color: ui.textSubtle }}>
+                  Personalize colour, style, font, and display.
+                </p>
+                <LandingCustomizer value={design} onChange={setDesign} ui={ui} />
+              </div>
+
+              {/* Live preview */}
+              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Live preview
+                </p>
+                <LandingDesignPreview
+                  value={design}
+                  title={title || 'Your event title'}
+                  bannerUrl={bannerUrl ? normalizeBannerUrl(bannerUrl) : undefined}
+                />
               </div>
             </div>
 
