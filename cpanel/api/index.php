@@ -1690,7 +1690,11 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   }
 
   $customization['heroText'] = $row['title'];
-  if (!empty($row['description'])) {
+  if (array_key_exists('heroSubtext', $body)) {
+    // Organizer-provided short description wins (empty string clears it).
+    $customization['heroSubtext'] = mb_substr(trim((string)$body['heroSubtext']), 0, 160);
+  } elseif (empty($customization['heroSubtext']) && !empty($row['description'])) {
+    // Backfill only when never set, so legacy events still show a subtitle.
     $customization['heroSubtext'] = mb_substr((string)$row['description'], 0, 100);
   }
 

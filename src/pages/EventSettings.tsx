@@ -76,6 +76,7 @@ export const EventSettings: React.FC = () => {
   const [savingDesign, setSavingDesign] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [shortDescription, setShortDescription] = useState('');
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
@@ -117,6 +118,7 @@ export const EventSettings: React.FC = () => {
       setEvent(ev);
       setTitle(ev.title);
       setDescription(ev.description || '');
+      setShortDescription(ev.customization?.heroSubtext || '');
       setLocation(ev.location);
       setDate(toDatetimeLocalValue(new Date(ev.date)));
       setBannerUrl(ev.bannerUrl || '');
@@ -227,6 +229,7 @@ export const EventSettings: React.FC = () => {
         location: location.trim(),
         date: new Date(date).toISOString(),
         bannerUrl: bannerUrl || undefined,
+        heroSubtext: shortDescription.trim(),
         eventCategory: design.eventCategory,
         primaryColor: design.primaryColor,
         secondaryColor: design.secondaryColor,
@@ -548,6 +551,24 @@ export const EventSettings: React.FC = () => {
               style={{ color: ui.text }}
             />
 
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+              Short description
+            </label>
+            <input
+              value={shortDescription}
+              onChange={(e) => setShortDescription(e.target.value)}
+              placeholder="One-line tagline shown under the title (optional)"
+              maxLength={160}
+              className={cn(fieldClass, 'mb-1')}
+              style={fieldStyle}
+            />
+            <p className="mb-4 text-xs" style={{ color: ui.textSubtle }}>
+              Appears under the event title. Leave blank to use the start of the description.
+            </p>
+
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+              Full description
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
