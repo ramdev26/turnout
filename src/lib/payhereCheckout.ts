@@ -2,8 +2,6 @@
 export type PayHereCheckoutPayment = {
   sandbox: boolean;
   merchant_id: string;
-  return_url?: string;
-  cancel_url?: string;
   notify_url: string;
   order_id: string;
   items: string;
