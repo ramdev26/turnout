@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Check, Contrast } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, Contrast, Palette } from 'lucide-react';
 import { EVENT_THEME_IDS, EVENT_THEMES, type EventThemeId } from '../../themes/eventThemes';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
 import {
@@ -122,6 +122,7 @@ export function LandingDesignDock({
   onDesignChange: (next: LandingDesignValue) => void;
 }) {
   const [open, setOpen] = useState<DockControl>(null);
+  const [expanded, setExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const update = (patch: Partial<LandingDesignValue>) => onDesignChange({ ...design, ...patch });
@@ -154,14 +155,44 @@ export function LandingDesignDock({
   const fontValue = LANDING_FONTS[fontKey].name;
   const displayValue = DISPLAY_OPTIONS.find((d) => d.id === design.displayMode)?.name ?? 'Auto';
 
+  // Collapsed by default: show a compact launcher pill that opens the dock.
+  if (!expanded) {
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-4 sm:px-4 sm:pb-5">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="pointer-events-auto inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold shadow-2xl transition hover:brightness-110"
+          style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, color: TEXT, backdropFilter: 'blur(20px)' }}
+          aria-label="Open design bar"
+        >
+          <Palette className="h-4 w-4" style={{ color: design.primaryColor }} />
+          Customize design
+          <ChevronUp className="h-4 w-4" style={{ color: TEXT_MUTED }} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div ref={rootRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:px-4 sm:pb-4">
       <div
-        className="pointer-events-auto w-full max-w-3xl rounded-2xl px-4 pb-4 pt-2.5 shadow-2xl"
+        className="landing-fade-in pointer-events-auto w-full max-w-3xl rounded-2xl px-4 pb-4 pt-2 shadow-2xl"
         style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
       >
-        {/* grabber */}
-        <div className="mx-auto mb-3 h-1 w-9 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+        {/* grabber / close handle */}
+        <button
+          type="button"
+          onClick={() => { setExpanded(false); setOpen(null); }}
+          className="group mx-auto mb-2 flex w-full flex-col items-center gap-1 py-1"
+          aria-label="Hide design bar"
+          title="Hide design bar"
+        >
+          <span className="h-1 w-9 rounded-full transition group-hover:w-12" style={{ background: 'rgba(255,255,255,0.25)' }} />
+          <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-0 transition group-hover:opacity-60" style={{ color: TEXT_MUTED }}>
+            <ChevronDown className="h-3 w-3" /> Hide
+          </span>
+        </button>
 
         {/* Theme thumbnails */}
         <div className="flex items-start justify-center gap-3 overflow-x-auto pb-1">
