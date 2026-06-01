@@ -1617,6 +1617,40 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     $customization['secondaryColor'] = $theme['secondary'];
   }
 
+  // Explicit landing design overrides (applied after theme defaults so custom
+  // colour/style/font/display chosen by the organizer always win).
+  if (array_key_exists('primaryColor', $body)) {
+    $primaryColor = strtolower(trim((string)$body['primaryColor']));
+    if (preg_match('/^#([0-9a-f]{6})$/', $primaryColor)) {
+      $customization['primaryColor'] = $primaryColor;
+    }
+  }
+  if (array_key_exists('secondaryColor', $body)) {
+    $secondaryColor = strtolower(trim((string)$body['secondaryColor']));
+    if (preg_match('/^#([0-9a-f]{6})$/', $secondaryColor)) {
+      $customization['secondaryColor'] = $secondaryColor;
+    }
+  }
+  if (array_key_exists('fontFamily', $body)) {
+    $fontFamily = trim((string)$body['fontFamily']);
+    $allowedFonts = ['fraunces', 'playfair', 'sora', 'space-grotesk', 'dm-serif', 'poppins', 'manrope'];
+    if (in_array($fontFamily, $allowedFonts, true)) {
+      $customization['fontFamily'] = $fontFamily;
+    }
+  }
+  if (array_key_exists('displayMode', $body)) {
+    $displayMode = trim((string)$body['displayMode']);
+    if (in_array($displayMode, ['auto', 'light', 'dark'], true)) {
+      $customization['displayMode'] = $displayMode;
+    }
+  }
+  if (array_key_exists('landingStyle', $body)) {
+    $landingStyle = trim((string)$body['landingStyle']);
+    if (in_array($landingStyle, ['glass', 'minimal', 'bold'], true)) {
+      $customization['landingStyle'] = $landingStyle;
+    }
+  }
+
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);
     if ($nextBanner !== '') $row['banner_url'] = $nextBanner;
