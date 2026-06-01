@@ -715,11 +715,19 @@ function payhere_amount_format(float $amount): string {
   return number_format($amount, 2, '.', '');
 }
 
-function payhere_hash(string $merchantId, string $orderId, float $amount, string $currency, string $merchantSecret): string {
+/**
+ * PayHere checkout hash (mandatory on Checkout API).
+ *
+ * Same as PayHere Node sample:
+ *   MD5(merchantId + orderId + amount + currency + MD5(merchantSecret).toUpperCase()).toUpperCase()
+ *
+ * `amount` must already be formatted to 2 decimals (e.g. "1500.00") and must match the
+ * `amount` field posted to checkout.
+ */
+function payhere_hash(string $merchantId, string $orderId, string $amountFormatted, string $currency, string $merchantSecret): string {
   $merchantSecret = trim($merchantSecret);
-  $hashedSecret = strtoupper(md5($merchantSecret));
-  $amountFormatted = payhere_amount_format($amount);
-  return strtoupper(md5($merchantId . $orderId . $amountFormatted . $currency . $hashedSecret));
+  $secretDigest = strtoupper(md5($merchantSecret));
+  return strtoupper(md5($merchantId . $orderId . $amountFormatted . $currency . $secretDigest));
 }
 
 /** Checkout fields for PayHere JS SDK / Checkout API (hash is mandatory). */
@@ -739,7 +747,7 @@ function payhere_checkout_payment(
   string $cancelUrl
 ): array {
   $amountFormatted = payhere_amount_format($amount);
-  $hash = payhere_hash($merchantId, $orderIdStr, $amount, $currency, $merchantSecret);
+  $hash = payhere_hash($merchantId, $orderIdStr, $amountFormatted, $currency, $merchantSecret);
   if ($hash === '') {
     json_response(500, [
       'error' => 'payhere_hash_failed',
@@ -771,6 +779,7 @@ function payhere_checkout_payment(
 }
 
 function payhere_local_md5sig(string $merchantId, string $orderId, string $payhereAmount, string $payhereCurrency, string $statusCode, string $merchantSecret): string {
+  $secretDigest = strtoupper(md5(trim($merchantSecret)));
   return strtoupper(
     md5(
       $merchantId .
@@ -778,7 +787,7 @@ function payhere_local_md5sig(string $merchantId, string $orderId, string $payhe
         $payhereAmount .
         $payhereCurrency .
         $statusCode .
-        strtoupper(md5($merchantSecret))
+        $secretDigest
     )
   );
 }
