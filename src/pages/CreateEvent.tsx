@@ -186,6 +186,8 @@ export const CreateEvent: React.FC = () => {
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   // Default: "When" / to-be-announced. Organizers can opt in to a fixed schedule.
   const [hasSchedule, setHasSchedule] = useState(false);
+  // End time is optional — most events only need a start.
+  const [hasEnd, setHasEnd] = useState(false);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const ui = selectedTheme.ui;
@@ -242,10 +244,13 @@ export const CreateEvent: React.FC = () => {
   const useCustomDomain = watch('useCustomDomain');
 
   useEffect(() => {
-    if (!endDate && date) {
+    if (hasEnd && !endDate && date) {
       setValue('endDate', defaultEndDate(date), { shouldValidate: true });
     }
-  }, [date, endDate, setValue]);
+    if (!hasEnd && endDate) {
+      setValue('endDate', '', { shouldValidate: true });
+    }
+  }, [date, endDate, hasEnd, setValue]);
 
   const totalSeats = useMemo(
     () => tickets.reduce((sum, t) => sum + (Number.isFinite(t.quantity) ? t.quantity : 0), 0),
@@ -536,11 +541,13 @@ export const CreateEvent: React.FC = () => {
                   </div>
                 ) : (
                 <div className="relative space-y-5">
-                  <div
-                    className="absolute bottom-8 left-[7px] top-8 w-px border-l border-dashed"
-                    style={{ borderColor: ui.lineDashed }}
-                    aria-hidden
-                  />
+                  {hasEnd && (
+                    <div
+                      className="absolute bottom-8 left-[7px] top-8 w-px border-l border-dashed"
+                      style={{ borderColor: ui.lineDashed }}
+                      aria-hidden
+                    />
+                  )}
 
                   <div className="relative space-y-2">
                     <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
@@ -564,27 +571,47 @@ export const CreateEvent: React.FC = () => {
                     {errors.date && <p className="text-xs text-rose-600">{errors.date.message}</p>}
                   </div>
 
-                  <div className="relative space-y-2">
-                    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-                      <span
-                        className="z-10 h-3.5 w-3.5 rounded-full border-2 bg-white"
-                        style={{ borderColor: ui.dotInactive }}
-                      />
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                          End
-                        </p>
-                        <p className="text-sm font-medium" style={{ color: ui.text }}>
-                          {formatScheduleDay(endDate || defaultEndDate(date))}
+                  {hasEnd ? (
+                    <div className="relative space-y-2">
+                      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                        <span
+                          className="z-10 h-3.5 w-3.5 rounded-full border-2 bg-white"
+                          style={{ borderColor: ui.dotInactive }}
+                        />
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                            End
+                          </p>
+                          <p className="text-sm font-medium" style={{ color: ui.text }}>
+                            {formatScheduleDay(endDate || defaultEndDate(date))}
+                          </p>
+                        </div>
+                        <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                          {formatScheduleTime(endDate || defaultEndDate(date))}
                         </p>
                       </div>
-                      <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                        {formatScheduleTime(endDate || defaultEndDate(date))}
-                      </p>
+                      <input {...register('endDate')} type="datetime-local" className={fieldClass} style={fieldStyle} />
+                      {errors.endDate && <p className="text-xs text-rose-600">{errors.endDate.message}</p>}
+                      <button
+                        type="button"
+                        onClick={() => setHasEnd(false)}
+                        className="ml-7 text-xs font-semibold transition hover:opacity-80"
+                        style={{ color: ui.textMuted }}
+                      >
+                        Remove end time
+                      </button>
                     </div>
-                    <input {...register('endDate')} type="datetime-local" className={fieldClass} style={fieldStyle} />
-                    {errors.endDate && <p className="text-xs text-rose-600">{errors.endDate.message}</p>}
-                  </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setHasEnd(true)}
+                      className="ml-7 inline-flex items-center gap-1.5 text-sm font-semibold transition hover:opacity-80"
+                      style={{ color: ui.accent }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add end time
+                    </button>
+                  )}
                 </div>
                 )}
               </div>
