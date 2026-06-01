@@ -1,12 +1,23 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
-/** Full-screen marketing page from `public/turnout-landing.html` (no app chrome). */
+/**
+ * Marketing home is served as static HTML (`public/turnout-landing.html`).
+ * - Production (Vercel): `/` rewrites to that file (see vercel.json).
+ * - Dev: Vite middleware serves it at `/`.
+ * - In-app navigation to `/` triggers a full reload so we never rely on an iframe.
+ */
 export const MarketingLanding: React.FC = () => {
+  useEffect(() => {
+    const target = import.meta.env.DEV ? '/turnout-landing.html' : '/';
+    window.location.replace(target);
+  }, []);
+
   return (
-    <iframe
-      src="/turnout-landing.html"
-      title="Turnout"
-      className="fixed inset-0 z-0 h-[100dvh] w-full border-0 bg-white"
-    />
+    <div
+      className="flex min-h-screen items-center justify-center text-sm font-medium"
+      style={{ background: '#0D585B', color: '#E9F4EE' }}
+    >
+      Loading…
+    </div>
   );
 };

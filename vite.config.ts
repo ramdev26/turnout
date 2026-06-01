@@ -1,10 +1,31 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import type { Connect } from 'vite';
 import { defineConfig } from 'vite';
 
+/** Serve the static marketing page at `/` during local dev (matches Vercel rewrite). */
+function marketingHomeAtRoot(): import('vite').Plugin {
+  const rewrite: Connect.NextHandleFunction = (req, _res, next) => {
+    const pathname = req.url?.split('?')[0] ?? '';
+    if (pathname === '/') {
+      req.url = '/turnout-landing.html';
+    }
+    next();
+  };
+  return {
+    name: 'marketing-home-at-root',
+    configureServer(server) {
+      server.middlewares.use(rewrite);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(rewrite);
+    },
+  };
+}
+
 export default defineConfig(() => ({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), marketingHomeAtRoot()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
