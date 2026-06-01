@@ -15,6 +15,7 @@ import {
 import { Event, Ticket as EventTicket } from '../../types';
 import { formatLKR } from '../../utils/money';
 import { landingCssVars, resolveEventTheme } from '../../themes/eventThemes';
+import { TurnoutLogo } from '../branding/TurnoutLogo';
 
 export function useCountdown(targetIso: string, active = true) {
   const [parts, setParts] = useState({ days: 0, hours: 0, mins: 0, secs: 0, done: false });
@@ -119,18 +120,7 @@ export function LandingTopBar({
     <header className="landing-fade-in sticky top-0 z-40 px-4 pt-4 sm:px-6 lg:px-8">
       <div className="landing-glass mx-auto flex h-14 max-w-7xl items-center justify-between rounded-2xl px-4 sm:px-5">
         <a href="/" className="flex items-center gap-2.5">
-          <span
-            className="grid h-9 w-9 place-items-center rounded-xl text-xs font-bold"
-            style={{
-              background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
-              color: '#fff',
-            }}
-          >
-            T
-          </span>
-          <span className="hidden text-sm font-semibold tracking-tight sm:inline" style={{ color: 'var(--landing-text)' }}>
-            Turnout
-          </span>
+          <TurnoutLogo className="h-5 w-auto" />
         </a>
         <p className="max-w-[38%] truncate text-xs font-medium sm:max-w-none sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           {event.title}
@@ -638,7 +628,7 @@ export function LandingFooter({ event }: { event: Event }) {
         <p className="text-xs" style={{ color: 'var(--landing-text-muted)' }}>
           Powered by{' '}
           <a href="/" className="font-semibold underline-offset-2 hover:underline" style={{ color: 'var(--primary)' }}>
-            Turnout
+            <TurnoutLogo className="inline-block h-4 w-auto align-middle" />
           </a>
         </p>
       </div>

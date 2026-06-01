@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { EVENT_THEMES } from '../../themes/eventThemes';
 import { cardStyleFor } from '../../themes/flowUi';
+import { TurnoutLogo } from '../branding/TurnoutLogo';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -20,13 +21,7 @@ export const AuthFlowLayout: React.FC<{ children: React.ReactNode; title?: strin
         className="mb-8 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold"
         style={{ ...cardStyleFor(ui), color: ui.text }}
       >
-        <span
-          className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold text-white"
-          style={{ backgroundColor: ui.accent }}
-        >
-          T
-        </span>
-        Turnout
+        <TurnoutLogo className="h-5 w-auto" />
       </Link>
       <div className="w-full max-w-md">
         {(title || subtitle) && (

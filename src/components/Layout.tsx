@@ -9,6 +9,7 @@ import { Skeleton } from './ui/Feedback';
 import { EVENT_THEMES } from '../themes/eventThemes';
 import { cardStyleFor } from '../themes/flowUi';
 import { clearAuthToken } from '../api/authToken';
+import { TurnoutLogo } from './branding/TurnoutLogo';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -69,13 +70,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight sm:text-base"
                 style={useThemedBar ? { color: ui.text } : undefined}
               >
-                <span
-                  className="grid h-8 w-8 place-items-center rounded-xl text-xs font-bold text-white"
-                  style={useThemedBar ? { backgroundColor: ui.accent } : undefined}
-                >
-                  T
-                </span>
-                <span className={useThemedBar ? 'hidden sm:inline' : ''}>Turnout</span>
+                <TurnoutLogo className="h-6 w-auto" />
               </Link>
               {user && (
                 <div className="hidden items-center gap-1 md:flex">
@@ -192,7 +187,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       {!hideChrome && !isAppFlow && (
         <footer className="mt-14 border-t border-neutral-200 bg-white/70">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-sm text-neutral-500 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-            <p className="font-medium text-neutral-700">Turnout</p>
+            <TurnoutLogo className="h-4 w-auto" />
             <div className="flex flex-wrap items-center gap-4">
               <span>Events</span>
               <span>Create</span>
