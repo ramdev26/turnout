@@ -657,26 +657,15 @@ function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, 
 function payhere_cfg(): array {
   $cfg = get_config();
   $p = is_array($cfg['payhere'] ?? null) ? $cfg['payhere'] : [];
-  $pdo = db();
 
-  // Credentials: Admin → System Settings (DB) take priority, then env/config.
-  $merchantId = (string)(get_global_setting($pdo, 'payment_merchant_id') ?? '');
-  if ($merchantId === '' || $merchantId === 'CHANGE_ME') $merchantId = (string)($p['merchant_id'] ?? '');
-  $merchantSecret = (string)(get_global_setting($pdo, 'payment_merchant_secret') ?? '');
-  if ($merchantSecret === '' || $merchantSecret === 'CHANGE_ME') $merchantSecret = (string)($p['merchant_secret'] ?? '');
-
-  // Sandbox vs Live: DB setting first, else env/config (default sandbox).
-  $sandboxSetting = get_global_setting($pdo, 'payment_sandbox');
-  if ($sandboxSetting !== null) {
-    $sandbox = in_array(strtolower(trim($sandboxSetting)), ['1', 'true', 'on', 'yes', 'sandbox'], true);
-  } else {
-    $sandbox = (bool)($p['sandbox'] ?? true);
-  }
+  $merchantId = (string)($p['merchant_id'] ?? '');
+  $merchantSecret = (string)($p['merchant_secret'] ?? '');
+  $sandbox = (bool)($p['sandbox'] ?? true);
 
   if ($merchantId === '' || $merchantId === 'CHANGE_ME' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
     json_response(500, [
       'error' => 'payhere_missing_credentials',
-      'message' => 'Add your PayHere Merchant ID & Secret in Admin → System Settings (or set PAYHERE_MERCHANT_ID / PAYHERE_MERCHANT_SECRET).',
+      'message' => 'Set PAYHERE_MERCHANT_ID and PAYHERE_MERCHANT_SECRET (or payhere.merchant_id / merchant_secret in config).',
     ]);
   }
 
@@ -3238,7 +3227,7 @@ if ($path === '/admin/settings' && $method === 'POST') {
   $pdo = db();
   ensure_finance_tables($pdo);
   $body = read_json_body();
-  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'payment_merchant_id', 'payment_merchant_secret', 'payment_sandbox', 'email_from', 'maintenance_mode'];
+  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'email_from', 'maintenance_mode'];
   foreach ($allowed as $key) {
     if (!array_key_exists($key, $body)) continue;
     $value = (string)$body[$key];

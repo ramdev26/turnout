@@ -51,7 +51,7 @@ This endpoint is intentionally restricted to localhost + dev mode.
 
 ## Security/config notes
 
-- Never commit real PayHere secrets in `cpanel/api/config.php`.
+- Sandbox PayHere credentials live in `config.vercel.php` for testing; use `PAYHERE_*` env vars for live production secrets (do not commit live keys).
 - Keep `app.dev_mode = false` in production.
 - Set session cookie security for production:
   - `cookie_secure = true`
@@ -162,17 +162,11 @@ Organizers can connect a domain like `events.yourbrand.com` to a published event
 - [`public/.htaccess`](public/.htaccess) is for Apache/cPanel only; Vercel uses [`vercel.json`](vercel.json) rewrites.
 - If your API uses cookies/sessions, ensure API CORS allows your Vercel frontend origin and credentials.
 
-## PayHere setup (dashboard)
+## PayHere setup
 
-PayHere uses the **JavaScript SDK** (onsite popup checkout). You can configure credentials without redeploying:
-
-1. Sign in as a super admin and open **Admin → System Settings**.
-2. Enter your **PayHere Merchant ID** and the **Merchant Secret** generated for your domain (PayHere → Integrations → Add Domain/App).
-3. Choose **Sandbox** (testing) or **Live** (production) and **Save**.
+PayHere uses the **JavaScript SDK** (onsite popup checkout). Sandbox credentials are baked into [`cpanel/api/config.vercel.php`](cpanel/api/config.vercel.php) for testing. For production, set `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET`, and `PAYHERE_SANDBOX=false` in your deployment environment (or `cpanel/api/config.php` locally).
 
 The server generates the payment `hash` securely, and the return/cancel/`notify_url` are derived automatically from the current domain (`/api/payhere/notify`). PayHere notifications are verified server-side with the `md5sig` checksum before an order is marked paid.
-
-Credentials set in System Settings take priority; otherwise the API falls back to the `PAYHERE_*` environment variables.
 
 ## PayHere callback check
 

@@ -1,5 +1,5 @@
 <?php
-// Committed Vercel config: no secrets — values come from environment variables.
+// Vercel config: PayHere sandbox defaults for testing; override with PAYHERE_* env for production.
 
 $env = static function (string $key, string $default = ''): string {
   $v = getenv($key);
@@ -37,8 +37,8 @@ return [
   ],
   'payhere' => [
     'sandbox' => strtolower($env('PAYHERE_SANDBOX', 'true')) !== 'false',
-    'merchant_id' => $env('PAYHERE_MERCHANT_ID', 'CHANGE_ME'),
-    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'CHANGE_ME'),
+    'merchant_id' => $env('PAYHERE_MERCHANT_ID', '1236076'),
+    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'MTQxOTY4MzY4MTE2NTcxMTA0MTIyNTgyNzcwNTM0MjgxMzM5Mzc4'),
     'notify_url' => $env('PAYHERE_NOTIFY_URL', 'https://turnout-omega.vercel.app/api/payhere/notify'),
     'app_base_url' => $env('APP_BASE_URL', 'https://turnout-omega.vercel.app'),
   ],
