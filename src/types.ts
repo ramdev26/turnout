@@ -66,11 +66,21 @@ export type AttendeeProfile = {
 
 export type EventThemeId = 'minimal' | 'neo-green' | 'midnight' | 'sunset';
 
+/** Landing page display mode (Apple-style "Display" control) */
+export type LandingDisplayMode = 'auto' | 'light' | 'dark';
+
+/** Landing surface treatment (Apple-style "Style" control) */
+export type LandingStyle = 'glass' | 'minimal' | 'bold';
+
 export interface EventCustomization {
   themeId?: EventThemeId;
   primaryColor: string;
   secondaryColor: string;
   fontFamily: string;
+  /** Landing display mode: follow theme (auto), force light, or force dark */
+  displayMode?: LandingDisplayMode;
+  /** Landing surface style: frosted glass, clean minimal, or bold solid */
+  landingStyle?: LandingStyle;
   heroText: string;
   heroSubtext: string;
   layout: 'standard' | 'centered' | 'split';
