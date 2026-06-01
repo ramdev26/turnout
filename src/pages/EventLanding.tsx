@@ -200,7 +200,12 @@ export const EventLanding: React.FC = () => {
           setPayError('Payment was cancelled. You can try again.');
         };
         window.payhere.onError = (error: string) => {
-          setPayError(error || 'Payment failed');
+          const msg = error || 'Payment failed';
+          setPayError(
+            msg.includes('initilize') || msg.includes('initialize')
+              ? 'PayHere could not start checkout. Check that your domain is approved in PayHere Integrations and try again.'
+              : msg
+          );
         };
         window.payhere.startPayment(payment);
       }

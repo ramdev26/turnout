@@ -2,6 +2,8 @@
 export type PayHereCheckoutPayment = {
   sandbox: boolean;
   merchant_id: string;
+  return_url: string;
+  cancel_url: string;
   notify_url: string;
   order_id: string;
   items: string;
@@ -60,10 +62,17 @@ export function buildPayHerePaymentFromInitiate(res: PayHereInitiateResponse): P
         ? fields.sandbox
         : !!res.sandbox;
 
-  // Omit return_url / cancel_url for popup checkout (redirect handled in onCompleted).
+  const returnUrl = pick('return_url');
+  const cancelUrl = pick('cancel_url');
+  if (!returnUrl || !cancelUrl || !pick('notify_url')) {
+    throw new Error('PayHere return, cancel, or notify URL missing from server.');
+  }
+
   return {
     sandbox,
     merchant_id: merchantId,
+    return_url: returnUrl,
+    cancel_url: cancelUrl,
     notify_url: pick('notify_url'),
     order_id: pick('order_id') || str(res.orderId),
     items: pick('items'),
