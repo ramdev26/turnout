@@ -10,6 +10,7 @@ import { EVENT_THEMES } from '../themes/eventThemes';
 import { cardStyleFor } from '../themes/flowUi';
 import { clearAuthToken } from '../api/authToken';
 import { TurnoutLogo } from './branding/TurnoutLogo';
+import { TURNOUT_BRAND } from '../themes/brandColors';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -38,6 +39,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isAppFlow = isOrganizerConsole || isAttendeeConsole || isAdminConsole || isAuthPage;
   const hideChrome = isFullscreenFlow || isPublicLanding || isStaffCheckin || isMarketingHome;
   const useThemedBar = isAppFlow && !hideChrome;
+  const chromeThemed = !hideChrome;
 
   const handleLogout = async () => {
     setLoading(true);
@@ -54,21 +56,21 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   };
 
   return (
-    <div className="min-h-screen" style={useThemedBar || isAuthPage ? { background: ui.pageBg, color: ui.text } : undefined}>
+    <div
+      className="min-h-screen"
+      style={chromeThemed || isAuthPage ? { background: ui.pageBg, color: ui.text } : undefined}
+    >
       {!hideChrome && (
         <nav
-          className={cn(
-            'sticky top-0 z-50 border-b backdrop-blur-xl',
-            useThemedBar ? '' : 'border-neutral-200/80 bg-white/85'
-          )}
-          style={useThemedBar ? { background: ui.headerBg, borderColor: ui.borderColor } : undefined}
+          className="sticky top-0 z-50 border-b backdrop-blur-xl"
+          style={{ background: ui.headerBg, borderColor: ui.borderColor }}
         >
           <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3 sm:gap-6">
               <Link
                 to="/"
                 className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight sm:text-base"
-                style={useThemedBar ? { color: ui.text } : undefined}
+                style={{ color: ui.text }}
               >
                 <TurnoutLogo className="h-6 w-auto" />
               </Link>
@@ -76,28 +78,28 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <div className="hidden items-center gap-1 md:flex">
                   {user.role === 'organizer' ? (
                     <>
-                      <NavLink to="/dashboard" active={path.startsWith('/dashboard') && path !== '/dashboard/earnings'} themed={useThemedBar}>
+                      <NavLink to="/dashboard" active={path.startsWith('/dashboard') && path !== '/dashboard/earnings'}>
                         <LayoutDashboard className="h-4 w-4" />
                         Dashboard
                       </NavLink>
-                      <NavLink to="/dashboard/earnings" active={path === '/dashboard/earnings'} themed={useThemedBar}>
+                      <NavLink to="/dashboard/earnings" active={path === '/dashboard/earnings'}>
                         <Wallet className="h-4 w-4" />
                         Earnings
                       </NavLink>
-                      <NavLink to="/events/new" active={path.startsWith('/events/')} themed={useThemedBar}>
+                      <NavLink to="/events/new" active={path.startsWith('/events/')}>
                         <Plus className="h-4 w-4" />
                         Create
                       </NavLink>
                     </>
                   ) : null}
                   {user.role === 'super_admin' ? (
-                    <NavLink to="/admin/dashboard" active={path.startsWith('/admin')} themed={useThemedBar}>
+                    <NavLink to="/admin/dashboard" active={path.startsWith('/admin')}>
                       <Shield className="h-4 w-4" />
                       Admin
                     </NavLink>
                   ) : null}
                   {user.role === 'attendee' ? (
-                    <NavLink to="/attendee/dashboard" active={path.startsWith('/attendee')} themed={useThemedBar}>
+                    <NavLink to="/attendee/dashboard" active={path.startsWith('/attendee')}>
                       <Calendar className="h-4 w-4" />
                       Events
                     </NavLink>
@@ -114,15 +116,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     to={user.role === 'attendee' ? '/attendee/account' : '/dashboard'}
                     title={user.role === 'attendee' ? 'Open my account' : 'Open dashboard'}
                     className="inline-flex items-center gap-2 rounded-full border px-2 py-1.5 text-sm font-medium transition"
-                    style={
-                      useThemedBar
-                        ? { ...cardStyleFor(ui), color: ui.text }
-                        : { borderColor: '#e5e5e5', background: '#fff', color: '#404040' }
-                    }
+                    style={{ ...cardStyleFor(ui), color: ui.text }}
                   >
                     <span
-                      className="grid h-7 w-7 place-items-center rounded-full text-white"
-                      style={useThemedBar ? { backgroundColor: ui.accent } : { background: '#ecfdf3', color: '#00a95d' }}
+                      className="grid h-7 w-7 place-items-center rounded-full"
+                      style={{ backgroundColor: ui.accent, color: TURNOUT_BRAND.ink }}
                     >
                       <User className="h-4 w-4" />
                     </span>
@@ -133,23 +131,19 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     size="sm"
                     onClick={handleLogout}
                     className="rounded-full px-3"
-                    style={useThemedBar ? { color: ui.textMuted } : undefined}
+                    style={{ color: ui.textMuted }}
                   >
                     <LogOut className="h-4 w-4" />
                   </Button>
                 </>
               ) : (
                 <Link to="/login">
-                  <Button
-                    size="sm"
-                    className="rounded-full px-5"
-                    style={useThemedBar ? { backgroundColor: ui.accent, color: '#fff' } : undefined}
-                  >
+                  <Button size="sm" className="rounded-full px-5">
                     Sign in
                   </Button>
                 </Link>
               )}
-              {user && useThemedBar ? (
+              {user && chromeThemed ? (
                 <details className="relative md:hidden">
                   <summary className="list-none cursor-pointer rounded-full border p-2" style={cardStyleFor(ui)}>
                     <Menu className="h-4 w-4" style={{ color: ui.text }} />
@@ -185,8 +179,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       </main>
 
       {!hideChrome && !isAppFlow && (
-        <footer className="mt-14 border-t border-neutral-200 bg-white/70">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-sm text-neutral-500 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+        <footer className="mt-14 border-t" style={{ borderColor: ui.borderColor, background: ui.footerBg }}>
+          <div
+            className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-sm sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8"
+            style={{ color: ui.textMuted }}
+          >
             <TurnoutLogo className="h-4 w-auto" />
             <div className="flex flex-wrap items-center gap-4">
               <span>Events</span>
@@ -206,27 +203,20 @@ const NavLink = ({
   to,
   active,
   children,
-  themed,
 }: {
   to: string;
   active: boolean;
   children: React.ReactNode;
-  themed?: boolean;
 }) => {
   const ui = EVENT_THEMES.minimal.ui;
   return (
     <Link
       to={to}
-      className={cn(
-        'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition',
-        !themed && (active ? 'bg-[#ecfdf3] text-[#00a95d]' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900')
-      )}
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition hover:opacity-90"
       style={
-        themed
-          ? active
-            ? { background: ui.accentSoft, color: ui.accent }
-            : { color: ui.textMuted }
-          : undefined
+        active
+          ? { background: ui.accentSoft, color: ui.accent }
+          : { color: ui.textMuted }
       }
     >
       {children}

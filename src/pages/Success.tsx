@@ -50,7 +50,7 @@ export const Success: React.FC = () => {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#00a95d] border-t-transparent" />
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-[var(--primary)]" />
       </div>
     );
   }
@@ -60,7 +60,7 @@ export const Success: React.FC = () => {
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <h2 className="text-3xl font-bold">Order not found</h2>
         <p className="mt-2 text-neutral-500">We couldn't find your order details.</p>
-        <Link to="/" className="mt-6 font-semibold text-[#00a95d] underline">Go back home</Link>
+        <Link to="/" className="mt-6 font-semibold text-[var(--primary)] underline">Go back home</Link>
       </div>
     );
   }
@@ -165,22 +165,25 @@ export const Success: React.FC = () => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="flex flex-col items-center gap-8 rounded-3xl border border-indigo-100 bg-white p-8 text-center shadow-[0_18px_50px_rgba(30,41,59,0.12)] sm:p-12"
+        className="turnout-surface flex flex-col items-center gap-8 rounded-3xl p-8 text-center sm:p-12"
       >
-        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shadow-inner">
+        <div
+          className="flex h-24 w-24 items-center justify-center rounded-full shadow-inner"
+          style={{ background: 'var(--app-surface-muted)', color: 'var(--primary)' }}
+        >
           <CheckCircle className="h-12 w-12" />
         </div>
         
         <div>
-          <h1 className="text-4xl font-semibold tracking-tight text-neutral-900">Order Confirmed</h1>
-          <p className="mt-3 text-lg text-neutral-600">
+          <h1 className="text-4xl font-semibold tracking-tight text-[var(--text)]">Order Confirmed</h1>
+          <p className="mt-3 text-lg text-[var(--text-muted)]">
             Thank you for your purchase. Your tickets are ready!
           </p>
         </div>
 
-        <div className="w-full rounded-2xl border border-[#00E676]/20 bg-gradient-to-b from-white to-[#ecfdf3] p-8 text-left">
-          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">{event.title}</h2>
-          <div className="mt-4 flex flex-col gap-3 text-neutral-500">
+        <div className="turnout-surface w-full rounded-2xl p-8 text-left">
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text)]">{event.title}</h2>
+          <div className="mt-4 flex flex-col gap-3 text-[var(--text-muted)]">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               {format(new Date(event.date), 'PPPP p')}
@@ -191,13 +194,16 @@ export const Success: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-8 border-t border-neutral-200 pt-6">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-400">Your Tickets</h3>
+          <div className="mt-8 border-t pt-6" style={{ borderColor: 'var(--border)' }}>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-subtle)]">Your Tickets</h3>
             <div className="mt-4 flex flex-col gap-4">
               {order.tickets.map((t, i) => (
                 <div key={i} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ecfdf3] text-[#00a95d]">
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-lg"
+                      style={{ background: 'var(--app-surface-muted)', color: 'var(--primary)' }}
+                    >
                       <Ticket className="h-5 w-5" />
                     </div>
                     <div>
@@ -251,7 +257,8 @@ export const Success: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => downloadAttendeeTicket(a)}
-                      className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#00E676]/20 bg-[#ecfdf3] px-3 py-2 text-xs font-semibold text-[#008e4f] hover:bg-[#dcfce7]"
+                      className="mt-2 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold hover:opacity-90"
+                      style={{ borderColor: 'var(--border)', background: 'var(--app-surface-muted)', color: 'var(--primary)' }}
                     >
                       <Download className="h-3.5 w-3.5" />
                       Download Ticket
@@ -269,7 +276,7 @@ export const Success: React.FC = () => {
           </Link>
           <Link
             to={user?.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#00E676] py-4 font-semibold text-[#062013] shadow-md transition-all hover:bg-[#00C765] hover:shadow-lg"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] py-4 font-semibold text-[var(--primary-on)] shadow-md transition-all hover:bg-[var(--primary-hover)] hover:shadow-lg"
           >
             {user?.role === 'attendee' ? 'Go to My Events' : 'Go to Dashboard'}
             <ArrowRight className="h-5 w-5" />

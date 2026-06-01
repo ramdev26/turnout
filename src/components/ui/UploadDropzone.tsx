@@ -48,28 +48,34 @@ export function UploadDropzone({
         className={cn(
           'w-full rounded-xl border border-dashed p-4 text-left transition',
           disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
-          dragActive ? 'border-[#00a95d] bg-[#ecfdf3]' : 'border-neutral-300 bg-white hover:border-[#00a95d]/60'
+          dragActive
+            ? 'border-[var(--primary)] bg-[var(--app-surface-muted)]'
+            : 'border-[var(--border)] bg-[var(--app-surface)] hover:border-[color-mix(in_srgb,var(--primary)_50%,transparent)]'
         )}
       >
         {previewUrl ? (
           <div className="space-y-3">
             <img src={previewUrl} alt="Uploaded banner preview" className="h-36 w-full rounded-lg object-cover" referrerPolicy="no-referrer" />
-            <div className="flex items-center gap-2 text-xs font-medium text-[#006f45]">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--primary)]">
               <ImagePlus className="h-3.5 w-3.5" />
               Replace image
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            {disabled ? <Loader2 className="h-5 w-5 animate-spin text-[#00a95d]" /> : <UploadCloud className="h-5 w-5 text-[#00a95d]" />}
+            {disabled ? (
+              <Loader2 className="h-5 w-5 animate-spin text-[var(--primary)]" />
+            ) : (
+              <UploadCloud className="h-5 w-5 text-[var(--primary)]" />
+            )}
             <div>
-              <p className="text-sm font-semibold text-neutral-900">{disabled ? 'Uploading...' : 'Drag & drop banner here'}</p>
-              <p className="text-xs text-neutral-500">or click to browse files</p>
+              <p className="text-sm font-semibold text-[var(--text)]">{disabled ? 'Uploading...' : 'Drag & drop banner here'}</p>
+              <p className="text-xs text-[var(--text-muted)]">or click to browse files</p>
             </div>
           </div>
         )}
       </button>
-      <p className="text-xs text-neutral-500">{helperText}</p>
+      <p className="text-xs text-[var(--text-muted)]">{helperText}</p>
       <input
         ref={inputRef}
         type="file"

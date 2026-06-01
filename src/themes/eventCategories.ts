@@ -39,7 +39,7 @@ export type EventCategory = {
  * the event type, while "Default" keeps the clean editorial baseline.
  */
 export const EVENT_CATEGORIES: EventCategory[] = [
-  { id: 'default', name: 'Default', icon: Sparkles, fontFamily: 'fraunces', primaryColor: '#059669', secondaryColor: '#10b981', landingStyle: 'glass' },
+  { id: 'default', name: 'Default', icon: Sparkles, fontFamily: 'fraunces', primaryColor: '#C0FF72', secondaryColor: '#0D585B', landingStyle: 'glass' },
   { id: 'music', name: 'Music', icon: Music, fontFamily: 'space-grotesk', primaryColor: '#7c3aed', secondaryColor: '#c084fc', landingStyle: 'bold' },
   { id: 'sports', name: 'Sports', icon: Trophy, fontFamily: 'sora', primaryColor: '#2563eb', secondaryColor: '#38bdf8', landingStyle: 'bold' },
   { id: 'business', name: 'Business', icon: Briefcase, fontFamily: 'manrope', primaryColor: '#0f766e', secondaryColor: '#64748b', landingStyle: 'minimal' },

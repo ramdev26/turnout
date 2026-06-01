@@ -329,7 +329,11 @@ export const EventLanding: React.FC = () => {
               {user?.role === 'attendee' && (
                 <div
                   className="rounded-xl border p-3 text-xs font-medium"
-                  style={{ borderColor: 'var(--landing-border)', background: theme.landing.surfaceMutedBg, color: 'var(--landing-text-muted)' }}
+                  style={{
+                    borderColor: 'var(--landing-border)',
+                    background: 'var(--landing-surface-muted)',
+                    color: 'var(--landing-text-muted)',
+                  }}
                 >
                   Pre-filled from your attendee profile.
                 </div>

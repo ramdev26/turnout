@@ -17,7 +17,7 @@ export const EventCard: React.FC<Props> = ({ event, attendeesText, ctaLabel = 'V
   return (
     <article
       className={cn(
-        'group overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_8px_24px_rgba(17,24,39,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(17,24,39,0.12)]',
+        'turnout-surface group overflow-hidden rounded-2xl transition duration-200 hover:-translate-y-0.5',
         className
       )}
     >
@@ -28,26 +28,31 @@ export const EventCard: React.FC<Props> = ({ event, attendeesText, ctaLabel = 'V
         referrerPolicy="no-referrer"
       />
       <div className="space-y-3 p-5">
-        <h3 className="line-clamp-2 text-lg font-semibold tracking-tight text-neutral-900">{event.title}</h3>
-        <div className="space-y-1.5 text-sm text-neutral-600">
+        <h3 className="line-clamp-2 text-lg font-semibold tracking-tight text-[var(--text)]">{event.title}</h3>
+        <div className="space-y-1.5 text-sm text-[var(--text-muted)]">
           <p className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-[#00a95d]" />
+            <Calendar className="h-4 w-4 text-[var(--primary)]" />
             {format(new Date(event.date), 'PPP p')}
           </p>
           <p className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-[#00a95d]" />
+            <MapPin className="h-4 w-4 text-[var(--primary)]" />
             {event.location}
           </p>
           {attendeesText ? (
             <p className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-[#00a95d]" />
+              <Users className="h-4 w-4 text-[var(--primary)]" />
               {attendeesText}
             </p>
           ) : null}
         </div>
         <Link
           to={ctaTo || `/e/${event.slug}`}
-          className="inline-flex rounded-lg border border-[#00E676]/20 bg-[#00E676] px-3.5 py-2 text-sm font-medium text-[#062013] transition hover:bg-[#00C765]"
+          className="inline-flex rounded-lg border px-3.5 py-2 text-sm font-medium transition hover:bg-[var(--primary-hover)]"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--primary) 35%, transparent)',
+            background: 'var(--primary)',
+            color: 'var(--primary-on)',
+          }}
         >
           {ctaLabel}
         </Link>
@@ -55,4 +60,3 @@ export const EventCard: React.FC<Props> = ({ event, attendeesText, ctaLabel = 'V
     </article>
   );
 };
-
