@@ -606,6 +606,30 @@ function get_platform_commission_pct(PDO $pdo): float {
   return $value;
 }
 
+/** Read a value from the global_settings table (empty/missing -> default). */
+function get_global_setting(PDO $pdo, string $key, ?string $default = null): ?string {
+  try {
+    $stmt = $pdo->prepare('SELECT setting_value FROM global_settings WHERE setting_key = ? LIMIT 1');
+    $stmt->execute([$key]);
+    $row = $stmt->fetch();
+    if ($row && $row['setting_value'] !== null && trim((string)$row['setting_value']) !== '') {
+      return (string)$row['setting_value'];
+    }
+  } catch (Throwable $e) {
+    // table may not exist yet — fall through to default
+  }
+  return $default;
+}
+
+/** Build the public base URL (scheme + host) of the current request. */
+function payhere_request_base_url(): string {
+  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+  if ($host === '') return '';
+  $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+  return ($https ? 'https' : 'http') . '://' . $host;
+}
+
 function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, int $amountCents, string $status, ?string $reference): array {
   $commissionPct = get_platform_commission_pct($pdo);
   $platformFeeCents = (int)round(($amountCents * $commissionPct) / 100);
@@ -632,28 +656,46 @@ function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, 
 
 function payhere_cfg(): array {
   $cfg = get_config();
-  $p = $cfg['payhere'] ?? null;
-  if (!is_array($p)) json_response(500, ['error' => 'payhere_not_configured']);
-  $merchantId = (string)($p['merchant_id'] ?? '');
-  $merchantSecret = (string)($p['merchant_secret'] ?? '');
-  $notifyUrl = (string)($p['notify_url'] ?? '');
-  $appBase = (string)($p['app_base_url'] ?? '');
-  $sandbox = (bool)($p['sandbox'] ?? true);
-  if ($merchantId === '' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
-    json_response(500, ['error' => 'payhere_missing_credentials']);
+  $p = is_array($cfg['payhere'] ?? null) ? $cfg['payhere'] : [];
+  $pdo = db();
+
+  // Credentials: Admin → System Settings (DB) take priority, then env/config.
+  $merchantId = (string)(get_global_setting($pdo, 'payment_merchant_id') ?? '');
+  if ($merchantId === '' || $merchantId === 'CHANGE_ME') $merchantId = (string)($p['merchant_id'] ?? '');
+  $merchantSecret = (string)(get_global_setting($pdo, 'payment_merchant_secret') ?? '');
+  if ($merchantSecret === '' || $merchantSecret === 'CHANGE_ME') $merchantSecret = (string)($p['merchant_secret'] ?? '');
+
+  // Sandbox vs Live: DB setting first, else env/config (default sandbox).
+  $sandboxSetting = get_global_setting($pdo, 'payment_sandbox');
+  if ($sandboxSetting !== null) {
+    $sandbox = in_array(strtolower(trim($sandboxSetting)), ['1', 'true', 'on', 'yes', 'sandbox'], true);
+  } else {
+    $sandbox = (bool)($p['sandbox'] ?? true);
   }
-  if ($notifyUrl === '') {
-    json_response(500, ['error' => 'payhere_missing_notify_url', 'message' => 'Set payhere.notify_url in api/config.php to a public URL (ngrok/domain).']);
+
+  if ($merchantId === '' || $merchantId === 'CHANGE_ME' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
+    json_response(500, [
+      'error' => 'payhere_missing_credentials',
+      'message' => 'Add your PayHere Merchant ID & Secret in Admin → System Settings (or set PAYHERE_MERCHANT_ID / PAYHERE_MERCHANT_SECRET).',
+    ]);
   }
-  if ($appBase === '') {
+
+  // URLs: derive from the current request host so checkout/notify always return
+  // to the same origin the customer is on (works on any domain, no env needed).
+  $base = payhere_request_base_url();
+  if ($base === '') $base = rtrim((string)($p['app_base_url'] ?? ''), '/');
+  if ($base === '') {
     json_response(500, ['error' => 'payhere_missing_app_base_url']);
   }
+  $appBase = rtrim($base, '/');
+  $notifyUrl = $appBase . '/api/payhere/notify';
+
   return [
     'sandbox' => $sandbox,
     'merchant_id' => $merchantId,
     'merchant_secret' => $merchantSecret,
     'notify_url' => $notifyUrl,
-    'app_base_url' => rtrim($appBase, '/'),
+    'app_base_url' => $appBase,
   ];
 }
 
@@ -3196,7 +3238,7 @@ if ($path === '/admin/settings' && $method === 'POST') {
   $pdo = db();
   ensure_finance_tables($pdo);
   $body = read_json_body();
-  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'payment_merchant_id', 'payment_merchant_secret', 'email_from', 'maintenance_mode'];
+  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'payment_merchant_id', 'payment_merchant_secret', 'payment_sandbox', 'email_from', 'maintenance_mode'];
   foreach ($allowed as $key) {
     if (!array_key_exists($key, $body)) continue;
     $value = (string)$body[$key];

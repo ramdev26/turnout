@@ -162,6 +162,18 @@ Organizers can connect a domain like `events.yourbrand.com` to a published event
 - [`public/.htaccess`](public/.htaccess) is for Apache/cPanel only; Vercel uses [`vercel.json`](vercel.json) rewrites.
 - If your API uses cookies/sessions, ensure API CORS allows your Vercel frontend origin and credentials.
 
+## PayHere setup (dashboard)
+
+PayHere uses the **JavaScript SDK** (onsite popup checkout). You can configure credentials without redeploying:
+
+1. Sign in as a super admin and open **Admin → System Settings**.
+2. Enter your **PayHere Merchant ID** and the **Merchant Secret** generated for your domain (PayHere → Integrations → Add Domain/App).
+3. Choose **Sandbox** (testing) or **Live** (production) and **Save**.
+
+The server generates the payment `hash` securely, and the return/cancel/`notify_url` are derived automatically from the current domain (`/api/payhere/notify`). PayHere notifications are verified server-side with the `md5sig` checksum before an order is marked paid.
+
+Credentials set in System Settings take priority; otherwise the API falls back to the `PAYHERE_*` environment variables.
+
 ## PayHere callback check
 
 After deployment, verify PayHere callback URL is reachable:
