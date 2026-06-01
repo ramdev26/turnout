@@ -4,6 +4,7 @@ import { Event, Ticket, OrderItem, AttendeeProfile } from '../types';
 import { api } from '../api/client';
 import { getLandingTemplateForEvent } from '../templates/templates';
 import { landingCssVars, resolveEventTheme } from '../themes/eventThemes';
+import { loadLandingFont } from '../themes/landingFonts';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatLKR } from '../utils/money';
@@ -60,6 +61,7 @@ export const EventLanding: React.FC = () => {
   useEffect(() => {
     if (!event) return;
     document.title = `${event.title} | Turnout`;
+    loadLandingFont(event.customization?.fontFamily);
   }, [event]);
 
   useEffect(() => {

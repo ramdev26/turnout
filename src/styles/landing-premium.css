@@ -84,6 +84,7 @@
 .landing-card-premium {
   background: var(--landing-surface);
   border: 1px solid var(--landing-border);
+  border-radius: var(--landing-radius, 1.5rem);
   box-shadow: var(--landing-shadow);
   transition:
     transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),

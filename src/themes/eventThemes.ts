@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
-import type { Event } from '../types';
+import type { Event, LandingDisplayMode, LandingStyle } from '../types';
 import type { TemplateId } from '../templates/templates';
+import { resolveLandingFont } from './landingFonts';
 
 export type EventThemeId = 'minimal' | 'neo-green' | 'midnight' | 'sunset';
 
@@ -91,7 +92,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
     name: 'Neo Green',
     primary: '#34d399',
     secondary: '#10b981',
-    templateId: 'template-3',
+    templateId: 'template-2',
     ui: {
       pageBg: 'linear-gradient(180deg, #ecfdf5 0%, #d1fae5 42%, #f0fdf4 100%)',
       headerBg: 'rgba(255,255,255,0.82)',
@@ -208,7 +209,10 @@ export function isEventThemeId(value: string | undefined | null): value is Event
   return !!value && value in EVENT_THEMES;
 }
 
-export function resolveEventTheme(customization: Event['customization'] | undefined): EventThemeDefinition {
+/** Loosely-typed customization input; landing helpers only read a subset. */
+export type LandingCustomizationInput = Partial<Event['customization']> | undefined;
+
+export function resolveEventTheme(customization: LandingCustomizationInput): EventThemeDefinition {
   const themeId = customization?.themeId;
   if (isEventThemeId(themeId)) {
     return EVENT_THEMES[themeId];
@@ -236,29 +240,154 @@ export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customizati
   return resolveEventTheme(event.customization).templateId;
 }
 
-export function landingCssVars(customization: Event['customization'] | undefined): CSSProperties {
-  const theme = resolveEventTheme(customization);
-  const landing = theme.landing;
+type LandingSurfaces = {
+  isDark: boolean;
+  pageBg: string;
+  surfaceBg: string;
+  surfaceMutedBg: string;
+  text: string;
+  textMuted: string;
+  borderColor: string;
+  cardShadow: string;
+  glassBg: string;
+  glassBorder: string;
+};
+
+/** Resolve the requested display mode against the theme's native lightness. */
+export function resolveDisplayMode(
+  customization: LandingCustomizationInput,
+  theme = resolveEventTheme(customization)
+): { mode: LandingDisplayMode; isDark: boolean } {
+  const mode: LandingDisplayMode =
+    customization?.displayMode === 'light' || customization?.displayMode === 'dark'
+      ? customization.displayMode
+      : 'auto';
+  const isDark = mode === 'auto' ? theme.ui.isDark : mode === 'dark';
+  return { mode, isDark };
+}
+
+export function resolveLandingStyle(customization: LandingCustomizationInput): LandingStyle {
+  const style = customization?.landingStyle;
+  return style === 'minimal' || style === 'bold' ? style : 'glass';
+}
+
+/** Neutral dark surface set used when an organizer forces dark on a light theme. */
+function generatedDarkSurfaces(primary: string): LandingSurfaces {
+  return {
+    isDark: true,
+    pageBg: `radial-gradient(ellipse 70% 50% at 50% -10%, color-mix(in srgb, ${primary} 22%, transparent) 0%, transparent 60%), linear-gradient(165deg, #0b1120 0%, #0f172a 58%, #020617 100%)`,
+    surfaceBg: 'rgba(255, 255, 255, 0.045)',
+    surfaceMutedBg: 'rgba(255, 255, 255, 0.025)',
+    text: '#f8fafc',
+    textMuted: 'rgba(248, 250, 252, 0.64)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    cardShadow: '0 18px 44px rgba(0, 0, 0, 0.5)',
+    glassBg: 'rgba(15, 23, 42, 0.55)',
+    glassBorder: 'rgba(255, 255, 255, 0.12)',
+  };
+}
+
+/** Neutral light surface set used when an organizer forces light on a dark theme. */
+function generatedLightSurfaces(primary: string): LandingSurfaces {
+  return {
+    isDark: false,
+    pageBg: `radial-gradient(ellipse 70% 50% at 50% -10%, color-mix(in srgb, ${primary} 12%, transparent) 0%, transparent 60%), linear-gradient(180deg, #ffffff 0%, #f4f6fb 100%)`,
+    surfaceBg: '#ffffff',
+    surfaceMutedBg: '#f5f7fb',
+    text: '#0f172a',
+    textMuted: '#475569',
+    borderColor: '#e6eaf2',
+    cardShadow: '0 14px 40px rgba(15, 23, 42, 0.08)',
+    glassBg: 'rgba(255, 255, 255, 0.72)',
+    glassBorder: 'rgba(255, 255, 255, 0.65)',
+  };
+}
+
+function resolveLandingSurfaces(
+  customization: LandingCustomizationInput,
+  theme = resolveEventTheme(customization)
+): LandingSurfaces {
+  const { isDark } = resolveDisplayMode(customization, theme);
   const primary = customization?.primaryColor || theme.primary;
-  const isDark = theme.ui.isDark;
+  const themeIsDark = theme.ui.isDark;
+
+  // When the requested mode matches the theme's native lightness, keep its
+  // hand-tuned surfaces; otherwise synthesize a neutral set in the new mode.
+  if (isDark === themeIsDark) {
+    const landing = theme.landing;
+    return {
+      isDark,
+      pageBg: landing.pageBg,
+      surfaceBg: landing.surfaceBg,
+      surfaceMutedBg: landing.surfaceMutedBg,
+      text: landing.text,
+      textMuted: landing.textMuted,
+      borderColor: landing.borderColor,
+      cardShadow: landing.cardShadow,
+      glassBg: themeIsDark ? 'rgba(15, 23, 42, 0.55)' : 'rgba(255, 255, 255, 0.72)',
+      glassBorder: themeIsDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.65)',
+    };
+  }
+
+  return isDark ? generatedDarkSurfaces(primary) : generatedLightSurfaces(primary);
+}
+
+/** Per-style overrides applied on top of the resolved surface set. */
+function applyStyleOverrides(style: LandingStyle, surfaces: LandingSurfaces, primary: string): LandingSurfaces {
+  if (style === 'minimal') {
+    return {
+      ...surfaces,
+      surfaceBg: surfaces.isDark ? 'rgba(255,255,255,0.04)' : '#ffffff',
+      glassBg: surfaces.isDark ? 'rgba(15,23,42,0.78)' : 'rgba(255,255,255,0.9)',
+      cardShadow: surfaces.isDark
+        ? '0 1px 0 rgba(255,255,255,0.05)'
+        : '0 1px 2px rgba(15,23,42,0.05)',
+    };
+  }
+  if (style === 'bold') {
+    return {
+      ...surfaces,
+      surfaceBg: surfaces.isDark
+        ? `color-mix(in srgb, ${primary} 12%, rgba(255,255,255,0.05))`
+        : `color-mix(in srgb, ${primary} 6%, #ffffff)`,
+      borderColor: `color-mix(in srgb, ${primary} 38%, ${surfaces.borderColor})`,
+      cardShadow: surfaces.isDark
+        ? `0 22px 50px rgba(0,0,0,0.55), 0 0 0 1px color-mix(in srgb, ${primary} 30%, transparent)`
+        : `0 22px 50px color-mix(in srgb, ${primary} 22%, rgba(15,23,42,0.12))`,
+    };
+  }
+  return surfaces;
+}
+
+export function landingCssVars(customization: LandingCustomizationInput): CSSProperties {
+  const theme = resolveEventTheme(customization);
+  const primary = customization?.primaryColor || theme.primary;
+  const secondary = customization?.secondaryColor || theme.secondary;
+  const style = resolveLandingStyle(customization);
+  const surfaces = applyStyleOverrides(style, resolveLandingSurfaces(customization, theme), primary);
+  const isDark = surfaces.isDark;
+  const font = resolveLandingFont(customization?.fontFamily);
+  const radius = style === 'bold' ? '1.75rem' : style === 'minimal' ? '1rem' : '1.5rem';
+
   return {
     ['--primary' as string]: primary,
-    ['--secondary' as string]: customization?.secondaryColor || theme.secondary,
-    ['--landing-page-bg' as string]: landing.pageBg,
-    ['--landing-surface' as string]: landing.surfaceBg,
-    ['--landing-surface-muted' as string]: landing.surfaceMutedBg,
-    ['--landing-text' as string]: landing.text,
-    ['--landing-text-muted' as string]: landing.textMuted,
-    ['--landing-border' as string]: landing.borderColor,
-    ['--landing-shadow' as string]: landing.cardShadow,
+    ['--secondary' as string]: secondary,
+    ['--landing-page-bg' as string]: surfaces.pageBg,
+    ['--landing-surface' as string]: surfaces.surfaceBg,
+    ['--landing-surface-muted' as string]: surfaces.surfaceMutedBg,
+    ['--landing-text' as string]: surfaces.text,
+    ['--landing-text-muted' as string]: surfaces.textMuted,
+    ['--landing-border' as string]: surfaces.borderColor,
+    ['--landing-shadow' as string]: surfaces.cardShadow,
     ['--landing-shadow-hover' as string]: isDark
       ? '0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.06)'
       : '0 24px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.04)',
     ['--landing-glow' as string]: `color-mix(in srgb, ${primary} 35%, transparent)`,
-    ['--landing-glass-bg' as string]: isDark ? 'rgba(15, 23, 42, 0.55)' : 'rgba(255, 255, 255, 0.72)',
-    ['--landing-glass-border' as string]: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.65)',
-    ['--landing-font-display' as string]: '"Fraunces", Georgia, "Times New Roman", serif',
-    ['--landing-font-body' as string]: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif',
+    ['--landing-glass-bg' as string]: surfaces.glassBg,
+    ['--landing-glass-border' as string]: surfaces.glassBorder,
+    ['--landing-radius' as string]: radius,
+    ['--landing-font-display' as string]: font.display,
+    ['--landing-font-body' as string]: font.body,
     ['--landing-accent' as string]: primary,
   };
 }
