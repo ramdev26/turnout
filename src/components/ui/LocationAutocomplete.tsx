@@ -1,6 +1,5 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
-import { searchLocations, type LocationSuggestion } from '../../lib/locationSearch';
-import { cn } from '../../utils/cn';
+import React, { useEffect, useRef, useState } from 'react';
+import { isGoogleMapsConfigured, loadGoogleMaps } from '../../lib/loadGoogleMaps';
 
 export type LocationAutocompleteProps = {
   value: string;
@@ -14,11 +13,16 @@ export type LocationAutocompleteProps = {
   hintStyle?: React.CSSProperties;
 };
 
-const SEARCH_DEBOUNCE_MS = 320;
+function placeLabel(place: google.maps.places.PlaceResult): string {
+  if (place.formatted_address?.trim()) return place.formatted_address.trim();
+  const parts = [place.name, place.vicinity].filter((p) => p && String(p).trim());
+  if (parts.length) return parts.join(', ');
+  return '';
+}
 
 /**
- * Location field with address suggestions while typing (OpenStreetMap via Photon).
- * No Google Cloud account or API key required.
+ * Location field with Google Places suggestions while typing.
+ * Requires `VITE_GOOGLE_MAPS_API_KEY` (Maps JavaScript API + Places API).
  */
 export function LocationAutocomplete({
   value,
@@ -31,139 +35,74 @@ export function LocationAutocomplete({
   hintClassName = 'mt-0.5 text-xs',
   hintStyle,
 }: LocationAutocompleteProps) {
-  const listId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const onChangeRef = useRef(onChange);
+  const [placesReady, setPlacesReady] = useState(false);
+  const [placesError, setPlacesError] = useState(false);
+  const configured = isGoogleMapsConfigured();
+
+  onChangeRef.current = onChange;
 
   useEffect(() => {
-    if (disabled || value.trim().length < 2) {
-      setSuggestions([]);
-      setOpen(false);
-      setLoading(false);
-      return;
-    }
+    if (!configured || disabled) return;
 
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setLoading(true);
-      setError(false);
-      searchLocations(value, controller.signal)
-        .then((results) => {
-          setSuggestions(results);
-          setOpen(results.length > 0);
-          setActiveIndex(-1);
-        })
-        .catch((err: unknown) => {
-          if (controller.signal.aborted) return;
-          setSuggestions([]);
-          setOpen(false);
-          setError(true);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false);
+    let cancelled = false;
+    let listener: google.maps.MapsEventListener | undefined;
+    let autocomplete: google.maps.places.Autocomplete | undefined;
+
+    loadGoogleMaps()
+      .then(() => {
+        if (cancelled || !inputRef.current) return;
+        autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+          fields: ['formatted_address', 'name', 'vicinity', 'place_id'],
         });
-    }, SEARCH_DEBOUNCE_MS);
+        listener = autocomplete.addListener('place_changed', () => {
+          const place = autocomplete?.getPlace();
+          if (!place) return;
+          const label = placeLabel(place);
+          if (label) onChangeRef.current(label);
+        });
+        setPlacesReady(true);
+        setPlacesError(false);
+      })
+      .catch(() => {
+        if (!cancelled) setPlacesError(true);
+      });
 
     return () => {
-      controller.abort();
-      window.clearTimeout(timer);
+      cancelled = true;
+      listener?.remove();
     };
-  }, [value, disabled]);
+  }, [configured, disabled]);
 
-  useEffect(() => {
-    const onDocMouseDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, []);
-
-  const pickSuggestion = (label: string) => {
-    onChange(label);
-    setOpen(false);
-    setSuggestions([]);
-    setActiveIndex(-1);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open || suggestions.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIndex((i) => (i + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
-    } else if (e.key === 'Enter' && activeIndex >= 0) {
-      e.preventDefault();
-      pickSuggestion(suggestions[activeIndex].label);
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  const showList = open && suggestions.length > 0;
+  let hintText: string | null = null;
+  if (!configured) {
+    hintText = 'Add VITE_GOOGLE_MAPS_API_KEY to enable Google location suggestions.';
+  } else if (placesError) {
+    hintText = 'Google Places unavailable — you can still type the address manually.';
+  } else if (placesReady) {
+    hintText = 'Start typing to search venues and addresses';
+  }
 
   return (
-    <div ref={rootRef} className="relative min-w-0 flex-1">
+    <div className="min-w-0 flex-1">
       <input
+        ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={() => {
-          window.setTimeout(() => onBlur?.(), 150);
-        }}
-        onFocus={() => {
-          if (suggestions.length > 0) setOpen(true);
-        }}
-        onKeyDown={onKeyDown}
+        onBlur={onBlur}
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"
-        role="combobox"
-        aria-expanded={showList}
-        aria-controls={showList ? listId : undefined}
-        aria-autocomplete="list"
         className={className}
         style={style}
       />
-
-      {showList ? (
-        <ul
-          id={listId}
-          role="listbox"
-          className="absolute left-0 right-0 top-full z-[10050] mt-1 max-h-56 overflow-auto rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-white/15 dark:bg-neutral-900"
-        >
-          {suggestions.map((item, index) => (
-            <li key={item.id} role="option" aria-selected={index === activeIndex}>
-              <button
-                type="button"
-                className={cn(
-                  'w-full px-3 py-2.5 text-left text-sm text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-white/10',
-                  index === activeIndex && 'bg-neutral-100 dark:bg-white/10'
-                )}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pickSuggestion(item.label)}
-              >
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
+      {hintText ? (
+        <p className={hintClassName} style={hintStyle}>
+          {hintText}
+        </p>
       ) : null}
-
-      <p className={hintClassName} style={hintStyle}>
-        {error
-          ? 'Suggestions unavailable — you can still type the address manually.'
-          : loading
-            ? 'Searching…'
-            : 'Start typing to search venues and addresses (no setup required)'}
-      </p>
     </div>
   );
 }

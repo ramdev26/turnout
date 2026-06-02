@@ -122,6 +122,14 @@ If frontend and API are on separate domains, set:
 
 If this is not set, production frontend requests default to relative `/api/*` URLs on the Vercel domain.
 
+### Google Places (event location autocomplete)
+
+Set in Vercel and local `.env.local`:
+
+- `VITE_GOOGLE_MAPS_API_KEY` — browser API key with **Maps JavaScript API** and **Places API** enabled
+
+In [Google Cloud Console](https://console.cloud.google.com/google/maps-apis), create a key, enable those APIs, and restrict it to your site hostnames (HTTP referrer), for example `https://your-app.vercel.app/*` and `http://localhost:*`. Redeploy after adding the variable.
+
 ### 4) Deploy
 
 - Trigger deployment in Vercel
