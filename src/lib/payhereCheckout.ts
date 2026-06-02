@@ -118,18 +118,26 @@ const PAYHERE_JS_SANDBOX = 'https://sandbox.payhere.lk/lib/payhere.js';
 let payhereScriptPromise: Promise<void> | null = null;
 let payhereScriptSrc: string | null = null;
 
-/** Action URL from initiate response (Checkout API fallback). */
-export function resolvePayHereActionUrl(res: PayHereInitiateResponse): string {
-  if (res.actionUrl) return res.actionUrl;
-  const sandbox =
-    res.sandbox === true ||
-    res.fields?.sandbox === true ||
-    res.sdkPayment?.sandbox === true;
-  return sandbox ? PAYHERE_CHECKOUT_SANDBOX : PAYHERE_CHECKOUT_LIVE;
-}
-
 function resolvePayHereJsUrl(sandbox: boolean): string {
   return sandbox ? PAYHERE_JS_SANDBOX : PAYHERE_JS_LIVE;
+}
+
+function waitForPayHereSdk(timeoutMs = 8000): Promise<PayHereSdk> {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      if (window.payhere?.startPayment) {
+        resolve(window.payhere);
+        return;
+      }
+      if (Date.now() - started >= timeoutMs) {
+        reject(new Error('PayHere SDK did not initialize'));
+        return;
+      }
+      window.setTimeout(tick, 40);
+    };
+    tick();
+  });
 }
 
 function loadPayHereScript(sandbox: boolean): Promise<void> {
@@ -144,9 +152,19 @@ function loadPayHereScript(sandbox: boolean): Promise<void> {
 
   payhereScriptSrc = src;
   payhereScriptPromise = new Promise((resolve, reject) => {
+    const finish = () => {
+      waitForPayHereSdk()
+        .then(() => resolve())
+        .catch(reject);
+    };
+
     const existing = document.querySelector<HTMLScriptElement>(`script[data-payhere-sdk="${src}"]`);
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
+      if (window.payhere?.startPayment) {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', finish, { once: true });
       existing.addEventListener('error', () => reject(new Error('PayHere SDK failed to load')), { once: true });
       return;
     }
@@ -156,16 +174,31 @@ function loadPayHereScript(sandbox: boolean): Promise<void> {
     script.src = src;
     script.async = true;
     script.dataset.payhereSdk = src;
-    script.onload = () => resolve();
+    script.onload = finish;
     script.onerror = () => reject(new Error('PayHere SDK failed to load'));
-    document.body.appendChild(script);
+    document.head.appendChild(script);
   });
 
   return payhereScriptPromise;
 }
 
+/** Call when the event page loads so the PayHere popup opens instantly at checkout. */
+export function preloadPayHereScript(sandbox: boolean): Promise<void> {
+  return loadPayHereScript(sandbox);
+}
+
+/** Action URL from initiate response (full-page fallback only). */
+export function resolvePayHereActionUrl(res: PayHereInitiateResponse): string {
+  if (res.actionUrl) return res.actionUrl;
+  const sandbox =
+    res.sandbox === true ||
+    res.fields?.sandbox === true ||
+    res.sdkPayment?.sandbox === true;
+  return sandbox ? PAYHERE_CHECKOUT_SANDBOX : PAYHERE_CHECKOUT_LIVE;
+}
+
 /**
- * Official PayHere Checkout API: POST an HTML form to the gateway.
+ * Full-page Checkout API POST (legacy fallback — not used for normal checkout).
  * @see https://support.payhere.lk/api-&-mobile-sdk/checkout-api
  */
 export function submitPayHereCheckoutForm(
@@ -193,7 +226,6 @@ export function submitPayHereCheckoutForm(
   form.submit();
 }
 
-/** Fallback when payhere.js cannot load. */
 export function redirectToPayHereCheckout(res: PayHereInitiateResponse): void {
   const fields = buildPayHerePaymentFromInitiate(res);
   if (!fields.hash) {
@@ -202,46 +234,76 @@ export function redirectToPayHereCheckout(res: PayHereInitiateResponse): void {
   submitPayHereCheckoutForm(resolvePayHereActionUrl(res), fields as unknown as Record<string, unknown>);
 }
 
+export type PayHereCheckoutHandlers = {
+  onCompleted?: (orderId: string) => void | Promise<void>;
+  onDismissed?: () => void;
+  onError?: (message: string) => void;
+  /** If true, falls back to full-page redirect when the SDK cannot load. Default false. */
+  allowPageRedirectFallback?: boolean;
+};
+
 /**
- * Preferred checkout: PayHere JavaScript SDK popup (official sample flow).
+ * PayHere JavaScript SDK popup — stays on your event page (no redirect to PayHere).
  * @see https://support.payhere.lk/api-&-mobile-sdk/javascript-sdk
  */
 export async function startPayHereCheckout(
   res: PayHereInitiateResponse,
-  handlers?: {
-    onError?: (message: string) => void;
-  }
+  handlers: PayHereCheckoutHandlers = {}
 ): Promise<void> {
   const payment = buildPayHerePaymentFromInitiate(res);
 
   try {
     await loadPayHereScript(payment.sandbox);
-  } catch {
-    redirectToPayHereCheckout(res);
+  } catch (err) {
+    if (handlers.allowPageRedirectFallback) {
+      redirectToPayHereCheckout(res);
+      return;
+    }
+    handlers.onError?.(
+      err instanceof Error
+        ? err.message
+        : 'PayHere popup could not load. Check your connection and try again.'
+    );
     return;
   }
 
   const payhere = window.payhere;
   if (!payhere?.startPayment) {
-    redirectToPayHereCheckout(res);
+    if (handlers.allowPageRedirectFallback) {
+      redirectToPayHereCheckout(res);
+      return;
+    }
+    handlers.onError?.('PayHere popup is unavailable. Refresh the page and try again.');
     return;
   }
 
   payhere.onCompleted = (orderId: string) => {
+    const resolvedOrderId = orderId || payment.order_id;
+    if (handlers.onCompleted) {
+      void Promise.resolve(handlers.onCompleted(resolvedOrderId)).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Could not confirm payment.';
+        handlers.onError?.(message);
+      });
+      return;
+    }
     const url = new URL(payment.return_url);
-    if (orderId) url.searchParams.set('order_id', orderId);
+    if (resolvedOrderId) url.searchParams.set('order_id', resolvedOrderId);
     window.location.assign(url.toString());
   };
 
   payhere.onDismissed = () => {
+    if (handlers.onDismissed) {
+      handlers.onDismissed();
+      return;
+    }
     window.location.assign(payment.cancel_url);
   };
 
   payhere.onError = (error: string) => {
-    const message =
+    handlers.onError?.(
       error ||
-      'PayHere could not start checkout. Confirm your Merchant ID and domain secret in PayHere Integrations.';
-    handlers?.onError?.(message);
+        'PayHere could not open the payment popup. Confirm your browser allows popups for this site.'
+    );
   };
 
   payhere.startPayment(payment as unknown as Record<string, unknown>);

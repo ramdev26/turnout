@@ -9,7 +9,11 @@ import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatLKR } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
-import { startPayHereCheckout, type PayHereInitiateResponse } from '../lib/payhereCheckout';
+import {
+  preloadPayHereScript,
+  startPayHereCheckout,
+  type PayHereInitiateResponse,
+} from '../lib/payhereCheckout';
 
 export const EventLanding: React.FC = () => {
   const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
@@ -22,6 +26,7 @@ export const EventLanding: React.FC = () => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [prefillReady, setPrefillReady] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  const [payherePopupOpen, setPayherePopupOpen] = useState(false);
   const { user } = useAuthStore();
 
   const { register, handleSubmit, reset, watch } = useForm<{
@@ -123,6 +128,22 @@ export const EventLanding: React.FC = () => {
     if (!event || !hasSelectedTickets) return;
     setCheckoutOpen(true);
     setPayError(null);
+    if (totalAmount > 0) {
+      void preloadPayHereScript(true);
+    }
+  };
+
+  const waitForPaidOrder = async (orderId: string, accessToken?: string) => {
+    const tokenQs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const res = await api.get<{ order: { status: string } }>(`/api/orders/${orderId}${tokenQs}`);
+      if (res.order.status === 'paid') return;
+      if (res.order.status === 'failed') {
+        throw new Error('Payment failed. Please try again.');
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    }
+    throw new Error('Payment is still confirming. Please wait a moment and refresh.');
   };
 
   const submitCheckout = async (values: {
@@ -181,9 +202,26 @@ export const EventLanding: React.FC = () => {
           attendees,
         });
 
-        setCheckoutOpen(false);
+        await preloadPayHereScript(res.sandbox !== false);
+        setPayError(null);
+        setPayherePopupOpen(true);
+
         await startPayHereCheckout(res, {
-          onError: (message) => setPayError(message),
+          onCompleted: async (orderId) => {
+            setPayherePopupOpen(false);
+            await waitForPaidOrder(orderId || res.orderId, res.accessToken);
+            setCheckoutOpen(false);
+            const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
+            navigate(`/orders/${res.orderId}/success${tokenQs}`);
+          },
+          onDismissed: () => {
+            setPayherePopupOpen(false);
+            setPayError('Payment cancelled. You can try again when ready.');
+          },
+          onError: (message) => {
+            setPayherePopupOpen(false);
+            setPayError(message);
+          },
         });
       }
     } catch (error: unknown) {
@@ -275,6 +313,28 @@ export const EventLanding: React.FC = () => {
           >
             {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKR(totalAmount)}`}
           </button>
+        </div>
+      )}
+
+      {payherePopupOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
+          <div
+            className="w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl"
+            style={{
+              borderColor: 'var(--landing-border)',
+              background: 'var(--landing-surface)',
+              color: 'var(--landing-text)',
+            }}
+          >
+            <div
+              className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-t-transparent"
+              style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }}
+            />
+            <p className="mt-4 text-sm font-semibold">Complete payment in the PayHere popup</p>
+            <p className="mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+              Stay on this page — we will confirm your tickets as soon as payment succeeds.
+            </p>
+          </div>
         </div>
       )}
 
@@ -431,7 +491,11 @@ export const EventLanding: React.FC = () => {
                 disabled={isPurchasing || !prefillReady}
                 className="landing-btn-primary mt-2 h-12 w-full rounded-2xl text-sm font-bold text-white disabled:opacity-50"
               >
-                {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Confirm registration' : 'Pay with PayHere'}
+                {isPurchasing
+                  ? 'Processing…'
+                  : totalAmount <= 0
+                    ? 'Confirm registration'
+                    : 'Pay with PayHere (popup)'}
               </button>
               {payError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">{payError}</div>
