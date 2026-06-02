@@ -39,8 +39,8 @@ return [
   ],
   'payhere' => [
     'sandbox' => strtolower($env('PAYHERE_SANDBOX', 'true')) !== 'false',
-    'merchant_id' => $env('PAYHERE_MERCHANT_ID', '263251676'),
-    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'MjYzMjUxNjc2MjM4NjEyMjgzNzYzNjU1MzYwMTgzNDIyOTc0MDQ5Mg=='),
+    'merchant_id' => $env('PAYHERE_MERCHANT_ID', '1236076'),
+    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'MTk2NDI5Nzk5MzI3MzcwODk4NDkzNDA5OTcxNjMyMjgwODMxMjIyNQ=='),
     'notify_url' => $env('PAYHERE_NOTIFY_URL', 'https://turnout-omega.vercel.app/api/payhere/notify'),
     'app_base_url' => $env('APP_BASE_URL', 'https://turnout-omega.vercel.app'),
   ],
