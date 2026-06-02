@@ -103,6 +103,12 @@ function fieldClassFor(ui: CreateThemeUI): string {
   );
 }
 
+function uiIsDark(displayMode: LandingDesignValue['displayMode'], fallbackIsDark: boolean): boolean {
+  if (displayMode === 'dark') return true;
+  if (displayMode === 'light') return false;
+  return fallbackIsDark;
+}
+
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -264,10 +270,14 @@ export const CreateEvent: React.FC = () => {
   );
 
   const liveUi = useMemo<CreateThemeUI>(() => {
+    const dynamicPageBg = uiIsDark(design.displayMode, baseUi.isDark)
+      ? 'radial-gradient(ellipse 70% 52% at 50% -14%, color-mix(in srgb, var(--primary) 26%, transparent) 0%, transparent 62%), linear-gradient(165deg, color-mix(in srgb, var(--secondary) 22%, #052e30) 0%, color-mix(in srgb, var(--primary) 20%, #0d585b) 52%, #052e30 100%)'
+      : 'radial-gradient(ellipse 70% 52% at 50% -12%, color-mix(in srgb, var(--primary) 18%, transparent) 0%, transparent 60%), linear-gradient(180deg, color-mix(in srgb, var(--secondary) 10%, #ffffff) 0%, color-mix(in srgb, var(--primary) 8%, #f5f7fb) 100%)';
+
     // Mirror landing variables directly so organizers edit against the real look.
     return {
       ...baseUi,
-      pageBg: 'var(--landing-page-bg)',
+      pageBg: dynamicPageBg,
       headerBg: 'color-mix(in srgb, var(--landing-page-bg) 62%, var(--landing-surface) 38%)',
       footerBg: 'color-mix(in srgb, var(--landing-page-bg) 68%, var(--landing-surface) 32%)',
       borderColor: 'var(--landing-border)',
@@ -286,7 +296,7 @@ export const CreateEvent: React.FC = () => {
       lineDashed: 'color-mix(in srgb, var(--landing-border) 72%, transparent)',
       bannerFrame: baseUi.bannerFrame,
       bannerPlaceholder: baseUi.bannerPlaceholder,
-      isDark: design.displayMode === 'dark' || (design.displayMode === 'auto' ? baseUi.isDark : false),
+      isDark: uiIsDark(design.displayMode, baseUi.isDark),
     };
   }, [baseUi, design]);
   const ui = liveUi;
