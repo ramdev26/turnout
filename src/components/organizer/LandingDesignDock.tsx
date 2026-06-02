@@ -76,7 +76,7 @@ function Segment({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-w-[150px] flex-1 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition"
+      className="flex min-w-[120px] flex-1 items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition sm:min-w-[150px]"
       style={{
         background: active ? 'rgba(255,255,255,0.12)' : SEG_BG,
         border: `1px solid ${SEG_BORDER}`,
@@ -115,7 +115,7 @@ export function LandingDesignDock({
   onDesignChange: (next: LandingDesignValue) => void;
 }) {
   const [open, setOpen] = useState<DockControl>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false));
   const rootRef = useRef<HTMLDivElement>(null);
 
   const update = (patch: Partial<LandingDesignValue>) => onDesignChange({ ...design, ...patch });
@@ -137,6 +137,14 @@ export function LandingDesignDock({
   useEffect(() => {
     loadLandingFont(design.fontFamily);
   }, [design.fontFamily]);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= 768) setExpanded(true);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

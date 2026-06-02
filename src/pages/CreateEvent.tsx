@@ -25,10 +25,12 @@ import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { cn } from '../utils/cn';
 import {
   EVENT_THEMES,
+  landingCssVars,
   type CreateThemeUI,
   type EventThemeId,
 } from '../themes/eventThemes';
 import { EVENT_CATEGORIES } from '../themes/eventCategories';
+import { loadLandingFont, resolveLandingFont } from '../themes/landingFonts';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -191,8 +193,7 @@ export const CreateEvent: React.FC = () => {
   const [hasEnd, setHasEnd] = useState(false);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
-  const ui = selectedTheme.ui;
-  const fieldClass = fieldClassFor(ui);
+  const baseUi = selectedTheme.ui;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
     const cat = EVENT_CATEGORIES[0];
     return {
@@ -243,6 +244,55 @@ export const CreateEvent: React.FC = () => {
   const tickets = watch('tickets');
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
+
+  useEffect(() => {
+    loadLandingFont(design.fontFamily);
+  }, [design.fontFamily]);
+
+  const landingVars = useMemo(
+    () =>
+      landingCssVars({
+        themeId: selectedTheme.id,
+        eventCategory: design.eventCategory,
+        primaryColor: design.primaryColor,
+        secondaryColor: design.secondaryColor,
+        fontFamily: design.fontFamily,
+        displayMode: design.displayMode,
+        landingStyle: design.landingStyle,
+      }),
+    [design, selectedTheme.id]
+  );
+
+  const liveUi = useMemo<CreateThemeUI>(() => {
+    // Mirror landing variables directly so organizers edit against the real look.
+    return {
+      ...baseUi,
+      pageBg: 'var(--landing-page-bg)',
+      headerBg: 'color-mix(in srgb, var(--landing-page-bg) 62%, var(--landing-surface) 38%)',
+      footerBg: 'color-mix(in srgb, var(--landing-page-bg) 68%, var(--landing-surface) 32%)',
+      borderColor: 'var(--landing-border)',
+      cardBg: 'var(--landing-surface)',
+      cardMutedBg: 'var(--landing-surface-muted)',
+      fieldBg: 'color-mix(in srgb, var(--landing-surface) 76%, transparent)',
+      pillBg: 'color-mix(in srgb, var(--landing-surface) 78%, transparent)',
+      accent: 'var(--primary)',
+      accentHover: 'color-mix(in srgb, var(--primary) 84%, black)',
+      accentSoft: 'color-mix(in srgb, var(--primary) 18%, transparent)',
+      text: 'var(--landing-text)',
+      textMuted: 'var(--landing-text-muted)',
+      textSubtle: 'color-mix(in srgb, var(--landing-text-muted) 70%, var(--landing-text) 30%)',
+      dotActive: 'var(--primary)',
+      dotInactive: 'color-mix(in srgb, var(--landing-text-muted) 45%, transparent)',
+      lineDashed: 'color-mix(in srgb, var(--landing-border) 72%, transparent)',
+      bannerFrame: baseUi.bannerFrame,
+      bannerPlaceholder: baseUi.bannerPlaceholder,
+      isDark: design.displayMode === 'dark' || (design.displayMode === 'auto' ? baseUi.isDark : false),
+    };
+  }, [baseUi, design]);
+  const ui = liveUi;
+  const fieldClass = fieldClassFor(ui);
+  const titleFont = resolveLandingFont(design.fontFamily).display;
+  const bodyFont = resolveLandingFont(design.fontFamily).body;
 
   useEffect(() => {
     if (hasEnd && !endDate && date) {
@@ -397,8 +447,8 @@ export const CreateEvent: React.FC = () => {
 
   return (
     <div
-      className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background] duration-700 ease-in-out"
-      style={{ background: ui.pageBg, color: ui.text }}
+      className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background,color] duration-500 ease-in-out"
+      style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
     >
       <header
         className="shrink-0 border-b px-4 py-4 backdrop-blur-md transition-[background,border-color] duration-700 sm:px-8"
@@ -414,7 +464,7 @@ export const CreateEvent: React.FC = () => {
               <ArrowLeft className="h-4 w-4" />
               Back
             </Link>
-            <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text }}>
+            <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text, fontFamily: titleFont }}>
               Create Event
             </h1>
           </div>
@@ -498,7 +548,7 @@ export const CreateEvent: React.FC = () => {
                 {...register('title')}
                 placeholder="Event Name"
                 className="mb-6 w-full border-0 bg-transparent p-0 text-3xl font-semibold tracking-tight focus:outline-none focus:ring-0 sm:text-4xl"
-                style={{ color: ui.text }}
+                style={{ color: ui.text, fontFamily: titleFont }}
               />
               {errors.title && <p className="-mt-4 mb-4 text-xs text-rose-600">{errors.title.message}</p>}
 
