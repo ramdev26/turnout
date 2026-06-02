@@ -16,6 +16,7 @@ import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
 import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
+import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { LandingCustomizer, LandingDesignPreview, type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import {
@@ -660,12 +661,14 @@ export const EventSettings: React.FC = () => {
             <div className="mb-5 rounded-2xl border p-4" style={cardStyle}>
               <div className="flex items-start gap-3">
                 <MapPin className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
-                <input
+                <LocationAutocomplete
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  onChange={setLocation}
                   placeholder="Event location"
                   className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
                   style={{ color: ui.text }}
+                  hintClassName="mt-0.5 text-xs"
+                  hintStyle={{ color: ui.textMuted }}
                 />
               </div>
             </div>

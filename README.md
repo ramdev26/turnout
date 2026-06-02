@@ -122,6 +122,16 @@ If frontend and API are on separate domains, set:
 
 If this is not set, production frontend requests default to relative `/api/*` URLs on the Vercel domain.
 
+### Google Places (Create Event location)
+
+Organizers get address suggestions while typing the event location when you set:
+
+- `VITE_GOOGLE_MAPS_API_KEY` — browser key with **Maps JavaScript API** and **Places API** enabled
+
+In [Google Cloud Console](https://console.cloud.google.com/google/maps-apis), create an API key, enable those APIs, and restrict the key to your site hostnames (HTTP referrer). Add the variable in Vercel **Environment Variables** for Production and Preview, then redeploy.
+
+Without this key, the location field works as a normal text input.
+
 ### 4) Deploy
 
 - Trigger deployment in Vercel

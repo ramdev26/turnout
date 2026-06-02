@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
@@ -19,6 +19,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { EventCustomization } from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
+import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { cn } from '../utils/cn';
@@ -621,14 +622,24 @@ export const CreateEvent: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <MapPin className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
                   <div className="min-w-0 flex-1">
-                    <input
-                      {...register('location')}
-                      placeholder="Add Event Location"
-                      className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
-                      style={{ color: ui.text }}
+                    <Controller
+                      name="location"
+                      control={control}
+                      render={({ field }) => (
+                        <LocationAutocomplete
+                          value={field.value}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          placeholder="Add Event Location"
+                          className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
+                          style={{ color: ui.text }}
+                          hintClassName="mt-0.5 text-xs"
+                          hintStyle={{ color: ui.textSubtle }}
+                        />
+                      )}
                     />
                     <p className="mt-0.5 text-xs" style={{ color: ui.textSubtle }}>
-                      Offline location or virtual link
+                      Offline venue, address, or virtual link
                     </p>
                     {errors.location && <p className="mt-1 text-xs text-rose-600">{errors.location.message}</p>}
                   </div>
