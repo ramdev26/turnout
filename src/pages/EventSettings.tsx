@@ -18,13 +18,16 @@ import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
-import { LandingCustomizer, LandingDesignPreview, type LandingDesignValue } from '../components/organizer/LandingCustomizer';
+import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
+import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import {
   EVENT_THEMES,
+  landingCssVars,
   normalizeLandingCustomization,
+  type CreateThemeUI,
   type EventThemeId,
 } from '../themes/eventThemes';
-import { resolveLandingFontKey } from '../themes/landingFonts';
+import { loadLandingFont, resolveLandingFont, resolveLandingFontKey } from '../themes/landingFonts';
 import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 
 function toDatetimeLocalValue(date: Date): string {
@@ -57,6 +60,12 @@ const statusLabel: Record<Event['status'], string> = {
   draft: 'Draft',
   cancelled: 'Cancelled',
 };
+
+function uiIsDark(displayMode: LandingDesignValue['displayMode'], fallbackIsDark: boolean): boolean {
+  if (displayMode === 'dark') return true;
+  if (displayMode === 'light') return false;
+  return fallbackIsDark;
+}
 
 export const EventSettings: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -104,11 +113,55 @@ export const EventSettings: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
-  const ui = selectedTheme.ui;
+  const baseUi = selectedTheme.ui;
+  useEffect(() => {
+    loadLandingFont(design.fontFamily);
+  }, [design.fontFamily]);
+  const landingVars = useMemo(
+    () =>
+      landingCssVars({
+        themeId: selectedTheme.id,
+        eventCategory: design.eventCategory,
+        primaryColor: design.primaryColor,
+        secondaryColor: design.secondaryColor,
+        fontFamily: design.fontFamily,
+        displayMode: design.displayMode,
+        landingStyle: design.landingStyle,
+      }),
+    [design, selectedTheme.id]
+  );
+  const ui = useMemo<CreateThemeUI>(() => {
+    const dynamicPageBg = uiIsDark(design.displayMode, baseUi.isDark)
+      ? 'radial-gradient(ellipse 70% 52% at 50% -14%, color-mix(in srgb, var(--primary) 26%, transparent) 0%, transparent 62%), linear-gradient(165deg, color-mix(in srgb, var(--secondary) 22%, #052e30) 0%, color-mix(in srgb, var(--primary) 20%, #0d585b) 52%, #052e30 100%)'
+      : 'radial-gradient(ellipse 70% 52% at 50% -12%, color-mix(in srgb, var(--primary) 18%, transparent) 0%, transparent 60%), linear-gradient(180deg, color-mix(in srgb, var(--secondary) 10%, #ffffff) 0%, color-mix(in srgb, var(--primary) 8%, #f5f7fb) 100%)';
+    return {
+      ...baseUi,
+      pageBg: dynamicPageBg,
+      headerBg: 'color-mix(in srgb, var(--landing-page-bg) 62%, var(--landing-surface) 38%)',
+      footerBg: 'color-mix(in srgb, var(--landing-page-bg) 68%, var(--landing-surface) 32%)',
+      borderColor: 'var(--landing-border)',
+      cardBg: 'var(--landing-surface)',
+      cardMutedBg: 'var(--landing-surface-muted)',
+      fieldBg: 'color-mix(in srgb, var(--landing-surface) 76%, transparent)',
+      pillBg: 'color-mix(in srgb, var(--landing-surface) 78%, transparent)',
+      accent: 'var(--primary)',
+      accentHover: 'color-mix(in srgb, var(--primary) 84%, black)',
+      accentSoft: 'color-mix(in srgb, var(--primary) 18%, transparent)',
+      text: 'var(--landing-text)',
+      textMuted: 'var(--landing-text-muted)',
+      textSubtle: 'color-mix(in srgb, var(--landing-text-muted) 70%, var(--landing-text) 30%)',
+      dotActive: 'var(--primary)',
+      dotInactive: 'color-mix(in srgb, var(--landing-text-muted) 45%, transparent)',
+      lineDashed: 'color-mix(in srgb, var(--landing-border) 72%, transparent)',
+      isDark: uiIsDark(design.displayMode, baseUi.isDark),
+    };
+  }, [baseUi, design]);
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
   const cardStyle = cardStyleFor(ui);
   const cardMutedStyle = cardMutedStyleFor(ui);
+  const titleFont = resolveLandingFont(design.fontFamily).display;
+  const bodyFont = resolveLandingFont(design.fontFamily).body;
 
   const loadAll = async () => {
     if (!eventId) return;
@@ -413,7 +466,7 @@ export const EventSettings: React.FC = () => {
   return (
     <div
       className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background] duration-700 ease-in-out"
-      style={{ background: ui.pageBg, color: ui.text }}
+      style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
     >
       <header
         className="shrink-0 border-b px-4 py-4 backdrop-blur-md sm:px-8"
@@ -430,10 +483,10 @@ export const EventSettings: React.FC = () => {
               Back
             </Link>
             <div>
-              <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text }}>
+              <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text, fontFamily: titleFont }}>
                 Event settings
               </h1>
-              <p className="text-sm" style={{ color: ui.textMuted }}>
+              <p className="text-sm" style={{ color: ui.textMuted, fontFamily: titleFont }}>
                 {event.title}
               </p>
             </div>
@@ -476,19 +529,6 @@ export const EventSettings: React.FC = () => {
               <p className="mt-0.5 text-sm font-medium" style={{ color: ui.text }}>
                 Minimal
               </p>
-            </div>
-
-            <div className="rounded-2xl border p-4" style={cardMutedStyle}>
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                Live preview
-              </p>
-              <div className="mt-3">
-                <LandingDesignPreview
-                  value={design}
-                  title={title || event.title}
-                  bannerUrl={bannerUrl ? normalizeBannerUrl(bannerUrl) : undefined}
-                />
-              </div>
             </div>
 
             <div className="rounded-2xl border p-4" style={cardMutedStyle}>
@@ -549,7 +589,7 @@ export const EventSettings: React.FC = () => {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Event name"
               className="mb-2 w-full border-0 bg-transparent p-0 text-3xl font-semibold tracking-tight focus:outline-none sm:text-4xl"
-              style={{ color: ui.text }}
+              style={{ color: ui.text, fontFamily: titleFont }}
             />
 
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
@@ -587,7 +627,7 @@ export const EventSettings: React.FC = () => {
                     Landing design
                   </h2>
                   <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                    Personalize the colour, style, font, and display of your public page.
+                    Personalize the colour, style, font, and display with instant live updates.
                   </p>
                 </div>
                 <button
@@ -599,9 +639,6 @@ export const EventSettings: React.FC = () => {
                 >
                   {savingDesign ? 'Saving…' : 'Save design'}
                 </button>
-              </div>
-              <div className="mt-5">
-                <LandingCustomizer value={design} onChange={setDesign} ui={ui} />
               </div>
             </div>
 
@@ -950,6 +987,7 @@ export const EventSettings: React.FC = () => {
           </button>
         </div>
       </footer>
+      <LandingDesignDock design={design} onDesignChange={setDesign} />
     </div>
   );
 };
