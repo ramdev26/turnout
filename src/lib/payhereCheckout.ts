@@ -17,6 +17,9 @@ export type PayHereCheckoutPayment = {
   address: string;
   city: string;
   country: string;
+  delivery_address?: string;
+  delivery_city?: string;
+  delivery_country?: string;
   custom_1?: string;
   custom_2?: string;
 };
@@ -30,6 +33,19 @@ export type PayHereInitiateResponse = {
   fields?: Record<string, string | boolean | undefined>;
   sdkPayment?: Record<string, unknown>;
 };
+
+type PayHereSdk = {
+  startPayment: (payment: Record<string, unknown>) => void;
+  onCompleted?: (orderId: string) => void;
+  onDismissed?: () => void;
+  onError?: (error: string) => void;
+};
+
+declare global {
+  interface Window {
+    payhere?: PayHereSdk;
+  }
+}
 
 function str(v: unknown): string {
   return v === undefined || v === null ? '' : String(v).trim();
@@ -83,9 +99,12 @@ export function buildPayHerePaymentFromInitiate(res: PayHereInitiateResponse): P
     last_name: pick('last_name') || ' ',
     email: pick('email'),
     phone: pick('phone'),
-    address: pick('address'),
-    city: pick('city'),
+    address: pick('address') || 'N/A',
+    city: pick('city') || 'N/A',
     country: pick('country') || 'Sri Lanka',
+    delivery_address: pick('delivery_address') || pick('address') || 'N/A',
+    delivery_city: pick('delivery_city') || pick('city') || 'N/A',
+    delivery_country: pick('delivery_country') || pick('country') || 'Sri Lanka',
     custom_1: pick('custom_1') || 'turnout',
     custom_2: pick('custom_2'),
   };
@@ -93,8 +112,13 @@ export function buildPayHerePaymentFromInitiate(res: PayHereInitiateResponse): P
 
 const PAYHERE_CHECKOUT_LIVE = 'https://www.payhere.lk/pay/checkout';
 const PAYHERE_CHECKOUT_SANDBOX = 'https://sandbox.payhere.lk/pay/checkout';
+const PAYHERE_JS_LIVE = 'https://www.payhere.lk/lib/payhere.js';
+const PAYHERE_JS_SANDBOX = 'https://sandbox.payhere.lk/lib/payhere.js';
 
-/** Action URL from initiate response (Checkout API step 1). */
+let payhereScriptPromise: Promise<void> | null = null;
+let payhereScriptSrc: string | null = null;
+
+/** Action URL from initiate response (Checkout API fallback). */
 export function resolvePayHereActionUrl(res: PayHereInitiateResponse): string {
   if (res.actionUrl) return res.actionUrl;
   const sandbox =
@@ -102,6 +126,42 @@ export function resolvePayHereActionUrl(res: PayHereInitiateResponse): string {
     res.fields?.sandbox === true ||
     res.sdkPayment?.sandbox === true;
   return sandbox ? PAYHERE_CHECKOUT_SANDBOX : PAYHERE_CHECKOUT_LIVE;
+}
+
+function resolvePayHereJsUrl(sandbox: boolean): string {
+  return sandbox ? PAYHERE_JS_SANDBOX : PAYHERE_JS_LIVE;
+}
+
+function loadPayHereScript(sandbox: boolean): Promise<void> {
+  const src = resolvePayHereJsUrl(sandbox);
+  if (window.payhere?.startPayment && payhereScriptSrc === src) {
+    return Promise.resolve();
+  }
+
+  if (payhereScriptPromise && payhereScriptSrc === src) {
+    return payhereScriptPromise;
+  }
+
+  payhereScriptSrc = src;
+  payhereScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[data-payhere-sdk="${src}"]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('PayHere SDK failed to load')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = src;
+    script.async = true;
+    script.dataset.payhereSdk = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('PayHere SDK failed to load'));
+    document.body.appendChild(script);
+  });
+
+  return payhereScriptPromise;
 }
 
 /**
@@ -133,11 +193,56 @@ export function submitPayHereCheckoutForm(
   form.submit();
 }
 
-/** Validate initiate payload and redirect to PayHere via form POST. */
+/** Fallback when payhere.js cannot load. */
 export function redirectToPayHereCheckout(res: PayHereInitiateResponse): void {
   const fields = buildPayHerePaymentFromInitiate(res);
   if (!fields.hash) {
     throw new Error('PayHere hash missing from server.');
   }
   submitPayHereCheckoutForm(resolvePayHereActionUrl(res), fields as unknown as Record<string, unknown>);
+}
+
+/**
+ * Preferred checkout: PayHere JavaScript SDK popup (official sample flow).
+ * @see https://support.payhere.lk/api-&-mobile-sdk/javascript-sdk
+ */
+export async function startPayHereCheckout(
+  res: PayHereInitiateResponse,
+  handlers?: {
+    onError?: (message: string) => void;
+  }
+): Promise<void> {
+  const payment = buildPayHerePaymentFromInitiate(res);
+
+  try {
+    await loadPayHereScript(payment.sandbox);
+  } catch {
+    redirectToPayHereCheckout(res);
+    return;
+  }
+
+  const payhere = window.payhere;
+  if (!payhere?.startPayment) {
+    redirectToPayHereCheckout(res);
+    return;
+  }
+
+  payhere.onCompleted = (orderId: string) => {
+    const url = new URL(payment.return_url);
+    if (orderId) url.searchParams.set('order_id', orderId);
+    window.location.assign(url.toString());
+  };
+
+  payhere.onDismissed = () => {
+    window.location.assign(payment.cancel_url);
+  };
+
+  payhere.onError = (error: string) => {
+    const message =
+      error ||
+      'PayHere could not start checkout. Confirm your Merchant ID and domain secret in PayHere Integrations.';
+    handlers?.onError?.(message);
+  };
+
+  payhere.startPayment(payment as unknown as Record<string, unknown>);
 }

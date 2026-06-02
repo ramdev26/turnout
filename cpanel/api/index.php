@@ -851,7 +851,7 @@ function payhere_sandbox_probe(array $cfg): array {
     'message' => $accepted
       ? 'PayHere accepted a probe checkout with the configured credentials.'
       : ($unauthorized
-        ? "PayHere returned Unauthorized. Regenerate the Merchant Secret in sandbox PayHere → Integrations for approved domain \"{$host}\" and update PAYHERE_MERCHANT_SECRET (or config.vercel.php). The secret must match merchant {$merchantId}."
+        ? "PayHere returned Unauthorized. In sandbox PayHere → Integrations, approve domain \"{$host}\", copy the Merchant Secret for that domain, and set PAYHERE_MERCHANT_ID + PAYHERE_MERCHANT_SECRET (must match the same PayHere account; current merchant {$merchantId})."
         : 'PayHere did not accept the probe checkout. Verify merchant ID, secret, and domain approval.'),
   ];
 }

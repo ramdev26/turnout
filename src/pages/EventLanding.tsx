@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatLKR } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
-import { redirectToPayHereCheckout, type PayHereInitiateResponse } from '../lib/payhereCheckout';
+import { startPayHereCheckout, type PayHereInitiateResponse } from '../lib/payhereCheckout';
 
 export const EventLanding: React.FC = () => {
   const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
@@ -181,9 +181,10 @@ export const EventLanding: React.FC = () => {
           attendees,
         });
 
-        // Official Checkout API: POST form to PayHere (return/cancel URLs set server-side).
         setCheckoutOpen(false);
-        redirectToPayHereCheckout(res);
+        await startPayHereCheckout(res, {
+          onError: (message) => setPayError(message),
+        });
       }
     } catch (error: unknown) {
       const err = error as { message?: string; error?: string };
