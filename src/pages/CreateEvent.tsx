@@ -24,14 +24,9 @@ import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { cn } from '../utils/cn';
-import {
-  EVENT_THEMES,
-  landingCssVars,
-  type CreateThemeUI,
-  type EventThemeId,
-} from '../themes/eventThemes';
+import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
 import { EVENT_CATEGORIES } from '../themes/eventCategories';
-import { loadLandingFont, resolveLandingFont } from '../themes/landingFonts';
+import { useOrganizerLiveDesign } from '../themes/organizerLiveDesign';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -102,12 +97,6 @@ function fieldClassFor(ui: CreateThemeUI): string {
       ? 'text-white placeholder:text-white/40 focus:ring-white/15'
       : 'text-neutral-900 placeholder:text-neutral-400 focus:ring-black/5'
   );
-}
-
-function uiIsDark(displayMode: LandingDesignValue['displayMode'], fallbackIsDark: boolean): boolean {
-  if (displayMode === 'dark') return true;
-  if (displayMode === 'light') return false;
-  return fallbackIsDark;
 }
 
 function toDatetimeLocalValue(date: Date): string {
@@ -214,7 +203,6 @@ export const CreateEvent: React.FC = () => {
   const [hasEnd, setHasEnd] = useState(false);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
-  const baseUi = selectedTheme.ui;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
     const cat = EVENT_CATEGORIES[0];
     return {
@@ -266,58 +254,8 @@ export const CreateEvent: React.FC = () => {
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
 
-  useEffect(() => {
-    loadLandingFont(design.fontFamily);
-  }, [design.fontFamily]);
-
-  const landingVars = useMemo(
-    () =>
-      landingCssVars({
-        themeId: selectedTheme.id,
-        eventCategory: design.eventCategory,
-        primaryColor: design.primaryColor,
-        secondaryColor: design.secondaryColor,
-        fontFamily: design.fontFamily,
-        displayMode: design.displayMode,
-        landingStyle: design.landingStyle,
-      }),
-    [design, selectedTheme.id]
-  );
-
-  const liveUi = useMemo<CreateThemeUI>(() => {
-    const dynamicPageBg = uiIsDark(design.displayMode, baseUi.isDark)
-      ? 'radial-gradient(ellipse 70% 52% at 50% -14%, color-mix(in srgb, var(--primary) 26%, transparent) 0%, transparent 62%), linear-gradient(165deg, color-mix(in srgb, var(--secondary) 22%, #052e30) 0%, color-mix(in srgb, var(--primary) 20%, #0d585b) 52%, #052e30 100%)'
-      : 'radial-gradient(ellipse 70% 52% at 50% -12%, color-mix(in srgb, var(--primary) 18%, transparent) 0%, transparent 60%), linear-gradient(180deg, color-mix(in srgb, var(--secondary) 10%, #ffffff) 0%, color-mix(in srgb, var(--primary) 8%, #f5f7fb) 100%)';
-
-    // Mirror landing variables directly so organizers edit against the real look.
-    return {
-      ...baseUi,
-      pageBg: dynamicPageBg,
-      headerBg: 'color-mix(in srgb, var(--landing-page-bg) 62%, var(--landing-surface) 38%)',
-      footerBg: 'color-mix(in srgb, var(--landing-page-bg) 68%, var(--landing-surface) 32%)',
-      borderColor: 'var(--landing-border)',
-      cardBg: 'var(--landing-surface)',
-      cardMutedBg: 'var(--landing-surface-muted)',
-      fieldBg: 'color-mix(in srgb, var(--landing-surface) 76%, transparent)',
-      pillBg: 'color-mix(in srgb, var(--landing-surface) 78%, transparent)',
-      accent: 'var(--primary)',
-      accentHover: 'color-mix(in srgb, var(--primary) 84%, black)',
-      accentSoft: 'color-mix(in srgb, var(--primary) 18%, transparent)',
-      text: 'var(--landing-text)',
-      textMuted: 'var(--landing-text-muted)',
-      textSubtle: 'color-mix(in srgb, var(--landing-text-muted) 70%, var(--landing-text) 30%)',
-      dotActive: 'var(--primary)',
-      dotInactive: 'color-mix(in srgb, var(--landing-text-muted) 45%, transparent)',
-      lineDashed: 'color-mix(in srgb, var(--landing-border) 72%, transparent)',
-      bannerFrame: baseUi.bannerFrame,
-      bannerPlaceholder: baseUi.bannerPlaceholder,
-      isDark: uiIsDark(design.displayMode, baseUi.isDark),
-    };
-  }, [baseUi, design]);
-  const ui = liveUi;
+  const { ui, landingVars, titleFont, bodyFont, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(design, themeId);
   const fieldClass = fieldClassFor(ui);
-  const titleFont = resolveLandingFont(design.fontFamily).display;
-  const bodyFont = resolveLandingFont(design.fontFamily).body;
 
   useEffect(() => {
     if (hasEnd && !endDate && date) {
@@ -464,8 +402,6 @@ export const CreateEvent: React.FC = () => {
 
   const canSubmit = title.length >= 3 && !!date && !!location?.trim();
 
-  const cardStyle = { backgroundColor: ui.cardBg, borderColor: ui.borderColor };
-  const cardMutedStyle = { backgroundColor: ui.cardMutedBg, borderColor: ui.borderColor };
   const fieldStyle = { backgroundColor: ui.fieldBg, borderColor: ui.borderColor, color: ui.text };
 
   return (
@@ -536,7 +472,7 @@ export const CreateEvent: React.FC = () => {
               </div>
 
               <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
-                Pick an event type and fine-tune colour, style, font, and display in the design bar at the bottom.
+                Use Customize design below — colour, font, and style update live on this page.
               </p>
             </div>
 

@@ -297,10 +297,11 @@ export function resolveLandingStyle(customization: LandingCustomizationInput): L
 }
 
 /** Neutral dark surface set used when an organizer forces dark on a light theme. */
-function generatedDarkSurfaces(primary: string): LandingSurfaces {
+function generatedDarkSurfaces(primary: string, secondary?: string): LandingSurfaces {
+  const accent = secondary || primary;
   return {
     isDark: true,
-    pageBg: `radial-gradient(ellipse 70% 50% at 50% -10%, color-mix(in srgb, ${primary} 22%, transparent) 0%, transparent 60%), linear-gradient(165deg, ${TURNOUT_BRAND.teal900} 0%, ${TURNOUT_BRAND.teal700} 58%, ${TURNOUT_BRAND.teal800} 100%)`,
+    pageBg: `radial-gradient(ellipse 70% 50% at 50% -10%, color-mix(in srgb, ${primary} 24%, transparent) 0%, transparent 60%), linear-gradient(165deg, color-mix(in srgb, ${accent} 18%, ${TURNOUT_BRAND.teal900}) 0%, color-mix(in srgb, ${primary} 16%, ${TURNOUT_BRAND.teal700}) 52%, ${TURNOUT_BRAND.teal800} 100%)`,
     surfaceBg: 'rgba(255, 255, 255, 0.06)',
     surfaceMutedBg: 'rgba(255, 255, 255, 0.04)',
     text: TURNOUT_BRAND.text,
@@ -313,10 +314,11 @@ function generatedDarkSurfaces(primary: string): LandingSurfaces {
 }
 
 /** Neutral light surface set used when an organizer forces light on a dark theme. */
-function generatedLightSurfaces(primary: string): LandingSurfaces {
+function generatedLightSurfaces(primary: string, secondary?: string): LandingSurfaces {
+  const accent = secondary || primary;
   return {
     isDark: false,
-    pageBg: `radial-gradient(ellipse 70% 50% at 50% -10%, color-mix(in srgb, ${primary} 12%, transparent) 0%, transparent 60%), linear-gradient(180deg, #ffffff 0%, #f4f6fb 100%)`,
+    pageBg: `radial-gradient(ellipse 70% 50% at 50% -10%, color-mix(in srgb, ${primary} 14%, transparent) 0%, transparent 60%), linear-gradient(180deg, color-mix(in srgb, ${accent} 8%, #ffffff) 0%, color-mix(in srgb, ${primary} 6%, #f4f6fb) 100%)`,
     surfaceBg: '#ffffff',
     surfaceMutedBg: '#f5f7fb',
     text: '#0f172a',
@@ -335,17 +337,16 @@ function resolveLandingSurfaces(
   const c = normalizeLandingCustomization(customization);
   const { isDark } = resolveDisplayMode(c, theme);
   const primary = c.primaryColor || theme.primary;
+  const secondary = c.secondaryColor || theme.secondary;
   const themeIsDark = theme.ui.isDark;
+  const tinted = isDark ? generatedDarkSurfaces(primary, secondary) : generatedLightSurfaces(primary, secondary);
 
-  // When the requested mode matches the theme's native lightness, keep its
-  // hand-tuned surfaces; otherwise synthesize a neutral set in the new mode.
+  // Always use organizer primary/secondary tints for page background so public
+  // landings match the Customize design colours.
   if (isDark === themeIsDark) {
     const landing = theme.landing;
     return {
-      isDark,
-      pageBg: landing.pageBg,
-      surfaceBg: landing.surfaceBg,
-      surfaceMutedBg: landing.surfaceMutedBg,
+      ...tinted,
       text: landing.text,
       textMuted: landing.textMuted,
       borderColor: landing.borderColor,
@@ -355,7 +356,7 @@ function resolveLandingSurfaces(
     };
   }
 
-  return isDark ? generatedDarkSurfaces(primary) : generatedLightSurfaces(primary);
+  return tinted;
 }
 
 /** Per-style overrides applied on top of the resolved surface set. */
