@@ -175,12 +175,15 @@ export function EventBanner({ event, className = '', overlay = 'cinematic', heig
   const hasBanner = !!event.bannerUrl?.trim();
 
   return (
-    <div className={`landing-grain relative w-full overflow-hidden ${heightClass} ${className}`}>
+    <div
+      className={`landing-grain relative flex w-full items-center justify-center overflow-hidden ${heightClass} ${className}`}
+      style={hasBanner ? { background: 'var(--landing-surface-muted)' } : undefined}
+    >
       {hasBanner ? (
         <img
           src={event.bannerUrl}
           alt=""
-          className="landing-hero-img h-full w-full object-cover"
+          className="h-full w-full max-h-full max-w-full object-contain object-center"
           referrerPolicy="no-referrer"
         />
       ) : (

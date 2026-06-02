@@ -288,7 +288,7 @@ export function LandingDesignPreview({
     >
       <div className="relative h-24 w-full overflow-hidden">
         {bannerUrl ? (
-          <img src={bannerUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+          <img src={bannerUrl} alt="" className="h-full w-full object-contain object-center" referrerPolicy="no-referrer" />
         ) : (
           <div
             className="h-full w-full"

@@ -194,7 +194,7 @@ export const CanvasDesigner: React.FC<Props> = ({ value, onChange, eventPreview,
             src={el.props.url}
             alt=""
             referrerPolicy="no-referrer"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: el.props.radius ?? 24 }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', borderRadius: el.props.radius ?? 24 }}
           />
         </div>
       );

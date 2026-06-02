@@ -55,7 +55,7 @@ export function UploadDropzone({
       >
         {previewUrl ? (
           <div className="space-y-3">
-            <img src={previewUrl} alt="Uploaded banner preview" className="h-36 w-full rounded-lg object-cover" referrerPolicy="no-referrer" />
+            <img src={previewUrl} alt="Uploaded banner preview" className="h-36 w-full rounded-lg object-contain object-center bg-neutral-100" referrerPolicy="no-referrer" />
             <div className="flex items-center gap-2 text-xs font-medium text-[var(--primary)]">
               <ImagePlus className="h-3.5 w-3.5" />
               Replace image
