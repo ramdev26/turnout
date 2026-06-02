@@ -164,7 +164,7 @@ Organizers can connect a domain like `events.yourbrand.com` to a published event
 
 ## PayHere setup
 
-Turnout implements the official **PayHere JavaScript SDK** ([docs](https://support.payhere.lk/api-&-mobile-sdk/javascript-sdk)): PHP builds the signed payment object (`/api/payhere/initiate`), the browser calls `payhere.startPayment()` (with HTML form POST as fallback), and PayHere callbacks hit `/api/payhere/notify`.
+Turnout implements the official **PayHere JavaScript SDK** ([docs](https://support.payhere.lk/api-&-mobile-sdk/javascript-sdk)): PHP builds the signed payment object (`/api/payhere/initiate`), the browser loads `https://www.payhere.lk/lib/payhere.js` and calls `payhere.startPayment()` with `sandbox: true` for sandbox payments (the sandbox host does not serve `/lib/payhere.js`), and PayHere callbacks hit `/api/payhere/notify`.
 
 ### Credentials
 

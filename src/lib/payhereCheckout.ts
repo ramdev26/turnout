@@ -112,14 +112,13 @@ export function buildPayHerePaymentFromInitiate(res: PayHereInitiateResponse): P
 
 const PAYHERE_CHECKOUT_LIVE = 'https://www.payhere.lk/pay/checkout';
 const PAYHERE_CHECKOUT_SANDBOX = 'https://sandbox.payhere.lk/pay/checkout';
-const PAYHERE_JS_LIVE = 'https://www.payhere.lk/lib/payhere.js';
-const PAYHERE_JS_SANDBOX = 'https://sandbox.payhere.lk/lib/payhere.js';
+/** Official SDK host (sandbox uses `payment.sandbox`, not a separate script URL). */
+const PAYHERE_JS_URL = 'https://www.payhere.lk/lib/payhere.js';
 
 let payhereScriptPromise: Promise<void> | null = null;
-let payhereScriptSrc: string | null = null;
 
-function resolvePayHereJsUrl(sandbox: boolean): string {
-  return sandbox ? PAYHERE_JS_SANDBOX : PAYHERE_JS_LIVE;
+function resolvePayHereJsUrl(_sandbox: boolean): string {
+  return PAYHERE_JS_URL;
 }
 
 function waitForPayHereSdk(timeoutMs = 8000): Promise<PayHereSdk> {
@@ -142,15 +141,14 @@ function waitForPayHereSdk(timeoutMs = 8000): Promise<PayHereSdk> {
 
 function loadPayHereScript(sandbox: boolean): Promise<void> {
   const src = resolvePayHereJsUrl(sandbox);
-  if (window.payhere?.startPayment && payhereScriptSrc === src) {
+  if (window.payhere?.startPayment) {
     return Promise.resolve();
   }
 
-  if (payhereScriptPromise && payhereScriptSrc === src) {
+  if (payhereScriptPromise) {
     return payhereScriptPromise;
   }
 
-  payhereScriptSrc = src;
   payhereScriptPromise = new Promise((resolve, reject) => {
     const finish = () => {
       waitForPayHereSdk()
