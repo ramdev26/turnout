@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   CalendarDays,
   ChevronDown,
+  Clock3,
   FileText,
   Globe,
   MapPin,
@@ -145,6 +146,20 @@ function formatScheduleTime(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '--:--';
   return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function datePart(value: string): string {
+  return value?.includes('T') ? value.split('T')[0] : '';
+}
+
+function timePart(value: string): string {
+  return value?.includes('T') ? value.split('T')[1]?.slice(0, 5) || '' : '';
+}
+
+function combineDateAndTime(dateValue: string, timeValue: string): string {
+  if (!dateValue && !timeValue) return '';
+  if (!dateValue) return '';
+  return `${dateValue}T${timeValue || '00:00'}`;
 }
 
 function Toggle({
@@ -626,7 +641,35 @@ export const CreateEvent: React.FC = () => {
                         {formatScheduleTime(date)}
                       </p>
                     </div>
-                    <input {...register('date')} type="datetime-local" className={fieldClass} style={fieldStyle} />
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="space-y-1">
+                        <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          Date
+                        </span>
+                        <input
+                          type="date"
+                          value={datePart(date)}
+                          onChange={(e) => setValue('date', combineDateAndTime(e.target.value, timePart(date)), { shouldValidate: true })}
+                          className={fieldClass}
+                          style={fieldStyle}
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
+                          <Clock3 className="h-3.5 w-3.5" />
+                          Time
+                        </span>
+                        <input
+                          type="time"
+                          step={300}
+                          value={timePart(date)}
+                          onChange={(e) => setValue('date', combineDateAndTime(datePart(date), e.target.value), { shouldValidate: true })}
+                          className={fieldClass}
+                          style={fieldStyle}
+                        />
+                      </label>
+                    </div>
                     {errors.date && <p className="text-xs text-rose-600">{errors.date.message}</p>}
                   </div>
 
@@ -649,7 +692,47 @@ export const CreateEvent: React.FC = () => {
                           {formatScheduleTime(endDate || defaultEndDate(date))}
                         </p>
                       </div>
-                      <input {...register('endDate')} type="datetime-local" className={fieldClass} style={fieldStyle} />
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="space-y-1">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            End date
+                          </span>
+                          <input
+                            type="date"
+                            value={datePart(endDate || defaultEndDate(date))}
+                            onChange={(e) =>
+                              setValue(
+                                'endDate',
+                                combineDateAndTime(e.target.value, timePart(endDate || defaultEndDate(date))),
+                                { shouldValidate: true }
+                              )
+                            }
+                            className={fieldClass}
+                            style={fieldStyle}
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
+                            <Clock3 className="h-3.5 w-3.5" />
+                            End time
+                          </span>
+                          <input
+                            type="time"
+                            step={300}
+                            value={timePart(endDate || defaultEndDate(date))}
+                            onChange={(e) =>
+                              setValue(
+                                'endDate',
+                                combineDateAndTime(datePart(endDate || defaultEndDate(date)), e.target.value),
+                                { shouldValidate: true }
+                              )
+                            }
+                            className={fieldClass}
+                            style={fieldStyle}
+                          />
+                        </label>
+                      </div>
                       {errors.endDate && <p className="text-xs text-rose-600">{errors.endDate.message}</p>}
                       <button
                         type="button"
