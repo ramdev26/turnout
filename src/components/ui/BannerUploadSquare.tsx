@@ -32,7 +32,7 @@ export function BannerUploadSquare({
         )}
       >
         {previewUrl ? (
-          <img src={previewUrl} alt="Event banner" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+          <img src={previewUrl} alt="Event banner" className="h-full w-full object-contain object-center" referrerPolicy="no-referrer" />
         ) : (
           <div
             className={cn(
