@@ -68,6 +68,12 @@ function ticketsMain(props: LandingTemplateProps, variant: 'default' | 'dark' = 
   );
 }
 
+function landingHeroSubtitle(event: Event, override?: string): string {
+  const custom = (override ?? '').trim();
+  if (custom) return custom;
+  return (event.customization?.heroSubtext || '').trim();
+}
+
 function safeCanvas(design: CanvasDesign | undefined): CanvasDesign | null {
   if (!design || design.version !== 1 || !design.canvas || !Array.isArray(design.elements)) return null;
   const width = Math.max(600, Math.min(1600, design.canvas.width || 1100));
@@ -128,7 +134,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
         <div className="text-center sm:text-left">
           <PremiumBadge>{b.props?.eyebrow || 'Featured event'}</PremiumBadge>
           <HeroTitle className="mt-6">{b.props?.title || event.title}</HeroTitle>
-          <HeroSubtitle>{b.props?.subtitle || event.description}</HeroSubtitle>
+          {landingHeroSubtitle(event, b.props?.subtitle) ? <HeroSubtitle>{landingHeroSubtitle(event, b.props?.subtitle)}</HeroSubtitle> : null}
           <div className="mt-8 overflow-hidden rounded-3xl border shadow-2xl" style={{ borderColor: 'var(--landing-border)' }}>
             <EventBanner event={event} heightClass="aspect-[21/9] h-auto min-h-[240px]" overlay="light" />
           </div>
@@ -233,7 +239,7 @@ const Template1: LandingTemplate = {
             <HeroTitle light className="mt-5 text-white">
               {props.event.customization?.heroText || props.event.title}
             </HeroTitle>
-            <HeroSubtitle light>{props.event.customization?.heroSubtext || props.event.description}</HeroSubtitle>
+            {landingHeroSubtitle(props.event) ? <HeroSubtitle light>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
             <EventMeta event={props.event} tone="dark" />
             <HeroCTA onGetTickets={props.onCheckout} light />
           </div>
@@ -264,7 +270,7 @@ const Template2: LandingTemplate = {
       <div className="relative z-10 mx-auto max-w-5xl px-4 pt-10 text-center sm:px-6 lg:pt-16">
         <PremiumBadge>{props.event.status === 'published' ? 'Now booking' : props.event.status}</PremiumBadge>
         <HeroTitle className="mx-auto mt-6">{props.event.customization?.heroText || props.event.title}</HeroTitle>
-        <HeroSubtitle>{props.event.customization?.heroSubtext || props.event.description}</HeroSubtitle>
+        {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
         <div className="mt-10 overflow-hidden rounded-[2rem] border shadow-2xl" style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow-hover)' }}>
           <EventBanner event={props.event} heightClass="aspect-[16/10] h-auto min-h-[280px]" overlay="light" />
         </div>
@@ -299,7 +305,7 @@ const Template3: LandingTemplate = {
         <div className="flex flex-col justify-center px-6 py-14 lg:px-14 lg:py-20">
           <PremiumBadge>{themeDisplayName(props.event)}</PremiumBadge>
           <HeroTitle className="mt-5">{props.event.customization?.heroText || props.event.title}</HeroTitle>
-          <HeroSubtitle>{props.event.customization?.heroSubtext || props.event.description}</HeroSubtitle>
+          {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
           <div className="mt-10 overflow-hidden rounded-3xl border" style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow)' }}>
             <EventBanner event={props.event} heightClass="aspect-[4/3] h-auto" overlay="light" />
           </div>
@@ -337,7 +343,7 @@ const Template4: LandingTemplate = {
             <HeroTitle light className="mt-3">
               {props.event.customization?.heroText || props.event.title}
             </HeroTitle>
-            <HeroSubtitle light>{props.event.customization?.heroSubtext || props.event.description}</HeroSubtitle>
+            {landingHeroSubtitle(props.event) ? <HeroSubtitle light>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
             <EventMeta event={props.event} tone="dark" />
             <HeroCTA onGetTickets={props.onCheckout} light />
           </div>

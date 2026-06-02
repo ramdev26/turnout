@@ -399,10 +399,8 @@ export const CreateEvent: React.FC = () => {
         landingStyle: design.landingStyle,
         scheduleTba: !hasSchedule,
         heroText: data.title,
-        heroSubtext:
-          (data.shortDescription || '').trim() ||
-          (data.description || '').substring(0, 100) ||
-          `Join us for ${data.title}`,
+        // If organizer leaves short description empty, keep landing subtitle blank.
+        heroSubtext: (data.shortDescription || '').trim(),
         layout: 'centered',
         customDomain: data.useCustomDomain ? (data.customDomain || '').trim() : undefined,
         dnsProvider: data.useCustomDomain ? data.dnsProvider : undefined,
