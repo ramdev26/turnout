@@ -600,7 +600,7 @@ export const EventSettings: React.FC = () => {
                 <LocationAutocomplete
                   value={location}
                   onChange={setLocation}
-                  placeholder="Event location"
+                  placeholder="Search venue or place"
                   className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
                   style={{ color: ui.text }}
                   hintClassName="mt-0.5 text-xs"

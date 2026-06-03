@@ -707,7 +707,7 @@ export const CreateEvent: React.FC = () => {
                           value={field.value}
                           onChange={field.onChange}
                           onBlur={field.onBlur}
-                          placeholder="Add Event Location"
+                          placeholder="Search venue or place"
                           className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
                           style={{ color: ui.text }}
                           hintClassName="mt-0.5 text-xs"
@@ -716,7 +716,7 @@ export const CreateEvent: React.FC = () => {
                       )}
                     />
                     <p className="mt-0.5 text-xs" style={{ color: ui.textSubtle }}>
-                      Offline venue, address, or virtual link
+                      Venue or place name — not a street address
                     </p>
                     {errors.location && <p className="mt-1 text-xs text-rose-600">{errors.location.message}</p>}
                   </div>

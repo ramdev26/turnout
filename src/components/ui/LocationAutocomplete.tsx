@@ -13,22 +13,46 @@ export type LocationAutocompleteProps = {
   hintStyle?: React.CSSProperties;
 };
 
+function localityFromPlace(place: google.maps.places.PlaceResult): string {
+  const components = place.address_components;
+  if (components?.length) {
+    const locality = components.find((c) => c.types.includes('locality'));
+    if (locality?.long_name) return locality.long_name.trim();
+    const admin = components.find((c) => c.types.includes('administrative_area_level_1'));
+    if (admin?.long_name) return admin.long_name.trim();
+  }
+  return place.vicinity?.trim() || '';
+}
+
+/** Prefer venue/place name (e.g. auditorium) over full street address. */
 function placeLabel(place: google.maps.places.PlaceResult): string {
-  if (place.formatted_address?.trim()) return place.formatted_address.trim();
-  const parts = [place.name, place.vicinity].filter((p) => p && String(p).trim());
-  if (parts.length) return parts.join(', ');
-  return '';
+  const name = place.name?.trim();
+  const types = new Set(place.types || []);
+
+  if (name && !types.has('street_address') && !types.has('route')) {
+    const area = localityFromPlace(place);
+    if (area && !name.toLowerCase().includes(area.toLowerCase())) {
+      return `${name}, ${area}`;
+    }
+    return name;
+  }
+
+  if (name) {
+    return name;
+  }
+
+  return place.vicinity?.trim() || place.formatted_address?.trim() || '';
 }
 
 /**
  * Location field with Google Places suggestions while typing.
- * Requires `VITE_GOOGLE_MAPS_API_KEY` (Maps JavaScript API + Places API).
+ * Saves venue/place names, not full mailing addresses.
  */
 export function LocationAutocomplete({
   value,
   onChange,
   onBlur,
-  placeholder = 'Add event location',
+  placeholder = 'Search for a venue or place',
   className = '',
   style,
   disabled = false,
@@ -54,7 +78,8 @@ export function LocationAutocomplete({
       .then(() => {
         if (cancelled || !inputRef.current) return;
         autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-          fields: ['formatted_address', 'name', 'vicinity', 'place_id'],
+          fields: ['name', 'formatted_address', 'vicinity', 'place_id', 'address_components', 'types'],
+          types: ['establishment'],
         });
         listener = autocomplete.addListener('place_changed', () => {
           const place = autocomplete?.getPlace();
@@ -77,11 +102,11 @@ export function LocationAutocomplete({
 
   let hintText: string | null = null;
   if (!configured) {
-    hintText = 'Add VITE_GOOGLE_MAPS_API_KEY to enable Google location suggestions.';
+    hintText = 'Add VITE_GOOGLE_MAPS_API_KEY to enable place search.';
   } else if (placesError) {
-    hintText = 'Google Places unavailable — you can still type the address manually.';
+    hintText = 'Place search unavailable — type the venue name manually.';
   } else if (placesReady) {
-    hintText = 'Start typing to search venues and addresses';
+    hintText = 'Search venues and places (e.g. hall, stadium, hotel)';
   }
 
   return (
@@ -105,4 +130,4 @@ export function LocationAutocomplete({
       ) : null}
     </div>
   );
-}
+};
