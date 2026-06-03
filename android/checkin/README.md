@@ -77,12 +77,26 @@ The file **does not exist until you build**. Syncing Gradle is not enough.
 
    If `build` is missing, you have not built yet (step 1).
 
-**From terminal** (in `android/checkin` folder):
+**From terminal** (in `android/checkin` folder — **not** inside `scripts`):
+
+**Windows PowerShell:**
+
+```powershell
+cd "C:\Users\User 1\turnout\android\checkin"
+.\scripts\build-apk.ps1
+```
+
+Or double-click `scripts\build-apk.bat` in File Explorer.
+
+**Mac / Linux / Git Bash:**
 
 ```bash
+cd android/checkin
 chmod +x scripts/build-apk.sh
 ./scripts/build-apk.sh
 ```
+
+Do **not** run `/usr/bin/env bash ...` in PowerShell — that only works on Mac/Linux.
 
 **Option B — Command line**
 
