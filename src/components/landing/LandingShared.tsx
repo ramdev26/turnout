@@ -168,37 +168,49 @@ type BannerProps = {
   event: Event;
   className?: string;
   overlay?: 'cinematic' | 'light' | 'none';
-  heightClass?: string;
+  /** Max height for the banner image (full width, never cropped). */
+  maxHeightClass?: string;
 };
 
-export function EventBanner({ event, className = '', overlay = 'cinematic', heightClass = 'h-[min(72vh,640px)]' }: BannerProps) {
+export function EventBanner({
+  event,
+  className = '',
+  overlay = 'cinematic',
+  maxHeightClass = 'max-h-[min(72vh,720px)]',
+}: BannerProps) {
   const hasBanner = !!event.bannerUrl?.trim();
 
   return (
-    <div className={`landing-grain relative w-full overflow-hidden ${heightClass} ${className}`}>
+    <div
+      className={`landing-grain relative w-full ${className}`}
+      style={hasBanner ? { background: 'var(--landing-surface-muted)' } : undefined}
+    >
       {hasBanner ? (
         <img
           src={event.bannerUrl}
           alt=""
-          className="landing-hero-img h-full w-full object-cover"
+          className={`mx-auto block h-auto w-full object-contain object-center ${maxHeightClass}`}
           referrerPolicy="no-referrer"
         />
       ) : (
         <div
-          className="h-full w-full"
+          className="min-h-[240px] w-full h-[min(50vh,420px)]"
           style={{
             background: `radial-gradient(ellipse 80% 60% at 50% 0%, var(--primary) 0%, transparent 55%), linear-gradient(160deg, var(--secondary) 0%, var(--landing-page-bg) 70%)`,
           }}
         />
       )}
       {overlay === 'cinematic' && (
-        <>
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/10" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
-        </>
+        </div>
       )}
       {overlay === 'light' && (
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--landing-page-bg)] via-transparent to-transparent" />
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--landing-page-bg)] via-transparent to-transparent"
+          aria-hidden
+        />
       )}
     </div>
   );

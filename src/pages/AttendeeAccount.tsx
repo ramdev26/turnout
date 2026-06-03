@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { parseAuthPayload } from '../api/authResponse';
 import { AttendeeProfile } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { AttendeeShell } from '../components/attendee/AttendeeShell';
@@ -55,12 +56,14 @@ export const AttendeeAccount: React.FC = () => {
     setError(null);
     setProfileMsg(null);
     try {
-      const res = await api.post<{ ok: boolean; user: Parameters<typeof setUser>[0] }>('/api/me/profile', {
-        displayName: profile.displayName,
-        avatarUrl: profile.avatarUrl || undefined,
-        phone: profile.phone || undefined,
-        bio: profile.bio || undefined,
-      });
+      const res = parseAuthPayload(
+        await api.post<unknown>('/api/me/profile', {
+          displayName: profile.displayName,
+          avatarUrl: profile.avatarUrl || undefined,
+          phone: profile.phone || undefined,
+          bio: profile.bio || undefined,
+        })
+      );
       setUser(res.user);
       setProfileMsg('Profile updated');
     } catch (e: unknown) {
