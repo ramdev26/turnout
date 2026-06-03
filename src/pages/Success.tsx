@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Order, Event } from '../types';
-import { CheckCircle, Calendar, MapPin, Ticket, ArrowRight, Download } from 'lucide-react';
+import { CheckCircle, Calendar, MapPin, Ticket, ArrowRight, Download, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'motion/react';
 import { api } from '../api/client';
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { useAuthStore } from '../store/useAuthStore';
+import { TURNOUT_BRAND } from '../themes/brandColors';
 
 type TicketPdfTemplate = 'classic' | 'midnight' | 'sunset';
 
@@ -16,6 +17,14 @@ const hexToRgb = (hex: string, fallback: [number, number, number]): [number, num
   if (!safeHex) return fallback;
   const n = parseInt(safeHex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+const cardShell =
+  'rounded-2xl border backdrop-blur-md';
+const cardShellStyle: React.CSSProperties = {
+  borderColor: TURNOUT_BRAND.limeLine,
+  background: 'rgba(255, 255, 255, 0.05)',
+  boxShadow: '0 12px 36px rgba(5, 46, 48, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
 };
 
 export const Success: React.FC = () => {
@@ -49,18 +58,23 @@ export const Success: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-[var(--primary)]" />
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div
+          className="h-12 w-12 animate-spin rounded-full border-4 border-t-[var(--primary)]"
+          style={{ borderColor: TURNOUT_BRAND.limeLine, borderTopColor: 'var(--primary)' }}
+        />
       </div>
     );
   }
 
   if (!order || !event) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <h2 className="text-3xl font-bold">Order not found</h2>
-        <p className="mt-2 text-neutral-500">We couldn't find your order details.</p>
-        <Link to="/" className="mt-6 font-semibold text-[var(--primary)] underline">Go back home</Link>
+      <div className="mx-auto flex max-w-lg flex-col items-center justify-center px-4 py-24 text-center">
+        <h2 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Order not found</h2>
+        <p className="mt-2 text-[var(--text-muted)]">We couldn&apos;t find your order details.</p>
+        <Link to="/" className="mt-6 font-semibold text-[var(--primary)] underline-offset-2 hover:underline">
+          Go back home
+        </Link>
       </div>
     );
   }
@@ -160,127 +174,197 @@ export const Success: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl py-10">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="turnout-surface flex flex-col items-center gap-8 rounded-3xl p-8 text-center sm:p-12"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-hidden rounded-3xl border backdrop-blur-xl"
+        style={{
+          borderColor: TURNOUT_BRAND.limeLine,
+          background: 'rgba(5, 46, 48, 0.55)',
+          boxShadow: '0 24px 56px rgba(5, 46, 48, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+        }}
       >
         <div
-          className="flex h-24 w-24 items-center justify-center rounded-full shadow-inner"
-          style={{ background: 'var(--app-surface-muted)', color: 'var(--primary)' }}
-        >
-          <CheckCircle className="h-12 w-12" />
-        </div>
-        
-        <div>
-          <h1 className="text-4xl font-semibold tracking-tight text-[var(--text)]">Order Confirmed</h1>
-          <p className="mt-3 text-lg text-[var(--text-muted)]">
-            Thank you for your purchase. Your tickets are ready!
-          </p>
-        </div>
+          className="pointer-events-none h-1 w-full"
+          style={{ background: `linear-gradient(90deg, ${TURNOUT_BRAND.lime500}, ${TURNOUT_BRAND.teal600})` }}
+        />
 
-        <div className="turnout-surface w-full rounded-2xl p-8 text-left">
-          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text)]">{event.title}</h2>
-          <div className="mt-4 flex flex-col gap-3 text-[var(--text-muted)]">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              {format(new Date(event.date), 'PPPP p')}
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              {event.location}
-            </div>
+        <div className="flex flex-col items-center gap-6 px-6 py-10 text-center sm:px-10 sm:py-12">
+          <div
+            className="relative flex h-20 w-20 items-center justify-center rounded-full sm:h-24 sm:w-24"
+            style={{
+              background: TURNOUT_BRAND.limeSoft,
+              boxShadow: `0 0 0 1px ${TURNOUT_BRAND.limeLine}, 0 12px 32px rgba(192, 255, 114, 0.2)`,
+            }}
+          >
+            <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12" style={{ color: TURNOUT_BRAND.lime500 }} strokeWidth={2} />
           </div>
 
-          <div className="mt-8 border-t pt-6" style={{ borderColor: 'var(--border)' }}>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-subtle)]">Your Tickets</h3>
-            <div className="mt-4 flex flex-col gap-4">
-              {order.tickets.map((t, i) => (
-                <div key={i} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-lg"
-                      style={{ background: 'var(--app-surface-muted)', color: 'var(--primary)' }}
-                    >
-                      <Ticket className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-bold">{t.name}</p>
-                      <p className="text-xs text-neutral-500">Quantity: {t.quantity}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 text-sm font-medium text-neutral-400"
-                    disabled
-                    title="Use attendee ticket downloads below"
+          <div>
+            <p
+              className="mb-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]"
+              style={{ background: TURNOUT_BRAND.limeSoft, color: TURNOUT_BRAND.lime400 }}
+            >
+              <Sparkles className="h-3 w-3" />
+              Payment complete
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">Order confirmed</h1>
+            <p className="mx-auto mt-3 max-w-md text-base text-[var(--text-muted)] sm:text-lg">
+              Thank you for your purchase. Your tickets are ready — show the QR codes below at the door.
+            </p>
+          </div>
+        </div>
+
+        <div className="border-t px-6 pb-8 sm:px-10 sm:pb-10" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
+          <div className={`${cardShell} p-6 sm:p-8`} style={cardShellStyle}>
+            <h2 className="text-xl font-semibold tracking-tight text-[var(--text)] sm:text-2xl">{event.title}</h2>
+            <div className="mt-4 flex flex-col gap-3 text-sm text-[var(--text-muted)] sm:text-base">
+              <div className="flex items-start gap-2.5">
+                <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
+                {format(new Date(event.date), 'PPPP p')}
+              </div>
+              <div className="flex items-start gap-2.5">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
+                {event.location}
+              </div>
+            </div>
+
+            <div className="mt-8 border-t pt-6" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
+              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Your tickets</h3>
+              <div className="mt-4 flex flex-col gap-3">
+                {order.tickets.map((t, i) => (
+                  <div
+                    key={i}
+                    className={`${cardShell} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between`}
+                    style={{
+                      ...cardShellStyle,
+                      background: 'rgba(255, 255, 255, 0.03)',
+                    }}
                   >
-                    <Download className="h-4 w-4" />
-                    Download below
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {order.attendees && order.attendees.length > 0 && (
-            <div className="mt-8 border-t border-neutral-200 pt-6">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-400">QR Codes (for check-in)</h3>
-              <div className="mt-4 grid gap-5 sm:grid-cols-2">
-                {order.attendees.map((a) => (
-                  <div key={a.id} className="flex flex-col items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-center shadow-sm">
-                    <div className="rounded-lg border border-neutral-200 bg-white p-3">
-                      <QRCodeCanvas
-                        id={`ticket-qr-${a.id}`}
-                        value={a.qrToken}
-                        size={160}
-                        bgColor="#ffffff"
-                        fgColor="#0a0a0a"
-                        level="H"
-                        includeMargin
-                      />
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                        style={{ background: TURNOUT_BRAND.limeSoft, color: TURNOUT_BRAND.lime500 }}
+                      >
+                        <Ticket className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[var(--text)]">{t.name}</p>
+                        <p className="text-xs text-[var(--text-muted)]">Quantity: {t.quantity}</p>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-bold text-neutral-900">{a.fullName}</div>
-                      <div className="mt-1 text-xs text-neutral-500">{a.email}</div>
-                    </div>
-                    <div className="w-full rounded-lg bg-neutral-900 p-2 font-mono text-[11px] text-neutral-200 break-all">
-                      {a.qrToken}
-                    </div>
-                    {a.checkedInAt ? (
-                      <div className="mt-1 text-xs font-bold text-emerald-700">Checked in</div>
-                    ) : (
-                      <div className="mt-1 text-xs font-bold text-amber-700">Not checked in</div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => downloadAttendeeTicket(a)}
-                      className="mt-2 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold hover:opacity-90"
-                      style={{ borderColor: 'var(--border)', background: 'var(--app-surface-muted)', color: 'var(--primary)' }}
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      Download Ticket
-                    </button>
+                    <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-subtle)] sm:text-sm">
+                      <Download className="h-4 w-4 text-[var(--primary)]" />
+                      Download each pass below
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
-          )}
-        </div>
 
-        <div className="flex w-full flex-col gap-4 sm:flex-row">
-          <Link to="/" className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-200 py-4 font-semibold text-neutral-600 hover:bg-neutral-50">
-            Go to Home
-          </Link>
-          <Link
-            to={user?.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] py-4 font-semibold text-[var(--primary-on)] shadow-md transition-all hover:bg-[var(--primary-hover)] hover:shadow-lg"
-          >
-            {user?.role === 'attendee' ? 'Go to My Events' : 'Go to Dashboard'}
-            <ArrowRight className="h-5 w-5" />
-          </Link>
+            {order.attendees && order.attendees.length > 0 && (
+              <div className="mt-8 border-t pt-6" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
+                <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">
+                  Check-in QR codes
+                </h3>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">Present these at the entrance. Staff will scan to check you in.</p>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  {order.attendees.map((a) => (
+                    <div key={a.id} className={`${cardShell} flex flex-col items-center gap-4 p-5`} style={cardShellStyle}>
+                      <div
+                        className="rounded-xl border p-3"
+                        style={{
+                          borderColor: TURNOUT_BRAND.limeLine,
+                          background: TURNOUT_BRAND.cream,
+                          boxShadow: 'inset 0 0 0 1px rgba(10, 36, 38, 0.06)',
+                        }}
+                      >
+                        <QRCodeCanvas
+                          id={`ticket-qr-${a.id}`}
+                          value={a.qrToken}
+                          size={152}
+                          bgColor={TURNOUT_BRAND.cream}
+                          fgColor={TURNOUT_BRAND.ink}
+                          level="H"
+                          includeMargin={false}
+                        />
+                      </div>
+                      <div className="w-full text-center">
+                        <div className="text-sm font-semibold text-[var(--text)]">{a.fullName}</div>
+                        <div className="mt-1 text-xs text-[var(--text-muted)]">{a.email}</div>
+                      </div>
+                      <div
+                        className="w-full rounded-xl border px-3 py-2.5 font-mono text-[10px] leading-relaxed break-all sm:text-[11px]"
+                        style={{
+                          borderColor: TURNOUT_BRAND.limeLine,
+                          background: TURNOUT_BRAND.teal900,
+                          color: TURNOUT_BRAND.lime300,
+                        }}
+                      >
+                        {a.qrToken}
+                      </div>
+                      {a.checkedInAt ? (
+                        <span
+                          className="rounded-full px-3 py-1 text-xs font-bold"
+                          style={{ background: TURNOUT_BRAND.limeSoft, color: TURNOUT_BRAND.lime500 }}
+                        >
+                          Checked in
+                        </span>
+                      ) : (
+                        <span
+                          className="rounded-full px-3 py-1 text-xs font-bold"
+                          style={{ background: 'rgba(251, 191, 36, 0.15)', color: '#fcd34d' }}
+                        >
+                          Not checked in yet
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => downloadAttendeeTicket(a)}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition hover:brightness-110"
+                        style={{
+                          borderColor: TURNOUT_BRAND.limeLine,
+                          background: TURNOUT_BRAND.limeSoft,
+                          color: TURNOUT_BRAND.lime500,
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                        Download ticket PDF
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row">
+            <Link
+              to="/"
+              className="flex flex-1 items-center justify-center rounded-xl border py-3.5 text-sm font-semibold transition hover:brightness-110 sm:py-4"
+              style={{
+                borderColor: TURNOUT_BRAND.limeLine,
+                color: 'var(--text)',
+                background: 'rgba(255, 255, 255, 0.04)',
+              }}
+            >
+              Go to home
+            </Link>
+            <Link
+              to={user?.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition hover:brightness-105 sm:py-4"
+              style={{
+                background: 'var(--primary)',
+                color: 'var(--primary-on)',
+                boxShadow: '0 8px 24px rgba(192, 255, 114, 0.25)',
+              }}
+            >
+              {user?.role === 'attendee' ? 'Go to my events' : 'Go to dashboard'}
+              <ArrowRight className="h-5 w-5" />
+            </Link>
+          </div>
         </div>
       </motion.div>
     </div>
