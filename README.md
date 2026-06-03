@@ -122,6 +122,20 @@ If frontend and API are on separate domains, set:
 
 If this is not set, production frontend requests default to relative `/api/*` URLs on the Vercel domain.
 
+### Plunk (transactional email)
+
+Ticket purchase confirmations and other app emails are sent through [Plunk](https://www.useplunk.com) when configured.
+
+Set in the project `.env` (loaded by the PHP API) or in Vercel **Environment Variables**:
+
+- `PLUNK_SECRET_KEY` — secret API key from the Plunk dashboard
+- `PLUNK_API_URL` — optional, defaults to `https://next-api.useplunk.com/v1/send`
+- `MAIL_ENABLED` — `true` (default) to send mail; `false` to no-op (dev)
+- `MAIL_FROM` — sender address verified in Plunk (e.g. `admin@bigturnout.co`)
+- `MAIL_FROM_NAME` — display name (e.g. `Turnout`)
+
+Verify your sending domain in Plunk before going live. After deploy, complete a test checkout to confirm the buyer receives the confirmation email.
+
 ### Google Places (event location autocomplete)
 
 Set in Vercel and local `.env.local`:

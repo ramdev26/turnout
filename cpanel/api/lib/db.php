@@ -1,8 +1,12 @@
 <?php
 
+require_once __DIR__ . '/env.php';
+
 function get_config(): array {
   static $cfg = null;
   if ($cfg !== null) return $cfg;
+
+  load_dotenv_if_present();
 
   $configPath = null;
   foreach (['config.php', 'config.vercel.php', 'config.sample.php'] as $name) {

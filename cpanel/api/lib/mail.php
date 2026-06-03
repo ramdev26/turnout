@@ -41,6 +41,77 @@ function mail_format_from(?PDO $pdo = null): string {
   return $name . ' <' . $email . '>';
 }
 
+function mail_extract_email(string $fromHeader): string {
+  if (preg_match('/<([^>]+)>/', $fromHeader, $m)) {
+    return trim($m[1]);
+  }
+  return trim($fromHeader);
+}
+
+/**
+ * Send via Plunk (https://www.useplunk.com) — primary transport when API key is configured.
+ */
+function plunk_send_email(string $to, string $subject, string $htmlBody, string $fromEmail, array $mail): bool {
+  $apiKey = trim((string)($mail['plunk_secret_key'] ?? ''));
+  if ($apiKey === '') {
+    return false;
+  }
+
+  $apiUrl = trim((string)($mail['plunk_api_url'] ?? 'https://next-api.useplunk.com/v1/send'));
+  if ($apiUrl === '') {
+    $apiUrl = 'https://next-api.useplunk.com/v1/send';
+  }
+
+  $from = mail_extract_email($fromEmail);
+  if ($from === '' || !filter_var($from, FILTER_VALIDATE_EMAIL)) {
+    $from = mail_from_address();
+  }
+
+  $payload = json_encode([
+    'to' => $to,
+    'subject' => $subject,
+    'body' => $htmlBody,
+    'from' => $from,
+  ], JSON_UNESCAPED_UNICODE);
+
+  if ($payload === false) {
+    return false;
+  }
+
+  $ch = curl_init($apiUrl);
+  if ($ch === false) {
+    return false;
+  }
+
+  curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_HTTPHEADER => [
+      'Authorization: Bearer ' . $apiKey,
+      'Content-Type: application/json',
+    ],
+    CURLOPT_POSTFIELDS => $payload,
+  ]);
+
+  $response = curl_exec($ch);
+  $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $curlError = curl_error($ch);
+  curl_close($ch);
+
+  if ($response === false) {
+    error_log('Plunk send failed (curl): ' . $curlError);
+    return false;
+  }
+
+  if ($httpCode < 200 || $httpCode >= 300) {
+    error_log('Plunk send failed HTTP ' . $httpCode . ': ' . substr((string)$response, 0, 500));
+    return false;
+  }
+
+  return true;
+}
+
 function send_email(string $to, string $subject, string $htmlBody, ?PDO $pdo = null): bool {
   $mail = mail_config();
   $enabled = (bool)($mail['enabled'] ?? false);
@@ -54,6 +125,12 @@ function send_email(string $to, string $subject, string $htmlBody, ?PDO $pdo = n
   }
 
   $from = mail_format_from($pdo);
+
+  $plunkKey = trim((string)($mail['plunk_secret_key'] ?? ''));
+  if ($plunkKey !== '') {
+    return plunk_send_email($to, $subject, $htmlBody, $from, $mail);
+  }
+
   $smtpHost = trim((string)($mail['smtp_host'] ?? ''));
   if ($smtpHost !== '') {
     return smtp_send_email($to, $subject, $htmlBody, $from, $mail);
