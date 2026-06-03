@@ -58,8 +58,10 @@ function buildLiveUi(design: LandingDesignValue, baseUi: CreateThemeUI): CreateT
     borderColor: cardBorder,
     cardBg:
       style === 'glass'
-        ? 'color-mix(in srgb, var(--landing-surface) 82%, transparent)'
-        : 'var(--landing-surface)',
+        ? undefined
+        : style === 'minimal'
+          ? 'var(--landing-surface)'
+          : 'var(--landing-surface)',
     cardMutedBg: 'var(--landing-surface-muted)',
     fieldBg: 'color-mix(in srgb, var(--landing-surface) 76%, transparent)',
     pillBg: 'color-mix(in srgb, var(--landing-surface) 78%, transparent)',
@@ -78,11 +80,19 @@ function buildLiveUi(design: LandingDesignValue, baseUi: CreateThemeUI): CreateT
   };
 }
 
+export function organizerPanelClassName(landingStyle: LandingStyle): string {
+  if (landingStyle === 'glass') return 'landing-glass';
+  if (landingStyle === 'bold') return 'landing-card-premium';
+  return 'landing-surface-minimal';
+}
+
 export function organizerCardStyle(ui: CreateThemeUI, landingStyle: LandingStyle) {
+  if (landingStyle === 'glass') {
+    return { borderColor: ui.borderColor };
+  }
   return {
     backgroundColor: ui.cardBg,
     borderColor: ui.borderColor,
-    ...(landingStyle === 'glass' ? { backdropFilter: 'blur(12px)' as const } : {}),
     ...(landingStyle === 'bold' ? { boxShadow: 'var(--landing-shadow)' as const } : {}),
   };
 }
@@ -101,6 +111,7 @@ export function useOrganizerLiveDesign(design: LandingDesignValue, themeId: Even
 
   const ui = useMemo(() => buildLiveUi(design, baseUi), [design, baseUi]);
   const fonts = useMemo(() => resolveLandingFont(design.fontFamily), [design.fontFamily]);
+  const panelClass = useMemo(() => organizerPanelClassName(design.landingStyle), [design.landingStyle]);
   const cardStyle = useMemo(() => organizerCardStyle(ui, design.landingStyle), [ui, design.landingStyle]);
   const cardMutedStyle = useMemo(
     () => ({ backgroundColor: ui.cardMutedBg, borderColor: ui.borderColor }),
@@ -112,6 +123,7 @@ export function useOrganizerLiveDesign(design: LandingDesignValue, themeId: Even
     landingVars,
     titleFont: fonts.display,
     bodyFont: fonts.body,
+    panelClass,
     cardStyle,
     cardMutedStyle,
   };

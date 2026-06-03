@@ -316,7 +316,10 @@ export function LandingDesignDock({
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => update({ landingStyle: opt.id })}
+                      onClick={() => {
+                        update({ landingStyle: opt.id });
+                        setOpen(null);
+                      }}
                       className="flex min-h-[44px] items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/10"
                     >
                       <span>

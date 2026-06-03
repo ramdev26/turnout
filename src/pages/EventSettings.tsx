@@ -101,7 +101,11 @@ export const EventSettings: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
-  const { ui, landingVars, titleFont, bodyFont, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(design, themeId);
+  const { ui, landingVars, titleFont, bodyFont, panelClass, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(
+    design,
+    themeId
+  );
+  const panelCn = cn('rounded-2xl border transition-[background,border-color,box-shadow] duration-700', panelClass);
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
 
@@ -594,7 +598,7 @@ export const EventSettings: React.FC = () => {
               )}
             </div>
 
-            <div className="mb-5 rounded-2xl border p-4" style={cardStyle}>
+            <div className={cn(panelCn, 'mb-5 p-4')} style={cardStyle}>
               <div className="flex items-start gap-3">
                 <MapPin className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
                 <LocationAutocomplete
@@ -610,7 +614,7 @@ export const EventSettings: React.FC = () => {
             </div>
 
             {/* Public URL */}
-            <div className="mb-5 rounded-2xl border p-5" style={cardStyle}>
+            <div className={cn(panelCn, 'mb-5 p-5')} style={cardStyle}>
               <h2 className="text-base font-semibold" style={{ color: ui.text }}>
                 Public URL
               </h2>
@@ -663,7 +667,7 @@ export const EventSettings: React.FC = () => {
             )}
 
             {/* Tickets */}
-            <div className="mb-5 rounded-2xl border p-5" style={cardStyle}>
+            <div className={cn(panelCn, 'mb-5 p-5')} style={cardStyle}>
               <div className="flex items-center gap-2">
                 <TicketIcon className="h-5 w-5" style={{ color: ui.accent }} />
                 <h2 className="text-base font-semibold" style={{ color: ui.text }}>

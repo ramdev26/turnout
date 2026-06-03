@@ -34,10 +34,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const isMarketingHome = path === '/';
 
+  const isOrderConfirmation = /^\/orders\/\d+\/success$/.test(path);
+
   const isFullscreenFlow =
     isPublicLanding ||
     isStaffCheckin ||
     isMarketingHome ||
+    isOrderConfirmation ||
     path === '/events/new' ||
     /^\/dashboard\/events\/[^/]+\/settings$/.test(path);
 

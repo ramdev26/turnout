@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   CalendarDays,
   ChevronDown,
-  Clock3,
   FileText,
   Globe,
   MapPin,
@@ -99,6 +98,61 @@ function fieldClassFor(ui: CreateThemeUI): string {
   );
 }
 
+function openNativePicker(el: HTMLInputElement) {
+  if (typeof el.showPicker === 'function') {
+    try {
+      el.showPicker();
+    } catch {
+      el.focus();
+    }
+  } else {
+    el.focus();
+  }
+}
+
+function ScheduleDateTimeField({
+  id,
+  label,
+  labelColor,
+  value,
+  onChange,
+  fieldClass,
+  fieldStyle,
+  isDark,
+  min,
+}: {
+  id: string;
+  label: string;
+  labelColor: string;
+  value: string;
+  onChange: (next: string) => void;
+  fieldClass: string;
+  fieldStyle: React.CSSProperties;
+  isDark: boolean;
+  min?: string;
+}) {
+  const localValue = value.includes('T') ? value.slice(0, 16) : '';
+  return (
+    <label className="space-y-1" htmlFor={id}>
+      <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: labelColor }}>
+        <CalendarDays className="h-3.5 w-3.5 opacity-70" />
+        {label}
+      </span>
+      <input
+        id={id}
+        type="datetime-local"
+        value={localValue}
+        min={min}
+        step={300}
+        onChange={(e) => onChange(e.target.value)}
+        onClick={(e) => openNativePicker(e.currentTarget)}
+        className={cn(fieldClass, 'min-h-[44px] cursor-pointer')}
+        style={{ ...fieldStyle, colorScheme: isDark ? 'dark' : 'light' }}
+      />
+    </label>
+  );
+}
+
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -135,20 +189,6 @@ function formatScheduleTime(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '--:--';
   return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-function datePart(value: string): string {
-  return value?.includes('T') ? value.split('T')[0] : '';
-}
-
-function timePart(value: string): string {
-  return value?.includes('T') ? value.split('T')[1]?.slice(0, 5) || '' : '';
-}
-
-function combineDateAndTime(dateValue: string, timeValue: string): string {
-  if (!dateValue && !timeValue) return '';
-  if (!dateValue) return '';
-  return `${dateValue}T${timeValue || '00:00'}`;
 }
 
 function Toggle({
@@ -254,8 +294,15 @@ export const CreateEvent: React.FC = () => {
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
 
-  const { ui, landingVars, titleFont, bodyFont, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(design, themeId);
+  const { ui, landingVars, titleFont, bodyFont, panelClass, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(
+    design,
+    themeId
+  );
   const fieldClass = fieldClassFor(ui);
+  const panelCn = cn(
+    'rounded-2xl border transition-[background,border-color,box-shadow] duration-700',
+    panelClass
+  );
 
   useEffect(() => {
     if (hasEnd && !endDate && date) {
@@ -517,7 +564,7 @@ export const CreateEvent: React.FC = () => {
                   <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                     When
                   </p>
-                  <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
+                  <div className={cn('inline-flex rounded-xl border p-1', panelClass)} style={cardStyle}>
                     <button
                       type="button"
                       onClick={() => setHasSchedule(false)}
@@ -577,35 +624,16 @@ export const CreateEvent: React.FC = () => {
                         {formatScheduleTime(date)}
                       </p>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="space-y-1">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          Date
-                        </span>
-                        <input
-                          type="date"
-                          value={datePart(date)}
-                          onChange={(e) => setValue('date', combineDateAndTime(e.target.value, timePart(date)), { shouldValidate: true })}
-                          className={fieldClass}
-                          style={fieldStyle}
-                        />
-                      </label>
-                      <label className="space-y-1">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
-                          <Clock3 className="h-3.5 w-3.5" />
-                          Time
-                        </span>
-                        <input
-                          type="time"
-                          step={300}
-                          value={timePart(date)}
-                          onChange={(e) => setValue('date', combineDateAndTime(datePart(date), e.target.value), { shouldValidate: true })}
-                          className={fieldClass}
-                          style={fieldStyle}
-                        />
-                      </label>
-                    </div>
+                    <ScheduleDateTimeField
+                      id="event-start-datetime"
+                      label="Start date & time"
+                      labelColor={ui.textSubtle}
+                      value={date}
+                      onChange={(next) => setValue('date', next, { shouldValidate: true })}
+                      fieldClass={fieldClass}
+                      fieldStyle={fieldStyle}
+                      isDark={ui.isDark}
+                    />
                     {errors.date && <p className="text-xs text-rose-600">{errors.date.message}</p>}
                   </div>
 
@@ -628,47 +656,17 @@ export const CreateEvent: React.FC = () => {
                           {formatScheduleTime(endDate || defaultEndDate(date))}
                         </p>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <label className="space-y-1">
-                          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
-                            <CalendarDays className="h-3.5 w-3.5" />
-                            End date
-                          </span>
-                          <input
-                            type="date"
-                            value={datePart(endDate || defaultEndDate(date))}
-                            onChange={(e) =>
-                              setValue(
-                                'endDate',
-                                combineDateAndTime(e.target.value, timePart(endDate || defaultEndDate(date))),
-                                { shouldValidate: true }
-                              )
-                            }
-                            className={fieldClass}
-                            style={fieldStyle}
-                          />
-                        </label>
-                        <label className="space-y-1">
-                          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: ui.textSubtle }}>
-                            <Clock3 className="h-3.5 w-3.5" />
-                            End time
-                          </span>
-                          <input
-                            type="time"
-                            step={300}
-                            value={timePart(endDate || defaultEndDate(date))}
-                            onChange={(e) =>
-                              setValue(
-                                'endDate',
-                                combineDateAndTime(datePart(endDate || defaultEndDate(date)), e.target.value),
-                                { shouldValidate: true }
-                              )
-                            }
-                            className={fieldClass}
-                            style={fieldStyle}
-                          />
-                        </label>
-                      </div>
+                      <ScheduleDateTimeField
+                        id="event-end-datetime"
+                        label="End date & time"
+                        labelColor={ui.textSubtle}
+                        value={endDate || defaultEndDate(date)}
+                        min={date}
+                        onChange={(next) => setValue('endDate', next, { shouldValidate: true })}
+                        fieldClass={fieldClass}
+                        fieldStyle={fieldStyle}
+                        isDark={ui.isDark}
+                      />
                       {errors.endDate && <p className="text-xs text-rose-600">{errors.endDate.message}</p>}
                       <button
                         type="button"
@@ -695,7 +693,7 @@ export const CreateEvent: React.FC = () => {
               </div>
 
               {/* Location */}
-              <div className="mb-4 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardStyle}>
+              <div className={cn(panelCn, 'mb-4 p-4')} style={cardStyle}>
                 <div className="flex items-start gap-3">
                   <MapPin className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
                   <div className="min-w-0 flex-1">
@@ -724,7 +722,7 @@ export const CreateEvent: React.FC = () => {
               </div>
 
               {/* Short description (hero subtitle) */}
-              <div className="mb-4 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardStyle}>
+              <div className={cn(panelCn, 'mb-4 p-4')} style={cardStyle}>
                 <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                   Short description
                 </label>
@@ -744,7 +742,7 @@ export const CreateEvent: React.FC = () => {
               </div>
 
               {/* Description */}
-              <div className="mb-6 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardStyle}>
+              <div className={cn(panelCn, 'mb-6 p-4')} style={cardStyle}>
                 <div className="flex items-start gap-3">
                   <FileText className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
                   <textarea
@@ -867,7 +865,7 @@ export const CreateEvent: React.FC = () => {
                     {fields.map((field, index) => (
                       <div
                         key={field.id}
-                        className="rounded-2xl border p-4 shadow-sm transition-[background,border-color] duration-700"
+                        className={cn(panelCn, 'p-4 shadow-sm')}
                         style={cardStyle}
                       >
                         <div className="mb-3 flex items-center justify-between">
