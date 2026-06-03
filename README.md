@@ -128,7 +128,8 @@ Ticket purchase confirmations and other app emails are sent through [Plunk](http
 
 Set in the project `.env` (loaded by the PHP API) or in Vercel **Environment Variables**:
 
-- `PLUNK_SECRET_KEY` — secret API key from the Plunk dashboard
+- `PLUNK_SECRET_KEY` — **required** for sending mail (server only; never put in `VITE_*` or frontend code)
+- `PLUNK_PUBLIC_KEY` — optional; only if you add client-side Plunk features later (not used for ticket emails today)
 - `PLUNK_API_URL` — optional, defaults to `https://next-api.useplunk.com/v1/send`
 - `MAIL_ENABLED` — `true` (default) to send mail; `false` to no-op (dev)
 - `MAIL_FROM` — sender address verified in Plunk (e.g. `admin@bigturnout.co`)
