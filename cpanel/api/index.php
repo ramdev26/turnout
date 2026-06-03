@@ -1966,7 +1966,7 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $ticketsStmt = $pdo->prepare('SELECT name, price_cents, quantity, description FROM tickets WHERE event_id = ? ORDER BY id ASC');
   $ticketsStmt->execute([$eventId]);
@@ -2086,7 +2086,7 @@ if (preg_match('#^/events/(\\d+)/slug$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $stmt2 = $pdo->prepare('SELECT id FROM events WHERE slug = ? AND id <> ? LIMIT 1');
   $stmt2->execute([$newSlug, $eventId]);
@@ -2103,7 +2103,7 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $domain = (string)($row['custom_domain'] ?? '');
   $dns = $domain !== '' ? domain_dns_instructions($domain) : null;
@@ -2129,7 +2129,7 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
 
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $domain = normalize_event_hostname($domainRaw);
   if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like events.yourbrand.com']);
@@ -2153,7 +2153,7 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'DELETE') 
   $eventId = (int)$m[1];
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
   sync_event_custom_domain($pdo, $eventId, null);
   json_response(200, ['ok' => true, 'customDomain' => null]);
 }
@@ -2163,7 +2163,7 @@ if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'PO
   $eventId = (int)$m[1];
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
   $domain = (string)($row['custom_domain'] ?? '');
   if ($domain === '') json_response(400, ['error' => 'domain_not_set']);
 
@@ -2224,7 +2224,7 @@ if (preg_match('#^/events/(\\d+)/status$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $upd = $pdo->prepare('UPDATE events SET status = ? WHERE id = ?');
   $upd->execute([$status, $eventId]);
@@ -2238,7 +2238,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   $body = read_json_body();
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $customization = json_decode((string)$row['customization_json'], true);
   if (!is_array($customization)) $customization = [];
@@ -2379,7 +2379,7 @@ if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'PO
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $customization = json_decode((string)$row['customization_json'], true);
   if (!is_array($customization)) $customization = [];
@@ -2436,7 +2436,7 @@ if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $ins = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
   $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null]);
@@ -2475,7 +2475,7 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'P
   $owner->execute([$eventId]);
   $row = $owner->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $existing = $pdo->prepare('SELECT id, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
   $existing->execute([$ticketId, $eventId]);
@@ -2509,7 +2509,7 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)/delete$#', $path, $m) && $method
   $owner->execute([$eventId]);
   $row = $owner->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $ticket = $pdo->prepare('SELECT sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
   $ticket->execute([$ticketId, $eventId]);
@@ -2822,11 +2822,12 @@ if (preg_match('#^/events/(\\d+)/speakers$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
 
-  $stmt = db()->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $stmt2 = db()->prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY id DESC');
   $stmt2->execute([$eventId]);
@@ -2863,7 +2864,7 @@ if (preg_match('#^/events/(\\d+)/speakers$#', $path, $m) && $method === 'POST') 
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $ins = $pdo->prepare('INSERT INTO speakers (event_id, name, title, company, bio, avatar_url) VALUES (?, ?, ?, ?, ?, ?)');
   $ins->execute([
@@ -2888,7 +2889,7 @@ if (preg_match('#^/events/(\\d+)/speakers/(\\d+)$#', $path, $m) && $method === '
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $stmt2 = $pdo->prepare('SELECT id FROM speakers WHERE id = ? AND event_id = ? LIMIT 1');
   $stmt2->execute([$speakerId, $eventId]);
@@ -2924,7 +2925,7 @@ if (preg_match('#^/events/(\\d+)/speakers/(\\d+)/delete$#', $path, $m) && $metho
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $del = $pdo->prepare('DELETE FROM speakers WHERE id = ? AND event_id = ?');
   $del->execute([$speakerId, $eventId]);
@@ -2936,11 +2937,12 @@ if (preg_match('#^/events/(\\d+)/sessions$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
 
-  $stmt = db()->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $stmt2 = db()->prepare('SELECT * FROM sessions WHERE event_id = ? ORDER BY starts_at ASC');
   $stmt2->execute([$eventId]);
@@ -2983,7 +2985,7 @@ if (preg_match('#^/events/(\\d+)/sessions$#', $path, $m) && $method === 'POST') 
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $ins = $pdo->prepare('INSERT INTO sessions (event_id, title, description, starts_at, ends_at, location, speaker_ids_json) VALUES (?, ?, ?, ?, ?, ?, ?)');
   $ins->execute([
@@ -3009,7 +3011,7 @@ if (preg_match('#^/events/(\\d+)/sessions/(\\d+)$#', $path, $m) && $method === '
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $stmt2 = $pdo->prepare('SELECT id FROM sessions WHERE id = ? AND event_id = ? LIMIT 1');
   $stmt2->execute([$sessionId, $eventId]);
@@ -3048,7 +3050,7 @@ if (preg_match('#^/events/(\\d+)/sessions/(\\d+)/delete$#', $path, $m) && $metho
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $del = $pdo->prepare('DELETE FROM sessions WHERE id = ? AND event_id = ?');
   $del->execute([$sessionId, $eventId]);
@@ -3212,7 +3214,7 @@ if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === '
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $evRow = load_event_row_or_404($pdo, $eventId);
   $checkoutFields = checkout_fields_from_event_row($evRow);
@@ -3339,7 +3341,7 @@ if (preg_match('#^/events/(\\d+)/runbook$#', $path, $m) && $method === 'GET') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   ensure_event_runbook_table($pdo);
   $stmt2 = $pdo->prepare('SELECT id, title, priority, status, due_at, created_at FROM event_runbook_items WHERE event_id = ? ORDER BY status ASC, created_at DESC');
@@ -3374,7 +3376,7 @@ if (preg_match('#^/events/(\\d+)/runbook$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   ensure_event_runbook_table($pdo);
   $ins = $pdo->prepare('INSERT INTO event_runbook_items (event_id, title, priority, status, due_at) VALUES (?, ?, ?, ?, ?)');
@@ -3398,7 +3400,7 @@ if (preg_match('#^/events/(\\d+)/runbook/(\\d+)/toggle$#', $path, $m) && $method
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   ensure_event_runbook_table($pdo);
   $s = $pdo->prepare('SELECT status FROM event_runbook_items WHERE id = ? AND event_id = ? LIMIT 1');
@@ -3421,7 +3423,7 @@ if (preg_match('#^/events/(\\d+)/runbook/(\\d+)/delete$#', $path, $m) && $method
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  deny_unless_event_row_access(, , , 'editor');
+  deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   ensure_event_runbook_table($pdo);
   $d = $pdo->prepare('DELETE FROM event_runbook_items WHERE id = ? AND event_id = ?');

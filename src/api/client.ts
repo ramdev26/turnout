@@ -21,11 +21,19 @@ export function toApiUrl(path: string): string {
 function invalidSuccessPayload(text: string, status: number): ApiError {
   const trimmed = text.trim();
   const looksHtml = /^\s*</.test(trimmed) || trimmed.toLowerCase().includes('<!doctype');
+  const looksPhpError = /parse error|fatal error|warning:/i.test(trimmed);
+  if (looksPhpError) {
+    return {
+      error: 'api_server_error',
+      message:
+        'The API failed on the server (deployment error). Redeploy the latest build or check Vercel function logs for PHP errors.',
+    };
+  }
   if (looksHtml) {
     return {
       error: 'invalid_api_response',
       message:
-        'Received a web page instead of API data. On Vercel, leave VITE_API_BASE_URL unset; if you set it, use the site origin only (no /api suffix).',
+        'Received a web page instead of API data. Leave VITE_API_BASE_URL unset on Vercel, or set it to your site origin only (no /api suffix).',
     };
   }
   if (!trimmed) {
