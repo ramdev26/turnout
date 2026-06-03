@@ -39,9 +39,25 @@ export PATH="$ANDROID_HOME/platform-tools:$PATH"
 
 **Option A — Android Studio (recommended)**
 
-1. Install [Android Studio](https://developer.android.com/studio).
-2. Open the `android/checkin` folder.
-3. Let Gradle sync, then **Run** on a device with a camera.
+1. Open Android Studio → **Open** → select the `android/checkin` folder (not the whole repo root).
+2. Wait for **Gradle Sync** to finish (first time may download SDK components — accept licenses if prompted).
+3. Connect an Android phone with **USB debugging** enabled, or start a virtual device with a **back camera**.
+4. Click the green **Run** ▶ button (target: `app`).
+5. On the phone: allow **Camera** when asked.
+
+**First launch in the app**
+
+| Field | Example |
+|-------|---------|
+| API URL | `https://turnout-omega.vercel.app` (your live Turnout site, no `/api` suffix) |
+| Event ID | From dashboard URL `…/dashboard/events/12/checkin` → `12` |
+| Staff PIN | From **Event settings → Check-in** in Turnout |
+
+**Studio tips**
+
+- If sync fails: **File → Settings → Android SDK** → install **Android 15 (API 35)** and **Build-Tools 35**.
+- `local.properties` is auto-created with `sdk.dir=…` — do not commit it.
+- To build APK without a device: **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
 
 **Option B — Command line**
 
