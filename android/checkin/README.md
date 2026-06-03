@@ -16,20 +16,44 @@ Staff QR scanner for door check-in. Uses the same **Turnout teal + lime** brandi
 - Camera permission
 - Internet access to your Turnout API host
 
-## Build & install
+## Install Android SDK (command line)
 
-1. Install [Android Studio](https://developer.android.com/studio) (Ladybug or newer).
-2. Open the `android/checkin` folder as a project.
-3. Let Gradle sync, then **Run** on a device or emulator with a camera.
-
-From the command line (with Android SDK installed):
+Requires **Java 17+** and `unzip`/`curl`.
 
 ```bash
 cd android/checkin
+chmod +x scripts/install-android-sdk.sh
+./scripts/install-android-sdk.sh
+```
+
+This installs the SDK under `android/sdk/` and writes `local.properties` for Gradle.
+
+Set for your shell (optional):
+
+```bash
+export ANDROID_HOME="$(pwd)/../sdk"   # from android/checkin
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+```
+
+## Build & install
+
+**Option A — Android Studio (recommended)**
+
+1. Install [Android Studio](https://developer.android.com/studio).
+2. Open the `android/checkin` folder.
+3. Let Gradle sync, then **Run** on a device with a camera.
+
+**Option B — Command line**
+
+```bash
+cd android/checkin
+./scripts/install-android-sdk.sh   # once
 ./gradlew :app:assembleDebug
 ```
 
 APK output: `app/build/outputs/apk/debug/app-debug.apk`
+
+Install on a phone: `adb install -r app/build/outputs/apk/debug/app-debug.apk`
 
 ## Setup on event day
 
