@@ -28,6 +28,8 @@ import { PayHereReturn } from './pages/PayHereReturn';
 import { PayHereCancel } from './pages/PayHereCancel';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { OrganizerEarnings } from './pages/OrganizerEarnings';
+import { OrganizerAccount } from './pages/OrganizerAccount';
+import { AcceptInvite } from './pages/AcceptInvite';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminEvents } from './pages/AdminEvents';
 import { AdminTransactions } from './pages/AdminTransactions';
@@ -181,6 +183,15 @@ export default function App() {
               </RequireOrganizer>
             }
           />
+          <Route
+            path="/dashboard/organization"
+            element={
+              <RequireOrganizer>
+                <OrganizerAccount />
+              </RequireOrganizer>
+            }
+          />
+          <Route path="/invite/accept" element={<AcceptInvite />} />
           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/admin/dashboard" element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
           <Route path="/admin/users" element={<RequireSuperAdmin><AdminUsers /></RequireSuperAdmin>} />

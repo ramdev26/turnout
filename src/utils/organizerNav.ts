@@ -8,6 +8,7 @@ export const organizerMainNav: FlowNavLink[] = [
   { to: '/dashboard', label: 'Dashboard', exact: true },
   { to: '/events/themes', label: 'Create', exact: true },
   { to: '/dashboard/earnings', label: 'Earnings', exact: true },
+  { to: '/dashboard/organization', label: 'Organization', exact: true },
 ];
 
 export function eventWorkspaceNav(eventId: string): FlowNavLink[] {

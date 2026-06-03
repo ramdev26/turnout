@@ -54,12 +54,16 @@ function verify_event_checkin_pin(PDO $pdo, int $eventId, string $pin): bool {
   return hash_equals($stored, normalize_checkin_pin($pin));
 }
 
-function require_event_owner(PDO $pdo, int $eventId, int $uid): void {
-  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+function require_event_access(PDO $pdo, int $eventId, int $uid, string $minRole = 'editor'): void {
+  $stmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access($pdo, $row, $uid, $minRole);
+}
+
+function require_event_owner(PDO $pdo, int $eventId, int $uid, string $minRole = 'editor'): void {
+  require_event_access($pdo, $eventId, $uid, $minRole);
 }
 
 function require_checkin_access(PDO $pdo, int $eventId, array $body): int {
@@ -71,7 +75,7 @@ function require_checkin_access(PDO $pdo, int $eventId, array $body): int {
       $stmt->execute([$eventId]);
       $row = $stmt->fetch();
       if (!$row) json_response(404, ['error' => 'event_not_found']);
-      if ((int)$row['organizer_user_id'] === $uid) return $uid;
+      if (user_can_access_event_row($pdo, $row, $uid, 'editor')) return $uid;
     }
   }
 

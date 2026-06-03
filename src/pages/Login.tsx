@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -21,12 +21,17 @@ type FormValues = z.infer<typeof schema>;
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { setUser } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
   const [loginAs, setLoginAs] = useState<'organizer' | 'attendee'>('organizer');
   const ui = APP_FLOW_UI;
 
-  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
+  const nextParam = searchParams.get('next');
+  const from =
+    nextParam && nextParam.startsWith('/')
+      ? nextParam
+      : (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
 
   const {
     register,

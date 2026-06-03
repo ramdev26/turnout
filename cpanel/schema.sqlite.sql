@@ -217,3 +217,39 @@ CREATE INDEX IF NOT EXISTS idx_payout_logs_payout ON payout_logs(payout_id, crea
 CREATE INDEX IF NOT EXISTS idx_logs_action_created ON logs(action, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_logs_actor_created ON logs(actor_user_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS organizer_profiles (
+  user_id INTEGER PRIMARY KEY,
+  organization_name TEXT NOT NULL DEFAULT '',
+  logo_url TEXT NULL,
+  website TEXT NULL,
+  phone TEXT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS organizer_team_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_user_id INTEGER NOT NULL,
+  member_user_id INTEGER NOT NULL,
+  role TEXT NOT NULL DEFAULT 'editor',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(owner_user_id, member_user_id),
+  FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (member_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS organizer_invites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_user_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'editor',
+  token TEXT NOT NULL UNIQUE,
+  invited_by_user_id INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_team_member ON organizer_team_members(member_user_id);
+CREATE INDEX IF NOT EXISTS idx_invites_owner ON organizer_invites(owner_user_id, status);
+

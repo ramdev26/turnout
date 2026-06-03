@@ -320,6 +320,37 @@ function send_password_reset_email(PDO $pdo, string $toEmail, string $token): bo
   return send_email($toEmail, $subject, mail_turnout_layout('Password reset', $inner), $pdo);
 }
 
+function send_organizer_team_invite_email(
+  PDO $pdo,
+  string $toEmail,
+  string $inviterName,
+  string $organizationName,
+  string $role,
+  string $token
+): bool {
+  $base = mail_app_base_url();
+  if ($base === '') {
+    error_log('Turnout: team invite URL could not be built (check app_base_url)');
+    return false;
+  }
+  $acceptUrl = $base . '/invite/accept?token=' . rawurlencode($token);
+  $orgLabel = $organizationName !== '' ? $organizationName : 'a Turnout workspace';
+  $inner =
+    '<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#e9f4ee;">' .
+    htmlspecialchars($inviterName, ENT_QUOTES, 'UTF-8') .
+    ' invited you to join <strong style="color:#ffffff;">' .
+    htmlspecialchars($orgLabel, ENT_QUOTES, 'UTF-8') .
+    '</strong> on Turnout as <strong style="color:#ffffff;">' .
+    htmlspecialchars($role, ENT_QUOTES, 'UTF-8') .
+    '</strong>.</p>' .
+    '<p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#e9f4ee;">Sign in with this email, then accept the invite to access events and tools for this organization.</p>' .
+    mail_cta_button($acceptUrl, 'Accept invitation') .
+    '<p style="margin:20px 0 0;font-size:13px;color:#93b5b7;line-height:1.5;">This invite expires in 7 days. If you were not expecting this, you can ignore this email.</p>';
+
+  $subject = 'You are invited to join ' . $orgLabel . ' on Turnout';
+  return send_email($toEmail, $subject, mail_turnout_layout('Team invitation', $inner), $pdo);
+}
+
 function mail_order_success_url(int $orderId, ?int $attendeeId = null, ?array $attendeeIds = null): string {
   $base = mail_app_base_url();
   if ($base === '') {

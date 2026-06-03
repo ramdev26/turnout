@@ -261,3 +261,80 @@ function handle_banner_upload_post(): void {
   $relative = '/api/uploads/banners/' . $name;
   json_response(201, ['bannerUrl' => public_api_url($relative)]);
 }
+
+function organizer_logo_local_upload_dir(): ?string {
+  $preferred = dirname(__DIR__) . '/uploads/organizer-logos';
+  if (!is_dir($preferred)) {
+    @mkdir($preferred, 0775, true);
+  }
+  if (is_dir($preferred) && is_writable($preferred)) {
+    return $preferred;
+  }
+  $tmp = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'turnout-organizer-logos';
+  if (!is_dir($tmp)) {
+    @mkdir($tmp, 0775, true);
+  }
+  return is_dir($tmp) && is_writable($tmp) ? $tmp : null;
+}
+
+function save_organizer_logo_locally(string $tmpPath, string $ext): ?string {
+  $dir = organizer_logo_local_upload_dir();
+  if ($dir === null) return null;
+  $name = 'logo_' . bin2hex(random_bytes(8)) . '.' . $ext;
+  $dest = $dir . DIRECTORY_SEPARATOR . $name;
+  if (!move_uploaded_file($tmpPath, $dest) && !rename($tmpPath, $dest)) {
+    return null;
+  }
+  return $name;
+}
+
+function serve_local_organizer_logo_file(string $name): void {
+  $safe = basename($name);
+  if ($safe === '' || $safe !== $name) {
+    json_response(404, ['error' => 'not_found']);
+  }
+  $dir = organizer_logo_local_upload_dir();
+  if ($dir === null) json_response(404, ['error' => 'not_found']);
+  $path = $dir . DIRECTORY_SEPARATOR . $safe;
+  if (!is_file($path)) json_response(404, ['error' => 'not_found']);
+  $mime = detect_banner_mime($path, []);
+  header('Content-Type: ' . ($mime !== '' ? $mime : 'application/octet-stream'));
+  header('Cache-Control: public, max-age=86400');
+  readfile($path);
+  exit;
+}
+
+function handle_organizer_logo_upload_post(): void {
+  require_organizer_user_id();
+  if (!isset($_FILES['file'])) {
+    json_response(400, ['error' => 'missing_file']);
+  }
+  $file = $_FILES['file'];
+  if (!is_array($file) || (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK)) {
+    json_response(400, ['error' => 'upload_failed']);
+  }
+  $tmpPath = (string)($file['tmp_name'] ?? '');
+  if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+    json_response(400, ['error' => 'invalid_upload']);
+  }
+  $size = (int)($file['size'] ?? 0);
+  if ($size <= 0 || $size > (3 * 1024 * 1024)) {
+    json_response(400, ['error' => 'file_too_large']);
+  }
+  $mime = detect_banner_mime($tmpPath, $file);
+  $allowed = banner_allowed_mime_types();
+  $ext = $allowed[$mime] ?? null;
+  if ($ext === null) {
+    json_response(400, ['error' => 'unsupported_file_type']);
+  }
+  $blobUrl = try_upload_banner_to_vercel_blob($tmpPath, $mime, $ext);
+  if ($blobUrl !== null) {
+    json_response(201, ['logoUrl' => $blobUrl]);
+  }
+  $name = save_organizer_logo_locally($tmpPath, $ext);
+  if ($name === null) {
+    json_response(500, ['error' => 'upload_storage_unavailable']);
+  }
+  $relative = '/api/uploads/organizer-logos/' . $name;
+  json_response(201, ['logoUrl' => public_api_url($relative)]);
+}

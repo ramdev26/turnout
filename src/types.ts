@@ -56,6 +56,45 @@ export type OrganizerPayout = {
   completedAt?: string | null;
 };
 
+export type OrganizerTeamRole = 'owner' | 'admin' | 'editor' | 'viewer';
+
+export type OrganizerProfile = {
+  ownerUserId?: string;
+  displayName: string;
+  email: string;
+  organizationName: string;
+  logoUrl?: string | null;
+  website?: string | null;
+  phone?: string | null;
+};
+
+export type OrganizerTeamMember = {
+  id: string;
+  memberUserId: string;
+  displayName: string;
+  email: string;
+  role: OrganizerTeamRole;
+  createdAt: string | null;
+  isOwner?: boolean;
+};
+
+export type OrganizerTeamInvite = {
+  id: string;
+  email: string;
+  role: OrganizerTeamRole;
+  status: 'pending' | 'accepted' | 'revoked';
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type OrganizerWorkspace = {
+  ownerUserId: string;
+  role: OrganizerTeamRole;
+  isOwner: boolean;
+  canManageTeam: boolean;
+  canEditEvents: boolean;
+};
+
 export type AttendeeProfile = {
   displayName: string;
   email: string;

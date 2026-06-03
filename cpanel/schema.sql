@@ -258,3 +258,43 @@ CREATE TABLE IF NOT EXISTS logs (
   KEY idx_logs_actor_created (actor_user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS organizer_profiles (
+  user_id BIGINT UNSIGNED NOT NULL,
+  organization_name VARCHAR(255) NOT NULL DEFAULT '',
+  logo_url TEXT NULL,
+  website VARCHAR(255) NULL,
+  phone VARCHAR(60) NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_org_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS organizer_team_members (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  owner_user_id BIGINT UNSIGNED NOT NULL,
+  member_user_id BIGINT UNSIGNED NOT NULL,
+  role ENUM('admin','editor','viewer') NOT NULL DEFAULT 'editor',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_team_owner_member (owner_user_id, member_user_id),
+  KEY idx_team_member (member_user_id),
+  CONSTRAINT fk_team_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_team_member FOREIGN KEY (member_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS organizer_invites (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  owner_user_id BIGINT UNSIGNED NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  role ENUM('admin','editor','viewer') NOT NULL DEFAULT 'editor',
+  token CHAR(32) NOT NULL,
+  invited_by_user_id BIGINT UNSIGNED NOT NULL,
+  status ENUM('pending','accepted','revoked') NOT NULL DEFAULT 'pending',
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_invite_token (token),
+  KEY idx_invites_owner (owner_user_id, status),
+  CONSTRAINT fk_invite_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

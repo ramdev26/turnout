@@ -102,6 +102,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                         <Wallet className="h-4 w-4" />
                         Earnings
                       </NavLink>
+                      <NavLink to="/dashboard/organization" active={path === '/dashboard/organization'}>
+                        <User className="h-4 w-4" />
+                        Organization
+                      </NavLink>
                       <NavLink to="/events/new" active={path.startsWith('/events/')}>
                         <Plus className="h-4 w-4" />
                         Create
@@ -129,8 +133,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               ) : user ? (
                 <>
                   <Link
-                    to={user.role === 'attendee' ? '/attendee/account' : '/dashboard'}
-                    title={user.role === 'attendee' ? 'Open my account' : 'Open dashboard'}
+                    to={user.role === 'attendee' ? '/attendee/account' : user.role === 'organizer' ? '/dashboard/organization' : '/dashboard'}
+                    title={user.role === 'attendee' ? 'Open my account' : user.role === 'organizer' ? 'Organization settings' : 'Open dashboard'}
                     className="inline-flex items-center gap-2 rounded-full border px-2 py-1.5 text-sm font-medium transition"
                     style={{ ...cardStyleFor(ui), color: ui.text }}
                   >
@@ -172,6 +176,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                       <>
                         <MobileNavLink to="/dashboard" label="Dashboard" />
                         <MobileNavLink to="/dashboard/earnings" label="Earnings" />
+                        <MobileNavLink to="/dashboard/organization" label="Organization" />
                         <MobileNavLink to="/events/new" label="Create" />
                       </>
                     )}

@@ -9,6 +9,7 @@ require __DIR__ . '/lib/checkout.php';
 require __DIR__ . '/lib/domains.php';
 require __DIR__ . '/lib/checkin.php';
 require __DIR__ . '/lib/checkout_fields.php';
+require __DIR__ . '/lib/organizer_team.php';
 
 set_cors_headers_for_same_domain();
 
@@ -65,8 +66,16 @@ if (preg_match('#^/uploads/banners/([^/]+)$#', $path, $bannerMatch) && $method =
   serve_local_banner_file($bannerMatch[1]);
 }
 
+if (preg_match('#^/uploads/organizer-logos/([^/]+)$#', $path, $logoMatch) && $method === 'GET') {
+  serve_local_organizer_logo_file($logoMatch[1]);
+}
+
 if ($path === '/uploads/banner' && $method === 'POST') {
   handle_banner_upload_post();
+}
+
+if ($path === '/uploads/organizer-logo' && $method === 'POST') {
+  handle_organizer_logo_upload_post();
 }
 
 function slugify(string $s): string {
@@ -827,6 +836,7 @@ ensure_users_role_support(db());
 ensure_finance_tables(db());
 ensure_events_custom_domain_column(db());
 ensure_attendees_custom_fields_column(db());
+ensure_organizer_workspace_tables(db());
 enforce_write_request_integrity($path, $method);
 
 function load_event_row_or_404(PDO $pdo, int $eventId): array {
@@ -840,8 +850,9 @@ function load_event_row_or_404(PDO $pdo, int $eventId): array {
 function can_view_event_row(array $row, ?int $uid): bool {
   if (is_event_publicly_visible($row)) return true;
   if ($uid === null) return false;
-  if ((int)$row['organizer_user_id'] === $uid) return true;
-  $roleStmt = db()->prepare('SELECT role FROM users WHERE id = ? LIMIT 1');
+  $pdo = db();
+  if (user_can_access_event_row($pdo, $row, $uid, 'viewer')) return true;
+  $roleStmt = $pdo->prepare('SELECT role FROM users WHERE id = ? LIMIT 1');
   $roleStmt->execute([$uid]);
   $roleRow = $roleStmt->fetch();
   return is_array($roleRow) && (string)($roleRow['role'] ?? '') === 'super_admin';
@@ -1255,6 +1266,310 @@ if ($path === '/me/profile' && $method === 'POST') {
   json_response(200, ['ok' => true, 'user' => load_user_profile($uid)]);
 }
 
+if ($path === '/me/organizer-workspace' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)$ctx['ownerUserId'];
+  json_response(200, [
+    'workspace' => $ctx,
+    'profile' => organizer_profile_api_shape($pdo, $ownerUserId),
+  ]);
+}
+
+if ($path === '/me/organizer-profile' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  if (!($ctx['isOwner'] ?? false)) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can edit organization profile.']);
+  }
+  json_response(200, ['profile' => organizer_profile_api_shape($pdo, $uid)]);
+}
+
+if ($path === '/me/organizer-profile' && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  if (!($ctx['isOwner'] ?? false)) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can edit organization profile.']);
+  }
+  $body = read_json_body();
+  $organizationName = trim((string)($body['organizationName'] ?? ''));
+  $logoUrl = trim((string)($body['logoUrl'] ?? ''));
+  $website = trim((string)($body['website'] ?? ''));
+  $phone = trim((string)($body['phone'] ?? ''));
+  $displayName = trim((string)($body['displayName'] ?? ''));
+
+  if ($organizationName === '') json_response(400, ['error' => 'invalid_organization_name']);
+  if ($logoUrl !== '' && !filter_var($logoUrl, FILTER_VALIDATE_URL) && !str_starts_with($logoUrl, '/api/uploads/organizer-logos/')) {
+    json_response(400, ['error' => 'invalid_logo_url']);
+  }
+  if ($website !== '' && !filter_var($website, FILTER_VALIDATE_URL)) {
+    json_response(400, ['error' => 'invalid_website']);
+  }
+  if ($displayName !== '') {
+    $pdo->prepare('UPDATE users SET display_name = ? WHERE id = ?')->execute([$displayName, $uid]);
+  }
+
+  ensure_organizer_workspace_tables($pdo);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $upsert = $pdo->prepare(
+      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone, updated_at)
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         organization_name = excluded.organization_name,
+         logo_url = excluded.logo_url,
+         website = excluded.website,
+         phone = excluded.phone,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $upsert->execute([
+      $uid,
+      mb_substr($organizationName, 0, 255),
+      $logoUrl !== '' ? $logoUrl : null,
+      $website !== '' ? $website : null,
+      $phone !== '' ? $phone : null,
+    ]);
+  } else {
+    $upsert = $pdo->prepare(
+      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         organization_name = VALUES(organization_name),
+         logo_url = VALUES(logo_url),
+         website = VALUES(website),
+         phone = VALUES(phone)'
+    );
+    $upsert->execute([
+      $uid,
+      mb_substr($organizationName, 0, 255),
+      $logoUrl !== '' ? $logoUrl : null,
+      $website !== '' ? $website : null,
+      $phone !== '' ? $phone : null,
+    ]);
+  }
+
+  json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
+}
+
+if ($path === '/organizer/team' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)$ctx['ownerUserId'];
+  if (!($ctx['canManageTeam'] ?? false)) {
+    json_response(403, ['error' => 'forbidden']);
+  }
+
+  $members = [];
+  $ownerProfile = load_user_profile($ownerUserId);
+  $members[] = [
+    'id' => 'owner',
+    'memberUserId' => (string)$ownerUserId,
+    'displayName' => (string)($ownerProfile['displayName'] ?? ''),
+    'email' => (string)($ownerProfile['email'] ?? ''),
+    'role' => 'owner',
+    'createdAt' => null,
+    'isOwner' => true,
+  ];
+
+  $stmt = $pdo->prepare(
+    'SELECT m.id, m.member_user_id, m.role, m.created_at, u.display_name, u.email
+     FROM organizer_team_members m
+     JOIN users u ON u.id = m.member_user_id
+     WHERE m.owner_user_id = ?
+     ORDER BY m.created_at ASC'
+  );
+  $stmt->execute([$ownerUserId]);
+  while ($row = $stmt->fetch()) {
+    $members[] = [
+      'id' => (string)$row['id'],
+      'memberUserId' => (string)$row['member_user_id'],
+      'displayName' => (string)$row['display_name'],
+      'email' => (string)$row['email'],
+      'role' => normalize_organizer_team_role((string)$row['role']),
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+      'isOwner' => false,
+    ];
+  }
+
+  $invStmt = $pdo->prepare(
+    "SELECT id, email, role, status, expires_at, created_at
+     FROM organizer_invites
+     WHERE owner_user_id = ? AND status = 'pending' AND expires_at > CURRENT_TIMESTAMP
+     ORDER BY created_at DESC"
+  );
+  $invStmt->execute([$ownerUserId]);
+  $invites = [];
+  while ($inv = $invStmt->fetch()) {
+    $invites[] = [
+      'id' => (string)$inv['id'],
+      'email' => (string)$inv['email'],
+      'role' => normalize_organizer_team_role((string)$inv['role']),
+      'status' => (string)$inv['status'],
+      'expiresAt' => gmdate('c', strtotime($inv['expires_at'])),
+      'createdAt' => gmdate('c', strtotime($inv['created_at'])),
+    ];
+  }
+
+  json_response(200, ['members' => $members, 'invites' => $invites, 'workspace' => $ctx]);
+}
+
+if ($path === '/organizer/team/invite' && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)$ctx['ownerUserId'];
+  if (!($ctx['canManageTeam'] ?? false)) {
+    json_response(403, ['error' => 'forbidden']);
+  }
+  $body = read_json_body();
+  $email = strtolower(trim((string)($body['email'] ?? '')));
+  $role = normalize_organizer_team_role((string)($body['role'] ?? 'editor'));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(400, ['error' => 'invalid_email']);
+  }
+
+  $ownerProfile = load_user_profile($ownerUserId);
+  if (strtolower((string)($ownerProfile['email'] ?? '')) === $email) {
+    json_response(400, ['error' => 'cannot_invite_owner']);
+  }
+
+  $existingUser = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+  $existingUser->execute([$email]);
+  $existingRow = $existingUser->fetch();
+  if ($existingRow) {
+    $memberId = (int)$existingRow['id'];
+    $dup = $pdo->prepare('SELECT id FROM organizer_team_members WHERE owner_user_id = ? AND member_user_id = ? LIMIT 1');
+    $dup->execute([$ownerUserId, $memberId]);
+    if ($dup->fetch()) {
+      json_response(400, ['error' => 'already_member']);
+    }
+  }
+
+  $pdo->prepare(
+    "UPDATE organizer_invites SET status = 'revoked' WHERE owner_user_id = ? AND email = ? AND status = 'pending'"
+  )->execute([$ownerUserId, $email]);
+
+  $token = bin2hex(random_bytes(16));
+  $expiresAt = gmdate('Y-m-d H:i:s', time() + 7 * 86400);
+  $ins = $pdo->prepare(
+    'INSERT INTO organizer_invites (owner_user_id, email, role, token, invited_by_user_id, status, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+  $ins->execute([$ownerUserId, $email, $role, $token, $uid, 'pending', $expiresAt]);
+
+  $org = load_organizer_profile_row($pdo, $ownerUserId);
+  $orgName = (string)($org['organization_name'] ?? $ownerProfile['displayName'] ?? '');
+  send_organizer_team_invite_email(
+    $pdo,
+    $email,
+    (string)($ownerProfile['displayName'] ?? 'An organizer'),
+    $orgName,
+    $role,
+    $token
+  );
+
+  json_response(201, ['ok' => true, 'token' => $token]);
+}
+
+if (preg_match('#^/organizer/team/members/(\\d+)$#', $path, $m) && $method === 'DELETE') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)$ctx['ownerUserId'];
+  if (!($ctx['isOwner'] ?? false)) {
+    json_response(403, ['error' => 'forbidden']);
+  }
+  $memberId = (int)$m[1];
+  if ($memberId === $ownerUserId) json_response(400, ['error' => 'cannot_remove_owner']);
+  $del = $pdo->prepare('DELETE FROM organizer_team_members WHERE owner_user_id = ? AND member_user_id = ?');
+  $del->execute([$ownerUserId, $memberId]);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/organizer/team/invites/(\\d+)$#', $path, $m) && $method === 'DELETE') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)$ctx['ownerUserId'];
+  if (!($ctx['canManageTeam'] ?? false)) {
+    json_response(403, ['error' => 'forbidden']);
+  }
+  $inviteId = (int)$m[1];
+  $pdo->prepare(
+    "UPDATE organizer_invites SET status = 'revoked' WHERE id = ? AND owner_user_id = ?"
+  )->execute([$inviteId, $ownerUserId]);
+  json_response(200, ['ok' => true]);
+}
+
+if ($path === '/organizer/invites/accept' && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $body = read_json_body();
+  $token = trim((string)($body['token'] ?? ''));
+  if ($token === '') json_response(400, ['error' => 'missing_token']);
+
+  $stmt = $pdo->prepare(
+    "SELECT * FROM organizer_invites WHERE token = ? AND status = 'pending' LIMIT 1"
+  );
+  $stmt->execute([$token]);
+  $invite = $stmt->fetch();
+  if (!$invite) json_response(404, ['error' => 'invite_not_found']);
+  if (strtotime((string)$invite['expires_at']) < time()) {
+    json_response(400, ['error' => 'invite_expired']);
+  }
+
+  $user = load_user_profile($uid);
+  $inviteEmail = strtolower((string)$invite['email']);
+  if (strtolower((string)($user['email'] ?? '')) !== $inviteEmail) {
+    json_response(403, ['error' => 'invite_email_mismatch', 'message' => 'Sign in with the email address that received the invite.']);
+  }
+
+  $ownerUserId = (int)$invite['owner_user_id'];
+  $role = normalize_organizer_team_role((string)$invite['role']);
+  $pdo->beginTransaction();
+  try {
+    $pdo->prepare('DELETE FROM organizer_team_members WHERE owner_user_id = ? AND member_user_id = ?')->execute([$ownerUserId, $uid]);
+    $ins = $pdo->prepare('INSERT INTO organizer_team_members (owner_user_id, member_user_id, role) VALUES (?, ?, ?)');
+    $ins->execute([$ownerUserId, $uid, $role]);
+    $pdo->prepare("UPDATE organizer_invites SET status = 'accepted' WHERE id = ?")->execute([(int)$invite['id']]);
+    $pdo->commit();
+  } catch (Throwable $e) {
+    $pdo->rollBack();
+    json_response(400, ['error' => 'accept_failed']);
+  }
+
+  json_response(200, ['ok' => true, 'workspace' => organizer_workspace_context($pdo, $uid)]);
+}
+
+if ($path === '/organizer/invites/preview' && $method === 'GET') {
+  $token = trim((string)($_GET['token'] ?? ''));
+  if ($token === '') json_response(400, ['error' => 'missing_token']);
+  $pdo = db();
+  $stmt = $pdo->prepare(
+    "SELECT i.email, i.role, i.expires_at, i.status, p.organization_name, u.display_name AS owner_name
+     FROM organizer_invites i
+     JOIN users u ON u.id = i.owner_user_id
+     LEFT JOIN organizer_profiles p ON p.user_id = i.owner_user_id
+     WHERE i.token = ? LIMIT 1"
+  );
+  $stmt->execute([$token]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'invite_not_found']);
+  json_response(200, [
+    'invite' => [
+      'email' => (string)$row['email'],
+      'role' => normalize_organizer_team_role((string)$row['role']),
+      'status' => (string)$row['status'],
+      'expiresAt' => gmdate('c', strtotime($row['expires_at'])),
+      'organizationName' => (string)($row['organization_name'] ?? $row['owner_name'] ?? ''),
+      'ownerName' => (string)($row['owner_name'] ?? ''),
+    ],
+  ]);
+}
+
 if ($path === '/me/password' && $method === 'POST') {
   $uid = require_user_id();
   $body = read_json_body();
@@ -1523,8 +1838,11 @@ if ($path === '/payhere/notify' && $method === 'POST') {
 // ---- Events ----
 if ($path === '/events' && $method === 'GET') {
   $uid = require_organizer_user_id();
-  $stmt = db()->prepare('SELECT * FROM events WHERE organizer_user_id = ? ORDER BY created_at DESC');
-  $stmt->execute([$uid]);
+  $pdo = db();
+  $ownerIds = organizer_accessible_owner_ids($pdo, $uid);
+  $placeholders = implode(',', array_fill(0, count($ownerIds), '?'));
+  $stmt = $pdo->prepare("SELECT * FROM events WHERE organizer_user_id IN ($placeholders) ORDER BY created_at DESC");
+  $stmt->execute($ownerIds);
   $events = [];
   while ($row = $stmt->fetch()) {
     $events[] = [
@@ -1577,13 +1895,20 @@ if ($path === '/events' && $method === 'POST') {
   }
 
   $pdo = db();
+  $eventOwnerId = resolve_event_owner_for_create($pdo, $uid);
+  if ($eventOwnerId !== $uid) {
+    $teamRole = organizer_team_role_for_owner($pdo, $uid, $eventOwnerId);
+    if ($teamRole === null || organizer_role_rank($teamRole) < organizer_role_rank('editor')) {
+      json_response(403, ['error' => 'forbidden']);
+    }
+  }
   $baseSlug = $requestedSlug !== '' ? slugify($requestedSlug) : slugify($title);
   $slug = unique_slug($pdo, $baseSlug);
   $pdo->beginTransaction();
   try {
     $ins = $pdo->prepare('INSERT INTO events (organizer_user_id, slug, title, description, event_date, location, banner_url, template_id, customization_json, status, event_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $ins->execute([
-      $uid,
+      $eventOwnerId,
       $slug,
       $title,
       $description,
@@ -1641,7 +1966,7 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $ticketsStmt = $pdo->prepare('SELECT name, price_cents, quantity, description FROM tickets WHERE event_id = ? ORDER BY id ASC');
   $ticketsStmt->execute([$eventId]);
@@ -1761,7 +2086,7 @@ if (preg_match('#^/events/(\\d+)/slug$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $stmt2 = $pdo->prepare('SELECT id FROM events WHERE slug = ? AND id <> ? LIMIT 1');
   $stmt2->execute([$newSlug, $eventId]);
@@ -1778,7 +2103,7 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $domain = (string)($row['custom_domain'] ?? '');
   $dns = $domain !== '' ? domain_dns_instructions($domain) : null;
@@ -1804,7 +2129,7 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
 
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $domain = normalize_event_hostname($domainRaw);
   if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like events.yourbrand.com']);
@@ -1828,7 +2153,7 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'DELETE') 
   $eventId = (int)$m[1];
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
   sync_event_custom_domain($pdo, $eventId, null);
   json_response(200, ['ok' => true, 'customDomain' => null]);
 }
@@ -1838,7 +2163,7 @@ if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'PO
   $eventId = (int)$m[1];
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
   $domain = (string)($row['custom_domain'] ?? '');
   if ($domain === '') json_response(400, ['error' => 'domain_not_set']);
 
@@ -1899,7 +2224,7 @@ if (preg_match('#^/events/(\\d+)/status$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $upd = $pdo->prepare('UPDATE events SET status = ? WHERE id = ?');
   $upd->execute([$status, $eventId]);
@@ -1913,7 +2238,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   $body = read_json_body();
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $customization = json_decode((string)$row['customization_json'], true);
   if (!is_array($customization)) $customization = [];
@@ -2054,7 +2379,7 @@ if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'PO
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $customization = json_decode((string)$row['customization_json'], true);
   if (!is_array($customization)) $customization = [];
@@ -2111,7 +2436,7 @@ if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $ins = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
   $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null]);
@@ -2150,7 +2475,7 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'P
   $owner->execute([$eventId]);
   $row = $owner->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $existing = $pdo->prepare('SELECT id, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
   $existing->execute([$ticketId, $eventId]);
@@ -2184,7 +2509,7 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)/delete$#', $path, $m) && $method
   $owner->execute([$eventId]);
   $row = $owner->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $ticket = $pdo->prepare('SELECT sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
   $ticket->execute([$ticketId, $eventId]);
@@ -2501,7 +2826,7 @@ if (preg_match('#^/events/(\\d+)/speakers$#', $path, $m) && $method === 'GET') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $stmt2 = db()->prepare('SELECT * FROM speakers WHERE event_id = ? ORDER BY id DESC');
   $stmt2->execute([$eventId]);
@@ -2538,7 +2863,7 @@ if (preg_match('#^/events/(\\d+)/speakers$#', $path, $m) && $method === 'POST') 
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $ins = $pdo->prepare('INSERT INTO speakers (event_id, name, title, company, bio, avatar_url) VALUES (?, ?, ?, ?, ?, ?)');
   $ins->execute([
@@ -2563,7 +2888,7 @@ if (preg_match('#^/events/(\\d+)/speakers/(\\d+)$#', $path, $m) && $method === '
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $stmt2 = $pdo->prepare('SELECT id FROM speakers WHERE id = ? AND event_id = ? LIMIT 1');
   $stmt2->execute([$speakerId, $eventId]);
@@ -2599,7 +2924,7 @@ if (preg_match('#^/events/(\\d+)/speakers/(\\d+)/delete$#', $path, $m) && $metho
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $del = $pdo->prepare('DELETE FROM speakers WHERE id = ? AND event_id = ?');
   $del->execute([$speakerId, $eventId]);
@@ -2615,7 +2940,7 @@ if (preg_match('#^/events/(\\d+)/sessions$#', $path, $m) && $method === 'GET') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $stmt2 = db()->prepare('SELECT * FROM sessions WHERE event_id = ? ORDER BY starts_at ASC');
   $stmt2->execute([$eventId]);
@@ -2658,7 +2983,7 @@ if (preg_match('#^/events/(\\d+)/sessions$#', $path, $m) && $method === 'POST') 
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $ins = $pdo->prepare('INSERT INTO sessions (event_id, title, description, starts_at, ends_at, location, speaker_ids_json) VALUES (?, ?, ?, ?, ?, ?, ?)');
   $ins->execute([
@@ -2684,7 +3009,7 @@ if (preg_match('#^/events/(\\d+)/sessions/(\\d+)$#', $path, $m) && $method === '
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $stmt2 = $pdo->prepare('SELECT id FROM sessions WHERE id = ? AND event_id = ? LIMIT 1');
   $stmt2->execute([$sessionId, $eventId]);
@@ -2723,7 +3048,7 @@ if (preg_match('#^/events/(\\d+)/sessions/(\\d+)/delete$#', $path, $m) && $metho
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $del = $pdo->prepare('DELETE FROM sessions WHERE id = ? AND event_id = ?');
   $del->execute([$sessionId, $eventId]);
@@ -2837,7 +3162,7 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') 
   $eventId = (int)$m[1];
 
   $pdo = db();
-  require_event_owner($pdo, $eventId, $uid);
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
 
   $q = trim((string)($_GET['q'] ?? ''));
   $status = trim((string)($_GET['status'] ?? 'all'));
@@ -2887,7 +3212,7 @@ if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === '
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   $evRow = load_event_row_or_404($pdo, $eventId);
   $checkoutFields = checkout_fields_from_event_row($evRow);
@@ -3014,7 +3339,7 @@ if (preg_match('#^/events/(\\d+)/runbook$#', $path, $m) && $method === 'GET') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   ensure_event_runbook_table($pdo);
   $stmt2 = $pdo->prepare('SELECT id, title, priority, status, due_at, created_at FROM event_runbook_items WHERE event_id = ? ORDER BY status ASC, created_at DESC');
@@ -3049,7 +3374,7 @@ if (preg_match('#^/events/(\\d+)/runbook$#', $path, $m) && $method === 'POST') {
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   ensure_event_runbook_table($pdo);
   $ins = $pdo->prepare('INSERT INTO event_runbook_items (event_id, title, priority, status, due_at) VALUES (?, ?, ?, ?, ?)');
@@ -3073,7 +3398,7 @@ if (preg_match('#^/events/(\\d+)/runbook/(\\d+)/toggle$#', $path, $m) && $method
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   ensure_event_runbook_table($pdo);
   $s = $pdo->prepare('SELECT status FROM event_runbook_items WHERE id = ? AND event_id = ? LIMIT 1');
@@ -3096,7 +3421,7 @@ if (preg_match('#^/events/(\\d+)/runbook/(\\d+)/delete$#', $path, $m) && $method
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
-  if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
+  deny_unless_event_row_access(, , , 'editor');
 
   ensure_event_runbook_table($pdo);
   $d = $pdo->prepare('DELETE FROM event_runbook_items WHERE id = ? AND event_id = ?');
