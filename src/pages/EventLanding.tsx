@@ -14,6 +14,7 @@ import {
   startPayHereCheckout,
   type PayHereInitiateResponse,
 } from '../lib/payhereCheckout';
+import { formatApiError } from '../utils/apiError';
 import { Users } from 'lucide-react';
 
 type TicketHolderInput = {
@@ -213,16 +214,33 @@ export const EventLanding: React.FC = () => {
   };
 
   const waitForPaidOrder = async (orderId: string, accessToken?: string) => {
-    const tokenQs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
-    for (let attempt = 0; attempt < 24; attempt += 1) {
-      const res = await api.get<{ order: { status: string } }>(`/api/orders/${orderId}${tokenQs}`);
-      if (res.order.status === 'paid') return;
-      if (res.order.status === 'failed') {
-        throw new Error('Payment failed. Please try again.');
+    if (!accessToken) {
+      throw new Error('Checkout session expired. Close this window and try checkout again.');
+    }
+    const tokenQs = `?token=${encodeURIComponent(accessToken)}`;
+    let lastHint: string | null = null;
+
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      try {
+        const res = await api.get<{ order: { status: string } }>(`/api/payhere/status/${orderId}${tokenQs}`);
+        if (res.order.status === 'paid') return;
+        if (res.order.status === 'failed') {
+          throw new Error('Payment failed. Please try again.');
+        }
+        lastHint = 'Payment received — confirming your tickets…';
+      } catch (e: unknown) {
+        const err = e as { error?: string; message?: string };
+        if (err?.error === 'forbidden' || err?.error === 'missing_token') {
+          throw new Error(formatApiError(e, 'Could not verify this order. Close checkout and try again.'));
+        }
+        lastHint = formatApiError(e, 'Waiting for payment confirmation…');
       }
       await new Promise((resolve) => window.setTimeout(resolve, 1500));
     }
-    throw new Error('Payment is still confirming. Please wait a moment and refresh.');
+    throw new Error(
+      lastHint ||
+        'Payment is still confirming. Check your email shortly, or open the confirmation link from PayHere.'
+    );
   };
 
   const submitCheckout = async (values: {
@@ -312,10 +330,25 @@ export const EventLanding: React.FC = () => {
         await startPayHereCheckout(res, {
           onCompleted: async (orderId) => {
             setPayherePopupOpen(false);
-            await waitForPaidOrder(orderId || res.orderId, res.accessToken);
-            setCheckoutOpen(false);
-            const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
-            navigate(`/orders/${res.orderId}/success${tokenQs}`);
+            const resolvedId = orderId || res.orderId;
+            try {
+              await waitForPaidOrder(resolvedId, res.accessToken);
+              setCheckoutOpen(false);
+              const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
+              navigate(`/orders/${res.orderId}/success${tokenQs}`);
+            } catch (confirmErr: unknown) {
+              const returnUrl =
+                typeof res.fields?.return_url === 'string'
+                  ? res.fields.return_url
+                  : typeof res.sdkPayment?.return_url === 'string'
+                    ? (res.sdkPayment.return_url as string)
+                    : '';
+              if (returnUrl && res.accessToken) {
+                window.location.assign(returnUrl);
+                return;
+              }
+              throw confirmErr;
+            }
           },
           onDismissed: () => {
             setPayherePopupOpen(false);
@@ -328,8 +361,7 @@ export const EventLanding: React.FC = () => {
         });
       }
     } catch (error: unknown) {
-      const err = error as { message?: string; error?: string };
-      setPayError(err?.message || err?.error || 'Could not complete checkout. Please try again.');
+      setPayError(formatApiError(error, 'Could not complete checkout. Please try again.'));
     } finally {
       setIsPurchasing(false);
     }

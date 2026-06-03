@@ -29,7 +29,10 @@ export const PayHereReturn: React.FC = () => {
       tries += 1;
       try {
         const tokenQs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
-        const res = await api.get<{ order: Order }>(`/api/orders/${orderId}${tokenQs}`);
+        const statusPath = accessToken
+          ? `/api/payhere/status/${orderId}${tokenQs}`
+          : `/api/orders/${orderId}${tokenQs}`;
+        const res = await api.get<{ order: Pick<Order, 'status'> | Order }>(statusPath);
         const s = res.order.status;
         if (cancelled) return;
         if (s === 'paid') {

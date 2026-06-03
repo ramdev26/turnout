@@ -654,6 +654,137 @@ function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, 
   ];
 }
 
+/**
+ * Mark order paid, create attendees, update inventory, and send confirmation email.
+ * Safe to call more than once (skips when attendees already exist).
+ */
+function payhere_fulfill_paid_order(PDO $pdo, int $orderId, ?string $paymentId = null, ?string $payhereAmount = null): void {
+  $check = $pdo->prepare('SELECT id FROM attendees WHERE order_id = ? LIMIT 1');
+  $check->execute([$orderId]);
+  if ($check->fetch()) {
+    return;
+  }
+
+  $o = $pdo->prepare(
+    'SELECT event_id, buyer_user_id, buyer_name, buyer_email, buyer_phone, tickets_json, total_amount_cents, status
+     FROM orders WHERE id = ? LIMIT 1'
+  );
+  $o->execute([$orderId]);
+  $orderRow = $o->fetch();
+  if (!$orderRow) {
+    throw new Exception('order_not_found');
+  }
+
+  if (
+    $payhereAmount !== null &&
+    $payhereAmount !== '' &&
+    !payhere_amount_matches_order_cents((int)$orderRow['total_amount_cents'], $payhereAmount)
+  ) {
+    throw new Exception('amount_mismatch');
+  }
+
+  if ((string)$orderRow['status'] !== 'paid') {
+    $upd = $pdo->prepare("UPDATE orders SET status = 'paid' WHERE id = ?");
+    $upd->execute([$orderId]);
+  }
+
+  $eventId = (int)$orderRow['event_id'];
+  $buyerUserId = $orderRow['buyer_user_id'] !== null ? (int)$orderRow['buyer_user_id'] : null;
+  $orderTotalCents = (int)$orderRow['total_amount_cents'];
+  $buyerEmail = (string)$orderRow['buyer_email'];
+  $buyerPhone = (string)($orderRow['buyer_phone'] ?? '');
+
+  $req = $pdo->prepare('SELECT attendees_json FROM order_attendee_requests WHERE order_id = ? LIMIT 1');
+  $req->execute([$orderId]);
+  $reqRow = $req->fetch();
+  $attendeesReq = $reqRow ? json_decode($reqRow['attendees_json'], true) : [];
+  if (!is_array($attendeesReq)) {
+    $attendeesReq = [];
+  }
+
+  $items = json_decode($orderRow['tickets_json'], true);
+  if (!is_array($items)) {
+    $items = [];
+  }
+  $expected = expected_attendee_count_from_items($items);
+  $created = insert_attendees_for_order(
+    $pdo,
+    $orderId,
+    $eventId,
+    $attendeesReq,
+    $buyerEmail,
+    $buyerPhone,
+    (string)($orderRow['buyer_name'] ?? 'Attendee')
+  );
+  if ($created !== $expected) {
+    throw new Exception('attendee_create_failed');
+  }
+
+  increment_ticket_sold_counts($pdo, $items);
+
+  upsert_transaction(
+    $pdo,
+    $eventId,
+    $buyerUserId,
+    $orderId,
+    $orderTotalCents,
+    'paid',
+    $paymentId !== null && $paymentId !== '' ? $paymentId : null
+  );
+  send_order_confirmation_email($pdo, $orderId);
+}
+
+/** Complete a pending order when PayHere logged a successful charge but notify fulfillment failed. */
+function payhere_sync_order_from_transactions(PDO $pdo, int $orderId): void {
+  ensure_payhere_tables($pdo);
+  $txStmt = $pdo->prepare(
+    "SELECT payment_id, payhere_amount FROM payhere_transactions WHERE order_id = ? AND status_code = '2' ORDER BY id DESC LIMIT 1"
+  );
+  $txStmt->execute([$orderId]);
+  $tx = $txStmt->fetch();
+  if (!$tx) {
+    return;
+  }
+
+  $curStmt = $pdo->prepare('SELECT status FROM orders WHERE id = ? LIMIT 1');
+  $curStmt->execute([$orderId]);
+  $cur = $curStmt->fetch();
+  if (!$cur) {
+    return;
+  }
+  $status = (string)$cur['status'];
+  if ($status === 'failed') {
+    return;
+  }
+
+  try {
+    if ($status === 'pending') {
+      $pdo->beginTransaction();
+      try {
+        payhere_fulfill_paid_order(
+          $pdo,
+          $orderId,
+          isset($tx['payment_id']) ? (string)$tx['payment_id'] : null,
+          isset($tx['payhere_amount']) ? (string)$tx['payhere_amount'] : null
+        );
+        $pdo->commit();
+      } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+      }
+    } elseif ($status === 'paid') {
+      payhere_fulfill_paid_order(
+        $pdo,
+        $orderId,
+        isset($tx['payment_id']) ? (string)$tx['payment_id'] : null,
+        isset($tx['payhere_amount']) ? (string)$tx['payhere_amount'] : null
+      );
+    }
+  } catch (Throwable $e) {
+    error_log('Turnout payhere_sync order ' . $orderId . ': ' . $e->getMessage());
+  }
+}
+
 function payhere_cfg(): array {
   $cfg = get_config();
   $p = is_array($cfg['payhere'] ?? null) ? $cfg['payhere'] : [];
@@ -1244,6 +1375,34 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   ]);
 }
 
+if (preg_match('#^/payhere/status/(\\d+)$#', $path, $m) && $method === 'GET') {
+  $orderId = (int)$m[1];
+  $accessToken = trim((string)($_GET['token'] ?? ''));
+  if ($accessToken === '') {
+    json_response(400, ['error' => 'missing_token', 'message' => 'Missing checkout token. Close checkout and try again.']);
+  }
+  if (order_access_token_payload($accessToken, $orderId) === null) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Invalid or expired checkout session.']);
+  }
+
+  $pdo = db();
+  payhere_sync_order_from_transactions($pdo, $orderId);
+
+  $stmt = $pdo->prepare('SELECT id, status FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $row = $stmt->fetch();
+  if (!$row) {
+    json_response(404, ['error' => 'order_not_found']);
+  }
+
+  json_response(200, [
+    'order' => [
+      'id' => (string)$row['id'],
+      'status' => (string)$row['status'],
+    ],
+  ]);
+}
+
 if ($path === '/payhere/notify' && $method === 'POST') {
   // PayHere sends application/x-www-form-urlencoded (not JSON).
   $merchantId = (string)($_POST['merchant_id'] ?? '');
@@ -1316,67 +1475,12 @@ if ($path === '/payhere/notify' && $method === 'POST') {
     $upd->execute([$nextStatus, (int)$orderId]);
 
     if ($nextStatus === 'paid') {
-      $o = $pdo->prepare('SELECT event_id, buyer_user_id, buyer_name, buyer_email, buyer_phone, tickets_json, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
-      $o->execute([(int)$orderId]);
-      $orderRow = $o->fetch();
-      if ($orderRow && !payhere_amount_matches_order_cents((int)$orderRow['total_amount_cents'], $payhereAmount)) {
-        $pdo->rollBack();
-        http_response_code(400);
-        echo 'amount_mismatch';
-        exit;
-      }
-
-      // Create attendees if not already created
-      $check = $pdo->prepare('SELECT id FROM attendees WHERE order_id = ? LIMIT 1');
-      $check->execute([(int)$orderId]);
-      $already = $check->fetch();
-
-      if (!$already) {
-        if ($orderRow) {
-          $eventId = (int)$orderRow['event_id'];
-          $buyerUserId = $orderRow['buyer_user_id'] !== null ? (int)$orderRow['buyer_user_id'] : null;
-          $orderTotalCents = (int)$orderRow['total_amount_cents'];
-          $buyerEmail = (string)$orderRow['buyer_email'];
-          $buyerPhone = (string)($orderRow['buyer_phone'] ?? '');
-
-          $req = $pdo->prepare('SELECT attendees_json FROM order_attendee_requests WHERE order_id = ? LIMIT 1');
-          $req->execute([(int)$orderId]);
-          $reqRow = $req->fetch();
-          $attendeesReq = $reqRow ? json_decode($reqRow['attendees_json'], true) : [];
-          if (!is_array($attendeesReq)) $attendeesReq = [];
-
-          $items = json_decode($orderRow['tickets_json'], true);
-          if (!is_array($items)) $items = [];
-          $expected = expected_attendee_count_from_items($items);
-          $created = insert_attendees_for_order(
-            $pdo,
-            (int)$orderId,
-            $eventId,
-            $attendeesReq,
-            $buyerEmail,
-            $buyerPhone,
-            (string)($orderRow['buyer_name'] ?? 'Attendee')
-          );
-          if ($created !== $expected) {
-            throw new Exception('attendee_create_failed');
-          }
-
-          // Increment ticket sold counts
-          $items = json_decode($orderRow['tickets_json'], true);
-          if (is_array($items) && count($items) > 0) {
-            $inc = $pdo->prepare('UPDATE tickets SET sold = sold + ? WHERE id = ?');
-            foreach ($items as $it) {
-              if (!is_array($it)) continue;
-              $tid = (int)($it['ticketId'] ?? 0);
-              $qty = (int)($it['quantity'] ?? 0);
-              if ($tid > 0 && $qty > 0) $inc->execute([$qty, $tid]);
-            }
-          }
-
-          upsert_transaction($pdo, $eventId, $buyerUserId, (int)$orderId, $orderTotalCents, $nextStatus, $paymentId !== '' ? $paymentId : null);
-          send_order_confirmation_email($pdo, (int)$orderId);
-        }
-      }
+      payhere_fulfill_paid_order(
+        $pdo,
+        (int)$orderId,
+        $paymentId !== '' ? $paymentId : null,
+        $payhereAmount !== '' ? $payhereAmount : null
+      );
     } else {
       $o = $pdo->prepare('SELECT event_id, buyer_user_id, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
       $o->execute([(int)$orderId]);

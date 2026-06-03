@@ -1,3 +1,5 @@
+import { formatApiError } from '../utils/apiError';
+
 /** PayHere Checkout / JS SDK payment object (snake_case per PayHere docs). */
 export type PayHereCheckoutPayment = {
   sandbox: boolean;
@@ -279,8 +281,7 @@ export async function startPayHereCheckout(
     const resolvedOrderId = orderId || payment.order_id;
     if (handlers.onCompleted) {
       void Promise.resolve(handlers.onCompleted(resolvedOrderId)).catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : 'Could not confirm payment.';
-        handlers.onError?.(message);
+        handlers.onError?.(formatApiError(err, 'Could not confirm payment.'));
       });
       return;
     }
