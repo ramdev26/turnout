@@ -304,7 +304,19 @@ function mail_order_success_url(int $orderId, ?int $attendeeId = null, ?array $a
   if ($token === '') {
     return '';
   }
-  return $base . '/orders/' . rawurlencode((string)$orderId) . '/success?token=' . rawurlencode($token);
+  $url = $base . '/orders/' . rawurlencode((string)$orderId) . '/success?token=' . rawurlencode($token);
+
+  $resolvedIds = [];
+  if ($attendeeId !== null && $attendeeId > 0) {
+    $resolvedIds = [$attendeeId];
+  } elseif (is_array($attendeeIds) && count($attendeeIds) > 0) {
+    $resolvedIds = array_values(array_unique(array_filter(array_map('intval', $attendeeIds), static fn($id) => $id > 0)));
+  }
+  if (count($resolvedIds) === 1) {
+    $url .= '&pass=' . rawurlencode((string)$resolvedIds[0]);
+  }
+
+  return $url;
 }
 
 function mail_app_base_url(): string {

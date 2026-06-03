@@ -32,6 +32,7 @@ export const Success: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
   const accessToken = searchParams.get('token') || '';
+  const passId = searchParams.get('pass') || '';
   const [order, setOrder] = useState<Order | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,9 +41,19 @@ export const Success: React.FC = () => {
     const fetchOrderData = async () => {
       if (!orderId) return;
       try {
-        const tokenQs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
-        const orderRes = await api.get<{ order: Order }>(`/api/orders/${orderId}${tokenQs}`);
-        setOrder(orderRes.order);
+        const qs = new URLSearchParams();
+        if (accessToken) qs.set('token', accessToken);
+        if (passId) qs.set('pass', passId);
+        const query = qs.toString();
+        const orderRes = await api.get<{ order: Order }>(`/api/orders/${orderId}${query ? `?${query}` : ''}`);
+        let loaded = orderRes.order;
+        if (passId && loaded.attendees?.length) {
+          const mine = loaded.attendees.filter((a) => a.id === passId);
+          if (mine.length > 0) {
+            loaded = { ...loaded, attendees: mine, viewScope: 'attendee', tickets: [] };
+          }
+        }
+        setOrder(loaded);
 
         const eventRes = await api.get<{ event: Event }>(`/api/events/${orderRes.order.eventId}`);
         setEvent(eventRes.event);
@@ -54,7 +65,7 @@ export const Success: React.FC = () => {
     };
 
     fetchOrderData();
-  }, [orderId, accessToken]);
+  }, [orderId, accessToken, passId]);
 
   if (loading) {
     return (

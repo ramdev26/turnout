@@ -2112,9 +2112,23 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   $hasAccessToken = $tokenPayload !== null;
   if (!$isBuyer && !$isOrganizerOwner && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
 
+  // Scoped ticket links always limit visibility — even if organizer/buyer is logged in.
   $attendeeFilterIds = null;
-  if ($hasAccessToken && !$isOrganizerOwner) {
-    $attendeeFilterIds = order_access_token_attendee_ids($tokenPayload);
+  if ($hasAccessToken) {
+    $scopedIds = order_access_token_attendee_ids($tokenPayload);
+    if ($scopedIds !== null) {
+      $attendeeFilterIds = $scopedIds;
+      $passParam = (int)($_GET['pass'] ?? 0);
+      if ($passParam > 0) {
+        if (!in_array($passParam, $attendeeFilterIds, true)) {
+          json_response(403, ['error' => 'forbidden', 'message' => 'This ticket link is not valid for that pass.']);
+        }
+        $attendeeFilterIds = [$passParam];
+      }
+    } elseif ($passParam > 0) {
+      // Purchaser token + ?pass= — share a single QR without re-issuing a scoped token.
+      $attendeeFilterIds = [$passParam];
+    }
   }
 
   $items = json_decode($row['tickets_json'], true);
