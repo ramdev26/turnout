@@ -8,7 +8,9 @@ import { loadLandingFont } from '../themes/landingFonts';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatLKRWhole } from '../utils/money';
+import { CheckoutCustomFields } from '../components/landing/CheckoutCustomFields';
 import { ticketRemaining } from '../components/landing/LandingShared';
+import { normalizeCheckoutFields, validateCustomFieldValues } from '../utils/checkoutFields';
 import {
   preloadPayHereScript,
   startPayHereCheckout,
@@ -25,6 +27,7 @@ type TicketHolderInput = {
   fullName: string;
   email: string;
   phone: string;
+  customFields: Record<string, string>;
 };
 
 function buildTicketHolders(items: OrderItem[]): TicketHolderInput[] {
@@ -40,6 +43,7 @@ function buildTicketHolders(items: OrderItem[]): TicketHolderInput[] {
       fullName: '',
       email: '',
       phone: '',
+      customFields: {},
     }))
   );
 }
@@ -82,6 +86,7 @@ export const EventLanding: React.FC = () => {
   const [buyingForSomeoneElse, setBuyingForSomeoneElse] = useState(false);
   const [assignEachTicket, setAssignEachTicket] = useState(false);
   const [ticketHolders, setTicketHolders] = useState<TicketHolderInput[]>([]);
+  const [perAttendeeCustomFields, setPerAttendeeCustomFields] = useState<Record<string, string>[]>([]);
   const buyerName = watch('buyerName');
   const buyerEmail = watch('buyerEmail');
   const buyerPhone = watch('buyerPhone');
@@ -105,6 +110,11 @@ export const EventLanding: React.FC = () => {
   );
 
   const canAssignEachTicket = totalTicketQuantity > 1;
+
+  const checkoutFields = useMemo(
+    () => normalizeCheckoutFields(event?.customization?.checkoutFields),
+    [event?.customization?.checkoutFields]
+  );
 
   useEffect(() => {
     if (!canAssignEachTicket) setAssignEachTicket(false);
@@ -136,9 +146,18 @@ export const EventLanding: React.FC = () => {
         fullName: prevByKey[row.key]?.fullName ?? row.fullName,
         email: prevByKey[row.key]?.email ?? row.email,
         phone: prevByKey[row.key]?.phone ?? row.phone,
+        customFields: prevByKey[row.key]?.customFields ?? row.customFields,
       }));
     });
   }, [checkoutOpen, orderItems, assignEachTicket]);
+
+  useEffect(() => {
+    if (!checkoutOpen || checkoutFields.length < 1) return;
+    const count = buildTicketHolders(orderItems).length;
+    setPerAttendeeCustomFields((prev) =>
+      Array.from({ length: count }, (_, index) => prev[index] ?? {})
+    );
+  }, [checkoutOpen, orderItems, checkoutFields.length]);
 
   useEffect(() => {
     const fetchEventData = async () => {
@@ -264,7 +283,13 @@ export const EventLanding: React.FC = () => {
     setIsPurchasing(true);
     setPayError(null);
     try {
-      let attendees: { ticketId: string; fullName: string; email: string; phone: string }[];
+      let attendees: {
+        ticketId: string;
+        fullName: string;
+        email: string;
+        phone: string;
+        customFields?: Record<string, string>;
+      }[];
 
       if (assignEachTicket && canAssignEachTicket) {
         for (const row of ticketHolders) {
@@ -284,6 +309,7 @@ export const EventLanding: React.FC = () => {
           fullName: row.fullName.trim(),
           email: row.email.trim().toLowerCase(),
           phone: row.phone.trim(),
+          customFields: row.customFields,
         }));
       } else if (buyingForSomeoneElse) {
         if (!values.attendeeName.trim() || !isValidEmail(values.attendeeEmail)) {
@@ -308,6 +334,26 @@ export const EventLanding: React.FC = () => {
             phone: values.buyerPhone.trim(),
           }))
         );
+      }
+
+      if (checkoutFields.length > 0) {
+        const fieldSources =
+          assignEachTicket && canAssignEachTicket
+            ? ticketHolders.map((row) => row.customFields)
+            : perAttendeeCustomFields;
+        for (let i = 0; i < attendees.length; i += 1) {
+          const label =
+            assignEachTicket && canAssignEachTicket
+              ? ticketHolders[i]?.label
+              : buildTicketHolders(orderItems)[i]?.label ?? `Ticket ${i + 1}`;
+          const fieldErr = validateCustomFieldValues(checkoutFields, fieldSources[i] ?? {}, label);
+          if (fieldErr) {
+            setPayError(fieldErr);
+            setIsPurchasing(false);
+            return;
+          }
+          attendees[i] = { ...attendees[i], customFields: fieldSources[i] ?? {} };
+        }
       }
 
       if (totalAmount <= 0) {
@@ -743,6 +789,18 @@ export const EventLanding: React.FC = () => {
                             }}
                           />
                         </label>
+                        {checkoutFields.length > 0 ? (
+                          <CheckoutCustomFields
+                            fields={checkoutFields}
+                            values={row.customFields}
+                            onChange={(values) =>
+                              setTicketHolders((rows) =>
+                                rows.map((r) => (r.key === row.key ? { ...r, customFields: values } : r))
+                              )
+                            }
+                            idPrefix={`holder-${row.key}`}
+                          />
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -814,6 +872,42 @@ export const EventLanding: React.FC = () => {
                       {buyerPhone ? ` · ${buyerPhone}` : ''}.
                     </p>
                   )}
+
+                  {checkoutFields.length > 0 ? (
+                    <div className="space-y-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                        {totalTicketQuantity > 1 ? 'Additional info per ticket holder' : 'Additional information'}
+                      </p>
+                      {buildTicketHolders(orderItems).map((holder, index) => (
+                        <div
+                          key={holder.key}
+                          className="space-y-3 rounded-xl border p-3"
+                          style={{
+                            borderColor: 'var(--landing-border)',
+                            background: 'var(--landing-surface-muted)',
+                          }}
+                        >
+                          {totalTicketQuantity > 1 ? (
+                            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                              {holder.label}
+                            </p>
+                          ) : null}
+                          <CheckoutCustomFields
+                            fields={checkoutFields}
+                            values={perAttendeeCustomFields[index] ?? {}}
+                            onChange={(values) =>
+                              setPerAttendeeCustomFields((prev) => {
+                                const next = [...prev];
+                                next[index] = values;
+                                return next;
+                              })
+                            }
+                            idPrefix={`checkout-${holder.key}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </>
               )}
               <button

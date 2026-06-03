@@ -72,6 +72,16 @@ export type LandingDisplayMode = 'auto' | 'light' | 'dark';
 /** Landing surface treatment (Apple-style "Style" control) */
 export type LandingStyle = 'glass' | 'minimal' | 'bold';
 
+/** Organizer-defined fields collected per ticket holder at checkout (e.g. NIC). */
+export type CheckoutFieldDefinition = {
+  id: string;
+  label: string;
+  /** Stable key stored on each attendee, e.g. `nic` */
+  key: string;
+  required: boolean;
+  placeholder?: string;
+};
+
 export interface EventCustomization {
   themeId?: EventThemeId;
   /** Event category preset (Music, Sports, etc.) applied under the Minimal theme */
@@ -98,6 +108,8 @@ export interface EventCustomization {
   ticketPdfAccentColor?: string;
   ticketPdfBadgeText?: string;
   ticketPdfFooterNote?: string;
+  /** Extra questions asked for each ticket holder during checkout */
+  checkoutFields?: CheckoutFieldDefinition[];
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }
@@ -211,6 +223,7 @@ export type Attendee = {
   fullName: string;
   email: string;
   phone?: string | null;
+  customFields?: Record<string, string>;
   qrToken: string;
   checkedInAt?: string | null;
   createdAt: string;
@@ -254,6 +267,7 @@ export interface Order {
     fullName: string;
     email: string;
     phone?: string | null;
+    customFields?: Record<string, string>;
     qrToken: string;
     checkedInAt?: string | null;
   }[];

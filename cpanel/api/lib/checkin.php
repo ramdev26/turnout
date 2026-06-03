@@ -92,7 +92,7 @@ function expected_attendee_count_from_items(array $items): int {
   return $total;
 }
 
-function validate_attendees_for_order(array $normalizedItems, array $attendees): void {
+function validate_attendees_for_order(array $normalizedItems, array $attendees, array $checkoutFields = []): void {
   $expected = expected_attendee_count_from_items($normalizedItems);
   if ($expected < 1) json_response(400, ['error' => 'invalid_order_items']);
   if (!is_array($attendees) || count($attendees) !== $expected) {
@@ -124,6 +124,7 @@ function validate_attendees_for_order(array $normalizedItems, array $attendees):
     if (!isset($requiredByTicket[$ticketId])) {
       json_response(400, ['error' => 'invalid_attendee_ticket', 'message' => 'Attendee ticket does not match order.']);
     }
+    validate_attendee_custom_fields($checkoutFields, $a['customFields'] ?? null);
     $providedByTicket[$ticketId] = ($providedByTicket[$ticketId] ?? 0) + 1;
   }
 
@@ -135,7 +136,7 @@ function validate_attendees_for_order(array $normalizedItems, array $attendees):
 }
 
 function attendee_api_shape(array $a, int $eventId): array {
-  return [
+  $shape = [
     'id' => (string)$a['id'],
     'eventId' => (string)$eventId,
     'ticketId' => (string)$a['ticket_id'],
@@ -147,6 +148,9 @@ function attendee_api_shape(array $a, int $eventId): array {
     'checkedInAt' => !empty($a['checked_in_at']) ? gmdate('c', strtotime($a['checked_in_at'])) : null,
     'createdAt' => !empty($a['created_at']) ? gmdate('c', strtotime($a['created_at'])) : null,
   ];
+  $custom = decode_attendee_custom_fields($a['custom_fields_json'] ?? null);
+  if ($custom !== null) $shape['customFields'] = $custom;
+  return $shape;
 }
 
 function insert_attendees_for_order(
@@ -156,10 +160,12 @@ function insert_attendees_for_order(
   array $attendees,
   string $defaultEmail,
   string $defaultPhone,
-  string $defaultName
+  string $defaultName,
+  array $checkoutFields = []
 ): int {
+  ensure_attendees_custom_fields_column($pdo);
   $attIns = $pdo->prepare(
-    'INSERT INTO attendees (order_id, event_id, ticket_id, full_name, email, phone, qr_token) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO attendees (order_id, event_id, ticket_id, full_name, email, phone, qr_token, custom_fields_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
   $created = 0;
   foreach ($attendees as $a) {
@@ -171,8 +177,10 @@ function insert_attendees_for_order(
     if ($ticketId <= 0 || $fullName === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
       throw new Exception('invalid_attendee');
     }
+    validate_attendee_custom_fields($checkoutFields, $a['customFields'] ?? null);
+    $customJson = sanitize_attendee_custom_fields($checkoutFields, $a['customFields'] ?? null);
     $qr = bin2hex(random_bytes(16));
-    $attIns->execute([$orderId, $eventId, $ticketId, $fullName, $email, $phone !== '' ? $phone : null, $qr]);
+    $attIns->execute([$orderId, $eventId, $ticketId, $fullName, $email, $phone !== '' ? $phone : null, $qr, $customJson]);
     $created++;
   }
   return $created;

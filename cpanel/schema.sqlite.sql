@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS attendees (
   full_name TEXT NOT NULL,
   email TEXT NOT NULL,
   phone TEXT NULL,
+  custom_fields_json TEXT NULL,
   qr_token TEXT NOT NULL UNIQUE,
   checked_in_at TEXT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),

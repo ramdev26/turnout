@@ -8,6 +8,7 @@ require __DIR__ . '/lib/banners.php';
 require __DIR__ . '/lib/checkout.php';
 require __DIR__ . '/lib/domains.php';
 require __DIR__ . '/lib/checkin.php';
+require __DIR__ . '/lib/checkout_fields.php';
 
 set_cors_headers_for_same_domain();
 
@@ -707,6 +708,8 @@ function payhere_fulfill_paid_order(PDO $pdo, int $orderId, ?string $paymentId =
     $items = [];
   }
   $expected = expected_attendee_count_from_items($items);
+  $evRow = load_event_row_or_404($pdo, $eventId);
+  $checkoutFields = checkout_fields_from_event_row($evRow);
   $created = insert_attendees_for_order(
     $pdo,
     $orderId,
@@ -714,7 +717,8 @@ function payhere_fulfill_paid_order(PDO $pdo, int $orderId, ?string $paymentId =
     $attendeesReq,
     $buyerEmail,
     $buyerPhone,
-    (string)($orderRow['buyer_name'] ?? 'Attendee')
+    (string)($orderRow['buyer_name'] ?? 'Attendee'),
+    $checkoutFields
   );
   if ($created !== $expected) {
     throw new Exception('attendee_create_failed');
@@ -822,6 +826,7 @@ function payhere_cfg(): array {
 ensure_users_role_support(db());
 ensure_finance_tables(db());
 ensure_events_custom_domain_column(db());
+ensure_attendees_custom_fields_column(db());
 enforce_write_request_integrity($path, $method);
 
 function load_event_row_or_404(PDO $pdo, int $eventId): array {
@@ -1295,7 +1300,8 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $ev = require_publishable_event($pdo, $eventId);
 
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
-  validate_attendees_for_order($normalized['items'], $attendees);
+  $checkoutFields = checkout_fields_from_event_row($ev);
+  validate_attendees_for_order($normalized['items'], $attendees, $checkoutFields);
   $totalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
 
@@ -1963,6 +1969,9 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('scheduleTba', $body)) {
     $customization['scheduleTba'] = (bool)$body['scheduleTba'];
   }
+  if (array_key_exists('checkoutFields', $body)) {
+    $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);
+  }
 
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);
@@ -2203,7 +2212,7 @@ if ($path === '/orders' && $method === 'POST') {
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
 
   $pdo = db();
-  require_publishable_event($pdo, $eventId);
+  $ev = require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $totalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
@@ -2214,7 +2223,8 @@ if ($path === '/orders' && $method === 'POST') {
   $expectedAttendees = expected_attendee_count_from_items($normalizedItems);
   if ($expectedAttendees < 1) json_response(400, ['error' => 'invalid_order_items']);
   if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
-  validate_attendees_for_order($normalizedItems, $attendees);
+  $checkoutFields = checkout_fields_from_event_row($ev);
+  validate_attendees_for_order($normalizedItems, $attendees, $checkoutFields);
 
   $buyerId = current_user_id();
   $pdo->beginTransaction();
@@ -2241,7 +2251,8 @@ if ($path === '/orders' && $method === 'POST') {
       $attendees,
       $buyerEmail,
       $buyerPhone,
-      $buyerName !== '' ? $buyerName : 'Attendee'
+      $buyerName !== '' ? $buyerName : 'Attendee',
+      $checkoutFields
     );
     if ($createdCount !== $expectedAttendees) {
       throw new Exception('invalid_attendee');
@@ -2321,7 +2332,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   $items = json_decode($row['tickets_json'], true);
   if (!is_array($items)) $items = [];
   $stmt2 = $pdo->prepare(
-    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, t.name AS ticket_name
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.custom_fields_json, t.name AS ticket_name
      FROM attendees a
      LEFT JOIN tickets t ON t.id = a.ticket_id
      WHERE a.order_id = ?
@@ -2334,7 +2345,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
     if ($attendeeFilterIds !== null && !in_array($attendeeRowId, $attendeeFilterIds, true)) {
       continue;
     }
-    $att[] = [
+    $rowShape = [
       'id' => (string)$a['id'],
       'ticketId' => (string)$a['ticket_id'],
       'ticketName' => $a['ticket_name'] ?? null,
@@ -2344,6 +2355,9 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'qrToken' => $a['qr_token'],
       'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
     ];
+    $custom = decode_attendee_custom_fields($a['custom_fields_json'] ?? null);
+    if ($custom !== null) $rowShape['customFields'] = $custom;
+    $att[] = $rowShape;
   }
 
   if ($attendeeFilterIds !== null && count($att) === 0 && (string)$row['status'] === 'paid') {
@@ -2355,7 +2369,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       if ($attendeeFilterIds !== null && !in_array($attendeeRowId, $attendeeFilterIds, true)) {
         continue;
       }
-      $att[] = [
+      $retryShape = [
         'id' => (string)$a['id'],
         'ticketId' => (string)$a['ticket_id'],
         'ticketName' => $a['ticket_name'] ?? null,
@@ -2365,6 +2379,9 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
         'qrToken' => $a['qr_token'],
         'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
       ];
+      $customRetry = decode_attendee_custom_fields($a['custom_fields_json'] ?? null);
+      if ($customRetry !== null) $retryShape['customFields'] = $customRetry;
+      $att[] = $retryShape;
     }
   }
 
@@ -2842,7 +2859,7 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') 
   }
 
   $sql =
-    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, a.custom_fields_json, t.name AS ticket_name
      FROM attendees a
      JOIN tickets t ON t.id = a.ticket_id
      WHERE ' . $where . '
@@ -2872,15 +2889,23 @@ if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === '
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   if ((int)$row['organizer_user_id'] !== $uid) json_response(403, ['error' => 'forbidden']);
 
+  $evRow = load_event_row_or_404($pdo, $eventId);
+  $checkoutFields = checkout_fields_from_event_row($evRow);
+
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename="attendees-event-' . $eventId . '.csv"');
   header('Cache-Control: no-store, max-age=0');
 
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['attendee_id', 'ticket_name', 'full_name', 'email', 'phone', 'qr_token', 'checked_in_at', 'created_at']);
+  $header = ['attendee_id', 'ticket_name', 'full_name', 'email', 'phone'];
+  foreach ($checkoutFields as $field) {
+    $header[] = (string)($field['label'] ?? $field['key']);
+  }
+  array_push($header, 'qr_token', 'checked_in_at', 'created_at');
+  fputcsv($out, $header);
 
   $stmt2 = $pdo->prepare(
-    'SELECT a.id, t.name AS ticket_name, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at
+    'SELECT a.id, t.name AS ticket_name, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, a.custom_fields_json
      FROM attendees a
      JOIN tickets t ON t.id = a.ticket_id
      WHERE a.event_id = ?
@@ -2888,16 +2913,20 @@ if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === '
   );
   $stmt2->execute([$eventId]);
   while ($a = $stmt2->fetch()) {
-    fputcsv($out, [
+    $custom = decode_attendee_custom_fields($a['custom_fields_json'] ?? null) ?? [];
+    $row = [
       (string)$a['id'],
       $a['ticket_name'],
       $a['full_name'],
       $a['email'],
       $a['phone'],
-      $a['qr_token'],
-      $a['checked_in_at'],
-      $a['created_at'],
-    ]);
+    ];
+    foreach ($checkoutFields as $field) {
+      $key = (string)($field['key'] ?? '');
+      $row[] = $key !== '' ? (string)($custom[$key] ?? '') : '';
+    }
+    array_push($row, $a['qr_token'], $a['checked_in_at'], $a['created_at']);
+    fputcsv($out, $row);
   }
   fclose($out);
   exit;

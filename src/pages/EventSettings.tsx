@@ -11,12 +11,14 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee, Event, Session, Speaker, Ticket as EventTicket } from '../types';
+import { Attendee, CheckoutFieldDefinition, Event, Session, Speaker, Ticket as EventTicket } from '../types';
+import { normalizeCheckoutFields } from '../utils/checkoutFields';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
 import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
+import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
@@ -97,6 +99,7 @@ export const EventSettings: React.FC = () => {
   const [ticketPdfBadgeText, setTicketPdfBadgeText] = useState('VIP ACCESS');
   const [ticketPdfFooterNote, setTicketPdfFooterNote] = useState('Please bring this ticket and a valid ID.');
   const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantity: 100, description: '' });
+  const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,6 +146,7 @@ export const EventSettings: React.FC = () => {
       setTicketPdfAccentColor(ev.customization?.ticketPdfAccentColor || landing.secondaryColor || minimal.secondary);
       setTicketPdfBadgeText(ev.customization?.ticketPdfBadgeText || 'VIP ACCESS');
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
+      setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
 
       const [ticketsRes, speakersRes, sessionsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
@@ -236,8 +240,10 @@ export const EventSettings: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        checkoutFields: normalizeCheckoutFields(checkoutFields),
       });
       setEvent(res.event);
+      setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to save changes');
@@ -765,6 +771,25 @@ export const EventSettings: React.FC = () => {
                 <Plus className="h-4 w-4" />
                 {savingTicket ? 'Saving…' : editingTicketId ? 'Update tier' : 'Add tier'}
               </button>
+            </div>
+
+            <div className={cn(panelCn, 'mb-5 p-5')} style={cardStyle}>
+              <h2 className="text-base font-semibold" style={{ color: ui.text }}>
+                Checkout questions
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                Collect extra details from each ticket holder (e.g. NIC, company, dietary needs). Saved when you save event details above.
+              </p>
+              <div className="mt-4">
+                <CheckoutFieldsEditor
+                  fields={checkoutFields}
+                  onChange={setCheckoutFields}
+                  ui={ui}
+                  fieldClass={fieldClass}
+                  fieldStyle={fieldStyle}
+                  cardMutedStyle={cardMutedStyle}
+                />
+              </div>
             </div>
 
             {/* Advanced */}
