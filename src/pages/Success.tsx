@@ -9,6 +9,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { useAuthStore } from '../store/useAuthStore';
 import { TURNOUT_BRAND } from '../themes/brandColors';
+import { formatApiError } from '../utils/apiError';
 
 type TicketPdfTemplate = 'classic' | 'midnight' | 'sunset';
 
@@ -36,16 +37,29 @@ export const Success: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchOrderData = async () => {
       if (!orderId) return;
+      setLoadError(null);
       try {
         const qs = new URLSearchParams();
         if (accessToken) qs.set('token', accessToken);
         if (passId) qs.set('pass', passId);
         const query = qs.toString();
-        const orderRes = await api.get<{ order: Order }>(`/api/orders/${orderId}${query ? `?${query}` : ''}`);
+
+        if (accessToken) {
+          try {
+            await api.get<{ order: { status: string } }>(`/api/payhere/status/${orderId}?token=${encodeURIComponent(accessToken)}`);
+          } catch {
+            // Non-fatal — GET order also syncs pending payments.
+          }
+        }
+
+        const orderRes = await api.get<{ order: Order; event?: Event }>(
+          `/api/orders/${orderId}${query ? `?${query}` : ''}`
+        );
         let loaded = orderRes.order;
         if (passId && loaded.attendees?.length) {
           const mine = loaded.attendees.filter((a) => a.id === passId);
@@ -55,10 +69,27 @@ export const Success: React.FC = () => {
         }
         setOrder(loaded);
 
-        const eventRes = await api.get<{ event: Event }>(`/api/events/${orderRes.order.eventId}`);
-        setEvent(eventRes.event);
+        if (orderRes.event) {
+          setEvent(orderRes.event);
+        } else {
+          const eventRes = await api.get<{ event: Event }>(`/api/events/${orderRes.order.eventId}`);
+          setEvent(eventRes.event);
+        }
       } catch (error) {
         console.error('Error fetching order:', error);
+        const err = error as { error?: string; message?: string };
+        if (err?.error === 'forbidden' || err?.error === 'missing_token') {
+          setLoadError(
+            formatApiError(
+              error,
+              'This confirmation link is invalid or expired. Open the link from your email or contact the organizer.'
+            )
+          );
+        } else if (err?.error === 'order_not_found') {
+          setLoadError('We could not find an order with that number.');
+        } else {
+          setLoadError(formatApiError(error, 'We could not load your order. Check the link from your email and try again.'));
+        }
       } finally {
         setLoading(false);
       }
@@ -82,10 +113,50 @@ export const Success: React.FC = () => {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-center justify-center px-4 py-24 text-center">
         <h2 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Order not found</h2>
-        <p className="mt-2 text-[var(--text-muted)]">We couldn&apos;t find your order details.</p>
-        <Link to="/" className="mt-6 font-semibold text-[var(--primary)] underline-offset-2 hover:underline">
-          Go back home
-        </Link>
+        <p className="mt-2 text-[var(--text-muted)]">
+          {loadError || 'We couldn&apos;t find your order details.'}
+        </p>
+        {!accessToken && (
+          <p className="mt-3 text-sm text-[var(--text-muted)]">
+            Use the full link from your confirmation email (it includes a secure token).
+          </p>
+        )}
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-xl border px-5 py-2.5 text-sm font-semibold text-[var(--text)]"
+            style={{ borderColor: TURNOUT_BRAND.limeLine }}
+          >
+            Try again
+          </button>
+          <Link to="/" className="rounded-xl px-5 py-2.5 text-sm font-semibold text-[var(--primary)] underline-offset-2 hover:underline">
+            Go back home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (order.status === 'pending') {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center justify-center px-4 py-24 text-center">
+        <div
+          className="h-12 w-12 animate-spin rounded-full border-4 border-t-[var(--primary)]"
+          style={{ borderColor: TURNOUT_BRAND.limeLine, borderTopColor: 'var(--primary)' }}
+        />
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-[var(--text)]">Confirming payment…</h2>
+        <p className="mt-2 text-[var(--text-muted)]">
+          Your payment was received. This page will update in a moment — or check your email for confirmation.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-6 rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+          style={{ backgroundColor: 'var(--primary)' }}
+        >
+          Refresh
+        </button>
       </div>
     );
   }

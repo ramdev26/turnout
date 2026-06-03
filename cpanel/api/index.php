@@ -2273,19 +2273,39 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   $eventOwnerStmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
   $eventOwnerStmt->execute([(int)$row['event_id']]);
   $eventOwner = $eventOwnerStmt->fetch();
-  $isBuyer = ($uid !== null) && ((int)($row['buyer_user_id'] ?? 0) === $uid);
+  $buyerEmailNorm = strtolower(trim((string)($row['buyer_email'] ?? '')));
+  $isBuyer = false;
+  if ($uid !== null) {
+    if ((int)($row['buyer_user_id'] ?? 0) === $uid) {
+      $isBuyer = true;
+    } else {
+      $buyerUser = load_user_profile($uid);
+      $userEmailNorm = strtolower(trim((string)($buyerUser['email'] ?? '')));
+      if ($buyerEmailNorm !== '' && $userEmailNorm !== '' && $buyerEmailNorm === $userEmailNorm) {
+        $isBuyer = true;
+      }
+    }
+  }
   $isOrganizerOwner = ($uid !== null) && ((int)($eventOwner['organizer_user_id'] ?? 0) === $uid);
   $tokenPayload = $accessToken !== '' ? order_access_token_payload($accessToken, $orderId) : null;
   $hasAccessToken = $tokenPayload !== null;
   if (!$isBuyer && !$isOrganizerOwner && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
 
+  if ($hasAccessToken && (string)$row['status'] === 'pending') {
+    payhere_sync_order_from_transactions($pdo, $orderId);
+    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
+    $stmt->execute([$orderId]);
+    $row = $stmt->fetch();
+    if (!$row) json_response(404, ['error' => 'order_not_found']);
+  }
+
   // Scoped ticket links always limit visibility — even if organizer/buyer is logged in.
   $attendeeFilterIds = null;
+  $passParam = (int)($_GET['pass'] ?? 0);
   if ($hasAccessToken) {
     $scopedIds = order_access_token_attendee_ids($tokenPayload);
     if ($scopedIds !== null) {
       $attendeeFilterIds = $scopedIds;
-      $passParam = (int)($_GET['pass'] ?? 0);
       if ($passParam > 0) {
         if (!in_array($passParam, $attendeeFilterIds, true)) {
           json_response(403, ['error' => 'forbidden', 'message' => 'This ticket link is not valid for that pass.']);
@@ -2326,11 +2346,43 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
     ];
   }
 
+  if ($attendeeFilterIds !== null && count($att) === 0 && (string)$row['status'] === 'paid') {
+    payhere_sync_order_from_transactions($pdo, $orderId);
+    $stmt2->execute([$orderId]);
+    $att = [];
+    while ($a = $stmt2->fetch()) {
+      $attendeeRowId = (int)$a['id'];
+      if ($attendeeFilterIds !== null && !in_array($attendeeRowId, $attendeeFilterIds, true)) {
+        continue;
+      }
+      $att[] = [
+        'id' => (string)$a['id'],
+        'ticketId' => (string)$a['ticket_id'],
+        'ticketName' => $a['ticket_name'] ?? null,
+        'fullName' => $a['full_name'],
+        'email' => $a['email'],
+        'phone' => $a['phone'],
+        'qrToken' => $a['qr_token'],
+        'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
+      ];
+    }
+  }
+
   if ($attendeeFilterIds !== null && count($att) === 0) {
-    json_response(403, ['error' => 'forbidden']);
+    json_response(403, ['error' => 'forbidden', 'message' => 'Ticket pass not found for this order.']);
   }
 
   $viewScope = $attendeeFilterIds !== null ? 'attendee' : 'order';
+
+  $eventPayload = null;
+  if ($hasAccessToken || $isBuyer || $isOrganizerOwner) {
+    $evStmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
+    $evStmt->execute([(int)$row['event_id']]);
+    $evRow = $evStmt->fetch();
+    if ($evRow) {
+      $eventPayload = map_public_event_row($evRow);
+    }
+  }
 
   json_response(200, [
     'order' => [
@@ -2347,6 +2399,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'attendees' => $att,
       'viewScope' => $viewScope,
     ],
+    'event' => $eventPayload,
   ]);
 }
 
