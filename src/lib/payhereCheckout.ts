@@ -344,11 +344,13 @@ export function startPayHereCheckoutPopup(
   return true;
 }
 
+/** Full-page PayHere checkout in the current tab (fallback when SDK overlay cannot load). */
 export function redirectToPayHereCheckout(res: PayHereInitiateResponse): void {
-  if (!startPayHereCheckoutPopup(res)) {
-    const fields = buildPayHerePaymentFromInitiate(res);
-    submitPayHereCheckoutForm(resolvePayHereActionUrl(res), fields as unknown as Record<string, unknown>);
+  const fields = buildPayHerePaymentFromInitiate(res);
+  if (!fields.hash) {
+    throw new Error('PayHere hash missing from server.');
   }
+  submitPayHereCheckoutForm(resolvePayHereActionUrl(res), fields as unknown as Record<string, unknown>);
 }
 
 /** Notify opener window after PayHere redirect (popup checkout flow). */
@@ -368,12 +370,14 @@ export type PayHereCheckoutHandlers = {
   onError?: (message: string) => void;
   /** Skip SDK overlay; open PayHere in a centered browser popup. */
   preferWindowPopup?: boolean;
-  /** If true, opens a browser popup when the SDK cannot load (never replaces the event page). */
+  /** If true, continues checkout in this tab when the SDK cannot load. */
+  allowSameTabFallback?: boolean;
+  /** @deprecated Use allowSameTabFallback. Opens a separate browser popup when SDK fails. */
   allowPopupFallback?: boolean;
 };
 
 /**
- * PayHere checkout in a popup — SDK overlay first, or a centered browser window.
+ * PayHere checkout on the current page — SDK overlay in-tab, with optional same-tab redirect fallback.
  * @see https://support.payhere.lk/api-&-mobile-sdk/javascript-sdk
  */
 export async function startPayHereCheckout(
@@ -387,11 +391,17 @@ export async function startPayHereCheckout(
   }
 
   const payment = buildPayHerePaymentFromInitiate(res);
+  const useSameTabFallback = handlers.allowSameTabFallback === true;
+  const usePopupFallback = handlers.allowPopupFallback === true;
 
   try {
     await loadPayHereScript(payment.sandbox);
   } catch (err) {
-    if (handlers.allowPopupFallback && startPayHereCheckoutPopup(res, handlers)) {
+    if (useSameTabFallback) {
+      redirectToPayHereCheckout(res);
+      return;
+    }
+    if (usePopupFallback && startPayHereCheckoutPopup(res, handlers)) {
       return;
     }
     handlers.onError?.(
@@ -404,7 +414,11 @@ export async function startPayHereCheckout(
 
   const payhere = window.payhere;
   if (!payhere?.startPayment) {
-    if (handlers.allowPopupFallback && startPayHereCheckoutPopup(res, handlers)) {
+    if (useSameTabFallback) {
+      redirectToPayHereCheckout(res);
+      return;
+    }
+    if (usePopupFallback && startPayHereCheckoutPopup(res, handlers)) {
       return;
     }
     handlers.onError?.('Secure payment is unavailable. Refresh the page and try again.');
@@ -433,12 +447,16 @@ export async function startPayHereCheckout(
   };
 
   payhere.onError = (error: string) => {
-    if (handlers.allowPopupFallback && startPayHereCheckoutPopup(res, handlers)) {
+    if (useSameTabFallback) {
+      redirectToPayHereCheckout(res);
+      return;
+    }
+    if (usePopupFallback && startPayHereCheckoutPopup(res, handlers)) {
       return;
     }
     handlers.onError?.(
       error ||
-        'Could not open the payment window. Allow pop-ups for this site in your browser, then try again.'
+        'Could not open the payment window. Refresh the page and try again.'
     );
   };
 

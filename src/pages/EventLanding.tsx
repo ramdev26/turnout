@@ -13,7 +13,6 @@ import { ticketRemaining } from '../components/landing/LandingShared';
 import { normalizeCheckoutFields, validateCustomFieldValues } from '../utils/checkoutFields';
 import {
   preloadPayHereScript,
-  preparePayHereCheckoutPopup,
   startPayHereCheckout,
   type PayHereInitiateResponse,
 } from '../lib/payhereCheckout';
@@ -370,13 +369,6 @@ export const EventLanding: React.FC = () => {
         const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
         navigate(`/orders/${res.orderId}/success${tokenQs}`);
       } else {
-        const payPopup = preparePayHereCheckoutPopup();
-        if (!payPopup) {
-          setPayError('Allow pop-ups for this site in your browser, then try again.');
-          setIsPurchasing(false);
-          return;
-        }
-
         const res = await api.post<PayHereInitiateResponse>('/api/payhere/initiate', {
           eventId: event.id,
           buyerName: values.buyerName,
@@ -390,11 +382,8 @@ export const EventLanding: React.FC = () => {
         setPayError(null);
         setPayherePopupOpen(true);
 
-        await startPayHereCheckout(
-          res,
-          {
-          preferWindowPopup: true,
-          allowPopupFallback: true,
+        await startPayHereCheckout(res, {
+          allowSameTabFallback: true,
           onCompleted: async (orderId) => {
             setPayherePopupOpen(false);
             const resolvedId = orderId || res.orderId;
@@ -425,9 +414,7 @@ export const EventLanding: React.FC = () => {
             setPayherePopupOpen(false);
             setPayError(message);
           },
-          },
-          payPopup
-        );
+        });
       }
     } catch (error: unknown) {
       setPayError(formatApiError(error, 'Could not complete checkout. Please try again.'));
@@ -538,10 +525,9 @@ export const EventLanding: React.FC = () => {
               className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-t-transparent"
               style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }}
             />
-            <p className="mt-4 text-sm font-semibold">Pay in the popup window</p>
+            <p className="mt-4 text-sm font-semibold">Complete your payment</p>
             <p className="mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-              A secure PayHere window should have opened. Complete payment there and keep this tab open — your tickets confirm
-              automatically.
+              Use the secure PayHere window on this page. Your tickets will be confirmed automatically when payment succeeds.
             </p>
           </div>
         </div>
