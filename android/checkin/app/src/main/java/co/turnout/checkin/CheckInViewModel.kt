@@ -17,9 +17,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 enum class ScanStatus {
     IDLE,
@@ -73,19 +75,22 @@ class CheckInViewModel(application: Application) : AndroidViewModel(application)
             _unlocking.value = true
             _unlockError.value = null
             try {
-                val normalizedPin = normalizeStaffPin(pin)
+                val normalizedPin = normalizePin(pin)
                 if (normalizedPin.length < 4) {
                     _unlockError.value = "PIN must be 4–8 digits."
                     return@launch
                 }
-                val api = CheckInApi(current.apiBaseUrl)
-                val title = api.verifyPin(current.eventId, normalizedPin)
+                val title = withContext(Dispatchers.IO) {
+                    CheckInApi(current.apiBaseUrl).verifyPin(current.eventId, normalizedPin)
+                }
                 store.saveUnlock(normalizedPin, title)
             } catch (e: ApiException) {
                 _unlockError.value = e.message
                 store.clearUnlock()
             } catch (e: Exception) {
-                _unlockError.value = e.message ?: "Could not verify PIN"
+                _unlockError.value = e.message?.takeIf { it.isNotBlank() }
+                    ?: e.javaClass.simpleName
+                    ?: "Could not verify PIN"
             } finally {
                 _unlocking.value = false
             }
@@ -142,8 +147,13 @@ class CheckInViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 try {
-                    val api = CheckInApi(current.apiBaseUrl)
-                    val result = api.checkIn(current.eventId, current.staffPin, parsed.qrToken)
+                    val result = withContext(Dispatchers.IO) {
+                        CheckInApi(current.apiBaseUrl).checkIn(
+                            current.eventId,
+                            current.staffPin,
+                            parsed.qrToken,
+                        )
+                    }
                     if (result.alreadyCheckedIn) {
                         _scannerState.update {
                             it.copy(
