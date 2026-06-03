@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="turnout_teal_900">#052E30</color>
+    <color name="turnout_teal_800">#074143</color>
+    <color name="turnout_teal_700">#0D585B</color>
+    <color name="turnout_lime_500">#C0FF72</color>
+    <color name="turnout_ink">#0A2426</color>
+    <color name="turnout_text">#E9F4EE</color>
+</resources>
