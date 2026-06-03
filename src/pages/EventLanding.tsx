@@ -79,6 +79,7 @@ export const EventLanding: React.FC = () => {
     },
   });
   const [buyingForSomeoneElse, setBuyingForSomeoneElse] = useState(false);
+  const [assignEachTicket, setAssignEachTicket] = useState(false);
   const [ticketHolders, setTicketHolders] = useState<TicketHolderInput[]>([]);
   const buyerName = watch('buyerName');
   const buyerEmail = watch('buyerEmail');
@@ -102,10 +103,21 @@ export const EventLanding: React.FC = () => {
     [orderItems]
   );
 
-  const assignEachTicket = totalTicketQuantity > 1;
+  const canAssignEachTicket = totalTicketQuantity > 1;
 
   useEffect(() => {
-    if (!checkoutOpen) return;
+    if (!canAssignEachTicket) setAssignEachTicket(false);
+  }, [canAssignEachTicket]);
+
+  useEffect(() => {
+    if (!checkoutOpen) {
+      setAssignEachTicket(false);
+      setBuyingForSomeoneElse(false);
+    }
+  }, [checkoutOpen]);
+
+  useEffect(() => {
+    if (!checkoutOpen || !assignEachTicket) return;
     setTicketHolders((prev) => {
       const next = buildTicketHolders(orderItems);
       const prevByKey = Object.fromEntries(prev.map((row) => [row.key, row]));
@@ -116,7 +128,7 @@ export const EventLanding: React.FC = () => {
         phone: prevByKey[row.key]?.phone ?? row.phone,
       }));
     });
-  }, [checkoutOpen, orderItems]);
+  }, [checkoutOpen, orderItems, assignEachTicket]);
 
   useEffect(() => {
     const fetchEventData = async () => {
@@ -227,7 +239,7 @@ export const EventLanding: React.FC = () => {
     try {
       let attendees: { ticketId: string; fullName: string; email: string; phone: string }[];
 
-      if (assignEachTicket) {
+      if (assignEachTicket && canAssignEachTicket) {
         for (const row of ticketHolders) {
           if (!row.fullName.trim()) {
             setPayError(`Enter a full name for ${row.label}.`);
@@ -497,7 +509,14 @@ export const EventLanding: React.FC = () => {
                 Purchaser (you)
               </p>
               <p className="-mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-                Payment and order confirmation go here. Each ticket holder also receives their pass by email.
+                Payment and order confirmation go here.
+                {assignEachTicket
+                  ? ' Each ticket holder also receives their pass by email.'
+                  : buyingForSomeoneElse
+                    ? ' The ticket holder receives their pass by email.'
+                    : canAssignEachTicket
+                      ? ' All tickets will be issued under this name unless you assign them below.'
+                      : ' Your ticket will be issued to this email.'}
               </p>
 
               <label className="flex flex-col gap-1.5">
@@ -532,16 +551,50 @@ export const EventLanding: React.FC = () => {
                 />
               </label>
 
-              {assignEachTicket ? (
+              {canAssignEachTicket && !assignEachTicket && (
+                <label
+                  className="flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm"
+                  style={{ borderColor: 'var(--landing-border)' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={assignEachTicket}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      setAssignEachTicket(next);
+                      if (next) setBuyingForSomeoneElse(false);
+                    }}
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                  />
+                  <span>
+                    <span className="font-semibold text-[var(--landing-text)]">Assign each ticket to a different person</span>
+                    <span className="mt-0.5 block text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+                      Optional — each pass gets its own name, email, and QR code.
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              {assignEachTicket && canAssignEachTicket ? (
                 <div className="space-y-4 rounded-xl border p-4" style={{ borderColor: 'var(--landing-border)' }}>
-                  <div className="flex items-start gap-2">
-                    <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--primary)' }} />
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--landing-text)]">Assign each ticket</p>
-                      <p className="mt-1 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-                        You&apos;re buying {totalTicketQuantity} tickets — enter who each pass is for (each gets their own QR code).
-                      </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--primary)' }} />
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--landing-text)]">Assign each ticket</p>
+                        <p className="mt-1 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+                          {totalTicketQuantity} tickets — enter who each pass is for.
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs font-semibold underline-offset-2 hover:underline"
+                      style={{ color: 'var(--landing-text-muted)' }}
+                      onClick={() => setAssignEachTicket(false)}
+                    >
+                      Turn off
+                    </button>
                   </div>
                   <button
                     type="button"
@@ -645,10 +698,18 @@ export const EventLanding: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={buyingForSomeoneElse}
-                      onChange={(e) => setBuyingForSomeoneElse(e.target.checked)}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setBuyingForSomeoneElse(next);
+                        if (next) setAssignEachTicket(false);
+                      }}
                       className="h-4 w-4"
                     />
-                    <span>Buying this ticket for someone else</span>
+                    <span>
+                      {canAssignEachTicket
+                        ? 'Buying all tickets for someone else'
+                        : 'Buying this ticket for someone else'}
+                    </span>
                   </label>
 
                   {buyingForSomeoneElse && (
@@ -692,7 +753,9 @@ export const EventLanding: React.FC = () => {
 
                   {!buyingForSomeoneElse && (
                     <p className="text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-                      Your ticket will be issued to {buyerName || 'you'} ({buyerEmail || 'your email'})
+                      {canAssignEachTicket
+                        ? `All ${totalTicketQuantity} tickets will be issued to ${buyerName || 'you'} (${buyerEmail || 'your email'})`
+                        : `Your ticket will be issued to ${buyerName || 'you'} (${buyerEmail || 'your email'})`}
                       {buyerPhone ? ` · ${buyerPhone}` : ''}.
                     </p>
                   )}
