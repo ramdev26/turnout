@@ -38,7 +38,7 @@ function enforce_write_request_integrity(string $path, string $method): void {
   // Webhooks are cross-origin by design.
   if ($path === '/payhere/notify') return;
   // Public auth bootstrap endpoints are intentionally available pre-session.
-  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee') return;
+  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/forgot-password' || $path === '/auth/reset-password') return;
   // CSRF protection is required only for authenticated cookie sessions.
   if (current_user_id() === null) return;
   if (!is_same_origin_request()) {
@@ -948,6 +948,69 @@ if ($path === '/auth/login' && $method === 'POST') {
   $payload['authToken'] = $token;
   $payload['sessionToken'] = $token;
   json_response(200, $payload);
+}
+
+if ($path === '/auth/forgot-password' && $method === 'POST') {
+  $body = read_json_body();
+  $email = strtolower(trim((string)($body['email'] ?? '')));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(400, ['error' => 'invalid_email']);
+  }
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT id, is_blocked, status, password_hash FROM users WHERE email = ? LIMIT 1');
+  $stmt->execute([$email]);
+  $row = $stmt->fetch();
+  if ($row) {
+    $blocked = (int)($row['is_blocked'] ?? 0) === 1;
+    $status = (string)($row['status'] ?? 'active');
+    $hasPassword = trim((string)($row['password_hash'] ?? '')) !== '';
+    if (!$blocked && !in_array($status, ['suspended', 'banned'], true) && $hasPassword) {
+      $userId = (int)$row['id'];
+      $token = issue_password_reset_token($userId);
+      if ($token !== '') {
+        send_password_reset_email($pdo, $email, $token);
+      }
+    }
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'message' => 'If an account exists for that email, we sent a link to reset your password.',
+  ]);
+}
+
+if ($path === '/auth/reset-password' && $method === 'POST') {
+  $body = read_json_body();
+  $token = trim((string)($body['token'] ?? ''));
+  $password = (string)($body['password'] ?? '');
+  if ($token === '') json_response(400, ['error' => 'missing_token']);
+  if (strlen($password) < 8) json_response(400, ['error' => 'password_too_short']);
+
+  $userId = password_reset_token_user_id($token);
+  if ($userId === null) {
+    json_response(400, ['error' => 'invalid_or_expired_token', 'message' => 'This reset link is invalid or has expired. Request a new one.']);
+  }
+
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT id, is_blocked, status FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$userId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(400, ['error' => 'invalid_or_expired_token']);
+  if ((int)($row['is_blocked'] ?? 0) === 1) json_response(403, ['error' => 'user_blocked']);
+  if (in_array((string)($row['status'] ?? 'active'), ['suspended', 'banned'], true)) {
+    json_response(403, ['error' => 'user_suspended']);
+  }
+
+  $hash = password_hash($password, PASSWORD_DEFAULT);
+  $upd = $pdo->prepare('UPDATE users SET password_hash = ?, force_password_reset = 0 WHERE id = ?');
+  $upd->execute([$hash, $userId]);
+
+  try {
+    write_log($pdo, $userId, 'user', 'user.password_reset', 'user', (string)$userId, null);
+  } catch (Throwable $e) {}
+
+  json_response(200, ['ok' => true, 'message' => 'Your password has been updated. You can sign in now.']);
 }
 
 if ($path === '/auth/logout' && $method === 'POST') {

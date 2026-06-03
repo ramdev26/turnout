@@ -88,8 +88,13 @@ export const Login: React.FC = () => {
           {errors.email?.message && <span className="text-xs text-red-600">{errors.email.message}</span>}
         </label>
         <label className="flex flex-col gap-1.5">
-          <FlowLabel>Password</FlowLabel>
-          <FlowInput {...register('password')} type="password" />
+          <div className="flex items-center justify-between gap-2">
+            <FlowLabel>Password</FlowLabel>
+            <Link to="/forgot-password" className="text-xs font-semibold" style={{ color: ui.accent }}>
+              Forgot password?
+            </Link>
+          </div>
+          <FlowInput {...register('password')} type="password" autoComplete="current-password" />
           {errors.password?.message && <span className="text-xs text-red-600">{errors.password.message}</span>}
         </label>
 

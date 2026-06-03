@@ -295,6 +295,31 @@ function smtp_send_email(string $to, string $subject, string $htmlBody, string $
   return true;
 }
 
+function mail_password_reset_url(string $token): string {
+  $base = mail_app_base_url();
+  if ($base === '' || $token === '') {
+    return '';
+  }
+  return $base . '/reset-password?token=' . rawurlencode($token);
+}
+
+function send_password_reset_email(PDO $pdo, string $toEmail, string $token): bool {
+  $resetUrl = mail_password_reset_url($token);
+  if ($resetUrl === '') {
+    error_log('Turnout: password reset URL could not be built (check app_base_url)');
+    return false;
+  }
+
+  $inner =
+    '<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#e9f4ee;">We received a request to reset your Turnout password.</p>' .
+    '<p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#e9f4ee;">Click the button below to choose a new password. This link expires in <strong style="color:#ffffff;">1 hour</strong>.</p>' .
+    mail_cta_button($resetUrl, 'Reset password') .
+    '<p style="margin:20px 0 0;font-size:13px;color:#93b5b7;line-height:1.5;">If you did not request this, you can ignore this email. Your password will not change.</p>';
+
+  $subject = 'Reset your Turnout password';
+  return send_email($toEmail, $subject, mail_turnout_layout('Password reset', $inner), $pdo);
+}
+
 function mail_order_success_url(int $orderId, ?int $attendeeId = null, ?array $attendeeIds = null): string {
   $base = mail_app_base_url();
   if ($base === '') {

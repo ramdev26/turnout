@@ -10,6 +10,8 @@ import { EventThemes } from './pages/EventThemes';
 import { EventLanding } from './pages/EventLanding';
 import { Success } from './pages/Success';
 import { Login } from './pages/Login';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import { Signup } from './pages/Signup';
 import { api } from './api/client';
 import { clearAuthToken } from './api/authToken';
@@ -101,6 +103,44 @@ export default function App() {
             }
           />
           <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup />} />
+          <Route
+            path="/forgot-password"
+            element={
+              user ? (
+                <Navigate
+                  to={
+                    user.role === 'super_admin'
+                      ? '/admin/dashboard'
+                      : user.role === 'attendee'
+                        ? '/attendee/dashboard'
+                        : '/dashboard'
+                  }
+                  replace
+                />
+              ) : (
+                <ForgotPassword />
+              )
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              user ? (
+                <Navigate
+                  to={
+                    user.role === 'super_admin'
+                      ? '/admin/dashboard'
+                      : user.role === 'attendee'
+                        ? '/attendee/dashboard'
+                        : '/dashboard'
+                  }
+                  replace
+                />
+              ) : (
+                <ResetPassword />
+              )
+            }
+          />
           <Route
             path="/attendee/login"
             element={user?.role === 'attendee' ? <Navigate to="/attendee/dashboard" replace /> : <AttendeeLogin />}

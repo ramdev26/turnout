@@ -662,3 +662,56 @@ function order_access_token_valid(string $token, int $orderId): bool {
 }
 
 
+
+/** Password reset link token (1 hour). */
+function issue_password_reset_token(int $userId): string {
+  if ($userId <= 0) {
+    return '';
+  }
+  $payload = ['uid' => $userId, 'exp' => time() + 3600, 'pr' => 1];
+  $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+  if (!is_string($json) || $json === '') {
+    return '';
+  }
+  $encoded = b64url_encode($json);
+  $sig = hash_hmac('sha256', $encoded, auth_signing_key());
+  return $encoded . '.' . $sig;
+}
+
+
+
+function password_reset_token_user_id(string $token): ?int {
+  $token = trim($token);
+  if ($token === '') {
+    return null;
+  }
+  $parts = explode('.', $token, 2);
+  if (count($parts) !== 2) {
+    return null;
+  }
+  $encoded = $parts[0];
+  $sig = strtolower($parts[1]);
+  $expectedSig = hash_hmac('sha256', $encoded, auth_signing_key());
+  if (!hash_equals($expectedSig, $sig)) {
+    return null;
+  }
+  $json = b64url_decode($encoded);
+  if ($json === null) {
+    return null;
+  }
+  $payload = json_decode($json, true);
+  if (!is_array($payload)) {
+    return null;
+  }
+  if ((int)($payload['pr'] ?? 0) !== 1) {
+    return null;
+  }
+  $uid = (int)($payload['uid'] ?? 0);
+  $exp = (int)($payload['exp'] ?? 0);
+  if ($uid <= 0 || $exp <= time()) {
+    return null;
+  }
+  return $uid;
+}
+
+
