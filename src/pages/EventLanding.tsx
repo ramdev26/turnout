@@ -162,7 +162,7 @@ export const EventLanding: React.FC = () => {
 
   useEffect(() => {
     if (!event) return;
-    document.title = `${event.title} | Turnout`;
+    document.title = event.title;
     loadLandingFont(normalizeLandingCustomization(event.customization).fontFamily);
   }, [event]);
 

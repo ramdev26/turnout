@@ -15,8 +15,6 @@ import {
 import { Event, Ticket as EventTicket } from '../../types';
 import { formatLKR } from '../../utils/money';
 import { landingCssVars, resolveEventTheme } from '../../themes/eventThemes';
-import { TurnoutLogo } from '../branding/TurnoutLogo';
-
 export function useCountdown(targetIso: string, active = true) {
   const [parts, setParts] = useState({ days: 0, hours: 0, mins: 0, secs: 0, done: false });
 
@@ -118,14 +116,15 @@ export function LandingTopBar({
 
   return (
     <header className="landing-fade-in sticky top-0 z-40 px-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
-      <div className="landing-glass mx-auto flex h-14 max-w-7xl items-center justify-between rounded-2xl px-4 sm:px-5">
-        <a href="/" className="flex items-center gap-2.5">
-          <TurnoutLogo className="h-5 w-auto" />
-        </a>
-        <p className="max-w-[38%] truncate text-xs font-medium sm:max-w-none sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+      <div className="landing-glass mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
+        <p className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base" style={{ color: 'var(--landing-text)' }}>
           {event.title}
         </p>
-        <button type="button" onClick={scrollToTickets} className="landing-btn-primary rounded-full px-4 py-2 text-xs font-bold text-white sm:text-sm">
+        <button
+          type="button"
+          onClick={scrollToTickets}
+          className="landing-btn-primary shrink-0 rounded-full px-4 py-2 text-xs font-bold text-white sm:text-sm"
+        >
           Get tickets
         </button>
       </div>
@@ -624,15 +623,9 @@ function TrustRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 export function LandingFooter({ event }: { event: Event }) {
   return (
     <footer className="relative z-10 border-t px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-10" style={{ borderColor: 'var(--landing-border)' }}>
-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
+      <div className="mx-auto max-w-7xl text-center">
         <p className="text-sm font-medium" style={{ color: 'var(--landing-text-muted)' }}>
           {event.title}
-        </p>
-        <p className="text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-          Powered by{' '}
-          <a href="/" className="font-semibold underline-offset-2 hover:underline" style={{ color: 'var(--primary)' }}>
-            <TurnoutLogo className="inline-block h-4 w-auto align-middle" />
-          </a>
         </p>
       </div>
     </footer>
