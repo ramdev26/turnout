@@ -32,7 +32,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);

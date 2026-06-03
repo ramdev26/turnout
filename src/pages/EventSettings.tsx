@@ -58,6 +58,64 @@ const statusLabel: Record<Event['status'], string> = {
   cancelled: 'Cancelled',
 };
 
+type SettingsCollapsibleSectionProps = {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  panelClassName: string;
+  cardStyle: React.CSSProperties;
+  ui: { text: string; textMuted: string; borderColor: string };
+};
+
+function SettingsCollapsibleSection({
+  title,
+  subtitle,
+  icon,
+  open,
+  onToggle,
+  children,
+  panelClassName,
+  cardStyle,
+  ui,
+}: SettingsCollapsibleSectionProps) {
+  return (
+    <div className={cn(panelClassName, 'mb-5 overflow-hidden')} style={cardStyle}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 p-5 text-left"
+        aria-expanded={open}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          {icon}
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold" style={{ color: ui.text }}>
+              {title}
+            </h2>
+            {subtitle ? (
+              <p className="mt-0.5 truncate text-sm" style={{ color: ui.textMuted }}>
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <ChevronDown
+          className={cn('h-5 w-5 shrink-0 transition', open && 'rotate-180')}
+          style={{ color: ui.textMuted }}
+        />
+      </button>
+      {open ? (
+        <div className="border-t px-5 pb-5 pt-4" style={{ borderColor: ui.borderColor }}>
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export const EventSettings: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const [event, setEvent] = useState<Event | null>(null);
@@ -91,8 +149,13 @@ export const EventSettings: React.FC = () => {
   const [savingTicket, setSavingTicket] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [savingTicketDesign, setSavingTicketDesign] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [showPdfDesign, setShowPdfDesign] = useState(false);
+
+  const toggleSection = (id: string) => {
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+  const isSectionOpen = (id: string) => !!openSections[id];
   const [ticketPdfTemplateId, setTicketPdfTemplateId] = useState<'classic' | 'midnight' | 'sunset'>('classic');
   const [ticketPdfPrimaryColor, setTicketPdfPrimaryColor] = useState('#4f46e5');
   const [ticketPdfAccentColor, setTicketPdfAccentColor] = useState('#10b981');
@@ -516,43 +579,58 @@ export const EventSettings: React.FC = () => {
               </div>
             )}
 
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Event name"
-              className="mb-2 w-full border-0 bg-transparent p-0 text-3xl font-semibold tracking-tight focus:outline-none sm:text-4xl"
-              style={{ color: ui.text, fontFamily: titleFont }}
-            />
+            <SettingsCollapsibleSection
+              title="Event details"
+              subtitle={title.trim() || 'Name and descriptions'}
+              open={isSectionOpen('details')}
+              onToggle={() => toggleSection('details')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Event name"
+                className="mb-4 w-full border-0 bg-transparent p-0 text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl"
+                style={{ color: ui.text, fontFamily: titleFont }}
+              />
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Short description
+              </label>
+              <input
+                value={shortDescription}
+                onChange={(e) => setShortDescription(e.target.value)}
+                placeholder="One-line tagline shown under the title (optional)"
+                maxLength={160}
+                className={cn(fieldClass, 'mb-1')}
+                style={fieldStyle}
+              />
+              <p className="mb-4 text-xs" style={{ color: ui.textSubtle }}>
+                Shown under the title on your public page. Leave blank for no subtitle.
+              </p>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Full description
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Event description"
+                rows={4}
+                className={cn(fieldClass, 'resize-y')}
+                style={fieldStyle}
+              />
+            </SettingsCollapsibleSection>
 
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-              Short description
-            </label>
-            <input
-              value={shortDescription}
-              onChange={(e) => setShortDescription(e.target.value)}
-              placeholder="One-line tagline shown under the title (optional)"
-              maxLength={160}
-              className={cn(fieldClass, 'mb-1')}
-              style={fieldStyle}
-            />
-            <p className="mb-4 text-xs" style={{ color: ui.textSubtle }}>
-              Shown under the title on your public page. Leave blank for no subtitle.
-            </p>
-
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-              Full description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Event description"
-              rows={3}
-              className={cn(fieldClass, 'mb-5 resize-y')}
-              style={fieldStyle}
-            />
-
-            {/* Schedule */}
-            <div className="mb-5 rounded-2xl border p-5" style={cardMutedStyle}>
+            <SettingsCollapsibleSection
+              title="Schedule"
+              subtitle={scheduleTba ? 'To be announced' : `${formatScheduleDay(date)} · ${formatScheduleTime(date)}`}
+              open={isSectionOpen('schedule')}
+              onToggle={() => toggleSection('schedule')}
+              panelClassName={panelCn}
+              cardStyle={cardMutedStyle}
+              ui={ui}
+            >
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                   When
@@ -602,32 +680,39 @@ export const EventSettings: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
+            </SettingsCollapsibleSection>
 
-            <div className={cn(panelCn, 'mb-5 p-4')} style={cardStyle}>
-              <div className="flex items-start gap-3">
-                <MapPin className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
-                <LocationAutocomplete
-                  value={location}
-                  onChange={setLocation}
-                  placeholder="Search venue or place"
-                  className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
-                  style={{ color: ui.text }}
-                  hintClassName="mt-0.5 text-xs"
-                  hintStyle={{ color: ui.textMuted }}
-                />
-              </div>
-            </div>
+            <SettingsCollapsibleSection
+              title="Location"
+              subtitle={location.trim() || 'Venue or place'}
+              icon={<MapPin className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('location')}
+              onToggle={() => toggleSection('location')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <LocationAutocomplete
+                value={location}
+                onChange={setLocation}
+                placeholder="Search venue or place"
+                className={fieldClass}
+                style={fieldStyle}
+                hintClassName="mt-2 text-xs"
+                hintStyle={{ color: ui.textMuted }}
+              />
+            </SettingsCollapsibleSection>
 
-            {/* Public URL */}
-            <div className={cn(panelCn, 'mb-5 p-5')} style={cardStyle}>
-              <h2 className="text-base font-semibold" style={{ color: ui.text }}>
-                Public URL
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                Share this link with attendees
-              </p>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <SettingsCollapsibleSection
+              title="Public URL"
+              subtitle={slug ? `/e/${slug}` : 'Share link with attendees'}
+              open={isSectionOpen('publicUrl')}
+              onToggle={() => toggleSection('publicUrl')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <input value={slug} onChange={(e) => setSlug(e.target.value)} className={fieldClass} style={fieldStyle} />
                 <button
                   type="button"
@@ -652,7 +737,7 @@ export const EventSettings: React.FC = () => {
                 <ExternalLink className="h-4 w-4" />
                 Open public page
               </button>
-            </div>
+            </SettingsCollapsibleSection>
 
             {eventId && (
               <CustomDomainPanel
@@ -672,15 +757,17 @@ export const EventSettings: React.FC = () => {
               />
             )}
 
-            {/* Tickets */}
-            <div className={cn(panelCn, 'mb-5 p-5')} style={cardStyle}>
-              <div className="flex items-center gap-2">
-                <TicketIcon className="h-5 w-5" style={{ color: ui.accent }} />
-                <h2 className="text-base font-semibold" style={{ color: ui.text }}>
-                  Tickets
-                </h2>
-              </div>
-              <div className="mt-4 space-y-3">
+            <SettingsCollapsibleSection
+              title="Tickets"
+              subtitle={`${tickets.length} tier${tickets.length === 1 ? '' : 's'} · ${soldTickets} sold`}
+              icon={<TicketIcon className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('tickets')}
+              onToggle={() => toggleSection('tickets')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <div className="space-y-3">
                 {tickets.map((ticket) => (
                   <div
                     key={ticket.id}
@@ -771,39 +858,43 @@ export const EventSettings: React.FC = () => {
                 <Plus className="h-4 w-4" />
                 {savingTicket ? 'Saving…' : editingTicketId ? 'Update tier' : 'Add tier'}
               </button>
-            </div>
+            </SettingsCollapsibleSection>
 
-            <div className={cn(panelCn, 'mb-5 p-5')} style={cardStyle}>
-              <h2 className="text-base font-semibold" style={{ color: ui.text }}>
-                Checkout questions
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                Collect extra details from each ticket holder (e.g. NIC, company, dietary needs). Saved when you save event details above.
-              </p>
-              <div className="mt-4">
-                <CheckoutFieldsEditor
-                  fields={checkoutFields}
-                  onChange={setCheckoutFields}
-                  ui={ui}
-                  fieldClass={fieldClass}
-                  fieldStyle={fieldStyle}
-                  cardMutedStyle={cardMutedStyle}
-                />
-              </div>
-            </div>
-
-            {/* Advanced */}
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              className="mb-4 flex w-full items-center justify-between py-2 text-sm font-medium"
-              style={{ color: ui.textMuted }}
+            <SettingsCollapsibleSection
+              title="Checkout questions"
+              subtitle={
+                checkoutFields.length
+                  ? `${checkoutFields.length} custom field${checkoutFields.length === 1 ? '' : 's'}`
+                  : 'NIC, company, dietary needs, etc.'
+              }
+              open={isSectionOpen('checkout')}
+              onToggle={() => toggleSection('checkout')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
             >
-              More options (PDF tickets, staff tools)
-              <ChevronDown className={cn('h-4 w-4 transition', showAdvanced && 'rotate-180')} />
-            </button>
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Collect extra details from each ticket holder. Saved when you save event details.
+              </p>
+              <CheckoutFieldsEditor
+                fields={checkoutFields}
+                onChange={setCheckoutFields}
+                ui={ui}
+                fieldClass={fieldClass}
+                fieldStyle={fieldStyle}
+                cardMutedStyle={cardMutedStyle}
+              />
+            </SettingsCollapsibleSection>
 
-            {showAdvanced && (
+            <SettingsCollapsibleSection
+              title="More options"
+              subtitle="PDF tickets, check-in, publish"
+              open={isSectionOpen('advanced')}
+              onToggle={() => toggleSection('advanced')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
               <div className="space-y-4">
                 <div className="rounded-2xl border p-5" style={cardStyle}>
                   <button
@@ -891,7 +982,7 @@ export const EventSettings: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )}
+            </SettingsCollapsibleSection>
           </div>
         </div>
       </div>
