@@ -504,19 +504,45 @@ function load_user_profile(int $userId): array {
 
 
 
-function issue_order_access_token(int $orderId): string {
+/**
+ * Order access token. Omit attendee args for purchaser (all passes).
+ * Pass attendee id(s) to limit the success page to specific ticket holders.
+ */
+function issue_order_access_token(int $orderId, ?int $attendeeId = null, ?array $attendeeIds = null): string {
 
   $now = time();
 
-  $payload = json_encode(['oid' => $orderId, 'exp' => $now + (60 * 60 * 24 * 14)], JSON_UNESCAPED_SLASHES);
+  $payload = ['oid' => $orderId, 'exp' => $now + (60 * 60 * 24 * 14)];
 
-  if (!is_string($payload) || $payload === '') {
+  if ($attendeeId !== null && $attendeeId > 0) {
+
+    $payload['aid'] = $attendeeId;
+
+  } elseif (is_array($attendeeIds) && count($attendeeIds) > 0) {
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $attendeeIds), static fn($id) => $id > 0)));
+
+    if (count($ids) === 1) {
+
+      $payload['aid'] = $ids[0];
+
+    } elseif (count($ids) > 1) {
+
+      $payload['aids'] = $ids;
+
+    }
+
+  }
+
+  $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+
+  if (!is_string($json) || $json === '') {
 
     return '';
 
   }
 
-  $encoded = b64url_encode($payload);
+  $encoded = b64url_encode($json);
 
   $sig = hash_hmac('sha256', $encoded, auth_signing_key());
 
@@ -536,13 +562,13 @@ function auth_success_payload(int $userId, array $extra = []): array {
   );
 }
 
-function order_access_token_valid(string $token, int $orderId): bool {
+function order_access_token_payload(string $token, int $orderId): ?array {
 
   $token = trim($token);
 
   if ($token === '' || $orderId <= 0) {
 
-    return false;
+    return null;
 
   }
 
@@ -550,7 +576,7 @@ function order_access_token_valid(string $token, int $orderId): bool {
 
   if (count($parts) !== 2) {
 
-    return false;
+    return null;
 
   }
 
@@ -562,7 +588,7 @@ function order_access_token_valid(string $token, int $orderId): bool {
 
   if (!hash_equals($expectedSig, $sig)) {
 
-    return false;
+    return null;
 
   }
 
@@ -570,7 +596,7 @@ function order_access_token_valid(string $token, int $orderId): bool {
 
   if ($json === null) {
 
-    return false;
+    return null;
 
   }
 
@@ -578,7 +604,7 @@ function order_access_token_valid(string $token, int $orderId): bool {
 
   if (!is_array($payload)) {
 
-    return false;
+    return null;
 
   }
 
@@ -586,7 +612,52 @@ function order_access_token_valid(string $token, int $orderId): bool {
 
   $exp = (int)($payload['exp'] ?? 0);
 
-  return $oid === $orderId && $exp > time();
+  if ($oid !== $orderId || $exp <= time()) {
+
+    return null;
+
+  }
+
+  return $payload;
+
+}
+
+
+
+/** @return int[]|null Null = full order; non-null = only these attendee row ids */
+function order_access_token_attendee_ids(?array $payload): ?array {
+
+  if ($payload === null) {
+
+    return null;
+
+  }
+
+  if (isset($payload['aid'])) {
+
+    $id = (int)$payload['aid'];
+
+    return $id > 0 ? [$id] : null;
+
+  }
+
+  if (isset($payload['aids']) && is_array($payload['aids'])) {
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $payload['aids']), static fn($id) => $id > 0)));
+
+    return count($ids) > 0 ? $ids : null;
+
+  }
+
+  return null;
+
+}
+
+
+
+function order_access_token_valid(string $token, int $orderId): bool {
+
+  return order_access_token_payload($token, $orderId) !== null;
 
 }
 

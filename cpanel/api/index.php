@@ -2108,18 +2108,35 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   $eventOwner = $eventOwnerStmt->fetch();
   $isBuyer = ($uid !== null) && ((int)($row['buyer_user_id'] ?? 0) === $uid);
   $isOrganizerOwner = ($uid !== null) && ((int)($eventOwner['organizer_user_id'] ?? 0) === $uid);
-  $hasAccessToken = order_access_token_valid($accessToken, $orderId);
+  $tokenPayload = $accessToken !== '' ? order_access_token_payload($accessToken, $orderId) : null;
+  $hasAccessToken = $tokenPayload !== null;
   if (!$isBuyer && !$isOrganizerOwner && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
+
+  $attendeeFilterIds = null;
+  if ($hasAccessToken && !$isOrganizerOwner) {
+    $attendeeFilterIds = order_access_token_attendee_ids($tokenPayload);
+  }
 
   $items = json_decode($row['tickets_json'], true);
   if (!is_array($items)) $items = [];
-  $stmt2 = $pdo->prepare('SELECT id, ticket_id, full_name, email, phone, qr_token, checked_in_at FROM attendees WHERE order_id = ? ORDER BY id ASC');
+  $stmt2 = $pdo->prepare(
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, t.name AS ticket_name
+     FROM attendees a
+     LEFT JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.order_id = ?
+     ORDER BY a.id ASC'
+  );
   $stmt2->execute([$orderId]);
   $att = [];
   while ($a = $stmt2->fetch()) {
+    $attendeeRowId = (int)$a['id'];
+    if ($attendeeFilterIds !== null && !in_array($attendeeRowId, $attendeeFilterIds, true)) {
+      continue;
+    }
     $att[] = [
       'id' => (string)$a['id'],
       'ticketId' => (string)$a['ticket_id'],
+      'ticketName' => $a['ticket_name'] ?? null,
       'fullName' => $a['full_name'],
       'email' => $a['email'],
       'phone' => $a['phone'],
@@ -2127,6 +2144,13 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'checkedInAt' => $a['checked_in_at'] ? gmdate('c', strtotime($a['checked_in_at'])) : null,
     ];
   }
+
+  if ($attendeeFilterIds !== null && count($att) === 0) {
+    json_response(403, ['error' => 'forbidden']);
+  }
+
+  $viewScope = $attendeeFilterIds !== null ? 'attendee' : 'order';
+
   json_response(200, [
     'order' => [
       'id' => (string)$row['id'],
@@ -2135,11 +2159,12 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'buyerName' => $row['buyer_name'] ?? null,
       'buyerPhone' => $row['buyer_phone'] ?? null,
       'buyerEmail' => $row['buyer_email'],
-      'tickets' => $items,
+      'tickets' => $viewScope === 'attendee' ? [] : $items,
       'totalAmount' => ((int)$row['total_amount_cents']) / 100,
       'status' => $row['status'],
       'createdAt' => gmdate('c', strtotime($row['created_at'])),
       'attendees' => $att,
+      'viewScope' => $viewScope,
     ],
   ]);
 }

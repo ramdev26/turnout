@@ -245,6 +245,8 @@ export interface Order {
   status: 'pending' | 'paid' | 'failed';
   stripeSessionId?: string;
   createdAt: string;
+  /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */
+  viewScope?: 'order' | 'attendee';
   attendees?: {
     id: string;
     ticketId: string;

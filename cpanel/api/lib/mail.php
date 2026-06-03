@@ -295,6 +295,18 @@ function smtp_send_email(string $to, string $subject, string $htmlBody, string $
   return true;
 }
 
+function mail_order_success_url(int $orderId, ?int $attendeeId = null, ?array $attendeeIds = null): string {
+  $base = mail_app_base_url();
+  if ($base === '') {
+    return '';
+  }
+  $token = issue_order_access_token($orderId, $attendeeId, $attendeeIds);
+  if ($token === '') {
+    return '';
+  }
+  return $base . '/orders/' . rawurlencode((string)$orderId) . '/success?token=' . rawurlencode($token);
+}
+
 function mail_app_base_url(): string {
   $cfg = get_config();
   $fromCfg = trim((string)(($cfg['payhere'] ?? [])['app_base_url'] ?? ''));
@@ -490,7 +502,7 @@ function send_attendee_ticket_email(
     'Show the QR code below at the door.</p>' .
     mail_event_details_block($eventTitle, $eventDate, $eventLocation) .
     $passBlocks .
-    mail_cta_button($ticketUrl, 'Open ticket page') .
+    mail_cta_button($ticketUrl, 'View your ticket' . ($passCount > 1 ? 's' : '')) .
     '<p style="margin:20px 0 0;font-size:13px;color:#93b5b7;line-height:1.5;">This pass was sent to you by the person who completed the purchase. If anything looks wrong, contact the event organizer.</p>';
 
   $subject = $passCount > 1
@@ -519,7 +531,7 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   }
 
   $attStmt = $pdo->prepare(
-    'SELECT a.full_name, a.email, a.qr_token, t.name AS ticket_name
+    'SELECT a.id, a.full_name, a.email, a.qr_token, t.name AS ticket_name
      FROM attendees a
      LEFT JOIN tickets t ON t.id = a.ticket_id
      WHERE a.order_id = ?
@@ -528,11 +540,9 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   $attStmt->execute([$orderId]);
   $attendees = $attStmt->fetchAll() ?: [];
 
-  $accessToken = issue_order_access_token($orderId);
-  $base = mail_app_base_url();
-  $ticketUrl = $base !== '' ? $base . '/orders/' . rawurlencode((string)$orderId) . '/success?token=' . rawurlencode($accessToken) : '';
+  $buyerTicketUrl = mail_order_success_url($orderId);
 
-  $buyerOk = send_buyer_order_confirmation_email($pdo, $order, $orderId, $attendees, $ticketUrl);
+  $buyerOk = send_buyer_order_confirmation_email($pdo, $order, $orderId, $attendees, $buyerTicketUrl);
 
   $buyerEmail = strtolower(trim((string)$order['buyer_email']));
   $byEmail = [];
@@ -553,7 +563,9 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
       continue;
     }
     $recipientName = trim((string)($passes[0]['full_name'] ?? ''));
-    if (!send_attendee_ticket_email($pdo, $email, $recipientName, $passes, $order, $orderId, $ticketUrl)) {
+    $passIds = array_map(static fn($p) => (int)($p['id'] ?? 0), $passes);
+    $holderTicketUrl = mail_order_success_url($orderId, null, $passIds);
+    if (!send_attendee_ticket_email($pdo, $email, $recipientName, $passes, $order, $orderId, $holderTicketUrl)) {
       $attendeeOk = false;
       error_log('Turnout: failed attendee ticket email for order ' . $orderId . ' to ' . $email);
     }

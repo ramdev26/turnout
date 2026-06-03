@@ -173,6 +173,9 @@ export const Success: React.FC = () => {
     doc.save(`ticket_${order.id}_${safeName || 'attendee'}.pdf`);
   };
 
+  const isHolderView = order.viewScope === 'attendee';
+  const passCount = order.attendees?.length ?? 0;
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
       <motion.div
@@ -210,9 +213,13 @@ export const Success: React.FC = () => {
               <Sparkles className="h-3 w-3" />
               Payment complete
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">Order confirmed</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">
+              {isHolderView ? (passCount > 1 ? 'Your tickets' : 'Your ticket') : 'Order confirmed'}
+            </h1>
             <p className="mx-auto mt-3 max-w-md text-base text-[var(--text-muted)] sm:text-lg">
-              Thank you for your purchase. Your tickets are ready — show the QR codes below at the door.
+              {isHolderView
+                ? 'This page shows only your pass' + (passCount > 1 ? 'es' : '') + '. Present your QR code at the door for check-in.'
+                : 'Thank you for your purchase. Your tickets are ready — show the QR codes below at the door.'}
             </p>
           </div>
         </div>
@@ -231,45 +238,51 @@ export const Success: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-8 border-t pt-6" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
-              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Your tickets</h3>
-              <div className="mt-4 flex flex-col gap-3">
-                {order.tickets.map((t, i) => (
-                  <div
-                    key={i}
-                    className={`${cardShell} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between`}
-                    style={{
-                      ...cardShellStyle,
-                      background: 'rgba(255, 255, 255, 0.03)',
-                    }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                        style={{ background: TURNOUT_BRAND.limeSoft, color: TURNOUT_BRAND.lime500 }}
-                      >
-                        <Ticket className="h-5 w-5" />
+            {!isHolderView && order.tickets.length > 0 && (
+              <div className="mt-8 border-t pt-6" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
+                <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Order summary</h3>
+                <div className="mt-4 flex flex-col gap-3">
+                  {order.tickets.map((t, i) => (
+                    <div
+                      key={i}
+                      className={`${cardShell} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between`}
+                      style={{
+                        ...cardShellStyle,
+                        background: 'rgba(255, 255, 255, 0.03)',
+                      }}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                          style={{ background: TURNOUT_BRAND.limeSoft, color: TURNOUT_BRAND.lime500 }}
+                        >
+                          <Ticket className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-[var(--text)]">{t.name}</p>
+                          <p className="text-xs text-[var(--text-muted)]">Quantity: {t.quantity}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-[var(--text)]">{t.name}</p>
-                        <p className="text-xs text-[var(--text-muted)]">Quantity: {t.quantity}</p>
-                      </div>
+                      <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-subtle)] sm:text-sm">
+                        <Download className="h-4 w-4 text-[var(--primary)]" />
+                        Download each pass below
+                      </span>
                     </div>
-                    <span className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-subtle)] sm:text-sm">
-                      <Download className="h-4 w-4 text-[var(--primary)]" />
-                      Download each pass below
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {order.attendees && order.attendees.length > 0 && (
-              <div className="mt-8 border-t pt-6" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
+              <div className={`${!isHolderView && order.tickets.length > 0 ? 'mt-8' : 'mt-0'} border-t pt-6`} style={{ borderColor: TURNOUT_BRAND.limeLine }}>
                 <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">
-                  Check-in QR codes
+                  {isHolderView ? 'Your check-in QR' + (passCount > 1 ? ' codes' : ' code') : 'Check-in QR codes'}
                 </h3>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">Present these at the entrance. Staff will scan to check you in.</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">
+                  {isHolderView
+                    ? 'Keep this private — only you should use this QR code for entry.'
+                    : 'Present these at the entrance. Staff will scan to check you in.'}
+                </p>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
                   {order.attendees.map((a) => (
                     <div key={a.id} className={`${cardShell} flex flex-col items-center gap-4 p-5`} style={cardShellStyle}>
