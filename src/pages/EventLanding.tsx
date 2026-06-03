@@ -7,7 +7,7 @@ import { landingCssVars, normalizeLandingCustomization } from '../themes/eventTh
 import { loadLandingFont } from '../themes/landingFonts';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
-import { formatLKR } from '../utils/money';
+import { formatLKRWhole } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
 import {
   preloadPayHereScript,
@@ -458,7 +458,7 @@ export const EventLanding: React.FC = () => {
             disabled={isPurchasing}
             className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-base font-bold text-white disabled:opacity-50"
           >
-            {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKR(totalAmount)}`}
+            {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKRWhole(totalAmount)}`}
           </button>
         </div>
       )}
@@ -536,13 +536,13 @@ export const EventLanding: React.FC = () => {
                     {line.name} × {line.qty}
                   </span>
                   <span className="font-semibold" style={{ color: 'var(--landing-text)' }}>
-                    {formatLKR(line.total)}
+                    {formatLKRWhole(line.total)}
                   </span>
                 </div>
               ))}
               <div className="mt-2 flex justify-between border-t pt-2 font-semibold" style={{ borderColor: 'var(--landing-border)' }}>
                 <span>Total</span>
-                <span style={{ color: 'var(--primary)' }}>{totalAmount <= 0 ? 'Free' : formatLKR(totalAmount)}</span>
+                <span style={{ color: 'var(--primary)' }}>{totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}</span>
               </div>
             </div>
 
@@ -825,7 +825,7 @@ export const EventLanding: React.FC = () => {
                   ? 'Processing…'
                   : totalAmount <= 0
                     ? 'Confirm registration'
-                    : `Pay ${formatLKR(totalAmount)}`}
+                    : `Pay ${formatLKRWhole(totalAmount)}`}
               </button>
               {payError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">{payError}</div>

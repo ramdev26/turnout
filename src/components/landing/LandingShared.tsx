@@ -13,7 +13,7 @@ import {
   Ticket,
 } from 'lucide-react';
 import { Event, Ticket as EventTicket } from '../../types';
-import { formatLKR } from '../../utils/money';
+import { formatLKRWhole } from '../../utils/money';
 import { landingCssVars, resolveEventTheme } from '../../themes/eventThemes';
 export function useCountdown(targetIso: string, active = true) {
   const [parts, setParts] = useState({ days: 0, hours: 0, mins: 0, secs: 0, done: false });
@@ -382,17 +382,38 @@ export function SectionHeading({
   );
 }
 
+const ABOUT_READ_MORE_MIN_CHARS = 160;
+
 export function AboutBlock({ event }: { event: Event }) {
   const desc = event.description?.trim();
+  const [expanded, setExpanded] = useState(false);
   if (!desc) return null;
+
+  const canExpand = desc.length > ABOUT_READ_MORE_MIN_CHARS;
 
   return (
     <section id="landing-about" className="scroll-mt-28">
       <SectionHeading subtitle="Curated details for your visit.">The experience</SectionHeading>
-      <div className="landing-card-premium rounded-3xl p-8 sm:p-10">
-        <p className="whitespace-pre-wrap text-base leading-[1.75] sm:text-lg" style={{ color: 'var(--landing-text-muted)' }}>
+      <div className="landing-card-premium rounded-2xl p-6 sm:rounded-3xl sm:p-10">
+        <p
+          className={`whitespace-pre-wrap text-base leading-[1.75] sm:text-lg ${
+            canExpand && !expanded ? 'line-clamp-4 sm:line-clamp-none' : ''
+          }`}
+          style={{ color: 'var(--landing-text-muted)' }}
+        >
           {desc}
         </p>
+        {canExpand ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-3 text-sm font-semibold underline-offset-2 hover:underline sm:hidden"
+            style={{ color: 'var(--primary)' }}
+            aria-expanded={expanded}
+          >
+            {expanded ? 'Show less' : 'Read more'}
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -463,15 +484,15 @@ export function TicketsList({
               className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-20 blur-2xl transition group-hover:opacity-35"
               style={{ background: accent }}
             />
-            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
-              <div className="flex gap-4">
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
+              <div className="flex min-w-0 flex-1 gap-4">
                 <div
                   className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl"
                   style={{ background: `color-mix(in srgb, ${accent} 18%, transparent)`, color: accent }}
                 >
                   <Ticket className="h-5 w-5" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-lg font-bold tracking-tight">{ticket.name}</h3>
                     {soldOut ? (
@@ -485,20 +506,25 @@ export function TicketsList({
                   <p className="mt-1 text-sm leading-relaxed" style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'var(--landing-text-muted)' }}>
                     {ticket.description || 'Full event access'}
                   </p>
-                  <p className="landing-display mt-3 text-2xl" style={{ color: accent }}>
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKR(ticket.price)}
+                  <p className="landing-display mt-3 hidden text-2xl sm:block" style={{ color: accent }}>
+                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
                   </p>
                 </div>
               </div>
-              <QuantityStepper
-                qty={qty}
-                soldOut={soldOut}
-                max={remaining}
-                isDark={isDark}
-                onDec={() => onTicketChange(ticket.id, qty - 1)}
-                onInc={() => onTicketChange(ticket.id, qty + 1)}
-                name={ticket.name}
-              />
+              <div className="flex items-center justify-between gap-3 sm:shrink-0 sm:justify-end">
+                <p className="landing-display shrink-0 text-2xl sm:hidden" style={{ color: accent }}>
+                  {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
+                </p>
+                <QuantityStepper
+                  qty={qty}
+                  soldOut={soldOut}
+                  max={remaining}
+                  isDark={isDark}
+                  onDec={() => onTicketChange(ticket.id, qty - 1)}
+                  onInc={() => onTicketChange(ticket.id, qty + 1)}
+                  name={ticket.name}
+                />
+              </div>
             </div>
           </div>
         );
@@ -580,14 +606,14 @@ export function CheckoutPanel({
               <span style={{ color: 'var(--landing-text-muted)' }}>
                 {t.name} <span className="opacity-70">×{selectedTickets[t.id]}</span>
               </span>
-              <span className="font-semibold tabular-nums">{formatLKR(t.price * selectedTickets[t.id])}</span>
+              <span className="font-semibold tabular-nums">{formatLKRWhole(t.price * selectedTickets[t.id])}</span>
             </div>
           ))}
           <div className="landing-divider-glow my-4" />
           <div className="flex justify-between">
             <span className="font-semibold">Total</span>
             <span className="landing-display text-2xl" style={{ color: 'var(--primary)' }}>
-              {totalAmount <= 0 ? 'Free' : formatLKR(totalAmount)}
+              {totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}
             </span>
           </div>
         </div>
