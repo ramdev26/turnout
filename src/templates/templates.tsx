@@ -130,7 +130,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
           <HeroTitle className="mt-6">{b.props?.title || event.title}</HeroTitle>
           <HeroSubtitle>{b.props?.subtitle || event.description}</HeroSubtitle>
           <div className="mt-8 overflow-hidden rounded-3xl border shadow-2xl" style={{ borderColor: 'var(--landing-border)' }}>
-            <EventBanner event={event} heightClass="aspect-[21/9] h-auto min-h-[240px]" overlay="light" />
+            <EventBanner event={event} maxHeightClass="max-h-[min(50vh,480px)]" overlay="light" />
           </div>
         </div>
       );
@@ -266,7 +266,7 @@ const Template2: LandingTemplate = {
         <HeroTitle className="mx-auto mt-6">{props.event.customization?.heroText || props.event.title}</HeroTitle>
         <HeroSubtitle>{props.event.customization?.heroSubtext || props.event.description}</HeroSubtitle>
         <div className="mt-10 overflow-hidden rounded-[2rem] border shadow-2xl" style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow-hover)' }}>
-          <EventBanner event={props.event} heightClass="aspect-[16/10] h-auto min-h-[280px]" overlay="light" />
+          <EventBanner event={props.event} maxHeightClass="max-h-[min(56vh,520px)]" overlay="light" />
         </div>
         <div className="mt-8 flex justify-center">
           <EventMeta event={props.event} tone="light" />
@@ -301,7 +301,7 @@ const Template3: LandingTemplate = {
           <HeroTitle className="mt-5">{props.event.customization?.heroText || props.event.title}</HeroTitle>
           <HeroSubtitle>{props.event.customization?.heroSubtext || props.event.description}</HeroSubtitle>
           <div className="mt-10 overflow-hidden rounded-3xl border" style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow)' }}>
-            <EventBanner event={props.event} heightClass="aspect-[4/3] h-auto" overlay="light" />
+            <EventBanner event={props.event} maxHeightClass="max-h-[min(48vh,440px)]" overlay="light" />
           </div>
           <EventMeta event={props.event} tone="light" />
           <div className="mt-10">
@@ -331,7 +331,7 @@ const Template4: LandingTemplate = {
       <LandingTopBar event={props.event} />
       <div className="relative z-10">
         <div className="relative">
-          <EventBanner event={props.event} heightClass="h-[min(65vh,560px)]" overlay="cinematic" />
+          <EventBanner event={props.event} maxHeightClass="max-h-[min(65vh,560px)]" overlay="cinematic" />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--landing-page-bg)] via-black/80 to-transparent px-4 pb-12 pt-28 sm:px-8 lg:px-12">
             <span className="landing-eyebrow text-white/70">{themeDisplayName(props.event)}</span>
             <HeroTitle light className="mt-3">
