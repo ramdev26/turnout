@@ -27,7 +27,7 @@ export const PayHereCancel: React.FC = () => {
             Payment cancelled
           </h1>
           <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
-            You cancelled the PayHere payment flow. No charge was made.
+            Your payment was cancelled. No charge was made.
           </p>
           {orderId && (
             <p className="mt-3 text-xs" style={{ color: ui.textMuted }}>

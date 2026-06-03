@@ -421,9 +421,9 @@ export const EventLanding: React.FC = () => {
               className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-t-transparent"
               style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }}
             />
-            <p className="mt-4 text-sm font-semibold">Complete payment in the PayHere popup</p>
+            <p className="mt-4 text-sm font-semibold">Complete your payment</p>
             <p className="mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-              Stay on this page — we will confirm your tickets as soon as payment succeeds.
+              Use the secure payment window that opened. Stay on this page — your tickets will be confirmed automatically.
             </p>
           </div>
         </div>
@@ -707,7 +707,7 @@ export const EventLanding: React.FC = () => {
                   ? 'Processing…'
                   : totalAmount <= 0
                     ? 'Confirm registration'
-                    : 'Pay with PayHere (popup)'}
+                    : `Pay ${formatLKR(totalAmount)}`}
               </button>
               {payError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">{payError}</div>

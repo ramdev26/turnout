@@ -260,7 +260,7 @@ export async function startPayHereCheckout(
     handlers.onError?.(
       err instanceof Error
         ? err.message
-        : 'PayHere popup could not load. Check your connection and try again.'
+        : 'Payment could not load. Check your connection and try again.'
     );
     return;
   }
@@ -271,7 +271,7 @@ export async function startPayHereCheckout(
       redirectToPayHereCheckout(res);
       return;
     }
-    handlers.onError?.('PayHere popup is unavailable. Refresh the page and try again.');
+    handlers.onError?.('Secure payment is unavailable. Refresh the page and try again.');
     return;
   }
 
@@ -300,7 +300,7 @@ export async function startPayHereCheckout(
   payhere.onError = (error: string) => {
     handlers.onError?.(
       error ||
-        'PayHere could not open the payment popup. Confirm your browser allows popups for this site.'
+        'Could not open the payment window. Allow pop-ups for this site in your browser, then try again.'
     );
   };
 
