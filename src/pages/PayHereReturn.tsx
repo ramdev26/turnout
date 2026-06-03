@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { api } from '../api/client';
+import { notifyPayHereOpener } from '../lib/payhereCheckout';
 import { Order } from '../types';
 import { EVENT_THEMES } from '../themes/eventThemes';
 import { cardStyleFor } from '../themes/flowUi';
@@ -37,6 +38,10 @@ export const PayHereReturn: React.FC = () => {
         if (cancelled) return;
         if (s === 'paid') {
           setStatus('paid');
+          if (window.opener && !window.opener.closed) {
+            notifyPayHereOpener({ type: 'payhere:completed', orderId });
+            return;
+          }
           navigate(`/orders/${orderId}/success${tokenQs}`, { replace: true });
           return;
         }

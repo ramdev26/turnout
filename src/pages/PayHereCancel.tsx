@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { XCircle } from 'lucide-react';
+import { notifyPayHereOpener } from '../lib/payhereCheckout';
 import { EVENT_THEMES } from '../themes/eventThemes';
 import { cardStyleFor } from '../themes/flowUi';
 
@@ -9,6 +10,12 @@ const ui = EVENT_THEMES.minimal.ui;
 export const PayHereCancel: React.FC = () => {
   const [params] = useSearchParams();
   const orderId = params.get('order_id') || '';
+
+  useEffect(() => {
+    if (window.opener && !window.opener.closed) {
+      notifyPayHereOpener({ type: 'payhere:cancelled', orderId: orderId || undefined });
+    }
+  }, [orderId]);
 
   return (
     <div
