@@ -88,6 +88,20 @@ cd "C:\Users\User 1\turnout\android\checkin"
 
 Or double-click `scripts\build-apk.bat` in File Explorer.
 
+**Windows: `JAVA_HOME is not set`**
+
+Gradle needs **Java 17+**. Easiest fix: install [Android Studio](https://developer.android.com/studio), open the `android\checkin` folder once (Gradle sync), then run `build-apk.bat` again — the build scripts auto-detect Studio’s bundled Java.
+
+If Studio is already installed but the build still fails, set Java for this PowerShell session:
+
+```powershell
+$env:JAVA_HOME = "$env:LOCALAPPDATA\Programs\Android\Android Studio\jbr"
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+.\scripts\build-apk.ps1
+```
+
+(If that path does not exist, try `"${env:ProgramFiles}\Android\Android Studio\jbr"`.)
+
 **Mac / Linux / Git Bash:**
 
 ```bash

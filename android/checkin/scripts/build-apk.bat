@@ -1,6 +1,8 @@
 @echo off
 cd /d "%~dp0.."
 echo Building from %CD%
+call "%~dp0setup-java-windows.bat"
+if errorlevel 1 exit /b 1
 if not exist gradlew.bat (
   echo ERROR: gradlew.bat not found. Open android\checkin in Android Studio first.
   exit /b 1
