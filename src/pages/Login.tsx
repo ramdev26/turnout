@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { api } from '../api/client';
+import { parseAuthPayload } from '../api/authResponse';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
 import { persistAuthTokenFromResponse } from '../api/authToken';
@@ -42,7 +43,8 @@ export const Login: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      const res = await api.post<{ user: { role: string }; authToken?: string }>('/api/auth/login', values);
+      const raw = await api.post<unknown>('/api/auth/login', values);
+      const res = parseAuthPayload(raw);
       if (loginAs === 'organizer' && !['organizer', 'super_admin'].includes(res.user.role)) {
         setServerError('This account is attendee type. Switch to "Attendee" and try again.');
         return;
@@ -52,7 +54,7 @@ export const Login: React.FC = () => {
         return;
       }
       persistAuthTokenFromResponse(res);
-      setUser(res.user as Parameters<typeof setUser>[0]);
+      setUser(res.user);
       const destination =
         res.user.role === 'super_admin'
           ? '/admin/dashboard'

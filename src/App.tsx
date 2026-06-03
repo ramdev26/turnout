@@ -14,6 +14,7 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Signup } from './pages/Signup';
 import { api } from './api/client';
+import { parseAuthPayload } from './api/authResponse';
 import { clearAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
 import { AgendaManager } from './pages/AgendaManager';
@@ -76,8 +77,8 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get<{ user: any }>('/api/auth/me');
-        if (!cancelled) setUser(res.user);
+        const raw = await api.get<unknown>('/api/auth/me');
+        if (!cancelled) setUser(parseAuthPayload(raw).user);
       } catch {
         if (!cancelled) {
           clearAuthToken();

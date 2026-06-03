@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { api } from '../api/client';
+import { parseAuthPayload } from '../api/authResponse';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
 import { persistAuthTokenFromResponse } from '../api/authToken';
@@ -32,10 +33,7 @@ export const AttendeeLogin: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      const res = await api.post<{ user: Parameters<typeof setUser>[0] & { role: string }; authToken?: string }>(
-        '/api/auth/login',
-        values
-      );
+      const res = parseAuthPayload(await api.post<unknown>('/api/auth/login', values));
       if (res.user.role !== 'attendee') {
         setServerError('This is an organizer account. Use the organizer sign-in instead.');
         return;

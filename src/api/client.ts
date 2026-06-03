@@ -10,8 +10,35 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+
 export function toApiUrl(path: string): string {
   if (!apiBaseUrl) return path;
   if (/^https?:\/\//i.test(path)) return path;
-  if (path.startsWith('/')) return `${apiBaseUrl}${path}`;
-  return `${apiBaseUrl}/${path}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  // Paths already include /api/...; avoid https://host/api/api/... when base ends with /api.
+  if (apiBaseUrl.endsWith('/api') && normalizedPath.startsWith('/api/')) {
+    return `${apiBaseUrl}${normalizedPath.slice(4)}`;
+  }
+  return `${apiBaseUrl}${normalizedPath}`;
+}
+
+function invalidSuccessPayload(text: string, status: number): ApiError {
+  const trimmed = text.trim();
+  const looksHtml = /^\s*</.test(trimmed) || trimmed.toLowerCase().includes('<!doctype');
+  if (looksHtml) {
+    return {
+      error: 'invalid_api_response',
+      message:
+        'Received a web page instead of API data. On Vercel, leave VITE_API_BASE_URL unset; if you set it, use the site origin only (no /api suffix).',
+    };
+  }
+  if (!trimmed) {
+    return {
+      error: 'invalid_api_response',
+      message:
+        'The server returned an empty response. Start the PHP API locally or check VITE_API_BASE_URL / deployment settings.',
+    };
+  }
+  return {
+    error: 'invalid_api_response',
+    message: `Unexpected server response (HTTP ${status}). Check API configuration and try again.`,
+  };
 }
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -69,6 +96,10 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
         (text && !/^\s*</.test(text) ? text.slice(0, 240) : `Request failed (HTTP ${res.status}).`),
     };
     throw fallback;
+  }
+
+  if (data === null || typeof data !== 'object') {
+    throw invalidSuccessPayload(text, res.status);
   }
 
   return data as T;
