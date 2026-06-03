@@ -461,7 +461,7 @@ export function TicketsList({
   const isDark = variant === 'dark';
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2.5 sm:gap-3">
       {tickets.map((ticket, index) => {
         const remaining = ticketRemaining(ticket);
         const soldOut = remaining <= 0;
@@ -471,7 +471,7 @@ export function TicketsList({
         return (
           <div
             key={ticket.id}
-            className={`landing-card-premium group relative overflow-hidden rounded-2xl p-5 sm:rounded-3xl sm:p-7 ${selected ? 'landing-ticket-selected' : ''}`}
+            className={`landing-card-premium group relative overflow-hidden rounded-xl p-3.5 sm:rounded-2xl sm:p-4 ${selected ? 'landing-ticket-selected' : ''}`}
             style={{
               borderColor: isDark ? 'rgba(255,255,255,0.1)' : undefined,
               background: isDark ? 'rgba(255,255,255,0.04)' : undefined,
@@ -481,20 +481,20 @@ export function TicketsList({
             }}
           >
             <div
-              className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-20 blur-2xl transition group-hover:opacity-35"
+              className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-20 blur-2xl transition group-hover:opacity-35"
               style={{ background: accent }}
             />
-            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
-              <div className="flex min-w-0 flex-1 gap-4">
+            <div className="relative flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex min-w-0 flex-1 gap-3">
                 <div
-                  className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl"
                   style={{ background: `color-mix(in srgb, ${accent} 18%, transparent)`, color: accent }}
                 >
-                  <Ticket className="h-5 w-5" />
+                  <Ticket className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-bold tracking-tight">{ticket.name}</h3>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h3 className="text-base font-bold tracking-tight">{ticket.name}</h3>
                     {soldOut ? (
                       <span className="landing-eyebrow rounded-full bg-neutral-900 px-2 py-0.5 text-white">Sold out</span>
                     ) : remaining <= 12 ? (
@@ -503,16 +503,16 @@ export function TicketsList({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-sm leading-relaxed" style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'var(--landing-text-muted)' }}>
+                  <p className="mt-0.5 line-clamp-2 text-xs leading-snug sm:text-sm" style={{ color: isDark ? 'rgba(255,255,255,0.6)' : 'var(--landing-text-muted)' }}>
                     {ticket.description || 'Full event access'}
                   </p>
-                  <p className="landing-display mt-3 hidden text-2xl sm:block" style={{ color: accent }}>
+                  <p className="landing-display mt-1.5 hidden text-xl sm:block" style={{ color: accent }}>
                     {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-3 sm:shrink-0 sm:justify-end">
-                <p className="landing-display shrink-0 text-2xl sm:hidden" style={{ color: accent }}>
+              <div className="flex items-center justify-between gap-2 sm:shrink-0 sm:justify-end">
+                <p className="landing-display shrink-0 text-xl sm:hidden" style={{ color: accent }}>
                   {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
                 </p>
                 <QuantityStepper
@@ -550,19 +550,19 @@ function QuantityStepper({
   onInc: () => void;
   name: string;
 }) {
-  const btnClass = 'flex h-11 w-11 items-center justify-center rounded-full border transition disabled:opacity-35 sm:h-12 sm:w-12';
+  const btnClass = 'flex h-9 w-9 items-center justify-center rounded-full border transition disabled:opacity-35 sm:h-10 sm:w-10';
   const btnStyle = isDark
     ? { borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)' }
     : { borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <button type="button" disabled={soldOut || qty <= 0} onClick={onDec} className={btnClass} style={btnStyle} aria-label={`Decrease ${name}`}>
-        <Minus className="h-4 w-4" />
+        <Minus className="h-3.5 w-3.5" />
       </button>
-      <span className="w-10 text-center text-xl font-bold tabular-nums">{qty}</span>
+      <span className="w-8 text-center text-lg font-bold tabular-nums">{qty}</span>
       <button type="button" disabled={soldOut || qty >= max} onClick={onInc} className={btnClass} style={btnStyle} aria-label={`Increase ${name}`}>
-        <Plus className="h-4 w-4" />
+        <Plus className="h-3.5 w-3.5" />
       </button>
     </div>
   );
