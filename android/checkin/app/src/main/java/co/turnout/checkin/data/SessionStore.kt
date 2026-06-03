@@ -39,7 +39,7 @@ class SessionStore(private val context: Context) {
 
     suspend fun saveSetup(apiBaseUrl: String, eventId: String) {
         context.dataStore.edit { prefs ->
-            prefs[apiBaseKey] = apiBaseUrl.trim().trimEnd('/')
+            prefs[apiBaseKey] = CheckInApi.normalizeApiBaseUrl(apiBaseUrl)
             prefs[eventIdKey] = eventId.trim()
             prefs[staffPinKey] = ""
             prefs[eventTitleKey] = ""

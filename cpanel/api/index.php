@@ -3152,7 +3152,12 @@ if (preg_match('#^/events/(\\d+)/checkin/verify-pin$#', $path, $m) && $method ==
   $stmt->execute([$eventId]);
   $ev = $stmt->fetch();
   if (!$ev) json_response(404, ['error' => 'event_not_found']);
-  if ((string)$ev['status'] !== 'published') json_response(403, ['error' => 'event_not_live']);
+  if ((string)$ev['status'] !== 'published') {
+    json_response(403, [
+      'error' => 'event_not_live',
+      'message' => 'This event is not published yet. Publish the event in the dashboard, then try again.',
+    ]);
+  }
   if (!verify_event_checkin_pin($pdo, $eventId, $pin)) {
     json_response(403, ['error' => 'invalid_staff_pin', 'message' => 'Incorrect PIN for this event.']);
   }

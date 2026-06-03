@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
                     !session.isUnlocked -> {
                         PinScreen(
                             eventId = session.eventId,
+                            apiBaseUrl = session.apiBaseUrl,
                             unlocking = unlocking,
                             unlockError = unlockError,
                             onUnlock = vm::verifyPin,

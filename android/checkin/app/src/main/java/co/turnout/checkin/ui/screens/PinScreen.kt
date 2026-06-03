@@ -39,6 +39,7 @@ import co.turnout.checkin.ui.theme.TurnoutColors
 @Composable
 fun PinScreen(
     eventId: String,
+    apiBaseUrl: String,
     unlocking: Boolean,
     unlockError: String?,
     onUnlock: (pin: String) -> Unit,
@@ -124,7 +125,14 @@ fun PinScreen(
                 Text(if (unlocking) "Verifying…" else "Start scanning", fontWeight = FontWeight.Bold)
             }
         }
-        TextButton(onClick = onBack, modifier = Modifier.padding(top = 16.dp)) {
+        Text(
+            text = "Server: $apiBaseUrl · Event #$eventId",
+            style = MaterialTheme.typography.labelSmall,
+            color = TurnoutColors.TextSubtle,
+            modifier = Modifier.padding(top = 12.dp),
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
             Text("Change event / API", color = TurnoutColors.TextMuted)
         }
     }

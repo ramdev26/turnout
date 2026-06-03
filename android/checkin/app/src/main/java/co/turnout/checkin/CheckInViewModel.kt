@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import co.turnout.checkin.data.ApiException
 import co.turnout.checkin.data.Attendee
 import co.turnout.checkin.data.CheckInApi
+import co.turnout.checkin.data.CheckInApi.Companion.normalizeStaffPin as normalizePin
 import co.turnout.checkin.data.CheckInSession
 import co.turnout.checkin.data.QrPayloadParser
 import co.turnout.checkin.data.QrScanError
@@ -72,9 +73,14 @@ class CheckInViewModel(application: Application) : AndroidViewModel(application)
             _unlocking.value = true
             _unlockError.value = null
             try {
+                val normalizedPin = normalizeStaffPin(pin)
+                if (normalizedPin.length < 4) {
+                    _unlockError.value = "PIN must be 4–8 digits."
+                    return@launch
+                }
                 val api = CheckInApi(current.apiBaseUrl)
-                val title = api.verifyPin(current.eventId, pin)
-                store.saveUnlock(pin, title)
+                val title = api.verifyPin(current.eventId, normalizedPin)
+                store.saveUnlock(normalizedPin, title)
             } catch (e: ApiException) {
                 _unlockError.value = e.message
                 store.clearUnlock()

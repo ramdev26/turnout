@@ -59,6 +59,12 @@ fun SetupScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = TurnoutColors.TextMuted,
         )
+        Text(
+            text = "API URL = your Turnout site only (no /api at the end)",
+            style = MaterialTheme.typography.labelSmall,
+            color = TurnoutColors.TextSubtle,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
