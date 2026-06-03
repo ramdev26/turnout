@@ -292,6 +292,11 @@ export const Success: React.FC = () => {
                         />
                       </div>
                       <div className="w-full text-center">
+                        {a.ticketName ? (
+                          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: TURNOUT_BRAND.lime500 }}>
+                            {a.ticketName}
+                          </p>
+                        ) : null}
                         <div className="text-sm font-semibold text-[var(--text)]">{a.fullName}</div>
                         <div className="mt-1 text-xs text-[var(--text-muted)]">{a.email}</div>
                       </div>

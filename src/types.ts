@@ -248,6 +248,7 @@ export interface Order {
   attendees?: {
     id: string;
     ticketId: string;
+    ticketName?: string;
     fullName: string;
     email: string;
     phone?: string | null;

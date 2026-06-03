@@ -14,6 +14,38 @@ import {
   startPayHereCheckout,
   type PayHereInitiateResponse,
 } from '../lib/payhereCheckout';
+import { Users } from 'lucide-react';
+
+type TicketHolderInput = {
+  key: string;
+  ticketId: string;
+  ticketName: string;
+  label: string;
+  fullName: string;
+  email: string;
+  phone: string;
+};
+
+function buildTicketHolders(items: OrderItem[]): TicketHolderInput[] {
+  return items.flatMap((it) =>
+    Array.from({ length: it.quantity }, (_, i) => ({
+      key: `${it.ticketId}-${i}`,
+      ticketId: it.ticketId,
+      ticketName: it.name,
+      label:
+        it.quantity > 1
+          ? `${it.name} · Ticket ${i + 1} of ${it.quantity}`
+          : it.name,
+      fullName: '',
+      email: '',
+      phone: '',
+    }))
+  );
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
 export const EventLanding: React.FC = () => {
   const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
@@ -47,9 +79,44 @@ export const EventLanding: React.FC = () => {
     },
   });
   const [buyingForSomeoneElse, setBuyingForSomeoneElse] = useState(false);
+  const [ticketHolders, setTicketHolders] = useState<TicketHolderInput[]>([]);
   const buyerName = watch('buyerName');
   const buyerEmail = watch('buyerEmail');
   const buyerPhone = watch('buyerPhone');
+
+  const orderItems = useMemo<OrderItem[]>(
+    () =>
+      tickets
+        .filter((t) => (selectedTickets[t.id] || 0) > 0)
+        .map((t) => ({
+          ticketId: t.id,
+          name: t.name,
+          quantity: selectedTickets[t.id],
+          price: t.price,
+        })),
+    [selectedTickets, tickets]
+  );
+
+  const totalTicketQuantity = useMemo(
+    () => orderItems.reduce((sum, it) => sum + it.quantity, 0),
+    [orderItems]
+  );
+
+  const assignEachTicket = totalTicketQuantity > 1;
+
+  useEffect(() => {
+    if (!checkoutOpen) return;
+    setTicketHolders((prev) => {
+      const next = buildTicketHolders(orderItems);
+      const prevByKey = Object.fromEntries(prev.map((row) => [row.key, row]));
+      return next.map((row) => ({
+        ...row,
+        fullName: prevByKey[row.key]?.fullName ?? row.fullName,
+        email: prevByKey[row.key]?.email ?? row.email,
+        phone: prevByKey[row.key]?.phone ?? row.phone,
+      }));
+    });
+  }, [checkoutOpen, orderItems]);
 
   useEffect(() => {
     const fetchEventData = async () => {
@@ -158,27 +225,51 @@ export const EventLanding: React.FC = () => {
     setIsPurchasing(true);
     setPayError(null);
     try {
-      const orderItems: OrderItem[] = tickets
-        .filter((t) => selectedTickets[t.id] > 0)
-        .map((t) => ({
-          ticketId: t.id,
-          name: t.name,
-          quantity: selectedTickets[t.id],
-          price: t.price,
+      let attendees: { ticketId: string; fullName: string; email: string; phone: string }[];
+
+      if (assignEachTicket) {
+        for (const row of ticketHolders) {
+          if (!row.fullName.trim()) {
+            setPayError(`Enter a full name for ${row.label}.`);
+            setIsPurchasing(false);
+            return;
+          }
+          if (!isValidEmail(row.email)) {
+            setPayError(`Enter a valid email for ${row.label}.`);
+            setIsPurchasing(false);
+            return;
+          }
+        }
+        attendees = ticketHolders.map((row) => ({
+          ticketId: row.ticketId,
+          fullName: row.fullName.trim(),
+          email: row.email.trim().toLowerCase(),
+          phone: row.phone.trim(),
         }));
-
-      const attendeeFullName = buyingForSomeoneElse ? values.attendeeName : values.buyerName;
-      const attendeeEmail = buyingForSomeoneElse ? values.attendeeEmail : values.buyerEmail;
-      const attendeePhone = buyingForSomeoneElse ? values.attendeePhone : values.buyerPhone;
-
-      const attendees = orderItems.flatMap((it) =>
-        Array.from({ length: it.quantity }).map(() => ({
-          ticketId: it.ticketId,
-          fullName: attendeeFullName || 'Attendee',
-          email: attendeeEmail,
-          phone: attendeePhone,
-        }))
-      );
+      } else if (buyingForSomeoneElse) {
+        if (!values.attendeeName.trim() || !isValidEmail(values.attendeeEmail)) {
+          setPayError('Enter the attendee name and a valid email.');
+          setIsPurchasing(false);
+          return;
+        }
+        attendees = orderItems.flatMap((it) =>
+          Array.from({ length: it.quantity }).map(() => ({
+            ticketId: it.ticketId,
+            fullName: values.attendeeName.trim(),
+            email: values.attendeeEmail.trim().toLowerCase(),
+            phone: values.attendeePhone.trim(),
+          }))
+        );
+      } else {
+        attendees = orderItems.flatMap((it) =>
+          Array.from({ length: it.quantity }).map(() => ({
+            ticketId: it.ticketId,
+            fullName: values.buyerName.trim() || 'Attendee',
+            email: values.buyerEmail.trim().toLowerCase(),
+            phone: values.buyerPhone.trim(),
+          }))
+        );
+      }
 
       if (totalAmount <= 0) {
         const res = await api.post<{ orderId: string; accessToken?: string }>('/api/orders', {
@@ -341,7 +432,9 @@ export const EventLanding: React.FC = () => {
       {checkoutOpen && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
           <div
-            className="landing-page max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border p-7 shadow-2xl sm:max-w-md sm:rounded-3xl"
+            className={`landing-page max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border p-7 shadow-2xl sm:rounded-3xl ${
+              assignEachTicket ? 'sm:max-w-xl' : 'sm:max-w-md'
+            }`}
             style={{
               borderColor: 'var(--landing-border)',
               background: 'var(--landing-surface)',
@@ -399,6 +492,14 @@ export const EventLanding: React.FC = () => {
                   Pre-filled from your attendee profile.
                 </div>
               )}
+
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                Purchaser (you)
+              </p>
+              <p className="-mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+                Payment and confirmation go to these details.
+              </p>
+
               <label className="flex flex-col gap-1.5">
                 <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
                   Full name
@@ -431,60 +532,171 @@ export const EventLanding: React.FC = () => {
                 />
               </label>
 
-              <label className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm" style={{ borderColor: 'var(--landing-border)' }}>
-                <input
-                  type="checkbox"
-                  checked={buyingForSomeoneElse}
-                  onChange={(e) => setBuyingForSomeoneElse(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <span>Buying for someone else</span>
-              </label>
-
-              {buyingForSomeoneElse && (
-                <div className="space-y-3 rounded-xl border p-3" style={{ borderColor: 'var(--landing-border)' }}>
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
-                    Ticket attendee details
-                  </p>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
-                      Attendee full name
-                    </span>
-                    <input
-                      {...register('attendeeName', { required: buyingForSomeoneElse })}
-                      className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
-                      style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
-                      Attendee email
-                    </span>
-                    <input
-                      type="email"
-                      {...register('attendeeEmail', { required: buyingForSomeoneElse })}
-                      className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
-                      style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
-                      Attendee phone (optional)
-                    </span>
-                    <input
-                      {...register('attendeePhone')}
-                      className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
-                      style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
-                    />
-                  </label>
+              {assignEachTicket ? (
+                <div className="space-y-4 rounded-xl border p-4" style={{ borderColor: 'var(--landing-border)' }}>
+                  <div className="flex items-start gap-2">
+                    <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--primary)' }} />
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--landing-text)]">Assign each ticket</p>
+                      <p className="mt-1 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+                        You&apos;re buying {totalTicketQuantity} tickets — enter who each pass is for (each gets their own QR code).
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold underline-offset-2 hover:underline"
+                    style={{ color: 'var(--primary)' }}
+                    onClick={() => {
+                      const name = buyerName.trim();
+                      const email = buyerEmail.trim();
+                      const phone = buyerPhone.trim();
+                      setTicketHolders((rows) =>
+                        rows.map((row, index) =>
+                          index === 0
+                            ? { ...row, fullName: name, email, phone }
+                            : row
+                        )
+                      );
+                    }}
+                  >
+                    Use my details for the first ticket
+                  </button>
+                  <div className="flex flex-col gap-4">
+                    {ticketHolders.map((row) => (
+                      <div
+                        key={row.key}
+                        className="space-y-3 rounded-xl border p-3"
+                        style={{
+                          borderColor: 'var(--landing-border)',
+                          background: 'var(--landing-surface-muted)',
+                        }}
+                      >
+                        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                          {row.label}
+                        </p>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                            Full name
+                          </span>
+                          <input
+                            required
+                            value={row.fullName}
+                            onChange={(e) =>
+                              setTicketHolders((rows) =>
+                                rows.map((r) => (r.key === row.key ? { ...r, fullName: e.target.value } : r))
+                              )
+                            }
+                            className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                            style={{
+                              borderColor: 'var(--landing-border)',
+                              background: 'var(--landing-surface)',
+                              color: 'var(--landing-text)',
+                            }}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                            Email
+                          </span>
+                          <input
+                            type="email"
+                            required
+                            value={row.email}
+                            onChange={(e) =>
+                              setTicketHolders((rows) =>
+                                rows.map((r) => (r.key === row.key ? { ...r, email: e.target.value } : r))
+                              )
+                            }
+                            className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                            style={{
+                              borderColor: 'var(--landing-border)',
+                              background: 'var(--landing-surface)',
+                              color: 'var(--landing-text)',
+                            }}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                            Phone (optional)
+                          </span>
+                          <input
+                            value={row.phone}
+                            onChange={(e) =>
+                              setTicketHolders((rows) =>
+                                rows.map((r) => (r.key === row.key ? { ...r, phone: e.target.value } : r))
+                              )
+                            }
+                            className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                            style={{
+                              borderColor: 'var(--landing-border)',
+                              background: 'var(--landing-surface)',
+                              color: 'var(--landing-text)',
+                            }}
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
+              ) : (
+                <>
+                  <label className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm" style={{ borderColor: 'var(--landing-border)' }}>
+                    <input
+                      type="checkbox"
+                      checked={buyingForSomeoneElse}
+                      onChange={(e) => setBuyingForSomeoneElse(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    <span>Buying this ticket for someone else</span>
+                  </label>
 
-              {!buyingForSomeoneElse && (
-                <p className="text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-                  Tickets will be issued to {buyerName || 'you'} ({buyerEmail || 'your email'})
-                  {buyerPhone ? ` · ${buyerPhone}` : ''}.
-                </p>
+                  {buyingForSomeoneElse && (
+                    <div className="space-y-3 rounded-xl border p-3" style={{ borderColor: 'var(--landing-border)' }}>
+                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                        Ticket holder
+                      </p>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                          Full name
+                        </span>
+                        <input
+                          {...register('attendeeName', { required: buyingForSomeoneElse })}
+                          className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                          style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                          Email
+                        </span>
+                        <input
+                          type="email"
+                          {...register('attendeeEmail', { required: buyingForSomeoneElse })}
+                          className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                          style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+                          Phone (optional)
+                        </span>
+                        <input
+                          {...register('attendeePhone')}
+                          className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                          style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {!buyingForSomeoneElse && (
+                    <p className="text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+                      Your ticket will be issued to {buyerName || 'you'} ({buyerEmail || 'your email'})
+                      {buyerPhone ? ` · ${buyerPhone}` : ''}.
+                    </p>
+                  )}
+                </>
               )}
               <button
                 type="submit"
