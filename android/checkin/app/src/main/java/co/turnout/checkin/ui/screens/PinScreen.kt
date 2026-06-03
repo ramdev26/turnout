@@ -126,7 +126,7 @@ fun PinScreen(
             }
         }
         Text(
-            text = "Server: $apiBaseUrl · Event #$eventId",
+            text = "Server: $apiBaseUrl · Event #$eventId · v${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.labelSmall,
             color = TurnoutColors.TextSubtle,
             modifier = Modifier.padding(top = 12.dp),
