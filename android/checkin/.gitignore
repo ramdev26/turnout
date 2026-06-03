@@ -10,3 +10,5 @@ local.properties
 .externalNativeBuild/
 .cxx/
 app/build/
+TurnoutCheckIn-debug.apk
+dist/

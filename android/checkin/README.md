@@ -92,9 +92,17 @@ cd android/checkin
 ./gradlew :app:assembleDebug
 ```
 
-APK output: `app/build/outputs/apk/debug/app-debug.apk`
+APK output (after build):
 
-Install on a phone: `adb install -r app/build/outputs/apk/debug/app-debug.apk`
+| Easy to find | Path |
+|--------------|------|
+| **Top of project** | `android/checkin/TurnoutCheckIn-debug.apk` |
+| **dist folder** | `android/checkin/dist/TurnoutCheckIn-debug.apk` |
+| Gradle default | `android/checkin/app/build/outputs/apk/debug/app-debug.apk` |
+
+Run `./scripts/build-apk.sh` to rebuild and refresh `TurnoutCheckIn-debug.apk`.
+
+Install on a phone: `adb install -r TurnoutCheckIn-debug.apk`
 
 ## Setup on event day
 
