@@ -11,3 +11,4 @@ cpanel/api/config.php
 cpanel/api/data/*.sqlite
 *.zip
 .vercel
+android/sdk/
