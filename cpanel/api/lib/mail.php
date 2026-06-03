@@ -315,35 +315,88 @@ function mail_app_base_url(): string {
   return $proto . '://' . $host;
 }
 
-function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
-  $stmt = $pdo->prepare(
-    'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
-            e.title AS event_title, e.event_date, e.location, e.slug
-     FROM orders o
-     INNER JOIN events e ON e.id = o.event_id
-     WHERE o.id = ?
-     LIMIT 1'
-  );
-  $stmt->execute([$orderId]);
-  $order = $stmt->fetch();
-  if (!$order) {
-    return false;
+function mail_qr_image_url(string $qrToken): string {
+  return 'https://quickchart.io/qr?text=' . rawurlencode($qrToken) . '&size=200&margin=2&dark=0a2426&light=f5f2ea';
+}
+
+function mail_turnout_layout(string $headline, string $innerHtml): string {
+  return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#052e30;font-family:Segoe UI,Arial,sans-serif;color:#e9f4ee;">' .
+    '<table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px;"><tr><td align="center">' .
+    '<table width="100%" style="max-width:560px;background:#0d585b;border-radius:16px;border:1px solid rgba(192,255,114,0.22);overflow:hidden;">' .
+    '<tr><td style="padding:22px 28px;background:linear-gradient(135deg,#074143 0%,#0d585b 100%);color:#e9f4ee;">' .
+    '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#c0ff72;">Turnout</div>' .
+    '<h1 style="margin:10px 0 0;font-size:22px;font-weight:700;color:#ffffff;">' . $headline . '</h1>' .
+    '</td></tr>' .
+    '<tr><td style="padding:28px;color:#e9f4ee;">' . $innerHtml . '</td></tr>' .
+    '</table></td></tr></table></body></html>';
+}
+
+function mail_event_details_block(string $eventTitle, string $eventDate, string $eventLocation, string $extraRowsHtml = ''): string {
+  $html =
+    '<table width="100%" style="background:rgba(255,255,255,0.06);border-radius:12px;border:1px solid rgba(192,255,114,0.15);margin-bottom:20px;">' .
+    '<tr><td style="padding:16px 18px;">' .
+    '<div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#93b5b7;margin-bottom:8px;">Event</div>' .
+    '<div style="font-size:17px;font-weight:700;color:#ffffff;">' . $eventTitle . '</div>';
+  if ($eventDate !== '') {
+    $html .= '<div style="margin-top:10px;font-size:14px;color:#e9f4ee;"><strong style="color:#c0ff72;">When</strong><br/>' . $eventDate . '</div>';
+  }
+  if ($eventLocation !== '') {
+    $html .= '<div style="margin-top:8px;font-size:14px;color:#e9f4ee;"><strong style="color:#c0ff72;">Where</strong><br/>' . $eventLocation . '</div>';
+  }
+  $html .= $extraRowsHtml . '</td></tr></table>';
+  return $html;
+}
+
+function mail_cta_button(string $url, string $label): string {
+  if ($url === '') {
+    return '';
+  }
+  return '<p style="margin:22px 0 0;text-align:center;">' .
+    '<a href="' . htmlspecialchars($url) . '" style="display:inline-block;background:#c0ff72;color:#0a2426;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:12px;">' .
+    htmlspecialchars($label) . '</a></p>';
+}
+
+function mail_pass_block_html(array $pass): string {
+  $name = htmlspecialchars((string)($pass['full_name'] ?? 'Guest'));
+  $ticketName = htmlspecialchars((string)($pass['ticket_name'] ?? 'Ticket'));
+  $qrToken = (string)($pass['qr_token'] ?? '');
+  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken) : '';
+
+  $block =
+    '<table width="100%" style="margin:0 0 16px;background:rgba(5,46,48,0.65);border-radius:12px;border:1px solid rgba(192,255,114,0.18);">' .
+    '<tr><td style="padding:16px;">' .
+    '<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#c0ff72;">' . $ticketName . '</div>' .
+    '<div style="margin-top:6px;font-size:16px;font-weight:700;color:#ffffff;">' . $name . '</div>';
+
+  if ($qrImg !== '') {
+    $block .=
+      '<div style="margin-top:14px;text-align:center;">' .
+      '<img src="' . htmlspecialchars($qrImg) . '" alt="Check-in QR code" width="200" height="200" style="display:inline-block;border-radius:12px;background:#f5f2ea;padding:8px;" />' .
+      '</div>';
   }
 
+  if ($qrToken !== '') {
+    $block .=
+      '<div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:#052e30;font-family:Consolas,Monaco,monospace;font-size:11px;color:#e5ffc4;word-break:break-all;">' .
+      htmlspecialchars($qrToken) .
+      '</div>';
+  }
+
+  $block .= '</td></tr></table>';
+  return $block;
+}
+
+function send_buyer_order_confirmation_email(
+  PDO $pdo,
+  array $order,
+  int $orderId,
+  array $attendees,
+  string $ticketUrl
+): bool {
   $buyerEmail = strtolower(trim((string)$order['buyer_email']));
   if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) {
     return false;
   }
-
-  $attStmt = $pdo->prepare(
-    'SELECT a.full_name, a.email, a.qr_token, t.name AS ticket_name
-     FROM attendees a
-     LEFT JOIN tickets t ON t.id = a.ticket_id
-     WHERE a.order_id = ?
-     ORDER BY a.id ASC'
-  );
-  $attStmt->execute([$orderId]);
-  $attendees = $attStmt->fetchAll() ?: [];
 
   $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
   if (!is_array($items)) {
@@ -362,15 +415,6 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
     }
   }
 
-  $attendeeBlocks = '';
-  foreach ($attendees as $a) {
-    $attendeeBlocks .=
-      '<tr><td style="padding:8px 0;border-top:1px solid #e5e7eb;">' .
-      '<strong>' . htmlspecialchars((string)$a['full_name']) . '</strong><br/>' .
-      '<span style="color:#6b7280;font-size:13px;">' . htmlspecialchars((string)($a['ticket_name'] ?? 'Ticket')) . '</span>' .
-      '</td></tr>';
-  }
-
   $eventTitle = htmlspecialchars((string)$order['event_title']);
   $eventDate = htmlspecialchars((string)$order['event_date']);
   $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
@@ -378,39 +422,142 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   $orderRef = htmlspecialchars((string)$orderId);
   $total = 'LKR ' . number_format(((int)$order['total_amount_cents']) / 100, 2);
 
+  $extraRows =
+    '<div style="margin-top:12px;font-size:14px;color:#e9f4ee;"><strong style="color:#c0ff72;">Order</strong><br/>#' . $orderRef . '</div>' .
+    '<div style="margin-top:8px;font-size:14px;color:#e9f4ee;"><strong style="color:#c0ff72;">Total</strong><br/>' . $total . '</div>';
+  if (count($ticketLines)) {
+    $extraRows .= '<div style="margin-top:8px;font-size:14px;color:#e9f4ee;"><strong style="color:#c0ff72;">Tickets</strong><br/>' . implode('<br/>', $ticketLines) . '</div>';
+  }
+
+  $passBlocks = '';
+  foreach ($attendees as $a) {
+    $passBlocks .= mail_pass_block_html($a);
+  }
+
+  $buyerNorm = strtolower(trim((string)$order['buyer_email']));
+  $otherEmails = [];
+  foreach ($attendees as $a) {
+    $em = strtolower(trim((string)($a['email'] ?? '')));
+    if ($em !== '' && $em !== $buyerNorm && filter_var($em, FILTER_VALIDATE_EMAIL)) {
+      $otherEmails[$em] = true;
+    }
+  }
+  $otherHolderCount = count($otherEmails);
+
+  $inner =
+    '<p style="margin:0 0 16px;font-size:15px;line-height:1.5;">Hi ' . $buyerName . ',</p>' .
+    '<p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#e9f4ee;">Thanks for your purchase — your order is confirmed.</p>' .
+    mail_event_details_block($eventTitle, $eventDate, $eventLocation, $extraRows) .
+    ($passBlocks !== '' ? '<p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#c0ff72;text-transform:uppercase;letter-spacing:0.08em;">Your passes</p>' . $passBlocks : '') .
+    ($otherHolderCount > 0
+      ? '<p style="margin:0 0 12px;font-size:14px;color:#93b5b7;">We also emailed each ticket holder their own pass' .
+        ($otherHolderCount > 1 ? 'es' : '') . ' at the address you provided.</p>'
+      : '') .
+    mail_cta_button($ticketUrl, 'View all tickets online') .
+    '<p style="margin:20px 0 0;font-size:13px;color:#93b5b7;line-height:1.5;">Show the QR code at the entrance for check-in. Save this email or use the link above.</p>';
+
+  $subject = 'Order confirmed — ' . (string)$order['event_title'];
+  return send_email($buyerEmail, $subject, mail_turnout_layout('You\'re in!', $inner), $pdo);
+}
+
+function send_attendee_ticket_email(
+  PDO $pdo,
+  string $toEmail,
+  string $recipientName,
+  array $passes,
+  array $order,
+  int $orderId,
+  string $ticketUrl
+): bool {
+  $eventTitle = htmlspecialchars((string)$order['event_title']);
+  $eventDate = htmlspecialchars((string)$order['event_date']);
+  $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
+  $greeting = htmlspecialchars($recipientName !== '' ? $recipientName : 'there');
+  $passCount = count($passes);
+
+  $passBlocks = '';
+  foreach ($passes as $pass) {
+    $passBlocks .= mail_pass_block_html($pass);
+  }
+
+  $inner =
+    '<p style="margin:0 0 16px;font-size:15px;line-height:1.5;">Hi ' . $greeting . ',</p>' .
+    '<p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#e9f4ee;">' .
+    ($passCount > 1
+      ? 'You have <strong style="color:#ffffff;">' . $passCount . ' tickets</strong> for'
+      : 'You have a ticket for') .
+    ' <strong style="color:#ffffff;">' . $eventTitle . '</strong>. ' .
+    'Show the QR code below at the door.</p>' .
+    mail_event_details_block($eventTitle, $eventDate, $eventLocation) .
+    $passBlocks .
+    mail_cta_button($ticketUrl, 'Open ticket page') .
+    '<p style="margin:20px 0 0;font-size:13px;color:#93b5b7;line-height:1.5;">This pass was sent to you by the person who completed the purchase. If anything looks wrong, contact the event organizer.</p>';
+
+  $subject = $passCount > 1
+    ? 'Your ' . $passCount . ' tickets for ' . (string)$order['event_title']
+    : 'Your ticket for ' . (string)$order['event_title'];
+
+  return send_email($toEmail, $subject, mail_turnout_layout('Your ticket' . ($passCount > 1 ? 's' : ''), $inner), $pdo);
+}
+
+/**
+ * Sends purchaser confirmation plus individual ticket emails to each unique holder email.
+ */
+function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
+  $stmt = $pdo->prepare(
+    'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
+            e.title AS event_title, e.event_date, e.location, e.slug
+     FROM orders o
+     INNER JOIN events e ON e.id = o.event_id
+     WHERE o.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$orderId]);
+  $order = $stmt->fetch();
+  if (!$order) {
+    return false;
+  }
+
+  $attStmt = $pdo->prepare(
+    'SELECT a.full_name, a.email, a.qr_token, t.name AS ticket_name
+     FROM attendees a
+     LEFT JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.order_id = ?
+     ORDER BY a.id ASC'
+  );
+  $attStmt->execute([$orderId]);
+  $attendees = $attStmt->fetchAll() ?: [];
+
   $accessToken = issue_order_access_token($orderId);
   $base = mail_app_base_url();
   $ticketUrl = $base !== '' ? $base . '/orders/' . rawurlencode((string)$orderId) . '/success?token=' . rawurlencode($accessToken) : '';
 
-  $cta = $ticketUrl !== ''
-    ? '<p style="margin:24px 0;"><a href="' . htmlspecialchars($ticketUrl) . '" style="display:inline-block;background:#00a95d;color:#fff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;">View your tickets</a></p>'
-    : '';
+  $buyerOk = send_buyer_order_confirmation_email($pdo, $order, $orderId, $attendees, $ticketUrl);
 
-  $subject = 'Your tickets for ' . (string)$order['event_title'];
+  $buyerEmail = strtolower(trim((string)$order['buyer_email']));
+  $byEmail = [];
+  foreach ($attendees as $a) {
+    $email = strtolower(trim((string)($a['email'] ?? '')));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      continue;
+    }
+    if (!isset($byEmail[$email])) {
+      $byEmail[$email] = [];
+    }
+    $byEmail[$email][] = $a;
+  }
 
-  $bodyHtml =
-    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Segoe UI,Arial,sans-serif;color:#111827;">' .
-    '<table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px;"><tr><td align="center">' .
-    '<table width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">' .
-    '<tr><td style="padding:24px 28px;background:#0f172a;color:#fff;">' .
-    '<div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.8;">Turnout</div>' .
-    '<h1 style="margin:8px 0 0;font-size:22px;">You\'re in!</h1>' .
-    '</td></tr>' .
-    '<tr><td style="padding:28px;">' .
-    '<p style="margin:0 0 16px;">Hi ' . $buyerName . ',</p>' .
-    '<p style="margin:0 0 20px;">Thanks for your purchase. Your tickets are confirmed for <strong>' . $eventTitle . '</strong>.</p>' .
-    '<table width="100%" style="background:#f9fafb;border-radius:12px;padding:16px;margin-bottom:20px;">' .
-    '<tr><td style="padding:4px 0;"><strong>Event</strong><br/>' . $eventTitle . '</td></tr>' .
-    ($eventDate !== '' ? '<tr><td style="padding:4px 0;"><strong>Date</strong><br/>' . $eventDate . '</td></tr>' : '') .
-    ($eventLocation !== '' ? '<tr><td style="padding:4px 0;"><strong>Location</strong><br/>' . $eventLocation . '</td></tr>' : '') .
-    '<tr><td style="padding:4px 0;"><strong>Order</strong><br/>#' . $orderRef . '</td></tr>' .
-    '<tr><td style="padding:4px 0;"><strong>Total</strong><br/>' . $total . '</td></tr>' .
-    (count($ticketLines) ? '<tr><td style="padding:4px 0;"><strong>Tickets</strong><br/>' . implode('<br/>', $ticketLines) . '</td></tr>' : '') .
-    '</table>' .
-    ($attendeeBlocks !== '' ? '<p style="margin:0 0 8px;font-weight:600;">Attendees</p><table width="100%">' . $attendeeBlocks . '</table>' : '') .
-    $cta .
-    '<p style="margin:24px 0 0;font-size:13px;color:#6b7280;">Show your QR code at the door for check-in. If you have questions, reply to this email.</p>' .
-    '</td></tr></table></td></tr></table></body></html>';
+  $attendeeOk = true;
+  foreach ($byEmail as $email => $passes) {
+    if ($email === $buyerEmail) {
+      continue;
+    }
+    $recipientName = trim((string)($passes[0]['full_name'] ?? ''));
+    if (!send_attendee_ticket_email($pdo, $email, $recipientName, $passes, $order, $orderId, $ticketUrl)) {
+      $attendeeOk = false;
+      error_log('Turnout: failed attendee ticket email for order ' . $orderId . ' to ' . $email);
+    }
+  }
 
-  return send_email($buyerEmail, $subject, $bodyHtml, $pdo);
+  return $buyerOk && $attendeeOk;
 }

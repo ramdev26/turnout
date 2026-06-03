@@ -497,7 +497,7 @@ export const EventLanding: React.FC = () => {
                 Purchaser (you)
               </p>
               <p className="-mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-                Payment and confirmation go to these details.
+                Payment and order confirmation go here. Each ticket holder also receives their pass by email.
               </p>
 
               <label className="flex flex-col gap-1.5">

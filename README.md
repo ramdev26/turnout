@@ -124,7 +124,7 @@ If this is not set, production frontend requests default to relative `/api/*` UR
 
 ### Plunk (transactional email)
 
-Ticket purchase confirmations and other app emails are sent through [Plunk](https://www.useplunk.com) when configured.
+Ticket purchase confirmations and other app emails are sent through [Plunk](https://www.useplunk.com) when configured. After payment, the **purchaser** receives an order summary with all passes, and **each ticket holder** (when their email differs from the buyer) receives their own email with QR code(s).
 
 Set in the project `.env` (loaded by the PHP API) or in Vercel **Environment Variables**:
 
@@ -135,7 +135,7 @@ Set in the project `.env` (loaded by the PHP API) or in Vercel **Environment Var
 - `MAIL_FROM` — sender address verified in Plunk (e.g. `admin@bigturnout.co`)
 - `MAIL_FROM_NAME` — display name (e.g. `Turnout`)
 
-Verify your sending domain in Plunk before going live. After deploy, complete a test checkout to confirm the buyer receives the confirmation email.
+Verify your sending domain in Plunk before going live. After deploy, complete a test checkout with multiple ticket holders to confirm the buyer and each attendee receive their emails.
 
 ### Google Places (event location autocomplete)
 
