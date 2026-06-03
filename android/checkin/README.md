@@ -59,6 +59,31 @@ export PATH="$ANDROID_HOME/platform-tools:$PATH"
 - `local.properties` is auto-created with `sdk.dir=…` — do not commit it.
 - To build APK without a device: **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
 
+### Can't find the APK?
+
+The file **does not exist until you build**. Syncing Gradle is not enough.
+
+**In Android Studio**
+
+1. Menu: **Build → Build Bundle(s) / APK(s) → Build APK(s)** (not Run ▶).
+2. Wait for **BUILD SUCCESSFUL** in the bottom **Build** tab.
+3. Click the notification **locate** link, or open this path in Finder/Explorer:
+
+   `android/checkin/app/build/outputs/apk/debug/app-debug.apk`
+
+4. In the left panel, switch **Android** → **Project** (dropdown at top of Project tree), then expand:
+
+   `app → build → outputs → apk → debug → app-debug.apk`
+
+   If `build` is missing, you have not built yet (step 1).
+
+**From terminal** (in `android/checkin` folder):
+
+```bash
+chmod +x scripts/build-apk.sh
+./scripts/build-apk.sh
+```
+
 **Option B — Command line**
 
 ```bash
