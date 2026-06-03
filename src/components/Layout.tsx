@@ -41,6 +41,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const useThemedBar = isAppFlow && !hideChrome;
   const chromeThemed = !hideChrome;
 
+  const logoHref = !user
+    ? '/'
+    : user.role === 'super_admin'
+      ? '/admin/dashboard'
+      : user.role === 'attendee'
+        ? '/attendee/dashboard'
+        : '/dashboard';
+
   const handleLogout = async () => {
     setLoading(true);
     try {
@@ -68,7 +76,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3 sm:gap-6">
               <Link
-                to="/"
+                to={logoHref}
                 className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight sm:text-base"
                 style={{ color: ui.text }}
               >
