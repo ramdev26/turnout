@@ -196,6 +196,19 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     if (b.type === 'richText') {
       return <AboutBlock event={{ ...event, description: b.props?.text || event.description }} />;
     }
+    if (b.type === 'image' && b.props?.imageUrl) {
+      return (
+        <div className="overflow-hidden rounded-3xl border" style={{ borderColor: 'var(--landing-border)' }}>
+          <img
+            src={b.props.imageUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="block h-auto max-h-[min(70vh,560px)] w-full object-contain object-center"
+            style={{ background: 'var(--landing-surface-muted)' }}
+          />
+        </div>
+      );
+    }
     return null;
   };
 

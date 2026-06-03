@@ -525,7 +525,7 @@ function renderBlockPreview(block: SectionBlock, event: any, tickets: Ticket[]) 
             src={block.props.imageUrl || event.bannerUrl}
             alt=""
             referrerPolicy="no-referrer"
-            className="h-44 w-full object-cover"
+            className="h-44 w-full object-contain object-center bg-[var(--landing-surface-muted,#f4f6fb)]"
           />
         </div>
       </div>
@@ -544,7 +544,12 @@ function renderBlockPreview(block: SectionBlock, event: any, tickets: Ticket[]) 
   if (block.type === 'image') {
     return (
       <div className="overflow-hidden rounded-2xl border border-neutral-200">
-        <img src={block.props.imageUrl} alt="" referrerPolicy="no-referrer" className="h-56 w-full object-cover" />
+        <img
+          src={block.props.imageUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="h-56 w-full object-contain object-center bg-[var(--landing-surface-muted,#f4f6fb)]"
+        />
       </div>
     );
   }
