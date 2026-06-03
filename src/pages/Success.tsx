@@ -98,7 +98,7 @@ export const Success: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center px-4 pb-[env(safe-area-inset-bottom)]">
         <div
           className="h-12 w-12 animate-spin rounded-full border-4 border-t-[var(--primary)]"
           style={{ borderColor: TURNOUT_BRAND.limeLine, borderTopColor: 'var(--primary)' }}
@@ -109,8 +109,8 @@ export const Success: React.FC = () => {
 
   if (!order || !event) {
     return (
-      <div className="mx-auto flex max-w-lg flex-col items-center justify-center px-4 py-24 text-center">
-        <h2 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Order not found</h2>
+      <div className="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center overflow-x-hidden px-4 py-16 pb-[max(2rem,env(safe-area-inset-bottom))] text-center sm:py-24">
+        <h2 className="text-2xl font-semibold tracking-tight text-[var(--text)] sm:text-3xl">Order not found</h2>
         <p className="mt-2 text-[var(--text-muted)]">
           {loadError || 'We couldn&apos;t find your order details.'}
         </p>
@@ -138,12 +138,12 @@ export const Success: React.FC = () => {
 
   if (order.status === 'pending') {
     return (
-      <div className="mx-auto flex max-w-lg flex-col items-center justify-center px-4 py-24 text-center">
+      <div className="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center overflow-x-hidden px-4 py-16 pb-[max(2rem,env(safe-area-inset-bottom))] text-center sm:py-24">
         <div
           className="h-12 w-12 animate-spin rounded-full border-4 border-t-[var(--primary)]"
           style={{ borderColor: TURNOUT_BRAND.limeLine, borderTopColor: 'var(--primary)' }}
         />
-        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-[var(--text)]">Confirming payment…</h2>
+        <h2 className="mt-6 text-xl font-semibold tracking-tight text-[var(--text)] sm:text-2xl">Confirming payment…</h2>
         <p className="mt-2 text-[var(--text-muted)]">
           Your payment was received. This page will update in a moment — or check your email for confirmation.
         </p>
@@ -257,12 +257,12 @@ export const Success: React.FC = () => {
   const passCount = order.attendees?.length ?? 0;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
+    <div className="mx-auto min-h-dvh max-w-4xl overflow-x-hidden px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:py-12">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className="overflow-hidden rounded-3xl border backdrop-blur-xl"
+        className="overflow-hidden rounded-2xl border backdrop-blur-xl sm:rounded-3xl"
         style={{
           borderColor: TURNOUT_BRAND.limeLine,
           background: 'rgba(5, 46, 48, 0.55)',
@@ -274,7 +274,7 @@ export const Success: React.FC = () => {
           style={{ background: `linear-gradient(90deg, ${TURNOUT_BRAND.lime500}, ${TURNOUT_BRAND.teal600})` }}
         />
 
-        <div className="flex flex-col items-center gap-6 px-6 py-10 text-center sm:px-10 sm:py-12">
+        <div className="flex flex-col items-center gap-5 px-4 py-8 text-center sm:gap-6 sm:px-10 sm:py-12">
           <div
             className="relative flex h-20 w-20 items-center justify-center rounded-full sm:h-24 sm:w-24"
             style={{
@@ -293,7 +293,7 @@ export const Success: React.FC = () => {
               <Sparkles className="h-3 w-3" />
               Payment complete
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">
               {isHolderView ? (passCount > 1 ? 'Your tickets' : 'Your ticket') : 'Order confirmed'}
             </h1>
             <p className="mx-auto mt-3 max-w-md text-base text-[var(--text-muted)] sm:text-lg">
@@ -304,8 +304,8 @@ export const Success: React.FC = () => {
           </div>
         </div>
 
-        <div className="border-t px-6 pb-8 sm:px-10 sm:pb-10" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
-          <div className={`${cardShell} p-6 sm:p-8`} style={cardShellStyle}>
+        <div className="border-t px-4 pb-6 sm:px-10 sm:pb-10" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
+          <div className={`${cardShell} p-4 sm:p-8`} style={cardShellStyle}>
             <h2 className="text-xl font-semibold tracking-tight text-[var(--text)] sm:text-2xl">{event.title}</h2>
             <div className="mt-4 flex flex-col gap-3 text-sm text-[var(--text-muted)] sm:text-base">
               <div className="flex items-start gap-2.5">
@@ -365,9 +365,9 @@ export const Success: React.FC = () => {
                 </p>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
                   {order.attendees.map((a) => (
-                    <div key={a.id} className={`${cardShell} flex flex-col items-center gap-4 p-5`} style={cardShellStyle}>
+                    <div key={a.id} className={`${cardShell} flex w-full min-w-0 flex-col items-center gap-4 p-4 sm:p-5`} style={cardShellStyle}>
                       <div
-                        className="rounded-xl border p-3"
+                        className="rounded-xl border p-2.5 sm:p-3"
                         style={{
                           borderColor: TURNOUT_BRAND.limeLine,
                           background: TURNOUT_BRAND.cream,
@@ -377,7 +377,7 @@ export const Success: React.FC = () => {
                         <QRCodeCanvas
                           id={`ticket-qr-${a.id}`}
                           value={a.qrToken}
-                          size={152}
+                          size={140}
                           bgColor={TURNOUT_BRAND.cream}
                           fgColor={TURNOUT_BRAND.ink}
                           level="H"

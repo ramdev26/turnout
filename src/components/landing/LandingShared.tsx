@@ -117,7 +117,7 @@ export function LandingTopBar({
   };
 
   return (
-    <header className="landing-fade-in sticky top-0 z-40 px-4 pt-4 sm:px-6 lg:px-8">
+    <header className="landing-fade-in sticky top-0 z-40 px-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
       <div className="landing-glass mx-auto flex h-14 max-w-7xl items-center justify-between rounded-2xl px-4 sm:px-5">
         <a href="/" className="flex items-center gap-2.5">
           <TurnoutLogo className="h-5 w-auto" />
@@ -451,7 +451,7 @@ export function TicketsList({
         return (
           <div
             key={ticket.id}
-            className={`landing-card-premium group relative overflow-hidden rounded-3xl p-6 sm:p-7 ${selected ? 'landing-ticket-selected' : ''}`}
+            className={`landing-card-premium group relative overflow-hidden rounded-2xl p-5 sm:rounded-3xl sm:p-7 ${selected ? 'landing-ticket-selected' : ''}`}
             style={{
               borderColor: isDark ? 'rgba(255,255,255,0.1)' : undefined,
               background: isDark ? 'rgba(255,255,255,0.04)' : undefined,
@@ -464,7 +464,7 @@ export function TicketsList({
               className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-20 blur-2xl transition group-hover:opacity-35"
               style={{ background: accent }}
             />
-            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
               <div className="flex gap-4">
                 <div
                   className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl"
@@ -525,7 +525,7 @@ function QuantityStepper({
   onInc: () => void;
   name: string;
 }) {
-  const btnClass = 'flex h-12 w-12 items-center justify-center rounded-full border transition disabled:opacity-35';
+  const btnClass = 'flex h-11 w-11 items-center justify-center rounded-full border transition disabled:opacity-35 sm:h-12 sm:w-12';
   const btnStyle = isDark
     ? { borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)' }
     : { borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' };
@@ -560,7 +560,7 @@ export function CheckoutPanel({
   const lines = tickets.filter((t) => (selectedTickets[t.id] || 0) > 0);
 
   return (
-    <div className="landing-card-premium relative overflow-hidden rounded-3xl p-7 lg:sticky lg:top-24">
+    <div className="landing-card-premium relative overflow-hidden rounded-2xl p-5 sm:rounded-3xl sm:p-7 lg:sticky lg:top-24">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-1"
         style={{ background: 'linear-gradient(90deg, var(--primary), var(--secondary))' }}
@@ -623,7 +623,7 @@ function TrustRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 
 export function LandingFooter({ event }: { event: Event }) {
   return (
-    <footer className="relative z-10 border-t px-4 py-10 sm:px-6" style={{ borderColor: 'var(--landing-border)' }}>
+    <footer className="relative z-10 border-t px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-10" style={{ borderColor: 'var(--landing-border)' }}>
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
         <p className="text-sm font-medium" style={{ color: 'var(--landing-text-muted)' }}>
           {event.title}
@@ -648,9 +648,9 @@ export function LandingContentGrid({
   aside: React.ReactNode;
 }) {
   return (
-    <div className="relative z-10 mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_380px] lg:gap-16 lg:px-8 lg:py-20">
+    <div className="relative z-10 mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:gap-12 sm:px-6 sm:py-14 lg:grid-cols-[1fr_380px] lg:gap-16 lg:px-8 lg:py-20">
       <div className="min-w-0">{main}</div>
-      <div className="hidden lg:block">{aside}</div>
+      <div className="min-w-0 max-lg:order-last lg:sticky lg:top-24 lg:self-start">{aside}</div>
     </div>
   );
 }

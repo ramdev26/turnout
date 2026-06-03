@@ -118,6 +118,15 @@ export const EventLanding: React.FC = () => {
   }, [checkoutOpen]);
 
   useEffect(() => {
+    if (!checkoutOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [checkoutOpen]);
+
+  useEffect(() => {
     if (!checkoutOpen || !assignEachTicket) return;
     setTicketHolders((prev) => {
       const next = buildTicketHolders(orderItems);
@@ -427,7 +436,7 @@ export const EventLanding: React.FC = () => {
   const template = getLandingTemplateForEvent(event);
 
   return (
-    <div style={landingCssVars(event.customization)} className="min-h-screen transition-[background] duration-700">
+    <div style={landingCssVars(event.customization)} className="min-h-dvh overflow-x-hidden transition-[background] duration-700">
       {template.render({
         event,
         tickets,
@@ -438,13 +447,16 @@ export const EventLanding: React.FC = () => {
         isPurchasing,
       })}
 
-      {hasSelectedTickets && (
-        <div className="landing-glass fixed inset-x-0 bottom-0 z-[60] border-t p-4 md:hidden" style={{ borderColor: 'var(--landing-border)' }}>
+      {hasSelectedTickets && !checkoutOpen && (
+        <div
+          className="landing-glass fixed inset-x-0 bottom-0 z-[60] border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden"
+          style={{ borderColor: 'var(--landing-border)' }}
+        >
           <button
             type="button"
             onClick={handlePurchase}
             disabled={isPurchasing}
-            className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-sm font-bold text-white disabled:opacity-50"
+            className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-base font-bold text-white disabled:opacity-50"
           >
             {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKR(totalAmount)}`}
           </button>
@@ -474,9 +486,14 @@ export const EventLanding: React.FC = () => {
       )}
 
       {checkoutOpen && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+        <div
+          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="landing-checkout-title"
+        >
           <div
-            className={`landing-page max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border p-7 shadow-2xl sm:rounded-3xl ${
+            className={`landing-page flex w-full max-h-[min(92dvh,100%)] flex-col overflow-hidden rounded-t-[1.75rem] border shadow-2xl sm:max-h-[min(92vh,100%)] sm:rounded-3xl ${
               assignEachTicket ? 'sm:max-w-xl' : 'sm:max-w-md'
             }`}
             style={{
@@ -486,27 +503,33 @@ export const EventLanding: React.FC = () => {
               boxShadow: 'var(--landing-shadow-hover)',
             }}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
+            <div
+              className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-7"
+              style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}
+            >
+              <div className="min-w-0 pr-2">
                 <p className="landing-eyebrow" style={{ color: 'var(--primary)' }}>
                   Checkout
                 </p>
-                <div className="landing-display mt-1 text-2xl">Your tickets</div>
-                <div className="mt-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                <div id="landing-checkout-title" className="landing-display mt-1 text-xl sm:text-2xl">
+                  Your tickets
+                </div>
+                <div className="mt-1 truncate text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                   {event.title}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCheckoutOpen(false)}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium"
+                className="-mr-1 shrink-0 rounded-lg px-3 py-2 text-sm font-medium"
                 style={{ color: 'var(--landing-text-muted)' }}
               >
                 Close
               </button>
             </div>
 
-            <div className="landing-card-premium mt-6 rounded-2xl p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7 sm:py-6">
+            <div className="landing-card-premium rounded-2xl p-4 sm:p-5">
               {orderLines.map((line) => (
                 <div key={line.name} className="flex justify-between py-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                   <span>
@@ -523,7 +546,7 @@ export const EventLanding: React.FC = () => {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit(submitCheckout)} className="mt-6 flex flex-col gap-4">
+            <form onSubmit={handleSubmit(submitCheckout)} className="mt-5 flex flex-col gap-3.5 sm:mt-6 sm:gap-4">
               {user?.role === 'attendee' && (
                 <div
                   className="rounded-xl border p-3 text-xs font-medium"
@@ -557,7 +580,7 @@ export const EventLanding: React.FC = () => {
                 </span>
                 <input
                   {...register('buyerName', { required: true })}
-                  className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                  className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                   style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
                 />
               </label>
@@ -568,7 +591,7 @@ export const EventLanding: React.FC = () => {
                 <input
                   type="email"
                   {...register('buyerEmail', { required: true })}
-                  className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                  className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                   style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
                 />
               </label>
@@ -578,7 +601,7 @@ export const EventLanding: React.FC = () => {
                 </span>
                 <input
                   {...register('buyerPhone')}
-                  className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                  className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                   style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
                 />
               </label>
@@ -672,7 +695,7 @@ export const EventLanding: React.FC = () => {
                                 rows.map((r) => (r.key === row.key ? { ...r, fullName: e.target.value } : r))
                               )
                             }
-                            className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                            className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                             style={{
                               borderColor: 'var(--landing-border)',
                               background: 'var(--landing-surface)',
@@ -693,7 +716,7 @@ export const EventLanding: React.FC = () => {
                                 rows.map((r) => (r.key === row.key ? { ...r, email: e.target.value } : r))
                               )
                             }
-                            className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                            className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                             style={{
                               borderColor: 'var(--landing-border)',
                               background: 'var(--landing-surface)',
@@ -712,7 +735,7 @@ export const EventLanding: React.FC = () => {
                                 rows.map((r) => (r.key === row.key ? { ...r, phone: e.target.value } : r))
                               )
                             }
-                            className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                            className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                             style={{
                               borderColor: 'var(--landing-border)',
                               background: 'var(--landing-surface)',
@@ -755,7 +778,7 @@ export const EventLanding: React.FC = () => {
                         </span>
                         <input
                           {...register('attendeeName', { required: buyingForSomeoneElse })}
-                          className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                          className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                           style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
                         />
                       </label>
@@ -766,7 +789,7 @@ export const EventLanding: React.FC = () => {
                         <input
                           type="email"
                           {...register('attendeeEmail', { required: buyingForSomeoneElse })}
-                          className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                          className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                           style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
                         />
                       </label>
@@ -776,7 +799,7 @@ export const EventLanding: React.FC = () => {
                         </span>
                         <input
                           {...register('attendeePhone')}
-                          className="rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
+                          className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
                           style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)', color: 'var(--landing-text)' }}
                         />
                       </label>
@@ -796,7 +819,7 @@ export const EventLanding: React.FC = () => {
               <button
                 type="submit"
                 disabled={isPurchasing || !prefillReady}
-                className="landing-btn-primary mt-2 h-12 w-full rounded-2xl text-sm font-bold text-white disabled:opacity-50"
+                className="landing-btn-primary mt-2 h-12 w-full rounded-2xl text-base font-bold text-white disabled:opacity-50"
               >
                 {isPurchasing
                   ? 'Processing…'
@@ -808,11 +831,14 @@ export const EventLanding: React.FC = () => {
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">{payError}</div>
               )}
             </form>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="h-20 md:hidden" aria-hidden />
+      {hasSelectedTickets && !checkoutOpen ? (
+        <div className="h-[calc(4.5rem+env(safe-area-inset-bottom))] md:hidden" aria-hidden />
+      ) : null}
     </div>
   );
 };

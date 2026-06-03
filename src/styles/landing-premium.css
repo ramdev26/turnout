@@ -99,9 +99,11 @@
     border-color 0.25s ease;
 }
 
-.landing-card-premium:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--landing-shadow-hover);
+@media (hover: hover) and (pointer: fine) {
+  .landing-card-premium:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--landing-shadow-hover);
+  }
 }
 
 .landing-ticket-selected {
@@ -125,13 +127,20 @@
     filter 0.2s ease;
 }
 
-.landing-btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.12),
-    0 12px 36px var(--landing-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+@media (hover: hover) and (pointer: fine) {
+  .landing-btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.12),
+      0 12px 36px var(--landing-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+}
+
+.landing-checkout-input {
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .landing-btn-primary:active:not(:disabled) {
