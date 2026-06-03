@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Order, Event } from '../types';
-import { CheckCircle, Calendar, MapPin, Ticket, ArrowRight, Download, Sparkles } from 'lucide-react';
+import { CheckCircle, Calendar, MapPin, Ticket, Download, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'motion/react';
 import { api } from '../api/client';
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
-import { useAuthStore } from '../store/useAuthStore';
 import { TURNOUT_BRAND } from '../themes/brandColors';
 import { formatApiError } from '../utils/apiError';
 
@@ -29,7 +28,6 @@ const cardShellStyle: React.CSSProperties = {
 };
 
 export const Success: React.FC = () => {
-  const { user } = useAuthStore();
   const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
   const accessToken = searchParams.get('token') || '';
@@ -438,32 +436,6 @@ export const Success: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row">
-            <Link
-              to="/"
-              className="flex flex-1 items-center justify-center rounded-xl border py-3.5 text-sm font-semibold transition hover:brightness-110 sm:py-4"
-              style={{
-                borderColor: TURNOUT_BRAND.limeLine,
-                color: 'var(--text)',
-                background: 'rgba(255, 255, 255, 0.04)',
-              }}
-            >
-              Go to home
-            </Link>
-            <Link
-              to={user?.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition hover:brightness-105 sm:py-4"
-              style={{
-                background: 'var(--primary)',
-                color: 'var(--primary-on)',
-                boxShadow: '0 8px 24px rgba(192, 255, 114, 0.25)',
-              }}
-            >
-              {user?.role === 'attendee' ? 'Go to my events' : 'Go to dashboard'}
-              <ArrowRight className="h-5 w-5" />
-            </Link>
           </div>
         </div>
       </motion.div>
