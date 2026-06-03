@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Event, LandingDisplayMode, LandingStyle } from '../types';
 import type { TemplateId } from '../templates/templates';
 import { isEventCategoryId, resolveEventCategory } from './eventCategories';
-import { resolveLandingFont } from './landingFonts';
+import { resolveLandingFont, resolveLandingFontKey } from './landingFonts';
 import { TURNOUT_APP_PAGE_BG, TURNOUT_BRAND } from './brandColors';
 
 export type EventThemeId = 'minimal' | 'neo-green' | 'midnight' | 'sunset';
@@ -214,10 +214,40 @@ export function isEventThemeId(value: string | undefined | null): value is Event
 /** Loosely-typed customization input; landing helpers only read a subset. */
 export type LandingCustomizationInput = Partial<Event['customization']> | undefined;
 
+function storedHexColor(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized && /^#[0-9a-f]{6}$/.test(normalized) ? normalized : undefined;
+}
+
+/** Events created before event categories — keep their saved palette when present. */
+export function isLegacyLandingCustomization(customization: LandingCustomizationInput): boolean {
+  return !isEventCategoryId(customization?.eventCategory);
+}
+
+/** Theme resolution used for older events (themeId + historic accent colours). */
+export function resolveLegacyEventTheme(customization: LandingCustomizationInput): EventThemeDefinition {
+  const themeId = customization?.themeId;
+  if (isEventThemeId(themeId)) {
+    return EVENT_THEMES[themeId];
+  }
+
+  const primary = customization?.primaryColor?.toLowerCase();
+  if (primary === '#34d399' || primary === '#10b981' || primary === '#059669') {
+    return EVENT_THEMES['neo-green'];
+  }
+  if (primary === '#818cf8' || primary === '#4f46e5' || primary === '#7c3aed') {
+    return EVENT_THEMES.midnight;
+  }
+  if (primary === '#f97316' || primary === '#ec4899' || primary === '#ea580c') {
+    return EVENT_THEMES.sunset;
+  }
+
+  return EVENT_THEMES.minimal;
+}
+
 /**
  * Maps stored customization to what the public landing should render.
- * Legacy events (no eventCategory, old themeId/colors) use the Default category
- * under the Minimal theme so every old page loads consistently.
+ * Legacy events only receive category defaults for fields that were never saved.
  */
 export function normalizeLandingCustomization(
   customization: LandingCustomizationInput
@@ -225,17 +255,23 @@ export function normalizeLandingCustomization(
   const category = resolveEventCategory(
     isEventCategoryId(customization?.eventCategory) ? customization.eventCategory : 'default'
   );
-  const legacy = !isEventCategoryId(customization?.eventCategory);
+  const legacy = isLegacyLandingCustomization(customization);
 
   if (legacy) {
+    const landingStyle = customization?.landingStyle;
     return {
       ...(customization ?? {}),
-      themeId: 'minimal',
+      themeId: isEventThemeId(customization?.themeId) ? customization.themeId : 'minimal',
       eventCategory: 'default',
-      primaryColor: category.primaryColor,
-      secondaryColor: category.secondaryColor,
-      fontFamily: category.fontFamily,
-      landingStyle: category.landingStyle,
+      primaryColor: storedHexColor(customization?.primaryColor) ?? category.primaryColor,
+      secondaryColor: storedHexColor(customization?.secondaryColor) ?? category.secondaryColor,
+      fontFamily: customization?.fontFamily?.trim()
+        ? resolveLandingFontKey(customization.fontFamily)
+        : category.fontFamily,
+      landingStyle:
+        landingStyle === 'minimal' || landingStyle === 'bold' || landingStyle === 'glass'
+          ? landingStyle
+          : category.landingStyle,
     };
   }
 
@@ -287,7 +323,10 @@ export function resolveDisplayMode(
   const c = normalizeLandingCustomization(customization);
   const mode: LandingDisplayMode =
     c.displayMode === 'light' || c.displayMode === 'dark' ? c.displayMode : 'auto';
-  const isDark = mode === 'auto' ? theme.ui.isDark : mode === 'dark';
+  const toneTheme = isLegacyLandingCustomization(customization)
+    ? resolveLegacyEventTheme(customization)
+    : theme;
+  const isDark = mode === 'auto' ? toneTheme.ui.isDark : mode === 'dark';
   return { mode, isDark };
 }
 
@@ -338,10 +377,32 @@ function resolveLandingSurfaces(
   const { isDark } = resolveDisplayMode(c, theme);
   const primary = c.primaryColor || theme.primary;
   const secondary = c.secondaryColor || theme.secondary;
+
+  if (isLegacyLandingCustomization(customization)) {
+    const legacyTheme = resolveLegacyEventTheme(customization);
+    const themeIsDark = legacyTheme.ui.isDark;
+    if (isDark === themeIsDark) {
+      const landing = legacyTheme.landing;
+      return {
+        isDark,
+        pageBg: landing.pageBg,
+        surfaceBg: landing.surfaceBg,
+        surfaceMutedBg: landing.surfaceMutedBg,
+        text: landing.text,
+        textMuted: landing.textMuted,
+        borderColor: landing.borderColor,
+        cardShadow: landing.cardShadow,
+        glassBg: themeIsDark ? 'rgba(15, 23, 42, 0.55)' : 'rgba(255, 255, 255, 0.72)',
+        glassBorder: themeIsDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.65)',
+      };
+    }
+    return isDark ? generatedDarkSurfaces(primary, secondary) : generatedLightSurfaces(primary, secondary);
+  }
+
   const themeIsDark = theme.ui.isDark;
   const tinted = isDark ? generatedDarkSurfaces(primary, secondary) : generatedLightSurfaces(primary, secondary);
 
-  // Always use organizer primary/secondary tints for page background so public
+  // New events: tint page background from organizer primary/secondary so public
   // landings match the Customize design colours.
   if (isDark === themeIsDark) {
     const landing = theme.landing;
