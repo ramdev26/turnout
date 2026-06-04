@@ -6,6 +6,7 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowPage, FlowCard, FlowStatCard, FlowInput, FlowButton, FlowAlert } from '../components/flow/FlowPrimitives';
 import { eventWorkspaceNav } from '../utils/organizerNav';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardMutedStyleFor, insetCardStyleFor } from '../themes/flowUi';
 
 export const RunbookManager: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -106,44 +107,51 @@ export const RunbookManager: React.FC = () => {
 
         <FlowCard className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Runbook items</h2>
-            <button
-              type="button"
-              onClick={load}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50"
-            >
+            <h2 className="text-lg font-semibold tracking-tight" style={{ color: ui.text }}>
+              Runbook items
+            </h2>
+            <FlowButton variant="secondary" type="button" onClick={load} className="!px-3 !py-2 text-xs">
               Refresh
-            </button>
+            </FlowButton>
           </div>
 
           {loading ? (
-            <div className="py-8 text-sm text-neutral-500">Loading…</div>
+            <div className="py-8 text-sm" style={{ color: ui.textMuted }}>
+              Loading…
+            </div>
           ) : items.length === 0 ? (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">No tasks yet.</div>
+            <div className="rounded-xl border p-4 text-sm" style={{ ...cardMutedStyleFor(ui), color: ui.textMuted }}>
+              No tasks yet.
+            </div>
           ) : (
             <div className="space-y-3">
               {items.map((item) => (
-                <div key={item.id} className="rounded-xl border border-neutral-200 p-4">
+                <div key={item.id} className="rounded-xl border p-4" style={insetCardStyleFor(ui)}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className={`text-sm font-extrabold ${item.status === 'done' ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>{item.title}</div>
-                      <div className="mt-1 text-xs text-neutral-500">
+                      <div
+                        className={`text-sm font-extrabold ${item.status === 'done' ? 'line-through' : ''}`}
+                        style={{ color: item.status === 'done' ? ui.textSubtle : ui.text }}
+                      >
+                        {item.title}
+                      </div>
+                      <div className="mt-1 text-xs" style={{ color: ui.textMuted }}>
                         Priority: <span className="font-semibold">{item.priority}</span>
                         {item.dueAt ? ` • Due: ${new Date(item.dueAt).toLocaleString()}` : ' • No due date'}
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleItem(item.id)}
-                        className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-bold hover:bg-neutral-50"
-                      >
+                      <FlowButton variant="secondary" type="button" onClick={() => toggleItem(item.id)} className="!px-3 !py-2 text-xs">
                         {item.status === 'done' ? 'Re-open' : 'Mark done'}
-                      </button>
+                      </FlowButton>
                       <button
                         type="button"
                         onClick={() => deleteItem(item.id)}
-                        className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50"
+                        className="rounded-lg border px-3 py-2 text-xs font-bold"
+                        style={{
+                          borderColor: ui.isDark ? 'rgba(248, 113, 113, 0.45)' : '#fecaca',
+                          color: ui.isDark ? '#fecaca' : '#b91c1c',
+                        }}
                       >
                         Delete
                       </button>

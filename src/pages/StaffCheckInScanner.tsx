@@ -6,6 +6,7 @@ import { Attendee } from '../types';
 import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 import { CheckCircle2, Lock, ScanLine, XCircle, Camera, Keyboard } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { FLOW_FONT_FAMILY } from '../themes/flowUi';
 
 const STAFF_PIN_KEY = (eventId: string) => `turnout_staff_pin_${eventId}`;
 const READER_ID = 'staff-qr-reader';
@@ -241,7 +242,10 @@ export const StaffCheckInScanner: React.FC = () => {
 
   if (!storedPin) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 px-4">
+      <div
+        className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 px-4"
+        style={{ fontFamily: FLOW_FONT_FAMILY }}
+      >
         <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur">
           <div className="flex items-center gap-3 text-white">
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-teal-500/20 text-teal-400">
@@ -276,7 +280,7 @@ export const StaffCheckInScanner: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
+    <div className="min-h-screen bg-neutral-950 text-white" style={{ fontFamily: FLOW_FONT_FAMILY }}>
       <header className="border-b border-white/10 px-4 py-4">
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <div>

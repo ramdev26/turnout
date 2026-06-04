@@ -1,7 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { EVENT_THEMES } from '../../themes/eventThemes';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
+import {
+  FLOW_FONT_FAMILY,
+  cardMutedStyleFor,
+  cardStyleFor,
+  fieldClassFor,
+  fieldStyleFor,
+  insetCardStyleFor,
+} from '../../themes/flowUi';
 import { cn } from '../../utils/cn';
 
 export const APP_FLOW_UI = EVENT_THEMES.minimal.ui;
@@ -13,7 +20,10 @@ export function useFlowUi() {
 export function FlowPage({ children, className }: { children: React.ReactNode; className?: string }) {
   const ui = APP_FLOW_UI;
   return (
-    <div className={cn('mx-auto w-full max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8', className)} style={{ color: ui.text }}>
+    <div
+      className={cn('mx-auto w-full max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8', className)}
+      style={{ color: ui.text, fontFamily: FLOW_FONT_FAMILY }}
+    >
       {children}
     </div>
   );
@@ -72,7 +82,18 @@ export function FlowAlert({
 }) {
   const ui = APP_FLOW_UI;
   if (variant === 'error') {
-    return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{children}</div>;
+    return (
+      <div
+        className="rounded-xl border px-4 py-3 text-sm font-medium"
+        style={{
+          borderColor: ui.isDark ? 'rgba(248, 113, 113, 0.45)' : '#fecaca',
+          background: ui.isDark ? 'rgba(127, 29, 29, 0.35)' : '#fef2f2',
+          color: ui.isDark ? '#fecaca' : '#b91c1c',
+        }}
+      >
+        {children}
+      </div>
+    );
   }
   if (variant === 'success') {
     return (

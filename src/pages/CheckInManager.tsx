@@ -20,7 +20,7 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowPage, FlowStatCard, FlowAlert, FlowInput, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { eventWorkspaceNav } from '../utils/organizerNav';
 import { cn } from '../utils/cn';
-import { cardStyleFor } from '../themes/flowUi';
+import { cardStyleFor, fieldClassFor, fieldStyleFor, insetCardStyleFor } from '../themes/flowUi';
 import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
@@ -236,54 +236,66 @@ export const CheckInManager: React.FC = () => {
                 <Shield className="h-4 w-4" style={{ color: ui.accent }} />
                 Staff door access
               </div>
-              <p className="mt-1 max-w-xl text-sm text-neutral-500">
+              <p className="mt-1 max-w-xl text-sm" style={{ color: ui.textMuted }}>
                 Share the staff link and PIN with volunteers. They can scan tickets without your organizer login.
               </p>
             </div>
-            <button
-              type="button"
-              disabled={configLoading}
-              onClick={() => void regeneratePin()}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-            >
+            <FlowButton variant="secondary" disabled={configLoading} onClick={() => void regeneratePin()} className="!px-3 !py-2 text-xs">
               {configLoading ? 'Updating…' : 'Regenerate PIN'}
-            </button>
+            </FlowButton>
           </div>
           {config && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-neutral-200 bg-white p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Staff PIN</p>
+              <div className="rounded-xl border p-4" style={insetCardStyleFor(ui)}>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Staff PIN
+                </p>
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="font-mono text-2xl font-bold tracking-[0.2em] text-neutral-900">{config.staffPin}</span>
-                  <button type="button" onClick={() => void copyText(config.staffPin, 'PIN')} className="rounded-lg border px-2 py-1 text-xs font-bold">
+                  <span className="font-mono text-2xl font-bold tracking-[0.2em]" style={{ color: ui.text }}>
+                    {config.staffPin}
+                  </span>
+                  <FlowButton variant="secondary" type="button" onClick={() => void copyText(config.staffPin, 'PIN')} className="!px-2 !py-1">
                     <Copy className="h-3.5 w-3.5" />
-                  </button>
+                  </FlowButton>
                 </div>
               </div>
-              <div className="rounded-xl border border-neutral-200 bg-white p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-neutral-400">Staff scanner URL</p>
-                <p className="mt-2 truncate text-sm font-medium text-teal-700">{config.staffUrl}</p>
+              <div className="rounded-xl border p-4" style={insetCardStyleFor(ui)}>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Staff scanner URL
+                </p>
+                <p className="mt-2 truncate text-sm font-medium" style={{ color: ui.accent }}>
+                  {config.staffUrl}
+                </p>
                 <button
                   type="button"
                   onClick={() => void copyText(config.staffUrl, 'Staff link')}
-                  className="mt-2 text-xs font-bold text-neutral-600 hover:text-neutral-900"
+                  className="mt-2 text-xs font-bold hover:opacity-90"
+                  style={{ color: ui.textMuted }}
                 >
                   Copy link
                 </button>
               </div>
             </div>
           )}
-          {copyHint && <p className="mt-2 text-xs font-medium text-emerald-700">{copyHint}</p>}
+          {copyHint && (
+            <p className="mt-2 text-xs font-medium" style={{ color: ui.accent }}>
+              {copyHint}
+            </p>
+          )}
         </div>
 
         {err && <FlowAlert variant="error">{err}</FlowAlert>}
         {msg && !err && <FlowAlert variant="success">{msg}</FlowAlert>}
 
         {lastCheckIn && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">Last scan</p>
-            <p className="mt-1 text-lg font-semibold text-emerald-950">{lastCheckIn.fullName}</p>
-            <p className="text-sm text-emerald-800">
+          <div className="rounded-2xl border p-4" style={{ borderColor: ui.accent, background: ui.accentSoft }}>
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: ui.accent }}>
+              Last scan
+            </p>
+            <p className="mt-1 text-lg font-semibold" style={{ color: ui.text }}>
+              {lastCheckIn.fullName}
+            </p>
+            <p className="text-sm" style={{ color: ui.textMuted }}>
               {lastCheckIn.ticketName} · {lastCheckIn.email}
             </p>
           </div>
@@ -316,7 +328,7 @@ export const CheckInManager: React.FC = () => {
             <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
               Quick tips
             </h2>
-            <ul className="mt-3 space-y-2 text-sm text-neutral-600">
+            <ul className="mt-3 space-y-2 text-sm" style={{ color: ui.textMuted }}>
               <li>· Use the scanner on a phone at the entrance for fastest flow.</li>
               <li>· Each ticket has its own QR — one check-in per attendee row.</li>
               <li>· Undo is available if someone was checked in by mistake.</li>
@@ -325,8 +337,13 @@ export const CheckInManager: React.FC = () => {
         </div>
 
         <div className="rounded-2xl border shadow-sm" style={cardStyleFor(ui)}>
-          <div className="flex flex-col gap-4 border-b border-neutral-100 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold text-neutral-900">Attendee list</h2>
+          <div
+            className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between"
+            style={{ borderColor: ui.borderColor }}
+          >
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Attendee list
+            </h2>
             <div className="flex flex-wrap gap-2">
               {(['all', 'pending', 'checked_in'] as const).map((f) => (
                 <button
@@ -349,78 +366,82 @@ export const CheckInManager: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex gap-2 border-b border-neutral-100 p-4">
+          <div className="flex gap-2 border-b p-4" style={{ borderColor: ui.borderColor }}>
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+              <Search
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                style={{ color: ui.textSubtle }}
+              />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search name, email, ticket…"
-                className="w-full rounded-xl border border-neutral-200 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-teal-500"
+                className={cn(fieldClassFor(ui), 'w-full py-2.5 pl-10 pr-4')}
+                style={fieldStyleFor(ui)}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setShowTokens((v) => !v)}
-              className="shrink-0 rounded-xl border border-neutral-200 px-3 py-2 text-xs font-bold text-neutral-600"
-            >
+            <FlowButton variant="secondary" type="button" onClick={() => setShowTokens((v) => !v)} className="shrink-0 !px-3 !py-2 text-xs">
               {showTokens ? 'Hide tokens' : 'Show tokens'}
-            </button>
+            </FlowButton>
           </div>
 
           <div className="max-h-[560px] overflow-auto">
             {attendees.length === 0 ? (
-              <div className="p-8 text-center text-sm text-neutral-500">
+              <div className="p-8 text-center text-sm" style={{ color: ui.textMuted }}>
                 No attendees match your filters. Tickets appear here after orders are completed.
               </div>
             ) : (
-              <div className="divide-y divide-neutral-100">
+              <div className="divide-y" style={{ borderColor: ui.borderColor }}>
                 {attendees.map((a) => (
                   <div key={a.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-neutral-900">{a.fullName}</span>
+                        <span className="font-semibold" style={{ color: ui.text }}>
+                          {a.fullName}
+                        </span>
                         {a.checkedInAt ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-emerald-800">
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
+                            style={{ background: ui.accentSoft, color: ui.accent }}
+                          >
                             <CheckCircle2 className="h-3 w-3" />
                             In
                           </span>
                         ) : (
-                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-800">
+                          <span
+                            className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
+                            style={{ background: 'rgba(251, 191, 36, 0.2)', color: '#fcd34d' }}
+                          >
                             Waiting
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-sm text-neutral-500">
+                      <p className="mt-0.5 text-sm" style={{ color: ui.textMuted }}>
                         {a.ticketName} · {a.email}
                         {a.phone ? ` · ${a.phone}` : ''}
                       </p>
                       {showTokens && (
-                        <p className="mt-2 font-mono text-[11px] text-neutral-400">
+                        <p className="mt-2 font-mono text-[11px]" style={{ color: ui.textSubtle }}>
                           …{a.qrToken.slice(-8)}
                         </p>
                       )}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       {!a.checkedInAt && (
-                        <button
-                          type="button"
-                          onClick={() => void checkIn(a.qrToken)}
-                          className="rounded-lg px-3 py-1.5 text-xs font-bold text-white"
-                          style={{ backgroundColor: ui.accent }}
-                        >
+                        <FlowButton type="button" onClick={() => void checkIn(a.qrToken)} className="!px-3 !py-1.5 text-xs">
                           Check in
-                        </button>
+                        </FlowButton>
                       )}
                       {a.checkedInAt && (
-                        <button
+                        <FlowButton
+                          variant="secondary"
                           type="button"
                           onClick={() => void undoCheckIn(a)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-bold text-neutral-600 hover:bg-neutral-50"
+                          className="!px-3 !py-1.5 text-xs"
                         >
                           <Undo2 className="h-3.5 w-3.5" />
                           Undo
-                        </button>
+                        </FlowButton>
                       )}
                     </div>
                   </div>
