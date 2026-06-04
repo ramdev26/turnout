@@ -1,0 +1,312 @@
+/* Event landing checkout sheet — mobile-first bottom sheet + desktop dialog */
+
+@keyframes landing-checkout-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-checkout-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.landing-checkout-backdrop {
+  animation: landing-checkout-backdrop-enter 0.22s ease-out;
+}
+
+.landing-checkout-sheet {
+  animation: landing-checkout-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:
+    0 -8px 40px rgba(0, 0, 0, 0.18),
+    var(--landing-shadow-hover);
+}
+
+@media (min-width: 640px) {
+  .landing-checkout-sheet {
+    animation-duration: 0.26s;
+  }
+}
+
+.landing-checkout-handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--landing-text-muted) 45%, transparent);
+}
+
+.landing-checkout-close {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--landing-border);
+  background: var(--landing-surface-muted);
+  color: var(--landing-text-muted);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-checkout-close:hover {
+    background: var(--landing-surface);
+    color: var(--landing-text);
+    border-color: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 35%, var(--landing-border));
+  }
+}
+
+.landing-checkout-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 12%, var(--landing-surface-muted));
+  color: var(--landing-accent-readable, var(--primary));
+  border: 1px solid color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 22%, var(--landing-border));
+}
+
+.landing-checkout-summary {
+  border-radius: 1rem;
+  border: 1px solid var(--landing-border);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 6%, var(--landing-surface-muted)) 0%,
+    var(--landing-surface-muted) 48%
+  );
+}
+
+.landing-checkout-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+}
+
+.landing-checkout-line + .landing-checkout-line {
+  border-top: 1px dashed color-mix(in srgb, var(--landing-border) 85%, transparent);
+}
+
+.landing-checkout-line-qty {
+  display: inline-flex;
+  min-width: 1.5rem;
+  justify-content: center;
+  border-radius: 0.375rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 14%, transparent);
+  color: var(--landing-accent-readable, var(--primary));
+}
+
+.landing-checkout-section {
+  border-radius: 1rem;
+  border: 1px solid var(--landing-border);
+  background: var(--landing-surface);
+  overflow: hidden;
+}
+
+.landing-checkout-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--landing-border);
+  background: color-mix(in srgb, var(--landing-surface-muted) 65%, var(--landing-surface));
+}
+
+.landing-checkout-section-num {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: var(--landing-on-primary, #0a2426);
+  background: var(--landing-accent-readable, var(--primary));
+}
+
+.landing-checkout-section-body {
+  padding: 1rem;
+}
+
+.landing-checkout-mode-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.landing-checkout-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  width: 100%;
+  text-align: left;
+  border-radius: 0.875rem;
+  border: 1px solid var(--landing-border);
+  padding: 0.75rem 0.85rem;
+  background: var(--landing-surface-muted);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.landing-checkout-mode.is-active {
+  border-color: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 55%, var(--landing-border));
+  background: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 8%, var(--landing-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 25%, transparent);
+}
+
+.landing-checkout-mode-radio {
+  margin-top: 0.2rem;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  accent-color: var(--landing-accent-readable, var(--primary));
+}
+
+.landing-checkout-field {
+  position: relative;
+}
+
+.landing-checkout-field-icon {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--landing-text-muted);
+  opacity: 0.75;
+}
+
+.landing-checkout-field .landing-checkout-input {
+  width: 100%;
+  padding-left: 2.65rem;
+}
+
+.landing-checkout-input:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 50%, var(--landing-border)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 22%, transparent);
+}
+
+.landing-checkout-holder {
+  border-radius: 0.875rem;
+  border: 1px solid var(--landing-border);
+  background: var(--landing-surface-muted);
+  padding: 0.85rem;
+}
+
+.landing-checkout-holder + .landing-checkout-holder {
+  margin-top: 0.65rem;
+}
+
+.landing-checkout-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--landing-border);
+  background: color-mix(in srgb, var(--landing-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  .landing-checkout-footer {
+    padding: 1rem 1.75rem 1.25rem;
+  }
+}
+
+.landing-checkout-footer-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.landing-checkout-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, #ef4444 35%, var(--landing-border));
+  background: color-mix(in srgb, #ef4444 8%, var(--landing-surface));
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #b91c1c;
+}
+
+.landing-page[data-landing-tone='dark'] .landing-checkout-error {
+  color: #fca5a5;
+  background: color-mix(in srgb, #ef4444 14%, var(--landing-surface-muted));
+}
+
+.landing-checkout-trust {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem 1rem;
+  margin-top: 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--landing-text-muted);
+}
+
+.landing-checkout-trust span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.landing-checkout-trust svg {
+  color: var(--landing-accent-readable, var(--primary));
+}
+
+.landing-checkout-prefill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 25%, var(--landing-border));
+  background: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 8%, var(--landing-surface-muted));
+  color: var(--landing-text-muted);
+}
+
+.landing-checkout-submit {
+  min-height: 3.25rem;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+}
+
+.landing-checkout-submit .spin {
+  animation: landing-checkout-spin 0.8s linear infinite;
+}
+
+@keyframes landing-checkout-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

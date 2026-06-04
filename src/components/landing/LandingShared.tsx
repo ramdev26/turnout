@@ -64,7 +64,31 @@ export function themeDisplayName(event: Event): string {
 }
 
 export function ticketRemaining(ticket: EventTicket): number {
-  return Math.max(0, ticket.quantity - ticket.sold);
+  const quantity = Number(ticket.quantity) || 0;
+  const sold = Number(ticket.sold) || 0;
+  return Math.max(0, quantity - sold);
+}
+
+/** True when schedule is TBA or the event date string cannot be parsed. */
+export function isLandingScheduleTba(event: Pick<Event, 'date' | 'customization'>): boolean {
+  if (event.customization?.scheduleTba) return true;
+  const raw = (event.date || '').trim();
+  if (!raw) return true;
+  return Number.isNaN(new Date(raw).getTime());
+}
+
+export function formatLandingEventDate(
+  iso: string,
+  pattern: string,
+  fallback = 'Date to be announced'
+): string {
+  const parsed = new Date((iso || '').trim());
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  try {
+    return format(parsed, pattern);
+  } catch {
+    return fallback;
+  }
 }
 
 export function isTicketSoldOut(ticket: EventTicket): boolean {
