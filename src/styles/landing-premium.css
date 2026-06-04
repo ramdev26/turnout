@@ -9,15 +9,15 @@
 .landing-display {
   font-family: var(--landing-font-display);
   font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
 }
 
 .landing-eyebrow {
   font-family: var(--landing-font-body);
   font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
@@ -29,6 +29,27 @@
   opacity: 0.35;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+.landing-page[data-landing-tone='light'] .landing-orb {
+  opacity: 0.14 !important;
+  filter: blur(96px);
+}
+
+.landing-page[data-landing-tone='light'] .landing-glass {
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 28px rgba(15, 23, 42, 0.06);
+}
+
+.landing-poster-frame {
+  border-radius: 1.25rem;
+  border: 1px solid var(--landing-border);
+  background: var(--landing-surface);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 24px 48px rgba(15, 23, 42, 0.1);
+  line-height: 0;
 }
 
 .landing-hero-img {
@@ -52,15 +73,6 @@
   }
   50% {
     transform: translate(2%, -2%) scale(1.03);
-  }
-}
-
-@keyframes landing-shimmer {
-  0% {
-    background-position: 200% center;
-  }
-  100% {
-    background-position: -200% center;
   }
 }
 
@@ -99,24 +111,38 @@
     border-color 0.25s ease;
 }
 
+.landing-checkout-card {
+  box-shadow:
+    var(--landing-shadow),
+    0 0 0 1px color-mix(in srgb, var(--landing-border) 80%, transparent);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .landing-card-premium:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: var(--landing-shadow-hover);
   }
+
+  .landing-ticket-row:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 35%, var(--landing-border));
+  }
 }
 
 .landing-ticket-selected {
-  border-color: var(--primary) !important;
+  border-color: var(--landing-accent-readable, var(--primary)) !important;
   box-shadow:
     var(--landing-shadow-hover),
-    0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent),
-    0 0 32px var(--landing-glow);
+    0 0 0 1px color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 40%, transparent),
+    0 0 28px var(--landing-glow);
 }
 
 .landing-btn-primary {
   color: var(--landing-on-primary, #0a2426);
-  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--secondary) 65%, var(--primary)) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--landing-accent-readable, var(--primary)) 0%,
+    color-mix(in srgb, var(--secondary) 65%, var(--landing-accent-readable, var(--primary))) 100%
+  );
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.08),
     0 8px 24px var(--landing-glow),
@@ -125,6 +151,17 @@
     transform 0.2s ease,
     box-shadow 0.25s ease,
     filter 0.2s ease;
+}
+
+.landing-btn-secondary {
+  color: var(--landing-text);
+  background: var(--landing-surface);
+  border: 1px solid var(--landing-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -136,6 +173,12 @@
       0 12px 36px var(--landing-glow),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
   }
+
+  .landing-btn-secondary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: var(--landing-surface-muted);
+    border-color: color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 28%, var(--landing-border));
+  }
 }
 
 .landing-checkout-input {
@@ -143,7 +186,8 @@
   line-height: 1.5;
 }
 
-.landing-btn-primary:active:not(:disabled) {
+.landing-btn-primary:active:not(:disabled),
+.landing-btn-secondary:active:not(:disabled) {
   transform: translateY(0);
 }
 
@@ -152,12 +196,18 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
+.landing-page[data-landing-tone='light'] .landing-countdown-unit {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
 .landing-divider-glow {
   height: 1px;
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in srgb, var(--primary) 50%, transparent),
+    color-mix(in srgb, var(--landing-accent-readable, var(--primary)) 50%, transparent),
     transparent
   );
 }

@@ -415,16 +415,21 @@ function generatedLightSurfaces(primary: string, secondary?: string): LandingSur
   const accent = secondary || primary;
   return {
     isDark: false,
-    pageBg: `radial-gradient(ellipse 70% 50% at 50% -10%, color-mix(in srgb, ${primary} 14%, transparent) 0%, transparent 60%), linear-gradient(180deg, color-mix(in srgb, ${accent} 8%, #ffffff) 0%, color-mix(in srgb, ${primary} 6%, #f4f6fb) 100%)`,
+    pageBg: `radial-gradient(ellipse 90% 60% at 50% -8%, color-mix(in srgb, ${primary} 12%, transparent) 0%, transparent 55%), linear-gradient(180deg, #fafaf9 0%, color-mix(in srgb, ${accent} 6%, #f1f5f9) 48%, #eef2f7 100%)`,
     surfaceBg: '#ffffff',
-    surfaceMutedBg: '#f5f7fb',
-    text: '#0f172a',
-    textMuted: '#475569',
-    borderColor: '#e6eaf2',
-    cardShadow: '0 14px 40px rgba(15, 23, 42, 0.08)',
-    glassBg: 'rgba(255, 255, 255, 0.72)',
-    glassBorder: 'rgba(255, 255, 255, 0.65)',
+    surfaceMutedBg: '#f4f6fa',
+    text: '#0c1222',
+    textMuted: '#5b6478',
+    borderColor: '#d8e0ec',
+    cardShadow: '0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.07)',
+    glassBg: 'rgba(255, 255, 255, 0.86)',
+    glassBorder: 'rgba(15, 23, 42, 0.08)',
   };
+}
+
+/** Whether the public landing renders in light or dark tone. */
+export function landingToneIsDark(customization: LandingCustomizationInput): boolean {
+  return resolveDisplayMode(normalizeLandingCustomization(customization)).isDark;
 }
 
 function resolveLandingSurfaces(
@@ -484,10 +489,11 @@ function applyStyleOverrides(style: LandingStyle, surfaces: LandingSurfaces, pri
     return {
       ...surfaces,
       surfaceBg: surfaces.isDark ? 'rgba(255,255,255,0.04)' : '#ffffff',
-      glassBg: surfaces.isDark ? 'rgba(15,23,42,0.78)' : 'rgba(255,255,255,0.9)',
+      glassBg: surfaces.isDark ? 'rgba(15,23,42,0.78)' : 'rgba(255,255,255,0.92)',
+      glassBorder: surfaces.isDark ? surfaces.glassBorder : 'rgba(15, 23, 42, 0.1)',
       cardShadow: surfaces.isDark
         ? '0 1px 0 rgba(255,255,255,0.05)'
-        : '0 1px 2px rgba(15,23,42,0.05)',
+        : '0 1px 2px rgba(15, 23, 42, 0.05), 0 16px 40px rgba(15, 23, 42, 0.08)',
     };
   }
   if (style === 'bold') {

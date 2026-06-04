@@ -504,7 +504,7 @@ export const EventLanding: React.FC = () => {
             type="button"
             onClick={handlePurchase}
             disabled={isPurchasing}
-            className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-base font-bold text-white disabled:opacity-50"
+            className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-base font-bold disabled:opacity-50"
           >
             {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKRWhole(totalAmount)}`}
           </button>
@@ -915,7 +915,7 @@ export const EventLanding: React.FC = () => {
               <button
                 type="submit"
                 disabled={isPurchasing || !prefillReady}
-                className="landing-btn-primary mt-2 h-12 w-full rounded-2xl text-base font-bold text-white disabled:opacity-50"
+                className="landing-btn-primary mt-2 h-12 w-full rounded-2xl text-base font-bold disabled:opacity-50"
               >
                 {isPurchasing
                   ? 'Processing…'

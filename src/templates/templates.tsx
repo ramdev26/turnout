@@ -283,24 +283,21 @@ const Template2: LandingTemplate = {
   render: (props) => (
     <LandingPageShell event={props.event}>
       <LandingTopBar event={props.event} />
-      <div className="relative z-10 mx-auto max-w-5xl px-4 pt-10 text-center sm:px-6 lg:pt-16">
+      <section className="relative z-10 mx-auto max-w-3xl px-4 pb-4 pt-8 text-center sm:px-6 sm:pt-12 lg:max-w-4xl lg:pt-14">
         <PremiumBadge>{props.event.status === 'published' ? 'Now booking' : props.event.status}</PremiumBadge>
-        <HeroTitle className="mx-auto mt-6">{props.event.customization?.heroText || props.event.title}</HeroTitle>
-        {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-        <div
-          className="mx-auto mt-10 w-fit max-w-full overflow-hidden rounded-[2rem] border shadow-2xl"
-          style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow-hover)' }}
-        >
-          <EventBanner event={props.event} maxHeightClass="max-h-[min(56vh,520px)]" overlay="light" />
+        <HeroTitle className="mx-auto mt-5 max-w-3xl">{props.event.customization?.heroText || props.event.title}</HeroTitle>
+        {landingHeroSubtitle(props.event) ? (
+          <HeroSubtitle className="max-w-xl">{landingHeroSubtitle(props.event)}</HeroSubtitle>
+        ) : null}
+        <div className="landing-poster-frame mx-auto mt-8 w-fit max-w-full sm:mt-10">
+          <EventBanner event={props.event} maxHeightClass="max-h-[min(62vh,560px)]" overlay="none" />
         </div>
-        <div className="mt-8 flex justify-center">
-          <EventMeta event={props.event} tone="light" />
-        </div>
+        <EventMeta event={props.event} tone="light" className="justify-center" />
         <HeroCTA onGetTickets={props.onCheckout} />
-      </div>
+      </section>
       <LandingContentGrid
         main={
-          <div className="space-y-14">
+          <div className="space-y-12 sm:space-y-14">
             <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
             <AboutBlock event={props.event} />
             {ticketsMain(props)}

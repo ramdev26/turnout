@@ -15,7 +15,7 @@ import {
 import { Event, Ticket as EventTicket } from '../../types';
 import { toApiUrl } from '../../api/client';
 import { formatLKRWhole } from '../../utils/money';
-import { landingCssVars, resolveEventTheme } from '../../themes/eventThemes';
+import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
 
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
@@ -84,8 +84,14 @@ export function LandingPageShell({
   event: Event;
   children: React.ReactNode;
 }) {
+  const tone = landingToneIsDark(event.customization) ? 'dark' : 'light';
+
   return (
-    <div className="landing-page relative isolate" style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}>
+    <div
+      className="landing-page relative isolate"
+      data-landing-tone={tone}
+      style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}
+    >
       <AmbientMesh />
       {children}
       <LandingFooter event={event} />
@@ -130,18 +136,21 @@ export function LandingTopBar({
   const brand = resolveLandingOrganizerBrand(event);
 
   return (
-    <header className="landing-fade-in sticky top-0 z-40 px-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
-      <div className="landing-glass mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+    <header className="landing-fade-in sticky top-0 z-40 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
+      <div className="landing-glass mx-auto flex h-[3.25rem] max-w-6xl items-center justify-between gap-4 rounded-full px-4 sm:h-14 sm:px-5">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           {brand.logoUrl ? (
-            <img
-              src={brand.logoUrl}
-              alt={brand.name}
-              className="h-8 max-w-[min(42vw,180px)] shrink-0 object-contain object-left"
-              referrerPolicy="no-referrer"
-            />
+            <>
+              <img
+                src={brand.logoUrl}
+                alt=""
+                className="h-7 max-w-[min(38vw,160px)] shrink-0 object-contain object-left sm:h-8"
+                referrerPolicy="no-referrer"
+              />
+              <span className="sr-only">{brand.name}</span>
+            </>
           ) : (
-            <p className="min-w-0 truncate text-sm font-semibold sm:text-base" style={{ color: 'var(--landing-text)' }}>
+            <p className="min-w-0 truncate text-sm font-semibold tracking-tight sm:text-[0.95rem]" style={{ color: 'var(--landing-text)' }}>
               {brand.name}
             </p>
           )}
@@ -149,7 +158,7 @@ export function LandingTopBar({
         <button
           type="button"
           onClick={scrollToTickets}
-          className="landing-btn-primary shrink-0 rounded-full px-4 py-2 text-xs font-bold text-white sm:text-sm"
+          className="landing-btn-primary shrink-0 rounded-full px-4 py-2 text-xs font-bold sm:px-5 sm:text-sm"
         >
           Get tickets
         </button>
@@ -210,10 +219,7 @@ export function EventBanner({
   const widthClass = fullWidth || !hasBanner ? 'w-full' : 'mx-auto w-fit max-w-full';
 
   return (
-    <div
-      className={`landing-grain relative flex items-center justify-center overflow-hidden ${widthClass} ${className}`}
-      style={hasBanner ? { background: 'var(--landing-surface-muted)' } : undefined}
-    >
+    <div className={`landing-grain relative flex items-center justify-center overflow-hidden ${widthClass} ${className}`}>
       {hasBanner ? (
         <img
           src={event.bannerUrl}
@@ -250,7 +256,7 @@ export function EventBanner({
 export function HeroTitle({ children, className = '', light = false }: { children: React.ReactNode; className?: string; light?: boolean }) {
   return (
     <h1
-      className={`landing-display landing-fade-in landing-fade-in-delay-1 max-w-4xl text-[clamp(2.25rem,6vw,4.25rem)] ${className}`}
+      className={`landing-display landing-fade-in landing-fade-in-delay-1 text-balance text-[clamp(2rem,5.5vw,3.75rem)] leading-[1.06] ${className}`}
       style={{ color: light ? '#fff' : 'var(--landing-text)' }}
     >
       {children}
@@ -258,10 +264,10 @@ export function HeroTitle({ children, className = '', light = false }: { childre
   );
 }
 
-export function HeroSubtitle({ children, light = false }: { children: React.ReactNode; light?: boolean }) {
+export function HeroSubtitle({ children, className = '', light = false }: { children: React.ReactNode; className?: string; light?: boolean }) {
   return (
     <p
-      className="landing-fade-in landing-fade-in-delay-2 mt-5 max-w-2xl text-base leading-relaxed sm:text-lg"
+      className={`landing-fade-in landing-fade-in-delay-2 mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed sm:mt-5 sm:text-lg ${className}`}
       style={{ color: light ? 'rgba(255,255,255,0.82)' : 'var(--landing-text-muted)' }}
     >
       {children}
@@ -275,20 +281,21 @@ export function HeroCTA({ onGetTickets: _onGetTickets, light = false }: { onGetT
   };
 
   return (
-    <div className="landing-fade-in landing-fade-in-delay-3 mt-8 flex flex-wrap items-center justify-center gap-4">
-      <button type="button" onClick={scrollTickets} className="landing-btn-primary inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold text-white">
+    <div className="landing-fade-in landing-fade-in-delay-3 mt-8 flex w-full flex-wrap items-center justify-center gap-3 sm:gap-4">
+      <button
+        type="button"
+        onClick={scrollTickets}
+        className="landing-btn-primary inline-flex min-h-[44px] items-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold"
+      >
         Reserve your spot
         <ArrowRight className="h-4 w-4" />
       </button>
       <button
         type="button"
         onClick={() => document.getElementById('landing-about')?.scrollIntoView({ behavior: 'smooth' })}
-        className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition hover:opacity-80"
-        style={{
-          color: light ? 'rgba(255,255,255,0.9)' : 'var(--landing-text)',
-          border: light ? '1px solid rgba(255,255,255,0.25)' : '1px solid var(--landing-border)',
-          background: light ? 'rgba(255,255,255,0.08)' : 'var(--landing-surface-muted)',
-        }}
+        className={`landing-btn-secondary inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold ${
+          light ? '!border-white/25 !bg-white/10 !text-white' : ''
+        }`}
       >
         Learn more
         <ChevronDown className="h-4 w-4" />
@@ -297,17 +304,30 @@ export function HeroCTA({ onGetTickets: _onGetTickets, light = false }: { onGetT
   );
 }
 
-export function EventMeta({ event, tone = 'dark' }: { event: Event; tone?: 'dark' | 'light' }) {
+export function EventMeta({
+  event,
+  tone = 'dark',
+  className = '',
+}: {
+  event: Event;
+  tone?: 'dark' | 'light';
+  className?: string;
+}) {
   const dateStr = event.customization?.scheduleTba
     ? 'Date to be announced'
     : format(new Date(event.date), 'EEEE, MMMM d · h:mm a');
   const chipStyle =
     tone === 'dark'
       ? { background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.95)' }
-      : undefined;
+      : {
+          background: 'var(--landing-surface)',
+          border: '1px solid var(--landing-border)',
+          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+          color: 'var(--landing-text)',
+        };
 
   return (
-    <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+    <div className={`mt-6 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-3 ${className}`}>
       <MetaChip icon={<Calendar className="h-4 w-4" />} label={dateStr} style={chipStyle} />
       <MetaChip icon={<MapPin className="h-4 w-4" />} label={event.location} style={chipStyle} />
     </div>
@@ -326,9 +346,11 @@ function MetaChip({
   return (
     <div
       className="landing-glass inline-flex max-w-full items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-medium"
-      style={style ?? { color: 'var(--landing-text)' }}
+      style={{ color: 'var(--landing-text)', ...style }}
     >
-      <span style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>{icon}</span>
+      <span className="shrink-0" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
+        {icon}
+      </span>
       <span className="truncate">{label}</span>
     </div>
   );
@@ -406,12 +428,12 @@ export function SectionHeading({
   id?: string;
 }) {
   return (
-    <div id={id} className="mb-8 scroll-mt-28">
-      <div className="landing-divider-glow mb-5 w-16" />
+    <div id={id} className="mb-7 scroll-mt-28 sm:mb-8">
+      <div className="landing-divider-glow mb-4 w-12 sm:mb-5 sm:w-16" />
       <p className="landing-eyebrow mb-2" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
         Experience
       </p>
-      <h2 className="landing-display text-3xl sm:text-4xl" style={{ color: 'var(--landing-text)' }}>
+      <h2 className="landing-display text-[1.75rem] sm:text-4xl" style={{ color: 'var(--landing-text)' }}>
         {children}
       </h2>
       {subtitle ? (
@@ -512,7 +534,7 @@ export function TicketsList({
         return (
           <div
             key={ticket.id}
-            className={`landing-card-premium group relative overflow-hidden rounded-xl p-3.5 sm:rounded-2xl sm:p-4 ${selected ? 'landing-ticket-selected' : ''}`}
+            className={`landing-card-premium landing-ticket-row group relative overflow-hidden rounded-xl p-4 sm:rounded-2xl sm:p-4 ${selected ? 'landing-ticket-selected' : ''}`}
             style={{
               borderColor: isDark ? 'rgba(255,255,255,0.1)' : undefined,
               background: isDark ? 'rgba(255,255,255,0.04)' : undefined,
@@ -626,7 +648,7 @@ export function CheckoutPanel({
   const lines = tickets.filter((t) => (selectedTickets[t.id] || 0) > 0);
 
   return (
-    <div className="landing-card-premium relative overflow-hidden rounded-2xl p-5 sm:rounded-3xl sm:p-7 lg:sticky lg:top-24">
+    <div className="landing-card-premium landing-checkout-card relative overflow-hidden rounded-2xl p-5 sm:rounded-3xl sm:p-7 lg:sticky lg:top-24">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-1"
         style={{ background: 'linear-gradient(90deg, var(--primary), var(--secondary))' }}
@@ -664,7 +686,7 @@ export function CheckoutPanel({
         type="button"
         onClick={onCheckout}
         disabled={!hasSelection || isPurchasing}
-        className="landing-btn-primary mt-8 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold text-white disabled:opacity-45"
+        className="landing-btn-primary mt-8 flex w-full min-h-[48px] items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold disabled:opacity-45"
       >
         {isPurchasing ? 'Processing…' : hasSelection ? (totalAmount <= 0 ? 'Complete registration' : 'Proceed to payment') : 'Select tickets'}
         {hasSelection && !isPurchasing ? <ArrowRight className="h-4 w-4" /> : null}
@@ -690,10 +712,13 @@ function TrustRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 export function LandingFooter({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
   return (
-    <footer className="relative z-10 border-t px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-10" style={{ borderColor: 'var(--landing-border)' }}>
-      <div className="mx-auto max-w-7xl text-center">
-        <p className="text-sm font-medium" style={{ color: 'var(--landing-text-muted)' }}>
-          Powered by {brand.name}
+    <footer
+      className="relative z-10 border-t px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6"
+      style={{ borderColor: 'var(--landing-border)', background: 'color-mix(in srgb, var(--landing-surface) 40%, transparent)' }}
+    >
+      <div className="mx-auto max-w-6xl text-center">
+        <p className="text-xs font-medium tracking-wide sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+          Powered by <span style={{ color: 'var(--landing-text)' }}>{brand.name}</span>
         </p>
       </div>
     </footer>
@@ -709,7 +734,7 @@ export function LandingContentGrid({
   aside: React.ReactNode;
 }) {
   return (
-    <div className="relative z-10 mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:gap-12 sm:px-6 sm:py-14 lg:grid-cols-[1fr_380px] lg:gap-16 lg:px-8 lg:py-20">
+    <div className="relative z-10 mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:gap-12 sm:px-6 sm:py-16 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-14 lg:px-8 lg:py-20">
       <div className="min-w-0">{main}</div>
       <div className="min-w-0 max-lg:order-last lg:sticky lg:top-24 lg:self-start">{aside}</div>
     </div>
