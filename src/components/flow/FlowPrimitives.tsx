@@ -72,7 +72,18 @@ export function FlowAlert({
 }) {
   const ui = APP_FLOW_UI;
   if (variant === 'error') {
-    return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{children}</div>;
+    return (
+      <div
+        className="rounded-xl border px-4 py-3 text-sm font-medium"
+        style={{
+          borderColor: ui.isDark ? 'rgba(248, 113, 113, 0.45)' : '#fecaca',
+          background: ui.isDark ? 'rgba(127, 29, 29, 0.35)' : '#fef2f2',
+          color: ui.isDark ? '#fecaca' : '#b91c1c',
+        }}
+      >
+        {children}
+      </div>
+    );
   }
   if (variant === 'success') {
     return (

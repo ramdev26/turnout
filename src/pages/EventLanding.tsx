@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/useAuthStore';
 import { formatLKRWhole } from '../utils/money';
 import { CheckoutCustomFields } from '../components/landing/CheckoutCustomFields';
-import { ticketRemaining } from '../components/landing/LandingShared';
+import { ticketRemaining, useLandingDocumentHead } from '../components/landing/LandingShared';
 import { normalizeCheckoutFields, validateCustomFieldValues } from '../utils/checkoutFields';
 import {
   preloadPayHereScript,
@@ -168,7 +168,7 @@ export const EventLanding: React.FC = () => {
           : await api.get<{ event: Event }>(`/api/events/slug/${slug}`);
         const ticketRes = await api.get<{ tickets: Ticket[] }>(`/api/events/${eventRes.event.id}/tickets`);
         setEvent(eventRes.event);
-        setTickets(ticketRes.tickets);
+        setTickets(Array.isArray(ticketRes.tickets) ? ticketRes.tickets : []);
       } catch (error) {
         console.error('Error fetching event:', error);
       } finally {
@@ -179,9 +179,10 @@ export const EventLanding: React.FC = () => {
     void fetchEventData();
   }, [eventId, slug]);
 
+  useLandingDocumentHead(event);
+
   useEffect(() => {
     if (!event) return;
-    document.title = event.title;
     loadLandingFont(normalizeLandingCustomization(event.customization).fontFamily);
   }, [event]);
 
