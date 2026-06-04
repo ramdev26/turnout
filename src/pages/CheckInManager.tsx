@@ -9,11 +9,13 @@ import {
   ScanLine,
   Search,
   Shield,
+  Smartphone,
   Undo2,
   Users,
   UserCheck,
   Clock,
 } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { api, toApiUrl } from '../api/client';
 import { Attendee } from '../types';
 import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
@@ -25,6 +27,16 @@ import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
 type CheckinConfig = { staffPin: string; staffUrl: string };
+
+function absoluteStaffScannerUrl(staffUrl: string): string {
+  const trimmed = staffUrl.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (typeof window !== 'undefined') {
+    const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return new URL(path, window.location.origin).href;
+  }
+  return trimmed;
+}
 type CheckinResult = {
   ok: boolean;
   alreadyCheckedIn?: boolean;
@@ -52,6 +64,19 @@ export const CheckInManager: React.FC = () => {
 
   const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
   const ui = APP_FLOW_UI;
+  const staffScannerHref = useMemo(
+    () => (config ? absoluteStaffScannerUrl(config.staffUrl) : ''),
+    [config]
+  );
+
+  const downloadStaffQr = () => {
+    const canvas = document.getElementById('staff-scanner-qr') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `staff-scanner-event-${eventId ?? 'event'}.png`;
+    link.click();
+  };
 
   const load = useCallback(async () => {
     if (!eventId) return;
@@ -237,7 +262,7 @@ export const CheckInManager: React.FC = () => {
                 Staff door access
               </div>
               <p className="mt-1 max-w-xl text-sm" style={{ color: ui.textMuted }}>
-                Share the staff link and PIN with volunteers. They can scan tickets without your organizer login.
+                Volunteers scan the QR on their phone to open the door scanner, then enter the staff PIN below.
               </p>
             </div>
             <FlowButton variant="secondary" disabled={configLoading} onClick={() => void regeneratePin()} className="!px-3 !py-2 text-xs">
@@ -245,7 +270,8 @@ export const CheckInManager: React.FC = () => {
             </FlowButton>
           </div>
           {config && (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <>
+            <div className="mt-4 sm:max-w-xs">
               <div className="rounded-xl border p-4" style={insetCardStyleFor(ui)}>
                 <p className="text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                   Staff PIN
@@ -259,23 +285,59 @@ export const CheckInManager: React.FC = () => {
                   </FlowButton>
                 </div>
               </div>
-              <div className="rounded-xl border p-4" style={insetCardStyleFor(ui)}>
-                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Staff scanner URL
+            </div>
+            <div
+              className="mt-4 flex flex-col items-center gap-5 rounded-xl border p-5 sm:flex-row sm:items-start sm:gap-6"
+              style={insetCardStyleFor(ui)}
+            >
+              <div className="shrink-0 rounded-2xl bg-white p-3 shadow-sm">
+                <QRCodeCanvas
+                  id="staff-scanner-qr"
+                  value={staffScannerHref}
+                  size={168}
+                  level="M"
+                  bgColor="#ffffff"
+                  fgColor="#0a2426"
+                  includeMargin
+                />
+              </div>
+              <div className="min-w-0 flex-1 text-center sm:text-left">
+                <div className="flex items-center justify-center gap-2 sm:justify-start">
+                  <Smartphone className="h-4 w-4 shrink-0" style={{ color: ui.accent }} />
+                  <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                    Scan to open staff scanner
+                  </p>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed" style={{ color: ui.textMuted }}>
+                  Point any phone camera at this code, tap the link, then enter the staff PIN. No organizer login
+                  required.
                 </p>
-                <p className="mt-2 truncate text-sm font-medium" style={{ color: ui.accent }}>
-                  {config.staffUrl}
+                <p className="mt-3 break-all font-mono text-xs" style={{ color: ui.textSubtle }}>
+                  {staffScannerHref}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => void copyText(config.staffUrl, 'Staff link')}
-                  className="mt-2 text-xs font-bold hover:opacity-90"
-                  style={{ color: ui.textMuted }}
-                >
-                  Copy link
-                </button>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  <Link
+                    to={`/staff/checkin/${eventId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white"
+                    style={{ backgroundColor: ui.accent }}
+                  >
+                    <ScanLine className="h-3.5 w-3.5" />
+                    Open scanner
+                  </Link>
+                  <FlowButton variant="secondary" type="button" onClick={() => void copyText(staffScannerHref, 'Staff link')} className="!px-3 !py-2 text-xs">
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy link
+                  </FlowButton>
+                  <FlowButton variant="secondary" type="button" onClick={downloadStaffQr} className="!px-3 !py-2 text-xs">
+                    <Download className="h-3.5 w-3.5" />
+                    Save QR
+                  </FlowButton>
+                </div>
               </div>
             </div>
+            </>
           )}
           {copyHint && (
             <p className="mt-2 text-xs font-medium" style={{ color: ui.accent }}>
