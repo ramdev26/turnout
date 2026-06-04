@@ -209,6 +209,10 @@ export interface Event {
   id: string;
   slug: string;
   organizerId: string;
+  /** Organization or display name for public landing header/footer */
+  organizerName?: string;
+  /** Organizer logo URL when set in account settings */
+  organizerLogoUrl?: string | null;
   title: string;
   description: string;
   date: string;

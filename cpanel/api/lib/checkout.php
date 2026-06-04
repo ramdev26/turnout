@@ -1,7 +1,7 @@
 <?php
 
-function map_public_event_row(array $row): array {
-  return [
+function map_public_event_row(array $row, ?PDO $pdo = null): array {
+  $event = [
     'id' => (string)$row['id'],
     'slug' => $row['slug'],
     'organizerId' => (string)$row['organizer_user_id'],
@@ -11,13 +11,24 @@ function map_public_event_row(array $row): array {
     'location' => $row['location'],
     'bannerUrl' => $row['banner_url'],
     'templateId' => $row['template_id'],
-      'customization' => json_decode((string)$row['customization_json'], true),
-      'customDomain' => isset($row['custom_domain']) && $row['custom_domain'] !== null && $row['custom_domain'] !== ''
-        ? (string)$row['custom_domain']
-        : null,
-      'status' => $row['status'],
+    'customization' => json_decode((string)$row['customization_json'], true),
+    'customDomain' => isset($row['custom_domain']) && $row['custom_domain'] !== null && $row['custom_domain'] !== ''
+      ? (string)$row['custom_domain']
+      : null,
+    'status' => $row['status'],
     'createdAt' => gmdate('c', strtotime($row['created_at'])),
   ];
+
+  if ($pdo !== null && function_exists('organizer_profile_api_shape')) {
+    $profile = organizer_profile_api_shape($pdo, (int)$row['organizer_user_id']);
+    $orgName = trim((string)($profile['organizationName'] ?? ''));
+    $displayName = trim((string)($profile['displayName'] ?? ''));
+    $event['organizerName'] = $orgName !== '' ? $orgName : ($displayName !== '' ? $displayName : 'Organizer');
+    $logo = trim((string)($profile['logoUrl'] ?? ''));
+    $event['organizerLogoUrl'] = $logo !== '' ? $logo : null;
+  }
+
+  return $event;
 }
 
 function is_event_publicly_visible(array $row): bool {

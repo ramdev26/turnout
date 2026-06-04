@@ -13,8 +13,21 @@ import {
   Ticket,
 } from 'lucide-react';
 import { Event, Ticket as EventTicket } from '../../types';
+import { toApiUrl } from '../../api/client';
 import { formatLKRWhole } from '../../utils/money';
 import { landingCssVars, resolveEventTheme } from '../../themes/eventThemes';
+
+export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
+  const name = event.organizerName?.trim() || 'Organizer';
+  const raw = event.organizerLogoUrl?.trim() || '';
+  const logoUrl =
+    raw === ''
+      ? null
+      : raw.startsWith('http') || raw.startsWith('/api/')
+        ? raw
+        : toApiUrl(raw);
+  return { name, logoUrl };
+}
 export function useCountdown(targetIso: string, active = true) {
   const [parts, setParts] = useState({ days: 0, hours: 0, mins: 0, secs: 0, done: false });
 
@@ -114,12 +127,25 @@ export function LandingTopBar({
     document.getElementById('landing-tickets')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const brand = resolveLandingOrganizerBrand(event);
+
   return (
     <header className="landing-fade-in sticky top-0 z-40 px-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
       <div className="landing-glass mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 rounded-2xl px-4 sm:px-5">
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base" style={{ color: 'var(--landing-text)' }}>
-          {event.title}
-        </p>
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          {brand.logoUrl ? (
+            <img
+              src={brand.logoUrl}
+              alt={brand.name}
+              className="h-8 max-w-[min(42vw,180px)] shrink-0 object-contain object-left"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <p className="min-w-0 truncate text-sm font-semibold sm:text-base" style={{ color: 'var(--landing-text)' }}>
+              {brand.name}
+            </p>
+          )}
+        </div>
         <button
           type="button"
           onClick={scrollToTickets}
@@ -662,11 +688,12 @@ function TrustRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 }
 
 export function LandingFooter({ event }: { event: Event }) {
+  const brand = resolveLandingOrganizerBrand(event);
   return (
     <footer className="relative z-10 border-t px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-10" style={{ borderColor: 'var(--landing-border)' }}>
       <div className="mx-auto max-w-7xl text-center">
         <p className="text-sm font-medium" style={{ color: 'var(--landing-text-muted)' }}>
-          {event.title}
+          Powered by {brand.name}
         </p>
       </div>
     </footer>

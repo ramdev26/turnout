@@ -2048,7 +2048,7 @@ if ($path === '/public/events' && $method === 'GET') {
   $stmt = $pdo->query($sql);
   $events = [];
   while ($row = $stmt->fetch()) {
-    $events[] = map_public_event_row($row);
+    $events[] = map_public_event_row($row, $pdo);
   }
   json_response(200, ['events' => $events]);
 }
@@ -2059,7 +2059,7 @@ if (preg_match('#^/events/(\\d+)$#', $path, $m) && $method === 'GET') {
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
   if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
-  json_response(200, ['event' => map_public_event_row($row)]);
+  json_response(200, ['event' => map_public_event_row($row, $pdo)]);
 }
 
 // Public by slug
@@ -2069,7 +2069,7 @@ if (preg_match('#^/events/slug/([a-z0-9-]+)$#', $path, $m) && $method === 'GET')
   $stmt->execute([$slug]);
   $row = $stmt->fetch();
   if (!$row || !is_event_publicly_visible($row)) json_response(404, ['error' => 'event_not_found']);
-  json_response(200, ['event' => map_public_event_row($row)]);
+  json_response(200, ['event' => map_public_event_row($row, db())]);
 }
 
 // Organizer: update slug
@@ -2353,7 +2353,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   ]);
 
   $fresh = load_event_row_or_404($pdo, $eventId);
-  json_response(200, ['event' => map_public_event_row($fresh)]);
+  json_response(200, ['event' => map_public_event_row($fresh, $pdo)]);
 }
 
 if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'POST') {
@@ -2722,7 +2722,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
     $evStmt->execute([(int)$row['event_id']]);
     $evRow = $evStmt->fetch();
     if ($evRow) {
-      $eventPayload = map_public_event_row($evRow);
+      $eventPayload = map_public_event_row($evRow, $pdo);
     }
   }
 
