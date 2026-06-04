@@ -14,7 +14,7 @@ import {
   type TicketHolderInput,
 } from '../components/landing/LandingCheckoutModal';
 import { ticketRemaining } from '../components/landing/LandingShared';
-import { normalizeCheckoutFields, validateCustomFieldValues } from '../utils/checkoutFields';
+import { buildActiveCheckoutFields, validateCustomFieldValues } from '../utils/checkoutFields';
 import {
   preloadPayHereScript,
   startPayHereCheckout,
@@ -86,8 +86,8 @@ export const EventLanding: React.FC = () => {
   const canAssignEachTicket = totalTicketQuantity > 1;
 
   const checkoutFields = useMemo(
-    () => normalizeCheckoutFields(event?.customization?.checkoutFields),
-    [event?.customization?.checkoutFields]
+    () => buildActiveCheckoutFields(event?.customization),
+    [event?.customization]
   );
 
   useEffect(() => {

@@ -12,7 +12,13 @@ import {
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
 import { Attendee, CheckoutFieldDefinition, Event, Session, Speaker, Ticket as EventTicket } from '../types';
-import { normalizeCheckoutFields } from '../utils/checkoutFields';
+import {
+  buildActiveCheckoutFields,
+  normalizeCheckoutFieldsOnly,
+  normalizeCheckoutPresets,
+} from '../utils/checkoutFields';
+import { CheckoutPresetsEditor } from '../components/organizer/CheckoutPresetsEditor';
+import type { CheckoutFieldPresetsConfig } from '../types';
 import { slugify } from '../utils/slug';
 import { resolveHeroTitleLines, splitHeroTitle } from '../utils/heroTitle';
 import { formatLKR } from '../utils/money';
@@ -168,6 +174,7 @@ export const EventSettings: React.FC = () => {
   const [ticketPdfFooterNote, setTicketPdfFooterNote] = useState('Please bring this ticket and a valid ID.');
   const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantity: 100, description: '' });
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
+  const [checkoutPresets, setCheckoutPresets] = useState<CheckoutFieldPresetsConfig>({});
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -221,7 +228,8 @@ export const EventSettings: React.FC = () => {
       setTicketPdfAccentColor(ev.customization?.ticketPdfAccentColor || landing.secondaryColor || minimal.secondary);
       setTicketPdfBadgeText(ev.customization?.ticketPdfBadgeText || 'VIP ACCESS');
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
-      setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
+      setCheckoutPresets(normalizeCheckoutPresets(ev.customization?.checkoutFieldPresets));
+      setCheckoutFields(normalizeCheckoutFieldsOnly(ev.customization?.checkoutFields));
 
       const [ticketsRes, speakersRes, sessionsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
@@ -365,14 +373,16 @@ export const EventSettings: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
-        checkoutFields: normalizeCheckoutFields(checkoutFields),
+        checkoutFieldPresets: normalizeCheckoutPresets(checkoutPresets),
+        checkoutFields: normalizeCheckoutFieldsOnly(checkoutFields),
         heroTitleSplitMode,
         heroTitleAccentWords: heroTitleSplitMode === 'auto' ? heroTitleAccentWords : undefined,
         heroTitleAccent: heroTitleSplitMode === 'custom' ? heroTitleAccent.trim() : '',
         heroTitleMain: heroTitleSplitMode === 'custom' ? heroTitleMain.trim() : '',
       });
       setEvent(res.event);
-      setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
+      setCheckoutPresets(normalizeCheckoutPresets(res.event.customization?.checkoutFieldPresets));
+      setCheckoutFields(normalizeCheckoutFieldsOnly(res.event.customization?.checkoutFields));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to save changes');
@@ -1047,11 +1057,16 @@ export const EventSettings: React.FC = () => {
 
             <SettingsCollapsibleSection
               title="Checkout questions"
-              subtitle={
-                checkoutFields.length
-                  ? `${checkoutFields.length} custom field${checkoutFields.length === 1 ? '' : 's'}`
-                  : 'NIC, company, dietary needs, etc.'
-              }
+              subtitle={(() => {
+                const active = buildActiveCheckoutFields(
+                  event?.customization
+                    ? { ...event.customization, checkoutFieldPresets: checkoutPresets, checkoutFields }
+                    : { checkoutFieldPresets: checkoutPresets, checkoutFields, heroText: '', heroSubtext: '', layout: 'centered', primaryColor: '', secondaryColor: '', fontFamily: '' }
+                );
+                return active.length
+                  ? `${active.length} field${active.length === 1 ? '' : 's'} at checkout`
+                  : 'Optional — all off by default';
+              })()}
               open={isSectionOpen('checkout')}
               onToggle={() => toggleSection('checkout')}
               panelClassName={panelCn}
@@ -1059,7 +1074,20 @@ export const EventSettings: React.FC = () => {
               ui={ui}
             >
               <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
-                Collect extra details from each ticket holder. Saved when you save event details.
+                Choose standard questions and/or add your own. Each ticket holder answers at checkout. Saved when you
+                save event details.
+              </p>
+              <CheckoutPresetsEditor
+                presets={checkoutPresets}
+                onChange={setCheckoutPresets}
+                ui={ui}
+                fieldClass={fieldClass}
+                fieldStyle={fieldStyle}
+                cardMutedStyle={cardMutedStyle}
+              />
+              <div className="my-6 h-px" style={{ background: ui.borderColor }} />
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Additional custom questions
               </p>
               <CheckoutFieldsEditor
                 fields={checkoutFields}

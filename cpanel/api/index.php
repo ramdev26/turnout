@@ -2264,6 +2264,9 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('scheduleTba', $body)) {
     $customization['scheduleTba'] = (bool)$body['scheduleTba'];
   }
+  if (array_key_exists('checkoutFieldPresets', $body)) {
+    $customization['checkoutFieldPresets'] = normalize_checkout_field_presets($body['checkoutFieldPresets']);
+  }
   if (array_key_exists('checkoutFields', $body)) {
     $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);
   }
