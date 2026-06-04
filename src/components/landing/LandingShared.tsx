@@ -167,8 +167,10 @@ type BannerProps = {
   event: Event;
   className?: string;
   overlay?: 'cinematic' | 'light' | 'none';
-  /** Max height for the banner image (full width, never cropped). */
+  /** Max height for the banner image (never cropped). */
   maxHeightClass?: string;
+  /** Full-bleed width; default false so the frame hugs the image (portrait posters, etc.). */
+  fullWidth?: boolean;
 };
 
 export function EventBanner({
@@ -176,19 +178,23 @@ export function EventBanner({
   className = '',
   overlay = 'cinematic',
   maxHeightClass = 'max-h-[min(72vh,720px)]',
+  fullWidth = false,
 }: BannerProps) {
   const hasBanner = !!event.bannerUrl?.trim();
+  const widthClass = fullWidth || !hasBanner ? 'w-full' : 'mx-auto w-fit max-w-full';
 
   return (
     <div
-      className={`landing-grain relative flex w-full items-center justify-center overflow-hidden ${className}`}
+      className={`landing-grain relative flex items-center justify-center overflow-hidden ${widthClass} ${className}`}
       style={hasBanner ? { background: 'var(--landing-surface-muted)' } : undefined}
     >
       {hasBanner ? (
         <img
           src={event.bannerUrl}
           alt=""
-          className={`mx-auto block h-auto w-full object-contain object-center ${maxHeightClass}`}
+          className={`block h-auto object-contain object-center ${maxHeightClass} ${
+            fullWidth ? 'mx-auto w-full' : 'w-auto max-w-full'
+          }`}
           referrerPolicy="no-referrer"
         />
       ) : (

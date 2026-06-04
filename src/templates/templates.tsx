@@ -135,7 +135,10 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
           <PremiumBadge>{b.props?.eyebrow || 'Featured event'}</PremiumBadge>
           <HeroTitle className="mt-6">{b.props?.title || event.title}</HeroTitle>
           {landingHeroSubtitle(event, b.props?.subtitle) ? <HeroSubtitle>{landingHeroSubtitle(event, b.props?.subtitle)}</HeroSubtitle> : null}
-          <div className="mt-8 overflow-hidden rounded-3xl border shadow-2xl" style={{ borderColor: 'var(--landing-border)' }}>
+          <div
+            className="mx-auto mt-8 w-fit max-w-full overflow-hidden rounded-3xl border shadow-2xl"
+            style={{ borderColor: 'var(--landing-border)' }}
+          >
             <EventBanner event={event} maxHeightClass="max-h-[min(50vh,480px)]" overlay="light" />
           </div>
         </div>
@@ -246,7 +249,7 @@ const Template1: LandingTemplate = {
       <LandingTopBar event={props.event} />
       <div className="relative z-10">
         <div className="relative">
-          <EventBanner event={props.event} overlay="cinematic" />
+          <EventBanner event={props.event} overlay="cinematic" fullWidth />
           <div className="absolute inset-x-0 bottom-0 px-4 pb-14 pt-32 sm:px-8 lg:px-12 lg:pb-20">
             <PremiumBadge tone="hero">{themeDisplayName(props.event)}</PremiumBadge>
             <HeroTitle light className="mt-5 text-white">
@@ -284,7 +287,10 @@ const Template2: LandingTemplate = {
         <PremiumBadge>{props.event.status === 'published' ? 'Now booking' : props.event.status}</PremiumBadge>
         <HeroTitle className="mx-auto mt-6">{props.event.customization?.heroText || props.event.title}</HeroTitle>
         {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-        <div className="mt-10 overflow-hidden rounded-[2rem] border shadow-2xl" style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow-hover)' }}>
+        <div
+          className="mx-auto mt-10 w-fit max-w-full overflow-hidden rounded-[2rem] border shadow-2xl"
+          style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow-hover)' }}
+        >
           <EventBanner event={props.event} maxHeightClass="max-h-[min(56vh,520px)]" overlay="light" />
         </div>
         <div className="mt-8 flex justify-center">
@@ -319,7 +325,10 @@ const Template3: LandingTemplate = {
           <PremiumBadge>{themeDisplayName(props.event)}</PremiumBadge>
           <HeroTitle className="mt-5">{props.event.customization?.heroText || props.event.title}</HeroTitle>
           {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-          <div className="mt-10 overflow-hidden rounded-3xl border" style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow)' }}>
+          <div
+            className="mt-10 w-fit max-w-full overflow-hidden rounded-3xl border"
+            style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow)' }}
+          >
             <EventBanner event={props.event} maxHeightClass="max-h-[min(48vh,440px)]" overlay="light" />
           </div>
           <EventMeta event={props.event} tone="light" />
@@ -350,7 +359,7 @@ const Template4: LandingTemplate = {
       <LandingTopBar event={props.event} />
       <div className="relative z-10">
         <div className="relative">
-          <EventBanner event={props.event} maxHeightClass="max-h-[min(65vh,560px)]" overlay="cinematic" />
+          <EventBanner event={props.event} maxHeightClass="max-h-[min(65vh,560px)]" overlay="cinematic" fullWidth />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--landing-page-bg)] via-black/80 to-transparent px-4 pb-12 pt-28 sm:px-8 lg:px-12">
             <span className="landing-eyebrow text-white/70">{themeDisplayName(props.event)}</span>
             <HeroTitle light className="mt-3">
