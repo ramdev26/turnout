@@ -157,6 +157,9 @@ function ShowcaseHero({ event }: { event: Event }) {
   const dateStr = isLandingScheduleTba(event)
     ? 'Date to be announced'
     : formatLandingEventDate(event.date, 'EEEE, MMMM d · h:mm a');
+  const dateStrCompact = isLandingScheduleTba(event)
+    ? 'TBA'
+    : formatLandingEventDate(event.date, 'MMM d · h:mm a');
   const hasBanner = !!event.bannerUrl?.trim();
 
   return (
@@ -170,29 +173,8 @@ function ShowcaseHero({ event }: { event: Event }) {
       <h1 className={`landing-showcase-hero-title ${accent ? 'mt-1' : 'mt-6'}`}>{main || heroText}</h1>
       <p className="landing-showcase-hero-lead">{subtitle}</p>
 
-      <div id="landing-venue" className="landing-showcase-info-grid scroll-mt-28">
-        <div className="landing-showcase-info-card">
-          <div className="landing-showcase-info-card-inner">
-            <Calendar className="landing-showcase-info-icon h-4 w-4 shrink-0" style={{ color: 'var(--showcase-accent)' }} />
-            <div className="min-w-0">
-              <p className="label">Event date &amp; time</p>
-              <p className="value">{dateStr}</p>
-            </div>
-          </div>
-        </div>
-        <div className="landing-showcase-info-card">
-          <div className="landing-showcase-info-card-inner">
-            <MapPin className="landing-showcase-info-icon h-4 w-4 shrink-0" style={{ color: 'var(--showcase-accent)' }} />
-            <div className="min-w-0">
-              <p className="label">Venue</p>
-              <p className="value">{event.location || 'Venue to be announced'}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {hasBanner ? (
-        <div className="landing-showcase-poster landing-poster-frame landing-poster-frame--hero mx-auto w-fit max-w-full">
+        <div className="landing-showcase-poster landing-poster-frame landing-poster-frame--hero mx-auto w-full max-w-full sm:w-fit">
           <img
             src={event.bannerUrl}
             alt=""
@@ -201,6 +183,31 @@ function ShowcaseHero({ event }: { event: Event }) {
           />
         </div>
       ) : null}
+
+      <div id="landing-venue" className="landing-showcase-info-grid scroll-mt-28">
+        <div className="landing-showcase-info-card">
+          <div className="landing-showcase-info-card-inner">
+            <Calendar className="landing-showcase-info-icon h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <div className="min-w-0">
+              <p className="label">
+                <span className="sm:hidden">Date</span>
+                <span className="hidden sm:inline">Event date &amp; time</span>
+              </p>
+              <p className="value sm:hidden">{dateStrCompact}</p>
+              <p className="value hidden sm:block">{dateStr}</p>
+            </div>
+          </div>
+        </div>
+        <div className="landing-showcase-info-card">
+          <div className="landing-showcase-info-card-inner">
+            <MapPin className="landing-showcase-info-icon h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <div className="min-w-0">
+              <p className="label">Venue</p>
+              <p className="value line-clamp-2 sm:line-clamp-none">{event.location || 'TBA'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
