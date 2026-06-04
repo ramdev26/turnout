@@ -28,6 +28,54 @@ export function resolveLandingOrganizerBrand(event: Event): { name: string; logo
         : toApiUrl(raw);
   return { name, logoUrl };
 }
+
+const TURNOUT_FAVICON = '/turnout-favicon.svg';
+
+function faviconTypeForUrl(url: string): string {
+  const lower = url.split('?')[0].toLowerCase();
+  if (lower.endsWith('.svg')) return 'image/svg+xml';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  return 'image/png';
+}
+
+/** Event landing tab icon: organizer logo when set, otherwise Turnout default. */
+export function useLandingDocumentHead(event: Event | null) {
+  useEffect(() => {
+    if (!event) return;
+
+    const previousTitle = document.title;
+    document.title = event.title;
+
+    const brand = resolveLandingOrganizerBrand(event);
+    const iconHref = brand.logoUrl || TURNOUT_FAVICON;
+
+    let link =
+      document.querySelector<HTMLLinkElement>('link[data-turnout-dynamic-icon]') ??
+      document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+
+    link.setAttribute('data-turnout-dynamic-icon', 'true');
+    const previousHref = link.getAttribute('href');
+    const previousType = link.getAttribute('type');
+
+    link.href = iconHref;
+    link.type = faviconTypeForUrl(iconHref);
+
+    return () => {
+      document.title = previousTitle;
+      link!.setAttribute('href', previousHref ?? TURNOUT_FAVICON);
+      if (previousType) link!.setAttribute('type', previousType);
+      else link!.setAttribute('type', 'image/svg+xml');
+    };
+  }, [event?.id, event?.title, event?.organizerLogoUrl, event?.organizerName]);
+}
 export function useCountdown(targetIso: string, active = true) {
   const [parts, setParts] = useState({ days: 0, hours: 0, mins: 0, secs: 0, done: false });
 
