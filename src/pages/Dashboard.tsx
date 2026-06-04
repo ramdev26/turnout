@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { Attendee, Event, Ticket } from '../types';
-import { Plus, Calendar, MapPin, Users, DollarSign, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Plus, Calendar, MapPin, Users, DollarSign, ExternalLink, CheckCircle2, ScanLine } from 'lucide-react';
 import { format } from 'date-fns';
 import { api } from '../api/client';
 import { formatLKR } from '../utils/money';
@@ -232,22 +232,30 @@ export const Dashboard: React.FC = () => {
                       </div>
                     </div>
                     <div
-                      className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4"
+                      className="mt-5 grid grid-cols-3 items-center gap-2 border-t pt-4"
                       style={{ borderColor: ui.borderColor }}
                     >
                       <Link
                         to={`/e/${event.slug}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-semibold"
+                        className="inline-flex items-center gap-1 justify-self-start text-sm font-semibold"
                         style={{ color: ui.accent }}
                       >
                         View Page
                         <ExternalLink className="h-3 w-3" />
                       </Link>
                       <Link
+                        to={`/dashboard/events/${event.id}/checkin`}
+                        className="inline-flex items-center justify-center gap-1 justify-self-center text-sm font-semibold"
+                        style={{ color: ui.text }}
+                      >
+                        <ScanLine className="h-3.5 w-3.5" style={{ color: ui.accent }} />
+                        Check-in
+                      </Link>
+                      <Link
                         to={`/dashboard/events/${event.id}/settings`}
-                        className="text-sm font-semibold"
+                        className="inline-flex items-center justify-self-end text-sm font-semibold"
                         style={{ color: ui.textMuted }}
                       >
                         Settings →
