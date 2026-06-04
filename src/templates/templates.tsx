@@ -139,7 +139,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
             className="mx-auto mt-8 w-fit max-w-full overflow-hidden rounded-3xl border shadow-2xl"
             style={{ borderColor: 'var(--landing-border)' }}
           >
-            <EventBanner event={event} maxHeightClass="max-h-[min(50vh,480px)]" overlay="light" />
+            <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
           </div>
         </div>
       );
@@ -283,14 +283,14 @@ const Template2: LandingTemplate = {
   render: (props) => (
     <LandingPageShell event={props.event}>
       <LandingTopBar event={props.event} />
-      <section className="relative z-10 mx-auto max-w-3xl px-4 pb-4 pt-8 text-center sm:px-6 sm:pt-12 lg:max-w-4xl lg:pt-14">
+      <section className="relative z-10 mx-auto max-w-3xl px-4 pb-4 pt-8 text-center sm:px-6 sm:pt-12 lg:max-w-5xl lg:pt-14">
         <PremiumBadge>{props.event.status === 'published' ? 'Now booking' : props.event.status}</PremiumBadge>
         <HeroTitle className="mx-auto mt-5 max-w-3xl">{props.event.customization?.heroText || props.event.title}</HeroTitle>
         {landingHeroSubtitle(props.event) ? (
           <HeroSubtitle className="max-w-xl">{landingHeroSubtitle(props.event)}</HeroSubtitle>
         ) : null}
-        <div className="landing-poster-frame mx-auto mt-8 w-fit max-w-full sm:mt-10">
-          <EventBanner event={props.event} maxHeightClass="max-h-[min(62vh,560px)]" overlay="none" />
+        <div className="landing-poster-frame landing-poster-frame--hero mx-auto mt-8 sm:mt-10">
+          <EventBanner event={props.event} overlay="none" imageClassName="landing-poster-img" />
         </div>
         <EventMeta event={props.event} tone="light" className="justify-center" />
         <HeroCTA onGetTickets={props.onCheckout} />

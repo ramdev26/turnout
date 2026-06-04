@@ -202,8 +202,10 @@ type BannerProps = {
   event: Event;
   className?: string;
   overlay?: 'cinematic' | 'light' | 'none';
-  /** Max height for the banner image (never cropped). */
+  /** Max height for the banner image (never cropped). Ignored when imageClassName is set. */
   maxHeightClass?: string;
+  /** Optional extra classes on the <img> (e.g. landing-poster-img for responsive hero sizing). */
+  imageClassName?: string;
   /** Full-bleed width; default false so the frame hugs the image (portrait posters, etc.). */
   fullWidth?: boolean;
 };
@@ -213,6 +215,7 @@ export function EventBanner({
   className = '',
   overlay = 'cinematic',
   maxHeightClass = 'max-h-[min(72vh,720px)]',
+  imageClassName = '',
   fullWidth = false,
 }: BannerProps) {
   const hasBanner = !!event.bannerUrl?.trim();
@@ -224,8 +227,8 @@ export function EventBanner({
         <img
           src={event.bannerUrl}
           alt=""
-          className={`block h-auto object-contain object-center ${maxHeightClass} ${
-            fullWidth ? 'mx-auto w-full' : 'w-auto max-w-full'
+          className={`block h-auto object-contain object-center ${
+            imageClassName || `${maxHeightClass} ${fullWidth ? 'mx-auto w-full' : 'w-auto max-w-full'}`
           }`}
           referrerPolicy="no-referrer"
         />

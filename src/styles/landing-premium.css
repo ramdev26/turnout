@@ -52,6 +52,56 @@
   line-height: 0;
 }
 
+/* Editorial hero — larger poster on desktop without stretching aspect ratio */
+.landing-poster-frame--hero {
+  width: fit-content;
+  max-width: min(92vw, 100%);
+}
+
+@media (min-width: 640px) {
+  .landing-poster-frame--hero {
+    max-width: min(88vw, 520px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-poster-frame--hero {
+    max-width: min(72vw, 640px);
+  }
+}
+
+@media (min-width: 1280px) {
+  .landing-poster-frame--hero {
+    max-width: min(68vw, 720px);
+  }
+}
+
+.landing-poster-frame--hero .landing-poster-img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(52vh, 420px);
+  object-fit: contain;
+}
+
+@media (min-width: 640px) {
+  .landing-poster-frame--hero .landing-poster-img {
+    max-height: min(58vh, 520px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-poster-frame--hero .landing-poster-img {
+    max-height: min(76vh, 800px);
+  }
+}
+
+@media (min-width: 1280px) {
+  .landing-poster-frame--hero .landing-poster-img {
+    max-height: min(80vh, 880px);
+  }
+}
+
 .landing-hero-img {
   animation: landing-ken-burns 24s ease-in-out infinite alternate;
   transform-origin: center center;
