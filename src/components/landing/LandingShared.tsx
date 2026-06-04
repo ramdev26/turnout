@@ -17,16 +17,17 @@ import { toApiUrl } from '../../api/client';
 import { formatLKRWhole } from '../../utils/money';
 import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
 
+/** Absolute URL for organizer logo (favicon + header). */
+export function resolveOrganizerLogoHref(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return toApiUrl(trimmed.startsWith('/') ? trimmed : `/${trimmed}`);
+}
+
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
-  const raw = event.organizerLogoUrl?.trim() || '';
-  const logoUrl =
-    raw === ''
-      ? null
-      : raw.startsWith('http') || raw.startsWith('/api/')
-        ? raw
-        : toApiUrl(raw);
-  return { name, logoUrl };
+  return { name, logoUrl: resolveOrganizerLogoHref(event.organizerLogoUrl) };
 }
 
 const TURNOUT_FAVICON = '/turnout-favicon.svg';
@@ -40,6 +41,77 @@ function faviconTypeForUrl(url: string): string {
   return 'image/png';
 }
 
+function absoluteHref(pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  return new URL(pathOrUrl, window.location.origin).href;
+}
+
+function removePageIconLinks(): HTMLLinkElement[] {
+  const removed: HTMLLinkElement[] = [];
+  document
+    .querySelectorAll<HTMLLinkElement>(
+      'link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[data-turnout-dynamic-icon]'
+    )
+    .forEach((link) => {
+      removed.push(link);
+      link.remove();
+    });
+  return removed;
+}
+
+function appendPageIconLink(href: string, type: string) {
+  const link = document.createElement('link');
+  link.rel = 'icon';
+  link.setAttribute('data-turnout-dynamic-icon', 'true');
+  link.setAttribute('sizes', '32x32');
+  link.href = href;
+  link.type = type;
+  document.head.appendChild(link);
+}
+
+/** Rasterize remote logo so browsers reliably use it as a favicon (large PNGs/SVGs often fail). */
+async function rasterizeLogoFavicon(imageUrl: string, size = 64): Promise<string> {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.referrerPolicy = 'no-referrer';
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('favicon_image_load_failed'));
+    img.src = imageUrl;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('favicon_canvas_unavailable');
+  const w = img.naturalWidth || size;
+  const h = img.naturalHeight || size;
+  const scale = Math.min(size / w, size / h);
+  const dw = w * scale;
+  const dh = h * scale;
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(img, (size - dw) / 2, (size - dh) / 2, dw, dh);
+  return canvas.toDataURL('image/png');
+}
+
+async function applyLandingFavicon(logoUrl: string | null, cancelled?: () => boolean) {
+  if (cancelled?.()) return;
+  removePageIconLinks();
+  if (!logoUrl) {
+    appendPageIconLink(absoluteHref(TURNOUT_FAVICON), 'image/svg+xml');
+    return;
+  }
+  const busted = `${logoUrl}${logoUrl.includes('?') ? '&' : '?'}v=favicon`;
+  try {
+    const dataUrl = await rasterizeLogoFavicon(busted);
+    if (cancelled?.()) return;
+    appendPageIconLink(dataUrl, 'image/png');
+  } catch {
+    if (cancelled?.()) return;
+    appendPageIconLink(busted, faviconTypeForUrl(busted));
+  }
+}
+
 /** Event landing tab icon: organizer logo when set, otherwise Turnout default. */
 export function useLandingDocumentHead(event: Event | null) {
   useEffect(() => {
@@ -48,31 +120,21 @@ export function useLandingDocumentHead(event: Event | null) {
     const previousTitle = document.title;
     document.title = event.title;
 
-    const brand = resolveLandingOrganizerBrand(event);
-    const iconHref = brand.logoUrl || TURNOUT_FAVICON;
+    const { logoUrl } = resolveLandingOrganizerBrand(event);
+    const removedStaticIcons = removePageIconLinks();
+    let cancelled = false;
 
-    let link =
-      document.querySelector<HTMLLinkElement>('link[data-turnout-dynamic-icon]') ??
-      document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-
-    link.setAttribute('data-turnout-dynamic-icon', 'true');
-    const previousHref = link.getAttribute('href');
-    const previousType = link.getAttribute('type');
-
-    link.href = iconHref;
-    link.type = faviconTypeForUrl(iconHref);
+    void applyLandingFavicon(logoUrl, () => cancelled);
 
     return () => {
+      cancelled = true;
       document.title = previousTitle;
-      link!.setAttribute('href', previousHref ?? TURNOUT_FAVICON);
-      if (previousType) link!.setAttribute('type', previousType);
-      else link!.setAttribute('type', 'image/svg+xml');
+      removePageIconLinks();
+      if (removedStaticIcons.length > 0) {
+        removedStaticIcons.forEach((link) => document.head.appendChild(link));
+      } else {
+        appendPageIconLink(absoluteHref(TURNOUT_FAVICON), 'image/svg+xml');
+      }
     };
   }, [event?.id, event?.title, event?.organizerLogoUrl, event?.organizerName]);
 }
