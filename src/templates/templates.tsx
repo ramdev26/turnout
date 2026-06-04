@@ -3,6 +3,7 @@ import { CanvasElement, CanvasDesign, Event, SectionBlock, SectionDesign, Ticket
 import { api } from '../api/client';
 import type { Speaker, Session } from '../types';
 import { landingCssVars, resolveTemplateId } from '../themes/eventThemes';
+import { LandingShowcasePage } from '../components/landing/LandingShowcase';
 import {
   AboutBlock,
   CheckoutPanel,
@@ -274,36 +275,10 @@ const Template1: LandingTemplate = {
 
 const Template2: LandingTemplate = {
   id: 'template-2',
-  name: 'Editorial',
-  description: 'Refined centered editorial for conferences and galas.',
+  name: 'Showcase',
+  description: 'Premium two-column layout with hero, passes, and live order summary.',
   previewSeed: 'centered-minimal',
-  render: (props) => (
-    <LandingPageShell event={props.event}>
-      <LandingTopBar event={props.event} />
-      <section className="relative z-10 mx-auto max-w-3xl px-4 pb-4 pt-8 text-center sm:px-6 sm:pt-12 lg:max-w-5xl lg:pt-14">
-        <PremiumBadge>{props.event.status === 'published' ? 'Now booking' : props.event.status}</PremiumBadge>
-        <HeroTitle className="mx-auto mt-5 max-w-3xl">{props.event.customization?.heroText || props.event.title}</HeroTitle>
-        {landingHeroSubtitle(props.event) ? (
-          <HeroSubtitle className="max-w-xl">{landingHeroSubtitle(props.event)}</HeroSubtitle>
-        ) : null}
-        <div className="landing-poster-frame landing-poster-frame--hero mx-auto mt-8 sm:mt-10">
-          <EventBanner event={props.event} overlay="none" imageClassName="landing-poster-img" />
-        </div>
-        <EventMeta event={props.event} tone="light" className="justify-center" />
-        <HeroCTA onGetTickets={props.onCheckout} />
-      </section>
-      <LandingContentGrid
-        main={
-          <div className="space-y-12 sm:space-y-14">
-            <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
-            <AboutBlock event={props.event} />
-            {ticketsMain(props)}
-          </div>
-        }
-        aside={checkoutAside(props)}
-      />
-    </LandingPageShell>
-  ),
+  render: (props) => <LandingShowcasePage {...props} />,
 };
 
 const Template3: LandingTemplate = {

@@ -80,21 +80,24 @@ export const landingShellStyle = (): React.CSSProperties => ({
 export function LandingPageShell({
   event,
   children,
+  showcase = false,
 }: {
   event: Event;
   children: React.ReactNode;
+  /** Premium showcase layout (custom header/footer, no default top bar). */
+  showcase?: boolean;
 }) {
   const tone = landingToneIsDark(event.customization) ? 'dark' : 'light';
 
   return (
     <div
-      className="landing-page relative isolate"
+      className={`landing-page relative isolate${showcase ? ' landing-showcase' : ''}`}
       data-landing-tone={tone}
       style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}
     >
-      <AmbientMesh />
+      {!showcase ? <AmbientMesh /> : null}
       {children}
-      <LandingFooter event={event} />
+      {!showcase ? <LandingFooter event={event} /> : null}
     </div>
   );
 }
