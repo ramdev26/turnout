@@ -135,10 +135,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
           <PremiumBadge>{b.props?.eyebrow || 'Featured event'}</PremiumBadge>
           <HeroTitle className="mt-6">{b.props?.title || event.title}</HeroTitle>
           {landingHeroSubtitle(event, b.props?.subtitle) ? <HeroSubtitle>{landingHeroSubtitle(event, b.props?.subtitle)}</HeroSubtitle> : null}
-          <div
-            className="mx-auto mt-8 w-fit max-w-full overflow-hidden rounded-3xl border shadow-2xl"
-            style={{ borderColor: 'var(--landing-border)' }}
-          >
+          <div className="landing-poster-frame landing-poster-frame--hero mx-auto mt-8">
             <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
           </div>
         </div>
