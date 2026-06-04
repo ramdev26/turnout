@@ -15,6 +15,10 @@
       "dest": "/api/index.php"
     },
     {
+      "src": "^/$",
+      "dest": "/turnout-landing.html"
+    },
+    {
       "handle": "filesystem"
     },
     {

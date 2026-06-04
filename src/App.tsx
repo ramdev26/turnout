@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuthStore } from './store/useAuthStore';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
+import { MarketingLanding } from './pages/MarketingLanding';
 import { Dashboard } from './pages/Dashboard';
 import { CreateEvent } from './pages/CreateEvent';
 import { EventThemes } from './pages/EventThemes';
@@ -91,7 +92,8 @@ export default function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<MarketingLanding />} />
+          <Route path="/discover" element={<Home />} />
           <Route
             path="/login"
             element={

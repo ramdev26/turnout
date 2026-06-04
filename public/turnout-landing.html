@@ -1,0 +1,3268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Turnout — Sell out your next event.</title>
+<meta name="description" content="The self-serve event ticketing platform. Customizable pages, your own domain, your own payment gateway, embeddable anywhere." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* =========================================================
+   TURNOUT — LANDING PAGE
+   Brand colors: dark teal #0D585B + lime #C0FF72
+   Font: Inter (per brand)
+   ========================================================= */
+
+:root {
+  --teal-900: #052E30;
+  --teal-800: #074143;
+  --teal-700: #0D585B;
+  --teal-600: #126E72;
+  --teal-500: #1A8A8F;
+  --lime-500: #C0FF72;
+  --lime-400: #D7FF9E;
+  --lime-300: #E5FFC4;
+  --lime-soft: rgba(192, 255, 114, 0.12);
+  --lime-line: rgba(192, 255, 114, 0.18);
+  --cream:    #F5F2EA;
+  --cream-2:  #FBF9F2;
+  --ink:      #0A2426;
+  --text:     #E9F4EE;
+  --text-dim: #93B5B7;
+  --text-very-dim: #5C8285;
+  --radius-sm: 10px;
+  --radius:    16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --max:       1240px;
+  --pad:       clamp(20px, 4vw, 56px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  background: var(--teal-700);
+  color: var(--text);
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Faint grid texture across whole site */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(192,255,114,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(192,255,114,0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+img { max-width: 100%; display: block; }
+button { font-family: inherit; cursor: pointer; border: none; }
+a { color: inherit; text-decoration: none; }
+
+/* ==========================
+   TYPOGRAPHY
+   ========================== */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lime-500);
+  padding: 8px 14px;
+  border: 1px solid var(--lime-line);
+  border-radius: 999px;
+  background: var(--lime-soft);
+}
+.eyebrow .dot {
+  width: 6px; height: 6px;
+  background: var(--lime-500);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--lime-500);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.4); }
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Inter', sans-serif;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  font-weight: 700;
+}
+
+.section-title {
+  font-size: clamp(36px, 5vw, 64px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.0;
+}
+.section-title .accent { color: var(--lime-500); }
+.section-title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--lime-300);
+}
+
+.section-kicker {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--lime-500);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-kicker::before {
+  content: '';
+  width: 24px; height: 2px;
+  background: var(--lime-500);
+}
+
+.section-sub {
+  font-size: 18px;
+  color: var(--text-dim);
+  max-width: 620px;
+  margin-top: 24px;
+  line-height: 1.55;
+}
+
+/* ==========================
+   BUTTONS
+   ========================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--lime-500);
+  color: var(--teal-900);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px -8px rgba(192,255,114,0.45);
+  background: var(--lime-400);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.18);
+}
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.32);
+}
+.btn-arrow {
+  transition: transform 0.2s ease;
+}
+.btn:hover .btn-arrow { transform: translateX(3px); }
+
+/* ==========================
+   NAV
+   ========================== */
+nav.top {
+  position: sticky; top: 0;
+  z-index: 100;
+  padding: 18px var(--pad);
+  background: rgba(13, 88, 91, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(192,255,114,0.08);
+}
+nav.top .row {
+  max-width: var(--max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+}
+.brand svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+.nav-links {
+  display: flex; align-items: center;
+  gap: 32px;
+  list-style: none;
+}
+.nav-links a {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  opacity: 0.78;
+  transition: opacity 0.2s;
+}
+.nav-links a:hover { opacity: 1; color: var(--lime-500); }
+.nav-actions { display: flex; align-items: center; gap: 12px; }
+.nav-actions .btn { padding: 10px 18px; font-size: 14px; }
+.btn-login {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  opacity: 0.85;
+  background: transparent;
+}
+
+/* Nav button has two label variants — full text on desktop, shortened on mobile */
+.btn-label-full { display: inline; }
+.btn-label-short { display: none; }
+@media (max-width: 520px) {
+  .btn-label-full { display: none; }
+  .btn-label-short { display: inline; }
+}
+.menu-toggle { display: none; }
+
+@media (max-width: 860px) {
+  .nav-links { display: none; }
+  .nav-actions .btn-login { display: none; }
+}
+
+/* ==========================
+   CONTAINER
+   ========================== */
+section {
+  position: relative;
+  z-index: 1;
+}
+.container {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--pad);
+}
+
+/* ==========================
+   HERO
+   ========================== */
+.hero {
+  padding: 80px var(--pad) 60px;
+  position: relative;
+  overflow: hidden;
+}
+.hero .container {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 60px;
+  align-items: center;
+}
+.hero h1 {
+  font-size: clamp(44px, 7vw, 96px);
+  font-weight: 800;
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+  margin-top: 24px;
+}
+.hero h1 .lime { color: var(--lime-500); }
+.hero h1 .period {
+  display: inline-block;
+  width: 0.18em;
+  height: 0.18em;
+  background: var(--lime-500);
+  border-radius: 50%;
+  margin-left: 0.04em;
+  vertical-align: baseline;
+  transform: translateY(-0.06em);
+}
+.hero p.lead {
+  margin-top: 28px;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  max-width: 540px;
+}
+.hero-cta {
+  margin-top: 36px;
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+.hero-meta {
+  margin-top: 36px;
+  display: flex; flex-wrap: wrap; gap: 24px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.hero-meta-item {
+  display: flex; align-items: center; gap: 8px;
+}
+.check-ic {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--lime-soft);
+  color: var(--lime-500);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+
+/* HERO MOCKUP - floating event card */
+.hero-mock {
+  position: relative;
+  perspective: 1400px;
+}
+.event-card {
+  position: relative;
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow:
+    0 30px 60px -20px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.05);
+  animation: float 6s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-12px) rotate(-0.5deg); }
+}
+.event-card .cover {
+  height: 200px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(192,255,114,0.95), transparent 60%),
+    radial-gradient(ellipse at 80% 70%, rgba(13,88,91,0.9), transparent 65%),
+    linear-gradient(135deg, #0D585B 0%, #126E72 100%);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.event-card .cover::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.event-card .cover-badge {
+  position: absolute;
+  top: 14px; left: 14px;
+  background: rgba(255,255,255,0.95);
+  color: var(--teal-700);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  z-index: 1;
+}
+.event-card .cover-mark {
+  position: absolute;
+  bottom: 14px; right: 14px;
+  display: grid;
+  grid-template-columns: 8px 8px;
+  gap: 3px;
+  z-index: 1;
+}
+.event-card .cover-mark span {
+  width: 7px; height: 7px;
+  background: var(--lime-500);
+  border-radius: 50%;
+}
+.event-card .cover-mark span:last-child {
+  width: 11px; height: 11px;
+  transform: translate(2px, 2px);
+}
+.event-card h3 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.event-card .info-row {
+  display: flex; align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #4d6e6e;
+  margin-bottom: 8px;
+}
+.event-card .info-row svg { color: var(--teal-700); flex-shrink: 0; }
+.event-card .info-row b { color: var(--ink); font-weight: 600; }
+.event-card .attendees {
+  display: flex; align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed rgba(13, 88, 91, 0.18);
+}
+.avatar-stack { display: flex; }
+.avatar-stack .avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--cream);
+  margin-left: -8px;
+  background-size: cover;
+  background-position: center;
+}
+.avatar-stack .avatar:first-child { margin-left: 0; }
+.av-1 { background: linear-gradient(135deg, #FFB59E, #FF7A59); }
+.av-2 { background: linear-gradient(135deg, #84D3FF, #2D7DD2); }
+.av-3 { background: linear-gradient(135deg, #B0FFB6, #4FB364); }
+.av-4 { background: linear-gradient(135deg, #FFE9A8, #E2A91D); display: grid; place-items: center; color: #5b3e00; font-size: 10px; font-weight: 700;}
+.attendees-text { font-size: 13px; color: #4d6e6e; }
+.attendees-text b { color: var(--ink); font-weight: 600; }
+.event-card .register-btn {
+  width: 100%;
+  margin-top: 22px;
+  padding: 14px;
+  background: var(--teal-700);
+  color: var(--lime-500);
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+.event-card .register-btn:hover { background: var(--teal-900); }
+
+/* Floating decorative ticket */
+.deco-ticket {
+  position: absolute;
+  top: -34px; right: -36px;
+  background: var(--lime-500);
+  color: var(--teal-900);
+  padding: 18px 22px;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  transform: rotate(8deg);
+  box-shadow: 0 16px 40px -10px rgba(192,255,114,0.4);
+  animation: tilt 5s ease-in-out infinite;
+  z-index: 2;
+}
+@keyframes tilt {
+  0%, 100% { transform: rotate(8deg) translateY(0); }
+  50% { transform: rotate(5deg) translateY(-8px); }
+}
+.deco-ticket .small {
+  font-size: 11px;
+  font-weight: 500;
+  display: block;
+  opacity: 0.7;
+  margin-bottom: 2px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.deco-ticket::before, .deco-ticket::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  background: var(--teal-700);
+  border-radius: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.deco-ticket::before { left: -5px; }
+.deco-ticket::after { right: -5px; }
+
+/* Decorative dot */
+.deco-dot {
+  position: absolute;
+  bottom: -28px; left: -28px;
+  width: 80px; height: 80px;
+  background: var(--lime-500);
+  border-radius: 50%;
+  opacity: 0.16;
+  filter: blur(2px);
+  animation: bob 7s ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px) scale(1.05); }
+}
+
+/* Ambient hero glow */
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 10%; left: -10%;
+  width: 50%; height: 80%;
+  background: radial-gradient(ellipse, rgba(192,255,114,0.08), transparent 60%);
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+@media (max-width: 920px) {
+  .hero .container { grid-template-columns: 1fr; gap: 80px; }
+  .hero-mock { max-width: 460px; margin: 0 auto; }
+  .deco-ticket { right: -8px; top: -28px; }
+}
+
+/* ==========================
+   MARQUEE / TRUSTED BY
+   ========================== */
+/* ==========================
+   PROBLEM SECTION
+   ========================== */
+.problem {
+  padding: 80px 0 90px;
+  background: var(--teal-900);
+  border-top: 1px solid rgba(192,255,114,0.07);
+  border-bottom: 1px solid rgba(192,255,114,0.07);
+  position: relative;
+  overflow: hidden;
+}
+.problem::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(192,255,114,0.035) 1px, transparent 1px);
+  background-size: 22px 22px;
+  pointer-events: none;
+}
+.problem::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(192,255,114,0.15), transparent);
+}
+.problem .container { position: relative; z-index: 1; }
+
+.problem-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: end;
+  margin-bottom: 52px;
+}
+.problem-head .section-kicker { color: rgba(255,130,100,0.9); }
+.problem-head .section-kicker::before { background: rgba(255,130,100,0.9); }
+.problem-head h2 {
+  font-size: clamp(30px, 4vw, 50px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--text);
+}
+.problem-head p {
+  font-size: 16px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  align-self: end;
+}
+
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.problem-card {
+  background: rgba(255,255,255,0.024);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(255, 110, 80, 0.45);
+  border-radius: var(--radius-lg);
+  padding: 28px 26px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  transition: border-top-color 0.25s;
+}
+.problem-card:hover { border-top-color: rgba(255,110,80,0.75); }
+.problem-num {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: rgba(255,130,100,0.6);
+  margin-bottom: 14px;
+}
+.problem-card h3 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.problem-card > p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  flex: 1;
+}
+.problem-visual { margin-top: 24px; }
+
+/* --- Fee bar visual --- */
+/* --- Message thread visual (card 1) --- */
+.msg-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.msg-day {
+  text-align: center;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-very-dim);
+  font-family: 'JetBrains Mono', monospace;
+  margin: 4px 0 2px;
+}
+.msg {
+  max-width: 86%;
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.msg-name {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+  color: var(--text-very-dim);
+}
+.msg.platform {
+  background: var(--teal-800);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 3px 10px 10px 10px;
+  align-self: flex-start;
+}
+.msg.you {
+  background: rgba(192,255,114,0.07);
+  border: 1px solid rgba(192,255,114,0.12);
+  border-radius: 10px 3px 10px 10px;
+  align-self: flex-end;
+  text-align: right;
+}
+.msg.you .msg-name { color: rgba(192,255,114,0.5); }
+.msg-stuck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 9px 12px;
+  background: rgba(255,80,60,0.1);
+  border: 1px solid rgba(255,80,60,0.22);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ff9080;
+}
+.msg-stuck svg { flex-shrink: 0; }
+
+/* --- Marketplace grid visual (card 2) --- */
+.mkt-wrap { display: flex; flex-direction: column; gap: 10px; }
+.mkt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.mkt-event {
+  background: var(--teal-800);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+.mkt-cover {
+  height: 38px;
+}
+.mkt-event:nth-child(1) .mkt-cover { background: linear-gradient(135deg,#2a5f6e,#0d585b); }
+.mkt-event:nth-child(2) .mkt-cover { background: linear-gradient(135deg,#3a4a7a,#5060b0); }
+.mkt-event:nth-child(3) .mkt-cover { background: linear-gradient(135deg,#6a3a6e,#b060b0); }
+.mkt-event:nth-child(4) .mkt-cover { background: linear-gradient(135deg,#6a4a2a,#b08050); }
+.mkt-event:nth-child(5) .mkt-cover { background: linear-gradient(135deg,#2a5a3a,#50a070); }
+.mkt-event:nth-child(6) .mkt-cover { background: linear-gradient(135deg,#5a2a2a,#a05050); }
+.mkt-content { padding: 6px 7px 7px; }
+.mkt-bar { height: 5px; border-radius: 2px; background: rgba(255,255,255,0.14); margin-bottom: 4px; }
+.mkt-bar.short { width: 60%; background: rgba(255,255,255,0.07); }
+.mkt-event.yours {
+  border-color: rgba(255,90,60,0.5);
+  border-width: 1.5px;
+}
+.mkt-yours-tag {
+  position: absolute;
+  top: 3px; right: 4px;
+  background: rgba(255,80,60,0.85);
+  color: white;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+.mkt-url-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  background: var(--teal-800);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 9px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+.mkt-url-note .url-bad { color: rgba(255,110,80,0.9); }
+.mkt-count {
+  font-size: 10.5px;
+  text-align: center;
+  color: var(--text-very-dim);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* --- Money flow visual (card 3) --- */
+.mf-wrap { display: flex; flex-direction: column; gap: 7px; }
+.mf-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.mf-row.buyer {
+  background: var(--teal-800);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: var(--text);
+}
+.mf-row.held {
+  background: rgba(255,70,50,0.09);
+  border: 1px solid rgba(255,70,50,0.28);
+  color: #ff9080;
+}
+.mf-row.you {
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed rgba(255,255,255,0.12);
+  color: var(--text-very-dim);
+  font-style: italic;
+}
+.mf-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.mf-arrow-row {
+  padding-left: 14px;
+  font-size: 12px;
+  color: var(--text-very-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mf-arrow-row span { font-size: 11px; font-style: italic; }
+.mf-divider {
+  border: none;
+  border-top: 1px dashed rgba(255,255,255,0.07);
+  margin: 2px 0;
+}
+.mf-stripe-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: rgba(255,70,50,0.08);
+  border: 1px solid rgba(255,70,50,0.2);
+  border-radius: 9px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.mf-flag { font-size: 16px; flex-shrink: 0; }
+.mf-stripe-text strong { color: #ff9080; font-weight: 600; }
+
+/* --- Browser URL visual --- */
+.fake-browser {
+  background: var(--teal-800);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.fb-bar {
+  display: flex; align-items: center;
+  gap: 6px;
+  padding: 10px 12px 9px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: rgba(0,0,0,0.15);
+}
+.fb-dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,0.1); }
+.fb-dot.r { background: rgba(255,100,80,0.5); }
+.fb-dot.y { background: rgba(255,200,80,0.4); }
+.fb-dot.g { background: rgba(120,255,120,0.3); }
+.fb-url-row {
+  flex: 1;
+  margin: 0 8px;
+  display: flex; align-items: center;
+  background: rgba(0,0,0,0.2);
+  border-radius: 6px;
+  padding: 5px 10px;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+.fb-lock { color: var(--text-very-dim); flex-shrink: 0; }
+.fb-addr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fb-addr .wrong-domain { color: rgba(255,110,80,0.9); font-weight: 600; }
+.fb-warn {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: rgba(255,90,60,0.18);
+  color: #ff9080;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+.fb-body {
+  padding: 14px 14px 10px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.fb-line {
+  height: 6px; border-radius: 3px;
+  background: rgba(255,255,255,0.07);
+}
+.fb-line.accent { background: rgba(255,90,60,0.22); width: 40%; }
+.fb-logo-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 4px;
+}
+.fb-their-logo {
+  font-size: 10px; font-weight: 700;
+  color: rgba(255,110,80,0.8);
+  background: rgba(255,90,60,0.12);
+  padding: 3px 8px; border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+.fb-label {
+  font-size: 10px; color: var(--text-very-dim);
+}
+
+/* --- Payment list visual --- */
+.pay-list { display: flex; flex-direction: column; gap: 7px; }
+.pay-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  font-size: 13px;
+}
+.pay-item.blocked {
+  opacity: 0.55;
+  background: rgba(255,70,50,0.05);
+  border-color: rgba(255,70,50,0.12);
+}
+.pay-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(192,255,114,0.6); flex-shrink: 0;
+}
+.pay-item.blocked .pay-dot { background: rgba(255,90,60,0.6); }
+.pay-name { flex: 1; font-weight: 500; color: var(--text); }
+.pay-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+.pay-badge.ok {
+  background: rgba(192,255,114,0.12);
+  color: var(--lime-500);
+}
+.pay-badge.no {
+  background: rgba(255,80,60,0.15);
+  color: #ff9080;
+  text-decoration: line-through;
+  text-decoration-color: rgba(255,100,80,0.5);
+}
+
+/* bridge line */
+.problem-bridge {
+  margin-top: 44px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--text-dim);
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px;
+}
+.problem-bridge strong { color: var(--lime-500); font-weight: 600; }
+.problem-bridge .br-line {
+  flex: 1; max-width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(192,255,114,0.25));
+}
+.problem-bridge .br-line.r {
+  background: linear-gradient(270deg, transparent, rgba(192,255,114,0.25));
+}
+
+@media (max-width: 900px) {
+  .problem-head { grid-template-columns: 1fr; gap: 16px; }
+  .problem-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 580px) {
+  .problem-grid { grid-template-columns: 1fr; }
+  .problem { padding: 60px 0 70px; }
+}
+
+/* ==========================
+   FEATURES (Bento Grid)
+   ========================== */
+.features {
+  padding: 120px 0 80px;
+}
+.features .head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 60px;
+}
+.features .head .section-kicker { justify-content: center; }
+.features .head .section-kicker::before { display: none; }
+.features .head .section-kicker::after {
+  content: '';
+  width: 24px; height: 2px;
+  background: var(--lime-500);
+  margin-left: 12px;
+}
+.features .head .section-title { max-width: 780px; }
+.features .head .section-sub { text-align: center; }
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 20px;
+}
+
+.feature-card {
+  background: var(--teal-800);
+  border: 1px solid rgba(192,255,114,0.06);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s, border-color 0.3s, background 0.3s;
+  display: flex;
+  flex-direction: column;
+}
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(192,255,114,0.24);
+  background: var(--teal-700);
+}
+.feature-card .ftag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lime-500);
+  margin-bottom: 14px;
+}
+.feature-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+.feature-card p {
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 420px;
+}
+.feature-card .visual {
+  margin-top: 28px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* feature card column spans (rows are natural height) */
+.bento .f-page    { grid-column: span 4; }
+.bento .f-domain  { grid-column: span 2; }
+.bento .f-payment { grid-column: span 3; }
+.bento .f-self    { grid-column: span 3; }
+.bento .f-embed   { grid-column: span 4; }
+.bento .f-free    { grid-column: span 2; }
+
+@media (max-width: 1080px) {
+  .bento { grid-template-columns: repeat(4, 1fr); }
+  .bento .f-page    { grid-column: span 4; }
+  .bento .f-domain  { grid-column: span 2; }
+  .bento .f-payment { grid-column: span 2; }
+  .bento .f-self    { grid-column: span 2; }
+  .bento .f-embed   { grid-column: span 4; }
+  .bento .f-free    { grid-column: span 2; }
+}
+@media (max-width: 720px) {
+  .bento { grid-template-columns: 1fr; }
+  .bento > * { grid-column: span 1 !important; }
+}
+
+/* === Customizable event page mockup === */
+.f-page-mock {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  perspective: 1000px;
+}
+.mini-card {
+  background: var(--teal-900);
+  border-radius: 14px;
+  padding: 12px;
+  border: 1px solid rgba(192,255,114,0.08);
+  transition: transform 0.3s;
+  position: relative;
+}
+.mini-card:hover { transform: translateY(-4px) rotate(-2deg); border-color: rgba(192,255,114,0.32); }
+.mini-card .mc-cover {
+  height: 70px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.mini-card-1 .mc-cover {
+  background: linear-gradient(135deg, #FF6B6B 0%, #C73D60 100%);
+}
+.mini-card-2 .mc-cover {
+  background: linear-gradient(135deg, var(--lime-500) 0%, var(--teal-500) 100%);
+}
+.mini-card-3 .mc-cover {
+  background: linear-gradient(135deg, #2D2D2D 0%, #5A4DEA 100%);
+}
+.mini-card .mc-title {
+  height: 9px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 3px;
+  margin-bottom: 6px;
+  width: 80%;
+}
+.mini-card .mc-line {
+  height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  width: 60%;
+}
+.mini-card .mc-tag {
+  position: absolute;
+  top: 6px; left: 6px;
+  background: rgba(0,0,0,0.55);
+  color: white;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* === Custom domain visual === */
+.f-domain-mock {
+  margin-top: 24px;
+  background: var(--teal-900);
+  border-radius: 12px;
+  border: 1px solid rgba(192,255,114,0.08);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.url-prefix {
+  background: rgba(255,255,255,0.04);
+  padding: 10px 8px 10px 12px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.url-domain {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--lime-500);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.url-path {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.url-cursor {
+  width: 8px; height: 14px;
+  background: var(--lime-500);
+  margin-left: 2px;
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.domain-list {
+  margin-top: 14px;
+  display: flex; flex-direction: column;
+  gap: 8px;
+}
+.domain-item {
+  display: flex; align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.18);
+  border-radius: 6px;
+}
+.domain-item.active {
+  color: var(--lime-500);
+  background: var(--lime-soft);
+}
+.domain-item .dot-status {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* === Payment gateways visual === */
+.f-payment-mock {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.gateway-pill {
+  background: var(--teal-900);
+  border: 1px solid rgba(192,255,114,0.08);
+  border-radius: 10px;
+  padding: 14px 12px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: all 0.25s;
+  position: relative;
+  text-align: center;
+}
+.gateway-pill:hover {
+  border-color: var(--lime-500);
+  color: var(--lime-500);
+  transform: translateY(-2px);
+}
+.gateway-pill .ic-circle {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: rgba(192,255,114,0.08);
+  display: grid; place-items: center;
+  color: var(--lime-500);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: -0.02em;
+}
+.gateway-pill.featured {
+  background: var(--lime-soft);
+  border-color: var(--lime-500);
+  color: var(--lime-500);
+}
+.gateway-pill.featured .ic-circle { background: var(--lime-500); color: var(--teal-900); }
+
+/* === Self-serve checklist === */
+.f-self-mock {
+  margin-top: 24px;
+  display: flex; flex-direction: column;
+  gap: 10px;
+}
+.checklist-item {
+  display: flex; align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--teal-900);
+  border: 1px solid rgba(192,255,114,0.08);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+.checklist-item.done .check-box {
+  background: var(--lime-500);
+  color: var(--teal-900);
+  border-color: var(--lime-500);
+}
+.checklist-item.done .label-text { color: var(--text-very-dim); text-decoration: line-through; }
+.check-box {
+  width: 18px; height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid rgba(192,255,114,0.25);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+.check-box svg { width: 12px; height: 12px; }
+.label-text { flex: 1; }
+.checklist-item .time-tag {
+  font-size: 11px;
+  color: var(--text-very-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* === Embed code visual === */
+.f-embed-mock {
+  margin-top: 24px;
+  background: var(--teal-900);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(192,255,114,0.08);
+}
+.embed-tabs {
+  display: flex; align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(192,255,114,0.06);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.tab-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.12); }
+.tab-dot.r { background: #ff6b6b80; }
+.tab-dot.y { background: #ffd76b80; }
+.tab-dot.g { background: #6bff8b80; }
+.embed-tabs .filename {
+  margin-left: 12px;
+  color: var(--text-dim);
+}
+.embed-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  padding: 16px 20px;
+  color: var(--text);
+}
+.embed-code .keyword { color: #a78bff; }
+.embed-code .tag { color: var(--lime-500); }
+.embed-code .attr { color: #ffb978; }
+.embed-code .str { color: #b8ffba; }
+.embed-code .comment { color: var(--text-very-dim); font-style: italic; }
+.embed-code .indent { padding-left: 20px; display: block; }
+.embed-code .indent2 { padding-left: 40px; display: block; }
+
+/* === Free events / pre-approval visual === */
+.f-free-mock {
+  margin-top: 24px;
+  display: flex; flex-direction: column;
+  gap: 8px;
+}
+.req-item {
+  display: flex; align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--teal-900);
+  border: 1px solid rgba(192,255,114,0.08);
+  font-size: 13px;
+}
+.req-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.req-avatar.a1 { background: linear-gradient(135deg, #FFB59E, #FF7A59); }
+.req-avatar.a2 { background: linear-gradient(135deg, #84D3FF, #2D7DD2); }
+.req-avatar.a3 { background: linear-gradient(135deg, #B0FFB6, #4FB364); }
+.req-info { flex: 1; min-width: 0; }
+.req-name { font-weight: 600; color: var(--text); font-size: 13px; }
+.req-mail { color: var(--text-very-dim); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+.req-actions { display: flex; gap: 6px; }
+.act-btn {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  display: grid; place-items: center;
+  background: rgba(0,0,0,0.18);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.act-btn.approve:hover { background: var(--lime-500); color: var(--teal-900); }
+.act-btn.reject:hover { background: rgba(255,107,107,0.2); color: #ff6b6b; }
+.req-item.approved {
+  background: var(--lime-soft);
+  border-color: rgba(192,255,114,0.32);
+}
+.req-item.approved .req-actions { display: none; }
+.req-item.approved::after {
+  content: '✓ Approved';
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lime-500);
+  letter-spacing: 0.04em;
+}
+
+/* ==========================
+   HOW IT WORKS
+   ========================== */
+.how {
+  padding: 120px 0;
+  background:
+    radial-gradient(ellipse at 80% 20%, rgba(192,255,114,0.04), transparent 50%),
+    var(--teal-700);
+}
+.how .head {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 60px;
+  align-items: end;
+  margin-bottom: 80px;
+}
+.how-stat {
+  background: var(--teal-800);
+  border: 1px solid rgba(192,255,114,0.1);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+}
+.how-stat .num {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--lime-500);
+  line-height: 1;
+}
+.how-stat .lbl {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  position: relative;
+}
+.steps::before {
+  content: '';
+  position: absolute;
+  top: 28px; left: 6%;
+  right: 6%;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--lime-500) 0 4px, transparent 4px 12px);
+  opacity: 0.3;
+  z-index: 0;
+}
+.step {
+  position: relative;
+  z-index: 1;
+}
+.step-num {
+  width: 56px; height: 56px;
+  background: var(--lime-500);
+  color: var(--teal-900);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 22px; font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+  box-shadow: 0 0 0 6px var(--teal-700);
+  position: relative;
+}
+.step-num::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(192,255,114,0.3);
+  animation: spin 20s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.step h3 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.step p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.step-mock {
+  margin-top: 20px;
+  background: var(--teal-900);
+  border: 1px solid rgba(192,255,114,0.08);
+  border-radius: 12px;
+  padding: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.step-mock .smock-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--lime-500);
+  margin-bottom: 8px;
+}
+.step-mock .smock-row {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  margin-bottom: 6px;
+}
+.step-mock .smock-row.short { width: 50%; }
+.step-mock .smock-row.med { width: 75%; }
+.step-mock .smock-row.lime { background: rgba(192,255,114,0.5); width: 60%; }
+
+@media (max-width: 1000px) {
+  .how .head { grid-template-columns: 1fr; gap: 32px; }
+  .steps { grid-template-columns: repeat(2, 1fr); }
+  .steps::before { display: none; }
+}
+@media (max-width: 600px) {
+  .steps { grid-template-columns: 1fr; }
+}
+
+/* ==========================
+   EMBED DEMO BIG SECTION
+   ========================== */
+.embed-section {
+  padding: 120px 0;
+}
+.embed-section .container {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 80px;
+  align-items: center;
+}
+.embed-section h2 {
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.0;
+  margin-bottom: 24px;
+}
+.embed-section .accent-bg {
+  background: var(--lime-500);
+  color: var(--teal-900);
+  padding: 0 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.embed-features {
+  margin-top: 32px;
+  display: flex; flex-direction: column;
+  gap: 14px;
+}
+.embed-feature {
+  display: flex; gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(192,255,114,0.08);
+}
+.embed-feature:last-child { border-bottom: 1px solid rgba(192,255,114,0.08); }
+.embed-feature .ic-square {
+  width: 36px; height: 36px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--lime-soft);
+  color: var(--lime-500);
+  display: grid; place-items: center;
+}
+.embed-feature h4 {
+  font-size: 16px; font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-bottom: 2px;
+}
+.embed-feature p {
+  font-size: 14px; color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.embed-preview {
+  position: relative;
+  background: var(--teal-900);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  border: 1px solid rgba(192,255,114,0.08);
+}
+.embed-preview .browser-bar {
+  display: flex; align-items: center;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(192,255,114,0.06);
+  margin-bottom: 20px;
+}
+.browser-bar .b-dot { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,0.12); }
+.browser-bar .b-dot.r { background: #ff6b6b88; }
+.browser-bar .b-dot.y { background: #ffd76b88; }
+.browser-bar .b-dot.g { background: #6bff8b88; }
+.browser-bar .b-url {
+  flex: 1;
+  margin-left: 12px;
+  background: rgba(255,255,255,0.04);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.preview-content {
+  display: flex; flex-direction: column;
+  gap: 20px;
+}
+.preview-host-page {
+  background: var(--teal-800);
+  border-radius: 12px;
+  padding: 18px;
+  border: 1px dashed rgba(192,255,114,0.2);
+  position: relative;
+}
+.preview-host-page::after {
+  content: 'YOUR WEBSITE';
+  position: absolute;
+  top: -10px; left: 14px;
+  background: var(--teal-900);
+  color: var(--text-very-dim);
+  padding: 3px 8px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  border-radius: 3px;
+}
+.preview-host-page .ph-title {
+  height: 16px; width: 60%;
+  background: rgba(255,255,255,0.18);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+.preview-host-page .ph-text {
+  height: 6px; background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  margin-bottom: 6px;
+}
+.preview-host-page .ph-text:nth-child(2) { width: 90%; }
+.preview-host-page .ph-text:nth-child(3) { width: 75%; }
+
+.embed-widget {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 18px;
+  position: relative;
+  box-shadow: 0 12px 30px -10px rgba(0,0,0,0.3);
+}
+.embed-widget::after {
+  content: '↑ EMBEDDED VIA TURNOUT';
+  position: absolute;
+  top: -10px; right: 14px;
+  background: var(--lime-500);
+  color: var(--teal-900);
+  padding: 3px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  border-radius: 3px;
+}
+.embed-widget .ew-cover {
+  height: 100px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--teal-700) 0%, var(--lime-500) 130%);
+  margin-bottom: 14px;
+  position: relative;
+}
+.embed-widget .ew-cover::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 18px 18px;
+  border-radius: 8px;
+}
+.embed-widget h4 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+.embed-widget .ew-meta {
+  font-size: 12px;
+  color: #4d6e6e;
+  margin-bottom: 14px;
+}
+.embed-widget .ew-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: var(--teal-700);
+  color: var(--lime-500);
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+@media (max-width: 940px) {
+  .embed-section .container { grid-template-columns: 1fr; gap: 60px; }
+}
+
+/* ==========================
+   FINAL CTA
+   ========================== */
+.final-cta {
+  padding: 100px 0 120px;
+}
+.cta-card {
+  background: var(--lime-500);
+  color: var(--teal-900);
+  border-radius: var(--radius-xl);
+  padding: clamp(40px, 7vw, 80px);
+  position: relative;
+  overflow: hidden;
+}
+.cta-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(13,88,91,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13,88,91,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+.cta-card-inner {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 40px;
+  align-items: end;
+}
+.cta-card h2 {
+  font-size: clamp(40px, 6vw, 84px);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  color: var(--teal-900);
+}
+.cta-card h2 em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--teal-700);
+}
+.cta-card p {
+  font-size: 17px;
+  color: var(--teal-800);
+  opacity: 0.85;
+  max-width: 420px;
+  margin-top: 20px;
+  line-height: 1.5;
+}
+.cta-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--teal-800);
+  background: rgba(13,88,91,0.12);
+  padding: 6px 12px;
+  border-radius: 999px;
+  margin-bottom: 18px;
+}
+
+.waitlist-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+  max-width: 380px;
+  margin-left: auto;
+}
+.wl-input-wrap {
+  position: relative;
+  width: 100%;
+}
+.wl-mail-ic {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--teal-700);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.wl-input {
+  width: 100%;
+  font: inherit;
+  font-size: 15px;
+  padding: 16px 18px 16px 44px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(13,88,91,0.18);
+  background: rgba(255,255,255,0.5);
+  color: var(--teal-900);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.wl-input::placeholder { color: rgba(13,88,91,0.45); }
+.wl-input:focus {
+  border-color: var(--teal-700);
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 0 0 4px rgba(13,88,91,0.1);
+}
+.wl-input:invalid:not(:placeholder-shown) {
+  border-color: #c54f4f;
+}
+
+.waitlist-form .btn-cta {
+  width: 100%;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  background: var(--teal-700);
+  color: var(--lime-500);
+  padding: 16px 24px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.waitlist-form .btn-cta:hover {
+  background: var(--teal-900);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px -8px rgba(13,88,91,0.4);
+}
+
+.wl-success {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--teal-700);
+  color: var(--lime-500);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.waitlist-form.is-success .wl-input-wrap,
+.waitlist-form.is-success .btn-cta { display: none; }
+.waitlist-form.is-success .wl-success { display: flex; }
+
+.cta-fineprint {
+  font-size: 12.5px;
+  color: var(--teal-800);
+  opacity: 0.65;
+  text-align: center;
+  margin-top: 2px;
+}
+.cta-deco-dots {
+  position: absolute;
+  bottom: -40px; right: -40px;
+  display: grid;
+  grid-template-columns: 50px 50px;
+  gap: 14px;
+  opacity: 0.18;
+}
+.cta-deco-dots span {
+  width: 50px; height: 50px;
+  background: var(--teal-900);
+  border-radius: 50%;
+}
+.cta-deco-dots span:last-child {
+  width: 70px; height: 70px;
+  transform: translate(10px, 10px);
+}
+
+@media (max-width: 800px) {
+  .cta-card-inner { grid-template-columns: 1fr; gap: 32px; }
+  .waitlist-form { margin-left: 0; max-width: 100%; }
+  .cta-fineprint { text-align: left; }
+}
+
+/* ==========================
+   FOOTER
+   ========================== */
+footer {
+  padding: 60px 0 40px;
+  border-top: 1px solid rgba(192,255,114,0.08);
+}
+footer .container {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 60px;
+  margin-bottom: 60px;
+}
+footer .f-brand {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  margin-bottom: 16px;
+}
+footer .f-brand svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+footer .f-tagline {
+  color: var(--text-dim);
+  max-width: 320px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+footer h5 {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-very-dim);
+  margin-bottom: 18px;
+  font-weight: 600;
+}
+footer ul { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+footer ul a {
+  font-size: 14px;
+  color: var(--text);
+  opacity: 0.75;
+  transition: opacity 0.2s, color 0.2s;
+}
+footer ul a:hover { opacity: 1; color: var(--lime-500); }
+footer .f-bottom {
+  border-top: 1px solid rgba(192,255,114,0.06);
+  padding-top: 24px;
+  display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-very-dim);
+}
+footer .socials { display: flex; gap: 12px; }
+footer .socials a {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(192,255,114,0.12);
+  color: var(--text-dim);
+  transition: all 0.2s;
+}
+footer .socials a:hover {
+  border-color: var(--lime-500);
+  color: var(--lime-500);
+}
+
+@media (max-width: 800px) {
+  footer .container { grid-template-columns: 1fr 1fr; }
+  footer .f-brand-col { grid-column: 1 / -1; }
+}
+
+/* ==========================
+   WAITLIST MODAL
+   ========================== */
+body.modal-open { overflow: hidden; }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh 20px;
+  overflow-y: auto;
+}
+.modal.is-open { display: flex; }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 22, 24, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: backdrop-in 0.25s ease;
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card {
+  position: relative;
+  background: var(--teal-800);
+  color: var(--text);
+  border-radius: var(--radius-lg);
+  max-width: 540px;
+  width: 100%;
+  padding: 44px 40px 36px;
+  border: 1px solid rgba(192, 255, 114, 0.12);
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+  margin: auto;
+  animation: modal-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modal-in {
+  from { transform: translateY(24px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 36px; height: 36px;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  transition: background 0.2s, color 0.2s;
+}
+.modal-close:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+}
+
+.modal-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lime-500);
+  margin-bottom: 14px;
+}
+.modal-eyebrow .dot {
+  width: 6px; height: 6px;
+  background: var(--lime-500);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--lime-500);
+}
+
+.modal-card h3 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 8px;
+}
+.modal-card .modal-lead {
+  color: var(--text-dim);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.modal-form {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.modal-field { display: flex; flex-direction: column; gap: 6px; }
+.modal-field label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.modal-field label .req { color: var(--lime-500); margin-left: 2px; }
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
+  font: inherit;
+  font-size: 14.5px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--teal-900);
+  border: 1px solid rgba(192,255,114,0.1);
+  color: var(--text);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.modal-field input::placeholder,
+.modal-field textarea::placeholder { color: var(--text-very-dim); }
+.modal-field input:focus,
+.modal-field select:focus,
+.modal-field textarea:focus {
+  border-color: var(--lime-500);
+  background: var(--teal-700);
+  box-shadow: 0 0 0 3px rgba(192,255,114,0.12);
+}
+.modal-field input:invalid:not(:placeholder-shown):not(:focus) {
+  border-color: rgba(255, 130, 130, 0.45);
+}
+.modal-field textarea {
+  resize: vertical;
+  min-height: 88px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.modal-field select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23C0FF72' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 40px;
+  cursor: pointer;
+}
+.modal-field select option { background: var(--teal-900); color: var(--text); }
+
+.modal-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.modal-submit {
+  margin-top: 8px;
+  background: var(--lime-500);
+  color: var(--teal-900);
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  padding: 15px 20px;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.modal-submit:hover {
+  background: var(--lime-400);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px -8px rgba(192,255,114,0.4);
+}
+.modal-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+  transform: none;
+}
+.modal-submit .spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(13,88,91,0.3);
+  border-top-color: var(--teal-900);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+.modal-submit.is-loading .submit-text,
+.modal-submit.is-loading .submit-arrow { display: none; }
+.modal-submit.is-loading .spinner { display: inline-block; }
+
+.modal-fineprint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-very-dim);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.modal-error {
+  display: none;
+  padding: 11px 14px;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 10px;
+  color: #ffacac;
+  font-size: 13px;
+}
+.modal-error.is-visible { display: block; }
+
+/* Success state */
+.modal-success {
+  display: none;
+  padding: 8px 0 0;
+  text-align: center;
+}
+.modal-card.is-success .modal-form,
+.modal-card.is-success .modal-eyebrow,
+.modal-card.is-success h3,
+.modal-card.is-success .modal-lead { display: none; }
+.modal-card.is-success .modal-success { display: block; }
+.modal-success .success-icon {
+  width: 72px; height: 72px;
+  background: var(--lime-soft);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  margin: 0 auto 24px;
+  color: var(--lime-500);
+  animation: pop-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes pop-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.modal-success h3 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-bottom: 12px;
+  display: block !important;
+}
+.modal-card.is-success .modal-success h3 { display: block; }
+.modal-success p {
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 380px;
+  margin: 0 auto 24px;
+}
+.modal-success .btn-done {
+  background: transparent;
+  color: var(--lime-500);
+  border: 1px solid rgba(192,255,114,0.3);
+  padding: 11px 22px;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.modal-success .btn-done:hover {
+  background: var(--lime-soft);
+  border-color: var(--lime-500);
+}
+
+@media (max-width: 540px) {
+  .modal { padding: 3vh 14px; }
+  .modal-card { padding: 36px 24px 28px; border-radius: 22px; }
+  .modal-card h3 { font-size: 22px; }
+  .modal-grid-2 { grid-template-columns: 1fr; }
+  .modal-success .success-icon { width: 60px; height: 60px; }
+}
+
+/* ==========================
+   REVEAL ON SCROLL — progressive enhancement.
+   Only hide if JS adds .js-ready to <html>, so content
+   is always visible if JS fails or user disables animations.
+   ========================== */
+@media (prefers-reduced-motion: no-preference) {
+  html.js-ready .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  html.js-ready .reveal.in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  html.js-ready .reveal.delay-1 { transition-delay: 0.1s; }
+  html.js-ready .reveal.delay-2 { transition-delay: 0.2s; }
+  html.js-ready .reveal.delay-3 { transition-delay: 0.3s; }
+}
+
+/* Smaller screens tweaks */
+@media (max-width: 720px) {
+  .hero { padding-top: 48px; padding-bottom: 40px; }
+  .hero .container { gap: 56px; }
+  .hero h1 { font-size: clamp(40px, 11vw, 56px); }
+  .hero p.lead { font-size: 17px; margin-top: 22px; }
+  .hero-cta { margin-top: 28px; }
+  .hero-cta .btn { flex: 1; justify-content: center; min-width: 0; }
+  .hero-meta { gap: 18px; row-gap: 10px; font-size: 13px; }
+
+  .deco-ticket {
+    padding: 14px 16px;
+    font-size: 12px;
+    right: 0;
+    top: -22px;
+  }
+  .deco-ticket .small { font-size: 9px; }
+  .deco-ticket::before, .deco-ticket::after { width: 8px; height: 8px; }
+  .deco-ticket::before { left: -4px; }
+  .deco-ticket::after { right: -4px; }
+
+  .event-card { padding: 22px; }
+  .event-card h3 { font-size: 19px; }
+  .event-card .cover { height: 160px; }
+
+  .features { padding: 72px 0 48px; }
+  .features .head { margin-bottom: 40px; }
+  .section-title { font-size: clamp(32px, 8vw, 44px); }
+  .section-sub { font-size: 16px; margin-top: 18px; }
+
+  .feature-card { padding: 24px; }
+  .feature-card h3 { font-size: 20px; }
+
+  .how { padding: 80px 0; }
+  .how .head { margin-bottom: 48px; }
+  .how-stat { padding: 20px 22px; }
+  .how-stat .num { font-size: 36px; }
+  .step-num { width: 48px; height: 48px; font-size: 19px; margin-bottom: 18px; }
+
+  .embed-section { padding: 80px 0; }
+  .embed-section .container { gap: 48px; }
+  .embed-section h2 { font-size: clamp(30px, 7vw, 42px); }
+
+  .final-cta { padding: 64px 0 80px; }
+  .cta-card { padding: 36px 28px; }
+  .cta-card h2 { font-size: clamp(34px, 9vw, 52px); }
+  .cta-card p { font-size: 16px; }
+  .cta-deco-dots { display: none; }
+
+  nav.top { padding: 12px 18px; }
+  .nav-actions .btn { padding: 9px 16px; font-size: 13.5px; }
+}
+
+@media (max-width: 480px) {
+  :root { --pad: 18px; }
+  .hero h1 { line-height: 1.0; }
+  .hero-cta { flex-direction: column; align-items: stretch; }
+  .hero-meta-item { font-size: 13px; }
+  .deco-ticket { padding: 11px 14px; font-size: 11px; }
+  .gateway-pill { padding: 12px 8px; font-size: 11px; }
+  .gateway-pill .ic-circle { width: 28px; height: 28px; font-size: 11px; }
+  .step-mock { font-size: 11px; }
+  .req-mail { font-size: 10px; }
+  .embed-code { font-size: 11.5px; padding: 14px 16px; }
+  footer .container { grid-template-columns: 1fr; gap: 36px; }
+  footer .f-brand-col { grid-column: 1; }
+  footer .f-bottom { font-size: 12px; }
+}
+
+/* selection color */
+::selection { background: var(--lime-500); color: var(--teal-900); }
+
+/* scrollbar (webkit) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--teal-900); }
+::-webkit-scrollbar-thumb { background: var(--teal-500); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--lime-500); }
+</style>
+</head>
+<body>
+
+<!-- =================== NAV =================== -->
+<nav class="top">
+  <div class="row">
+    <a href="#" class="brand" aria-label="Turnout home">
+      <svg viewBox="0 620 1470 260" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <clipPath id="lg-d1"><path d="M1382.68 776.88c-14.85 0-26.88 12.03-26.88 26.88s12.03 26.88 26.88 26.88 26.88-12.03 26.88-26.88-12.03-26.88-26.88-26.88z"/></clipPath>
+          <clipPath id="lg-d2"><path d="M1441.20 776.88c-14.85 0-26.88 12.03-26.88 26.88s12.03 26.88 26.88 26.88 26.88-12.03 26.88-26.88-12.03-26.88-26.88-26.88z"/></clipPath>
+          <clipPath id="lg-d3"><path d="M1382.68 835.55c-14.85 0-26.88 12.03-26.88 26.88s12.03 26.88 26.88 26.88 26.88-12.03 26.88-26.88-12.03-26.88-26.88-26.88z"/></clipPath>
+        </defs>
+        <g transform="translate(0,574)" fill="#c1ff72">
+          <g transform="translate(0,279.748)"><path d="M7.34 -163.55v-46.89h181.91v46.89h-62.28V0H69.62V-163.55z"/></g>
+          <g transform="translate(190.81,279.748)"><path d="M103.67 2.69c-18.09 0-33.93-3.18-47.53-9.53-13.61-6.36-24.2-15.4-31.78-27.12C16.79-45.69 13-59.55 13-75.56V-210.44h57.05V-80.36c0 6.59 1.46 12.41 4.38 17.45 2.92 5.03 6.91 8.98 11.94 11.86 5.04 2.87 10.86 4.3 17.45 4.3 6.49 0 12.28-1.43 17.36-4.3 5.1-2.88 9.1-6.83 12.02-11.86 2.92-5.04 4.38-10.86 4.38-17.45V-210.44h57.06V-75.56c0 16.01-3.79 29.88-11.37 41.59-7.58 11.72-18.2 20.76-31.85 27.12-13.66 6.35-29.57 9.53-47.74 9.53z"/></g>
+          <g transform="translate(392.63,279.748)"><path d="M13 0v-210.44h90.39c15.91 0 29.79 2.88 41.66 8.63 11.86 5.74 21.06 14 27.6 24.78 6.54 10.78 9.81 23.61 9.81 38.48 0 14.97-3.37 27.66-10.09 38.06-6.73 10.41-16.2 18.32-28.39 23.73-12.19 5.41-26.43 8.11-42.72 8.11H47.88v-44.62h44.06c6.59 0 12.22-0.9 16.87-2.69 4.67-1.79 8.27-4.54 10.82-8.26 2.54-3.72 3.81-8.5 3.81-14.33s-1.27-10.65-3.81-14.41c-2.55-3.77-6.15-6.59-10.82-8.47-4.65-1.88-10.28-2.82-16.87-2.82H70.47V0zm114.53 0L77.39-96.33h60.45L189.39 0z"/></g>
+          <g transform="translate(579.90,279.748)"><path d="M13 0v-210.44h61.72l50.42 82.63c3.85 6.4 7.61 13.06 11.28 19.98 3.68 6.92 7.33 14.53 10.95 22.81 3.63 8.28 7.23 17.56 10.82 27.81l-5.52 3.67c-0.47-7.62-1.01-16.42-1.62-26.4-0.61-9.98-1.15-19.77-1.62-29.37-0.47-9.6-0.7-17.61-0.7-24.02V-210.44h58.75V0H145.89L98.86-76.83c-4.71-7.81-9.09-15.46-13.14-22.95-4.04-7.49-8.04-15.52-12-24.08-3.95-8.57-8.33-18.22-13.13-28.95l7.2-0.7c0.75 9.89 1.43 19.7 2.05 29.45 0.61 9.74 1.08 18.71 1.4 26.91 0.33 8.19 0.5 14.97 0.5 20.33V0z"/></g>
+          <g transform="translate(794.72,279.748)"><path d="M111.16 2.97c-19.12 0-36.42-4.17-51.91-12.5-15.49-8.33-27.76-20.53-36.8-36.58C13.41-62.16 8.89-81.82 8.89-105.08c0-23.45 4.52-43.22 13.56-59.31 9.04-16.1 21.31-28.3 36.8-36.58 15.49-8.29 32.79-12.44 51.91-12.44 19.11 0 36.39 4.15 51.83 12.44 15.44 8.28 27.7 20.48 36.78 36.58 9.09 16.09 13.64 35.87 13.64 59.31 0 23.36-4.55 43.06-13.64 59.11-9.08 16.05-21.34 28.23-36.78 36.52C147.55-1.17 130.27 2.97 111.16 2.97zm0-50c9.51 0 17.46-2.23 23.86-6.7 6.41-4.48 11.25-11.05 14.55-19.71 3.3-8.66 4.95-19.21 4.95-31.64 0-12.52-1.65-23.13-4.95-31.84-3.3-8.71-8.14-15.3-14.55-19.77-6.4-4.48-14.35-6.72-23.86-6.72-9.32 0-17.21 2.24-23.66 6.72-6.45 4.47-11.34 11.06-14.69 19.77-3.34 8.71-5.01 19.32-5.01 31.84 0 12.43 1.67 22.98 5.01 31.64 3.35 8.66 8.24 15.23 14.69 19.71 6.45 4.47 14.34 6.7 23.66 6.7z"/></g>
+          <g transform="translate(1011.37,279.748)"><path d="M103.67 2.69c-18.09 0-33.93-3.18-47.53-9.53-13.61-6.36-24.2-15.4-31.78-27.12C16.79-45.69 13-59.55 13-75.56V-210.44h57.05V-80.36c0 6.59 1.46 12.41 4.38 17.45 2.92 5.03 6.91 8.98 11.94 11.86 5.04 2.87 10.86 4.3 17.45 4.3 6.49 0 12.28-1.43 17.36-4.3 5.1-2.88 9.1-6.83 12.02-11.86 2.92-5.04 4.38-10.86 4.38-17.45V-210.44h57.06V-75.56c0 16.01-3.79 29.88-11.37 41.59-7.58 11.72-18.2 20.76-31.85 27.12-13.66 6.35-29.57 9.53-47.74 9.53z"/></g>
+          <g transform="translate(1213.19,279.748)"><path d="M7.34 -163.55v-46.89h181.91v46.89h-62.28V0H69.62V-163.55z"/></g>
+        </g>
+        <!-- 4-dot mark (3 filled, bottom-right outlined) -->
+        <circle cx="1382.68" cy="776.88" r="26.88" fill="#c1ff72"/>
+        <circle cx="1441.20" cy="776.88" r="26.88" fill="#c1ff72"/>
+        <circle cx="1382.68" cy="835.55" r="26.88" fill="#c1ff72"/>
+        <circle cx="1441.20" cy="835.55" r="22" fill="none" stroke="#c1ff72" stroke-width="21"/>
+      </svg>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#embed">Embed</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#docs">Docs</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="/signup" target="_top" rel="noopener" class="btn btn-primary">
+        <span class="btn-label-full">Join now</span>
+        <span class="btn-label-short">Join</span>
+        <svg class="btn-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- =================== HERO =================== -->
+<section class="hero">
+  <div class="container">
+    <div>
+      <span class="eyebrow reveal"><span class="dot"></span> Event ticketing, reimagined</span>
+      <h1 class="reveal delay-1">
+        Sell out<br/>
+        your next <span class="lime">event<span class="period"></span></span>
+      </h1>
+      <p class="lead reveal delay-2">
+        Turnout is the self-serve ticketing platform built for hosts who want their own brand, their own domain, and their own payment gateway — without giving up the speed of going live in minutes.
+      </p>
+      <div class="hero-cta reveal delay-3">
+        <a href="/signup" target="_top" rel="noopener" class="btn btn-primary">Join now
+          <svg class="btn-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+        <a href="#how" class="btn btn-ghost">See how it works</a>
+      </div>
+      <div class="hero-meta reveal delay-3">
+        <div class="hero-meta-item">
+          <span class="check-ic">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          No setup fee
+        </div>
+        <div class="hero-meta-item">
+          <span class="check-ic">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          Live in 5 minutes
+        </div>
+        <div class="hero-meta-item">
+          <span class="check-ic">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          Cancel anytime
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-mock reveal delay-2">
+      <div class="deco-ticket">
+        <span class="small">Ticket</span>
+        SOLD OUT
+      </div>
+      <div class="deco-dot"></div>
+      <div class="event-card">
+        <div class="cover">
+          <div class="cover-badge">Live now</div>
+          <div class="cover-mark">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <h3>Friday Night Sessions — Vol. 04</h3>
+        <div class="info-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span><b>Fri, Nov 14</b> · 8:00 PM — 1:00 AM</span>
+        </div>
+        <div class="info-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span><b>The Annex</b>, Colombo 04</span>
+        </div>
+        <div class="attendees">
+          <div class="avatar-stack">
+            <div class="avatar av-1"></div>
+            <div class="avatar av-2"></div>
+            <div class="avatar av-3"></div>
+            <div class="avatar av-4">+9</div>
+          </div>
+          <span class="attendees-text"><b>148 going</b> · 22 spots left</span>
+        </div>
+        <button class="register-btn">
+          Get tickets — $24
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== TRUSTED BY =================== -->
+<!-- =================== PROBLEM SECTION =================== -->
+<section class="problem">
+  <div class="container">
+
+    <div class="problem-head reveal">
+      <div>
+        <div class="section-kicker">The problem</div>
+        <h2>Sri Lankan ticketing<br/>is broken for hosts.</h2>
+      </div>
+      <p>Every platform you've tried was built for the platform — not you. No self-service, no ownership, no direct access to your own revenue. Turnout was built because all three of these needed fixing.</p>
+    </div>
+
+    <div class="problem-grid">
+
+      <!-- Card 1 — Not self-service -->
+      <div class="problem-card reveal">
+        <div class="problem-num">01 — Setup</div>
+        <h3>Nothing is self-service. Getting live means days of waiting.</h3>
+        <p>Every platform in Sri Lanka requires you to reach out, wait for a reply, go back and forth, and hope they set it up correctly. You're at their schedule, not yours.</p>
+        <div class="problem-visual">
+          <div class="msg-thread">
+            <div class="msg-day">Day 0</div>
+            <div class="msg platform">
+              <div class="msg-name">Platform Support</div>
+              "Hi, please fill out our event setup form and send your poster..."
+            </div>
+            <div class="msg you">
+              <div class="msg-name">You</div>
+              "Done! All details attached."
+            </div>
+            <div class="msg-day">Day 4</div>
+            <div class="msg platform">
+              <div class="msg-name">Platform Support</div>
+              "Can you resend the artwork as a PNG? Also need T&amp;C signed."
+            </div>
+            <div class="msg-day">Day 9</div>
+            <div class="msg-stuck">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Still not live. Event is 12 days away.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2 — Marketplace + no brand -->
+      <div class="problem-card reveal delay-1">
+        <div class="problem-num">02 — Visibility</div>
+        <h3>Your event is one listing in a crowded marketplace.</h3>
+        <p>Platforms are marketplaces — your event sits beside dozens of competing ones, identical in template. No custom page, no own domain, no brand.</p>
+        <div class="problem-visual">
+          <div class="mkt-wrap">
+            <div class="mkt-grid">
+              <div class="mkt-event">
+                <div class="mkt-cover"></div>
+                <div class="mkt-content"><div class="mkt-bar"></div><div class="mkt-bar short"></div></div>
+              </div>
+              <div class="mkt-event yours">
+                <div class="mkt-cover"></div>
+                <div class="mkt-content"><div class="mkt-bar"></div><div class="mkt-bar short"></div></div>
+                <span class="mkt-yours-tag">YOURS</span>
+              </div>
+              <div class="mkt-event">
+                <div class="mkt-cover"></div>
+                <div class="mkt-content"><div class="mkt-bar"></div><div class="mkt-bar short"></div></div>
+              </div>
+              <div class="mkt-event">
+                <div class="mkt-cover"></div>
+                <div class="mkt-content"><div class="mkt-bar"></div><div class="mkt-bar short"></div></div>
+              </div>
+              <div class="mkt-event">
+                <div class="mkt-cover"></div>
+                <div class="mkt-content"><div class="mkt-bar"></div><div class="mkt-bar short"></div></div>
+              </div>
+              <div class="mkt-event">
+                <div class="mkt-cover"></div>
+                <div class="mkt-content"><div class="mkt-bar"></div><div class="mkt-bar short"></div></div>
+              </div>
+            </div>
+            <p class="mkt-count">+38 more events on the same page</p>
+            <div class="mkt-url-note">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              tickets.<span class="url-bad">bigplatform.lk</span>/your-event-name
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3 — Money held + Stripe doesn't support SL -->
+      <div class="problem-card reveal delay-2">
+        <div class="problem-num">03 — Revenue</div>
+        <h3>Your money sits in someone else's account — and global gateways block you entirely.</h3>
+        <p>Local platforms hold ticket revenue in their own accounts before paying out. And foreign platforms like Stripe? Sri Lanka simply isn't supported.</p>
+        <div class="problem-visual">
+          <div class="mf-wrap">
+            <div class="mf-row buyer">
+              <span class="mf-icon">🎟</span>
+              <span>Attendee buys a ticket</span>
+            </div>
+            <div class="mf-arrow-row">↓ <span>goes to...</span></div>
+            <div class="mf-row held">
+              <span class="mf-icon">🔒</span>
+              <span>Platform holds your revenue</span>
+            </div>
+            <div class="mf-arrow-row">↓ <span>maybe, after weeks</span></div>
+            <div class="mf-row you">
+              <span class="mf-icon">👤</span>
+              <span>You get paid. Eventually.</span>
+            </div>
+            <hr class="mf-divider"/>
+            <div class="mf-stripe-note">
+              <span class="mf-flag">🇱🇰</span>
+              <span class="mf-stripe-text">Sri Lanka — <strong>not supported</strong> on Stripe, PayPal &amp; most foreign gateways.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="problem-bridge reveal">
+      <span class="br-line"></span>
+      <span>Turnout was built to fix <strong>all three</strong>. See how ↓</span>
+      <span class="br-line r"></span>
+    </div>
+
+  </div>
+</section>
+
+<!-- =================== FEATURES =================== -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="head reveal">
+      <div class="section-kicker">Features</div>
+      <h2 class="section-title">All you need to host<br/>an event. <em>Nothing more.</em></h2>
+      <p class="section-sub">From your branded event page to your own payment processor — Turnout puts every piece of the ticketing stack under your control, with sensible defaults if you don't want to think about it.</p>
+    </div>
+
+    <div class="bento">
+      <!-- 1: Customizable Event Page -->
+      <div class="feature-card f-page reveal">
+        <div class="ftag">01 — Make it yours</div>
+        <h3>Customizable event pages, designed to convert.</h3>
+        <p>Cover art, color, layout, sections, registration questions — every pixel adjustable. Pick a theme or roll your own. Your event, your brand.</p>
+        <div class="visual">
+          <div class="f-page-mock">
+            <div class="mini-card mini-card-1">
+              <div class="mc-cover"><div class="mc-tag">Music</div></div>
+              <div class="mc-title"></div>
+              <div class="mc-line"></div>
+            </div>
+            <div class="mini-card mini-card-2">
+              <div class="mc-cover"><div class="mc-tag">Conference</div></div>
+              <div class="mc-title"></div>
+              <div class="mc-line"></div>
+            </div>
+            <div class="mini-card mini-card-3">
+              <div class="mc-cover"><div class="mc-tag">Workshop</div></div>
+              <div class="mc-title"></div>
+              <div class="mc-line"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2: Custom Domain -->
+      <div class="feature-card f-domain reveal delay-1">
+        <div class="ftag">02 — Own your URL</div>
+        <h3>Use your own domain.</h3>
+        <p>Map any domain in seconds. SSL handled automatically.</p>
+        <div class="visual">
+          <div class="f-domain-mock">
+            <span class="url-prefix">https://</span>
+            <span class="url-domain">tickets.yourbrand</span>
+            <span class="url-path">.com</span>
+            <span class="url-cursor"></span>
+          </div>
+          <div class="domain-list">
+            <div class="domain-item active">
+              <span class="dot-status"></span>
+              live · tickets.yourbrand.com
+            </div>
+            <div class="domain-item">
+              <span class="dot-status"></span>
+              ssl · auto-renew
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3: Bring your own payment gateway -->
+      <div class="feature-card f-payment reveal">
+        <div class="ftag">03 — Your stack, your fees</div>
+        <h3>Bring your own payment gateway. Or use ours.</h3>
+        <p>Connect PayHere, Payable, WebXPay, Koko or Mintpay — and keep your existing rates and reconciliation. Need it simple? Our built-in gateway works out of the box.</p>
+        <div class="visual">
+          <div class="f-payment-mock">
+            <div class="gateway-pill featured">
+              <div class="ic-circle">T</div>
+              Turnout Pay
+            </div>
+            <div class="gateway-pill">
+              <div class="ic-circle">PH</div>
+              PayHere
+            </div>
+            <div class="gateway-pill">
+              <div class="ic-circle">Pa</div>
+              Payable
+            </div>
+            <div class="gateway-pill">
+              <div class="ic-circle">Wx</div>
+              WebXPay
+            </div>
+            <div class="gateway-pill">
+              <div class="ic-circle">K</div>
+              Koko
+            </div>
+            <div class="gateway-pill">
+              <div class="ic-circle">M</div>
+              Mintpay
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4: Self Service -->
+      <div class="feature-card f-self reveal delay-1">
+        <div class="ftag">04 — No sales calls. Ever.</div>
+        <h3>Completely self-serve.</h3>
+        <p>Sign up, set up, sell. No demos, no minimum spend, no quotas — every feature is one click away the moment you create an account.</p>
+        <div class="visual">
+          <div class="f-self-mock">
+            <div class="checklist-item done">
+              <div class="check-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span class="label-text">Create account</span>
+              <span class="time-tag">0:30</span>
+            </div>
+            <div class="checklist-item done">
+              <div class="check-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span class="label-text">Configure event</span>
+              <span class="time-tag">2:00</span>
+            </div>
+            <div class="checklist-item">
+              <div class="check-box"></div>
+              <span class="label-text">Connect payments</span>
+              <span class="time-tag">1:00</span>
+            </div>
+            <div class="checklist-item">
+              <div class="check-box"></div>
+              <span class="label-text">Publish &amp; share</span>
+              <span class="time-tag">0:30</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5: Embed -->
+      <div class="feature-card f-embed reveal">
+        <div class="ftag">05 — Plug it in</div>
+        <h3>Embed your event page anywhere.</h3>
+        <p>One line of code. Drop it into your site, your portfolio, your Notion, your Webflow. Looks native, sells natively.</p>
+        <div class="visual">
+          <div class="f-embed-mock">
+            <div class="embed-tabs">
+              <span class="tab-dot r"></span>
+              <span class="tab-dot y"></span>
+              <span class="tab-dot g"></span>
+              <span class="filename">index.html</span>
+            </div>
+            <div class="embed-code">
+              <span class="comment">&lt;!-- paste anywhere on your site --&gt;</span><br/>
+              <span class="tag">&lt;div</span> <span class="attr">id</span>=<span class="str">"turnout-embed"</span><br/>
+              <span class="indent"><span class="attr">data-event</span>=<span class="str">"friday-sessions-04"</span></span>
+              <span class="indent"><span class="attr">data-theme</span>=<span class="str">"dark"</span><span class="tag">&gt;&lt;/div&gt;</span></span><br/>
+              <span class="tag">&lt;script</span> <span class="attr">src</span>=<span class="str">"https://turnout.io/embed.js"</span><span class="tag">&gt;&lt;/script&gt;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6: Free events with pre-approval -->
+      <div class="feature-card f-free reveal delay-1">
+        <div class="ftag">06 — Curated guest lists</div>
+        <h3>Host free events. Pre-approve attendees.</h3>
+        <p>Review and admit one by one — perfect for invite-only nights.</p>
+        <div class="visual">
+          <div class="f-free-mock">
+            <div class="req-item">
+              <div class="req-avatar a1"></div>
+              <div class="req-info">
+                <div class="req-name">Alia M.</div>
+                <div class="req-mail">alia@studio.co</div>
+              </div>
+              <div class="req-actions">
+                <div class="act-btn approve" title="Approve">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div class="act-btn reject" title="Reject">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="req-item approved">
+              <div class="req-avatar a2"></div>
+              <div class="req-info">
+                <div class="req-name">Dilan R.</div>
+                <div class="req-mail">d.r@gmail.com</div>
+              </div>
+            </div>
+            <div class="req-item">
+              <div class="req-avatar a3"></div>
+              <div class="req-info">
+                <div class="req-name">Marcus K.</div>
+                <div class="req-mail">mk@field.io</div>
+              </div>
+              <div class="req-actions">
+                <div class="act-btn approve" title="Approve">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div class="act-btn reject" title="Reject">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- =================== HOW IT WORKS =================== -->
+<section class="how" id="how">
+  <div class="container">
+    <div class="head reveal">
+      <div>
+        <div class="section-kicker">Set it up</div>
+        <h2 class="section-title">Live in <em>five</em> minutes.<br/>Selling in ten.</h2>
+        <p class="section-sub">No agencies. No onboarding fees. No "talk to sales." Just four steps from a blank page to ticket sales.</p>
+      </div>
+      <div class="how-stat">
+        <div class="num">5 min</div>
+        <div class="lbl">Median time from sign-up to first ticket sold across 2,400+ active hosts.</div>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">1</div>
+        <h3>Create your event</h3>
+        <p>Title, date, capacity, ticket types. Pick a cover or upload your own. Everything is editable later.</p>
+        <div class="step-mock">
+          <div class="smock-label">Setup</div>
+          <div class="smock-row med"></div>
+          <div class="smock-row short"></div>
+          <div class="smock-row lime"></div>
+        </div>
+      </div>
+      <div class="step reveal delay-1">
+        <div class="step-num">2</div>
+        <h3>Brand it</h3>
+        <p>Drop in your logo, your colors, your domain. Choose paid, free, or invite-only — toggle pre-approval if you need it.</p>
+        <div class="step-mock">
+          <div class="smock-label">Theme</div>
+          <div class="smock-row"></div>
+          <div class="smock-row med"></div>
+          <div class="smock-row lime"></div>
+        </div>
+      </div>
+      <div class="step reveal delay-2">
+        <div class="step-num">3</div>
+        <h3>Connect payments</h3>
+        <p>Use Turnout Pay (one click) or plug in your own PayHere, Payable or WebXPay account. Money lands directly in your bank — not ours.</p>
+        <div class="step-mock">
+          <div class="smock-label">Gateway</div>
+          <div class="smock-row med"></div>
+          <div class="smock-row lime"></div>
+          <div class="smock-row short"></div>
+        </div>
+      </div>
+      <div class="step reveal delay-3">
+        <div class="step-num">4</div>
+        <h3>Publish &amp; share</h3>
+        <p>Go live on your domain, embed it on your site, or share the link directly. Sell tickets, check guests in, done.</p>
+        <div class="step-mock">
+          <div class="smock-label">Live</div>
+          <div class="smock-row lime"></div>
+          <div class="smock-row med"></div>
+          <div class="smock-row short"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== EMBED DEEP DIVE =================== -->
+<section class="embed-section" id="embed">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-kicker">Embed</div>
+      <h2>Sell tickets <span class="accent-bg">on your own</span> website.</h2>
+      <p style="font-size: 17px; color: var(--text-dim); line-height: 1.55; max-width: 480px;">
+        Your event page lives at Turnout. The checkout lives wherever you want it. Drop a single embed snippet into any page and visitors never have to leave your site.
+      </p>
+
+      <div class="embed-features">
+        <div class="embed-feature">
+          <div class="ic-square">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          <div>
+            <h4>One line of code</h4>
+            <p>Paste an HTML snippet. No npm install, no SDKs, no framework opinions.</p>
+          </div>
+        </div>
+        <div class="embed-feature">
+          <div class="ic-square">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div>
+            <h4>Inherits your styles</h4>
+            <p>Light or dark, accent color, font — the embed picks up your design tokens or overrides via attributes.</p>
+          </div>
+        </div>
+        <div class="embed-feature">
+          <div class="ic-square">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div>
+            <h4>Checkout stays on-site</h4>
+            <p>Everything from cart to confirmation happens inside the iframe — no redirects, no friction.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="embed-preview reveal delay-2">
+      <div class="browser-bar">
+        <span class="b-dot r"></span>
+        <span class="b-dot y"></span>
+        <span class="b-dot g"></span>
+        <span class="b-url">yourbrand.com/upcoming</span>
+      </div>
+      <div class="preview-content">
+        <div class="preview-host-page">
+          <div class="ph-title"></div>
+          <div class="ph-text"></div>
+          <div class="ph-text"></div>
+        </div>
+        <div class="embed-widget">
+          <div class="ew-cover"></div>
+          <h4>Friday Night Sessions — Vol. 04</h4>
+          <div class="ew-meta">Fri, Nov 14 · 8 PM · The Annex</div>
+          <button class="ew-btn">Get tickets — $24</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== WAITLIST CTA =================== -->
+<section class="final-cta" id="waitlist">
+  <div class="container">
+    <div class="cta-card reveal">
+      <div class="cta-deco-dots"><span></span><span></span><span></span><span></span></div>
+      <div class="cta-card-inner">
+        <div>
+          <span class="cta-eyebrow">Launching soon · Sri Lanka</span>
+          <h2>Be first to<br/><em>sell out</em>.</h2>
+          <p>Turnout is launching soon. Join the waitlist to get early access, founding-host pricing, and first dibs on premium domains.</p>
+        </div>
+        <form class="waitlist-form" id="waitlistForm" novalidate>
+          <div class="wl-input-wrap">
+            <svg class="wl-mail-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <input
+              type="email"
+              name="email"
+              required
+              autocomplete="email"
+              placeholder="you@example.com"
+              class="wl-input"
+              aria-label="Email address"
+            />
+          </div>
+          <button type="submit" class="btn-cta">
+            Join the waitlist
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </button>
+          <div class="wl-success" role="status" aria-live="polite">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            You're on the list. We'll be in touch.
+          </div>
+          <p class="cta-fineprint">Free to join · No spam, ever</p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== FOOTER =================== -->
+<footer>
+  <div class="container">
+    <div class="f-brand-col">
+      <div class="f-brand" aria-label="Turnout">
+        <svg viewBox="0 620 1470 260" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g transform="translate(0,574)" fill="#c1ff72">
+            <g transform="translate(0,279.748)"><path d="M7.34 -163.55v-46.89h181.91v46.89h-62.28V0H69.62V-163.55z"/></g>
+            <g transform="translate(190.81,279.748)"><path d="M103.67 2.69c-18.09 0-33.93-3.18-47.53-9.53-13.61-6.36-24.2-15.4-31.78-27.12C16.79-45.69 13-59.55 13-75.56V-210.44h57.05V-80.36c0 6.59 1.46 12.41 4.38 17.45 2.92 5.03 6.91 8.98 11.94 11.86 5.04 2.87 10.86 4.3 17.45 4.3 6.49 0 12.28-1.43 17.36-4.3 5.1-2.88 9.1-6.83 12.02-11.86 2.92-5.04 4.38-10.86 4.38-17.45V-210.44h57.06V-75.56c0 16.01-3.79 29.88-11.37 41.59-7.58 11.72-18.2 20.76-31.85 27.12-13.66 6.35-29.57 9.53-47.74 9.53z"/></g>
+            <g transform="translate(392.63,279.748)"><path d="M13 0v-210.44h90.39c15.91 0 29.79 2.88 41.66 8.63 11.86 5.74 21.06 14 27.6 24.78 6.54 10.78 9.81 23.61 9.81 38.48 0 14.97-3.37 27.66-10.09 38.06-6.73 10.41-16.2 18.32-28.39 23.73-12.19 5.41-26.43 8.11-42.72 8.11H47.88v-44.62h44.06c6.59 0 12.22-0.9 16.87-2.69 4.67-1.79 8.27-4.54 10.82-8.26 2.54-3.72 3.81-8.5 3.81-14.33s-1.27-10.65-3.81-14.41c-2.55-3.77-6.15-6.59-10.82-8.47-4.65-1.88-10.28-2.82-16.87-2.82H70.47V0zm114.53 0L77.39-96.33h60.45L189.39 0z"/></g>
+            <g transform="translate(579.90,279.748)"><path d="M13 0v-210.44h61.72l50.42 82.63c3.85 6.4 7.61 13.06 11.28 19.98 3.68 6.92 7.33 14.53 10.95 22.81 3.63 8.28 7.23 17.56 10.82 27.81l-5.52 3.67c-0.47-7.62-1.01-16.42-1.62-26.4-0.61-9.98-1.15-19.77-1.62-29.37-0.47-9.6-0.7-17.61-0.7-24.02V-210.44h58.75V0H145.89L98.86-76.83c-4.71-7.81-9.09-15.46-13.14-22.95-4.04-7.49-8.04-15.52-12-24.08-3.95-8.57-8.33-18.22-13.13-28.95l7.2-0.7c0.75 9.89 1.43 19.7 2.05 29.45 0.61 9.74 1.08 18.71 1.4 26.91 0.33 8.19 0.5 14.97 0.5 20.33V0z"/></g>
+            <g transform="translate(794.72,279.748)"><path d="M111.16 2.97c-19.12 0-36.42-4.17-51.91-12.5-15.49-8.33-27.76-20.53-36.8-36.58C13.41-62.16 8.89-81.82 8.89-105.08c0-23.45 4.52-43.22 13.56-59.31 9.04-16.1 21.31-28.3 36.8-36.58 15.49-8.29 32.79-12.44 51.91-12.44 19.11 0 36.39 4.15 51.83 12.44 15.44 8.28 27.7 20.48 36.78 36.58 9.09 16.09 13.64 35.87 13.64 59.31 0 23.36-4.55 43.06-13.64 59.11-9.08 16.05-21.34 28.23-36.78 36.52C147.55-1.17 130.27 2.97 111.16 2.97zm0-50c9.51 0 17.46-2.23 23.86-6.7 6.41-4.48 11.25-11.05 14.55-19.71 3.3-8.66 4.95-19.21 4.95-31.64 0-12.52-1.65-23.13-4.95-31.84-3.3-8.71-8.14-15.3-14.55-19.77-6.4-4.48-14.35-6.72-23.86-6.72-9.32 0-17.21 2.24-23.66 6.72-6.45 4.47-11.34 11.06-14.69 19.77-3.34 8.71-5.01 19.32-5.01 31.84 0 12.43 1.67 22.98 5.01 31.64 3.35 8.66 8.24 15.23 14.69 19.71 6.45 4.47 14.34 6.7 23.66 6.7z"/></g>
+            <g transform="translate(1011.37,279.748)"><path d="M103.67 2.69c-18.09 0-33.93-3.18-47.53-9.53-13.61-6.36-24.2-15.4-31.78-27.12C16.79-45.69 13-59.55 13-75.56V-210.44h57.05V-80.36c0 6.59 1.46 12.41 4.38 17.45 2.92 5.03 6.91 8.98 11.94 11.86 5.04 2.87 10.86 4.3 17.45 4.3 6.49 0 12.28-1.43 17.36-4.3 5.1-2.88 9.1-6.83 12.02-11.86 2.92-5.04 4.38-10.86 4.38-17.45V-210.44h57.06V-75.56c0 16.01-3.79 29.88-11.37 41.59-7.58 11.72-18.2 20.76-31.85 27.12-13.66 6.35-29.57 9.53-47.74 9.53z"/></g>
+            <g transform="translate(1213.19,279.748)"><path d="M7.34 -163.55v-46.89h181.91v46.89h-62.28V0H69.62V-163.55z"/></g>
+          </g>
+          <circle cx="1382.68" cy="776.88" r="26.88" fill="#c1ff72"/>
+          <circle cx="1441.20" cy="776.88" r="26.88" fill="#c1ff72"/>
+          <circle cx="1382.68" cy="835.55" r="26.88" fill="#c1ff72"/>
+          <circle cx="1441.20" cy="835.55" r="22" fill="none" stroke="#c1ff72" stroke-width="21"/>
+        </svg>
+      </div>
+      <p class="f-tagline">The self-serve event ticketing platform for hosts who want their own brand, their own gateway, and their own domain.</p>
+    </div>
+    <div>
+      <h5>Product</h5>
+      <ul>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#embed">Embed</a></li>
+        <li><a href="#">Pricing</a></li>
+        <li><a href="#">Changelog</a></li>
+      </ul>
+    </div>
+    <div>
+      <h5>Resources</h5>
+      <ul>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">API</a></li>
+        <li><a href="#">Help center</a></li>
+        <li><a href="#">Status</a></li>
+      </ul>
+    </div>
+    <div>
+      <h5>Company</h5>
+      <ul>
+        <li><a href="#">About</a></li>
+        <li><a href="#">Contact</a></li>
+        <li><a href="#">Terms</a></li>
+        <li><a href="#">Privacy</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="container f-bottom">
+    <div>© 2026 Turnout, Inc. All rights reserved.</div>
+    <div class="socials">
+      <a href="#" aria-label="Twitter">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+      <a href="#" aria-label="Instagram">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.5" y2="6.5"/></svg>
+      </a>
+      <a href="#" aria-label="LinkedIn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+      </a>
+      <a href="#" aria-label="GitHub">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </a>
+    </div>
+  </div>
+</footer>
+
+<!-- =================== WAITLIST MODAL =================== -->
+<div class="modal" id="waitlistModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="waitlistModalTitle">
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-card" role="document">
+    <button type="button" class="modal-close" data-modal-close aria-label="Close">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+
+    <div class="modal-eyebrow"><span class="dot"></span> Waitlist · Launching soon</div>
+    <h3 id="waitlistModalTitle">Tell us about your events.</h3>
+    <p class="modal-lead">A few quick questions so we can prioritize early access and send you the right onboarding when Turnout opens up.</p>
+
+    <!--
+      Form delivery: handled by FormSubmit.co — a free form-to-email forwarder.
+      First submission triggers a one-time confirmation email to admin@bigturnout.co —
+      click the link in that email to activate the inbox. After that all submissions arrive automatically.
+      To switch providers later (Resend, Mailchimp, etc.), edit the fetch URL in the script block below.
+    -->
+    <form class="modal-form" id="waitlistFormFull" novalidate>
+
+      <!--
+        ⚙️  HOW TO ACTIVATE (takes ~2 minutes, one time only):
+            1. Go to  https://web3forms.com
+            2. Enter  admin@bigturnout.co  and click "Create Access Key"
+            3. Copy the key from the email that arrives instantly
+            4. Paste it below, replacing  YOUR_WEB3FORMS_KEY
+      -->
+      <input type="hidden" name="access_key"  value="YOUR_WEB3FORMS_KEY">
+      <input type="hidden" name="subject"     value="New Turnout waitlist signup">
+      <input type="hidden" name="from_name"   value="Turnout Waitlist">
+      <input type="hidden" name="replyto"     value="${data?.Email || ''}">
+
+      <!-- Honeypot — must stay unchecked; bots fill it, humans don't -->
+      <input type="checkbox" name="botcheck" style="display:none" tabindex="-1" aria-hidden="true">
+
+      <div class="modal-error" id="modalError" role="alert"></div>
+
+      <div class="modal-grid-2">
+        <div class="modal-field">
+          <label for="wlName">Full name <span class="req">*</span></label>
+          <input id="wlName" name="Name" type="text" required placeholder="Your name" autocomplete="name">
+        </div>
+        <div class="modal-field">
+          <label for="wlEmail">Email <span class="req">*</span></label>
+          <input id="wlEmail" name="Email" type="email" required placeholder="you@example.com" autocomplete="email">
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label for="wlOrg">Organization <span style="color:var(--text-very-dim);font-weight:500;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input id="wlOrg" name="Organization" type="text" placeholder="Studio, venue, agency name…" autocomplete="organization">
+      </div>
+
+      <div class="modal-grid-2">
+        <div class="modal-field">
+          <label for="wlRole">Your role <span class="req">*</span></label>
+          <select id="wlRole" name="Role" required>
+            <option value="" disabled selected>Choose one…</option>
+            <option>Event organizer</option>
+            <option>Venue / Space owner</option>
+            <option>Agency</option>
+            <option>Promoter / Booker</option>
+            <option>Artist / Performer</option>
+            <option>Community lead</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label for="wlVolume">Events per year <span class="req">*</span></label>
+          <select id="wlVolume" name="Events per year" required>
+            <option value="" disabled selected>Choose one…</option>
+            <option>1 – 5</option>
+            <option>6 – 12</option>
+            <option>13 – 24</option>
+            <option>25+</option>
+            <option>Just exploring</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label for="wlNotes">Anything else? <span style="color:var(--text-very-dim);font-weight:500;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <textarea id="wlNotes" name="Notes" placeholder="What you currently use, your biggest pain point, anything else we should know…"></textarea>
+      </div>
+
+      <button type="submit" class="modal-submit" id="wlSubmit">
+        <span class="submit-text">Join the waitlist</span>
+        <svg class="submit-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
+      <p class="modal-fineprint">Free to join · No spam, ever · We'll only email you about Turnout</p>
+    </form>
+
+    <div class="modal-success" role="status" aria-live="polite">
+      <div class="success-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3>You're on the list!</h3>
+      <p>Thanks for the details — we'll be in touch the moment Turnout opens up. Keep an eye on your inbox.</p>
+      <button type="button" class="btn-done" data-modal-close>Close</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Progressive enhancement: only hide reveal items when JS is ready.
+document.documentElement.classList.add('js-ready');
+
+// Reveal-on-scroll
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('in');
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+// Show first hero reveals immediately on load
+window.addEventListener('load', () => {
+  document.querySelectorAll('.hero .reveal').forEach((el, i) => {
+    setTimeout(() => el.classList.add('in'), 80 * i);
+  });
+});
+
+// Subtle parallax on hero mockup
+const mock = document.querySelector('.hero-mock');
+if (mock && window.matchMedia('(min-width: 920px)').matches) {
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 14;
+    const y = (e.clientY / window.innerHeight - 0.5) * 10;
+    mock.style.transform = `translate(${x}px, ${y}px)`;
+  });
+}
+
+// =================== WAITLIST MODAL ===================
+// All CTAs labeled "Join the waitlist" (nav button, hero button, and the
+// inline final-CTA form button) open this modal. Form data is sent via
+// FormSubmit.co — see comment in the modal HTML for activation steps.
+
+const modal = document.getElementById('waitlistModal');
+const modalCard = modal.querySelector('.modal-card');
+const modalForm = document.getElementById('waitlistFormFull');
+const modalError = document.getElementById('modalError');
+const submitBtn = document.getElementById('wlSubmit');
+let lastFocusedEl = null;
+
+function openModal(prefillEmail) {
+  lastFocusedEl = document.activeElement;
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+  // Reset to form view if previously closed on success
+  modalCard.classList.remove('is-success');
+  modalError.classList.remove('is-visible');
+  modalError.textContent = '';
+  if (prefillEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prefillEmail)) {
+    document.getElementById('wlEmail').value = prefillEmail;
+    setTimeout(() => document.getElementById('wlName').focus(), 50);
+  } else {
+    setTimeout(() => document.getElementById('wlName').focus(), 50);
+  }
+}
+
+function closeModal() {
+  modal.classList.remove('is-open');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('modal-open');
+  if (lastFocusedEl && typeof lastFocusedEl.focus === 'function') {
+    lastFocusedEl.focus();
+  }
+}
+
+// All elements with [data-modal-close] close the modal
+modal.addEventListener('click', (e) => {
+  if (e.target.closest('[data-modal-close]')) closeModal();
+});
+
+// Escape key closes modal
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+});
+
+// Focus trap inside modal
+modal.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const focusable = modalCard.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+  );
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault(); last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault(); first.focus();
+  }
+});
+
+// Wire up in-page waitlist anchors (footer CTA section only; nav/hero link to /signup)
+document.querySelectorAll('a[href="#waitlist"]').forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    openModal();
+  });
+});
+
+// Inline final-CTA form: button opens the modal, pre-filling the email
+const inlineForm = document.getElementById('waitlistForm');
+if (inlineForm) {
+  inlineForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = inlineForm.querySelector('input[type=email]').value.trim();
+    openModal(email);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// FORM DELIVERY — Web3Forms  (https://web3forms.com)
+// ─────────────────────────────────────────────────────────────────────────
+// One-time setup:
+//   1. Go to https://web3forms.com
+//   2. Enter admin@bigturnout.co → click "Create Access Key"
+//   3. Copy the key from the email you receive (arrives in seconds)
+//   4. Find  value="YOUR_WEB3FORMS_KEY"  above and paste it in
+//
+// After that, every submission goes straight to admin@bigturnout.co.
+// No redirects, no waiting, no activation emails.
+// ─────────────────────────────────────────────────────────────────────────
+
+modalForm.addEventListener('submit', async function (e) {
+  e.preventDefault();
+  modalError.classList.remove('is-visible');
+
+  // HTML5 validation
+  if (!modalForm.checkValidity()) {
+    modalForm.reportValidity();
+    return;
+  }
+
+  // Honeypot — if the hidden checkbox is checked it's a bot; silently succeed
+  const botcheck = modalForm.querySelector('[name="botcheck"]');
+  if (botcheck && botcheck.checked) {
+    modalCard.classList.add('is-success');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.classList.add('is-loading');
+
+  try {
+    // Collect form data into a plain object, drop the botcheck field
+    const raw = new FormData(modalForm);
+    const payload = {};
+    raw.forEach((v, k) => { if (k !== 'botcheck') payload[k] = v; });
+
+    const res = await fetch('https://api.web3forms.com/submit', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+
+    const json = await res.json();
+
+    if (json.success) {
+      modalCard.classList.add('is-success');
+      modalForm.reset();
+    } else {
+      throw new Error(json.message || 'Submission rejected');
+    }
+  } catch (err) {
+    console.error('Waitlist submit error:', err);
+    modalError.textContent =
+      'Something went wrong — please try again, or email us at admin@bigturnout.co.';
+    modalError.classList.add('is-visible');
+  } finally {
+    submitBtn.disabled  = false;
+    submitBtn.classList.remove('is-loading');
+  }
+});
+</script>
+
+</body>
+</html>
