@@ -243,7 +243,7 @@ export function HeroCTA({ onGetTickets: _onGetTickets, light = false }: { onGetT
   };
 
   return (
-    <div className="landing-fade-in landing-fade-in-delay-3 mt-8 flex flex-wrap items-center gap-4">
+    <div className="landing-fade-in landing-fade-in-delay-3 mt-8 flex flex-wrap items-center justify-center gap-4">
       <button type="button" onClick={scrollTickets} className="landing-btn-primary inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold text-white">
         Reserve your spot
         <ArrowRight className="h-4 w-4" />
