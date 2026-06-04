@@ -17,6 +17,8 @@ export type LandingDesignValue = {
   eventCategory: string;
   primaryColor: string;
   secondaryColor: string;
+  /** Titles, prices, and CTA highlights on the public landing. */
+  accentColor: string;
   fontFamily: LandingFontKey;
   displayMode: LandingDisplayMode;
   landingStyle: LandingStyle;
@@ -84,6 +86,7 @@ export function LandingCustomizer({
       fontFamily: cat.fontFamily,
       primaryColor: cat.primaryColor,
       secondaryColor: cat.secondaryColor,
+      accentColor: cat.primaryColor,
       landingStyle: cat.landingStyle,
     });
   };
@@ -137,7 +140,13 @@ export function LandingCustomizer({
                 type="button"
                 title={preset.name}
                 aria-label={preset.name}
-                onClick={() => update({ primaryColor: preset.primary, secondaryColor: preset.secondary })}
+                onClick={() =>
+                  update({
+                    primaryColor: preset.primary,
+                    secondaryColor: preset.secondary,
+                    accentColor: preset.primary,
+                  })
+                }
                 className={cn(
                   'relative grid h-9 w-9 place-items-center rounded-full transition hover:scale-105',
                   active ? 'ring-2 ring-offset-2' : 'ring-0'
@@ -171,6 +180,35 @@ export function LandingCustomizer({
             />
             {!activePresetId && <Check className="pointer-events-none h-4 w-4 text-white drop-shadow" />}
           </label>
+        </div>
+
+        <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: ui.borderColor }}>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Highlight colour</p>
+          <p className="text-xs" style={{ color: ui.textSubtle }}>
+            Used for section titles, prices, and buttons when your main colour is light or white.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              className="relative grid h-9 w-9 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full ring-2 ring-offset-2"
+              title="Highlight colour"
+              style={{
+                background: value.accentColor,
+                ['--tw-ring-color' as string]: value.accentColor,
+                ['--tw-ring-offset-color' as string]: ui.cardBg,
+              }}
+            >
+              <input
+                type="color"
+                value={/^#([0-9a-f]{6})$/i.test(value.accentColor) ? value.accentColor : '#0d585b'}
+                onChange={(e) => update({ accentColor: e.target.value })}
+                className="absolute inset-0 cursor-pointer opacity-0"
+                aria-label="Pick highlight colour"
+              />
+            </label>
+            <span className="font-mono text-xs tabular-nums" style={{ color: ui.textMuted }}>
+              {value.accentColor}
+            </span>
+          </div>
         </div>
       </div>
 

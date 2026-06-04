@@ -25,6 +25,9 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     $displayName = trim((string)($profile['displayName'] ?? ''));
     $event['organizerName'] = $orgName !== '' ? $orgName : ($displayName !== '' ? $displayName : 'Organizer');
     $logo = trim((string)($profile['logoUrl'] ?? ''));
+    if ($logo !== '' && !preg_match('#^https?://#i', $logo)) {
+      $logo = public_api_url(str_starts_with($logo, '/') ? $logo : '/' . $logo);
+    }
     $event['organizerLogoUrl'] = $logo !== '' ? $logo : null;
   }
 

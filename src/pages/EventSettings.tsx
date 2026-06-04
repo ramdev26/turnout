@@ -22,7 +22,12 @@ import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEdit
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
-import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
+import {
+  EVENT_THEMES,
+  normalizeLandingCustomization,
+  resolveLandingAccent,
+  type EventThemeId,
+} from '../themes/eventThemes';
 import { resolveLandingFontKey } from '../themes/landingFonts';
 import { useOrganizerLiveDesign } from '../themes/organizerLiveDesign';
 import { fieldClassFor, fieldStyleFor } from '../themes/flowUi';
@@ -128,6 +133,7 @@ export const EventSettings: React.FC = () => {
     eventCategory: 'default',
     primaryColor: '#059669',
     secondaryColor: '#10b981',
+    accentColor: '#059669',
     fontFamily: 'fraunces',
     displayMode: 'auto',
     landingStyle: 'glass',
@@ -194,10 +200,16 @@ export const EventSettings: React.FC = () => {
       const landing = normalizeLandingCustomization(ev.customization);
       const minimal = EVENT_THEMES.minimal;
       setThemeId('minimal');
+      const primaryColor = landing.primaryColor || minimal.primary;
+      const secondaryColor = landing.secondaryColor || minimal.secondary;
       setDesign({
         eventCategory: landing.eventCategory || 'default',
-        primaryColor: landing.primaryColor || minimal.primary,
-        secondaryColor: landing.secondaryColor || minimal.secondary,
+        primaryColor,
+        secondaryColor,
+        accentColor:
+          landing.accentColor?.trim() && /^#[0-9a-f]{6}$/i.test(landing.accentColor.trim())
+            ? landing.accentColor.trim().toLowerCase()
+            : resolveLandingAccent(primaryColor, secondaryColor),
         fontFamily: resolveLandingFontKey(landing.fontFamily),
         displayMode:
           landing.displayMode === 'light' || landing.displayMode === 'dark' ? landing.displayMode : 'auto',
@@ -300,6 +312,7 @@ export const EventSettings: React.FC = () => {
         eventCategory: design.eventCategory,
         primaryColor: design.primaryColor,
         secondaryColor: design.secondaryColor,
+        accentColor: design.accentColor,
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,

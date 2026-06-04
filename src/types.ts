@@ -127,6 +127,8 @@ export interface EventCustomization {
   eventCategory?: string;
   primaryColor: string;
   secondaryColor: string;
+  /** Headings, prices, and CTAs on the public landing (especially when primary is light/white). */
+  accentColor?: string;
   fontFamily: string;
   /** Landing display mode: follow theme (auto), force light, or force dark */
   displayMode?: LandingDisplayMode;

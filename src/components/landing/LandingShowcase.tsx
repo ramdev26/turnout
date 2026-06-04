@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
-import { format } from 'date-fns';
 import {
   ArrowRight,
   Calendar,
   Check,
+  Flame,
   MapPin,
   ShieldCheck,
   Sparkles,
   Ticket,
   Lock,
+  TrendingUp,
 } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
+  formatLandingEventDate,
+  isLandingScheduleTba,
   LandingPageShell,
   pad2,
   resolveLandingOrganizerBrand,
@@ -51,6 +54,50 @@ function sellingFast(tickets: EventTicket[]): boolean {
     const r = ticketRemaining(t);
     return r > 0 && r <= 24;
   });
+}
+
+type TicketPulse = {
+  totalCapacity: number;
+  totalSold: number;
+  totalRemaining: number;
+  soldOutCount: number;
+  soldOutNames: string[];
+  lowStock: { name: string; remaining: number }[];
+  percentSold: number;
+  allSoldOut: boolean;
+  hasTickets: boolean;
+};
+
+function computeTicketPulse(tickets: EventTicket[] | null | undefined): TicketPulse {
+  const list = Array.isArray(tickets) ? tickets : [];
+  let totalCapacity = 0;
+  let totalSold = 0;
+  const soldOutNames: string[] = [];
+  const lowStock: { name: string; remaining: number }[] = [];
+
+  for (const t of list) {
+    const cap = Math.max(0, t.quantity);
+    const sold = Math.min(cap, Math.max(0, t.sold));
+    totalCapacity += cap;
+    totalSold += sold;
+    const remaining = Math.max(0, cap - sold);
+    if (cap > 0 && remaining <= 0) soldOutNames.push(t.name);
+    else if (remaining > 0 && remaining <= 15) lowStock.push({ name: t.name, remaining });
+  }
+
+  const totalRemaining = Math.max(0, totalCapacity - totalSold);
+
+  return {
+    totalCapacity,
+    totalSold,
+    totalRemaining,
+    soldOutCount: soldOutNames.length,
+    soldOutNames,
+    lowStock: lowStock.sort((a, b) => a.remaining - b.remaining).slice(0, 3),
+    percentSold: totalCapacity > 0 ? Math.min(100, Math.round((totalSold / totalCapacity) * 100)) : 0,
+    allSoldOut: totalCapacity > 0 && totalRemaining <= 0,
+    hasTickets: list.length > 0,
+  };
 }
 
 function ShowcaseHeader({ event, onTickets }: { event: Event; onTickets: () => void }) {
@@ -107,9 +154,12 @@ function ShowcaseHero({ event }: { event: Event }) {
   const subtitle =
     (event.customization?.heroSubtext || event.description || '').trim().slice(0, 320) ||
     'Join us for an unforgettable live experience. Reserve your passes online.';
-  const dateStr = event.customization?.scheduleTba
+  const dateStr = isLandingScheduleTba(event)
     ? 'Date to be announced'
-    : format(new Date(event.date), 'EEEE, MMMM d · h:mm a');
+    : formatLandingEventDate(event.date, 'EEEE, MMMM d · h:mm a');
+  const dateStrCompact = isLandingScheduleTba(event)
+    ? 'TBA'
+    : formatLandingEventDate(event.date, 'MMM d · h:mm a');
   const hasBanner = !!event.bannerUrl?.trim();
 
   return (
@@ -123,21 +173,8 @@ function ShowcaseHero({ event }: { event: Event }) {
       <h1 className={`landing-showcase-hero-title ${accent ? 'mt-1' : 'mt-6'}`}>{main || heroText}</h1>
       <p className="landing-showcase-hero-lead">{subtitle}</p>
 
-      <div id="landing-venue" className="landing-showcase-info-grid scroll-mt-28">
-        <div className="landing-showcase-info-card">
-          <Calendar className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
-          <p className="label">Event date &amp; time</p>
-          <p className="value">{dateStr}</p>
-        </div>
-        <div className="landing-showcase-info-card">
-          <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
-          <p className="label">Venue</p>
-          <p className="value">{event.location || 'Venue to be announced'}</p>
-        </div>
-      </div>
-
       {hasBanner ? (
-        <div className="landing-showcase-poster landing-poster-frame landing-poster-frame--hero mx-auto w-fit max-w-full">
+        <div className="landing-showcase-poster landing-poster-frame landing-poster-frame--hero mx-auto w-full max-w-full sm:w-fit">
           <img
             src={event.bannerUrl}
             alt=""
@@ -146,12 +183,37 @@ function ShowcaseHero({ event }: { event: Event }) {
           />
         </div>
       ) : null}
+
+      <div id="landing-venue" className="landing-showcase-info-grid scroll-mt-28">
+        <div className="landing-showcase-info-card">
+          <div className="landing-showcase-info-card-inner">
+            <Calendar className="landing-showcase-info-icon h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <div className="min-w-0">
+              <p className="label">
+                <span className="sm:hidden">Date</span>
+                <span className="hidden sm:inline">Event date &amp; time</span>
+              </p>
+              <p className="value sm:hidden">{dateStrCompact}</p>
+              <p className="value hidden sm:block">{dateStr}</p>
+            </div>
+          </div>
+        </div>
+        <div className="landing-showcase-info-card">
+          <div className="landing-showcase-info-card-inner">
+            <MapPin className="landing-showcase-info-icon h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <div className="min-w-0">
+              <p className="label">Venue</p>
+              <p className="value line-clamp-2 sm:line-clamp-none">{event.location || 'TBA'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
 
 function ShowcaseCountdown({ event, urgent }: { event: Event; urgent?: boolean }) {
-  const tba = !!event.customization?.scheduleTba;
+  const tba = isLandingScheduleTba(event);
   const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
 
   if (tba) return null;
@@ -193,9 +255,9 @@ function ShowcaseAbout({ event }: { event: Event }) {
 
   const tags = [
     event.location ? { icon: MapPin, text: event.location } : null,
-    event.customization?.scheduleTba
+    isLandingScheduleTba(event)
       ? { icon: Calendar, text: 'Date to be announced' }
-      : { icon: Calendar, text: format(new Date(event.date), 'MMM d, yyyy') },
+      : { icon: Calendar, text: formatLandingEventDate(event.date, 'MMM d, yyyy') },
   ].filter(Boolean) as { icon: typeof MapPin; text: string }[];
 
   return (
@@ -242,7 +304,7 @@ function ShowcaseTickets({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="landing-showcase-ticket-list flex flex-col gap-2 sm:gap-3">
       {tickets.map((ticket) => {
         const remaining = ticketRemaining(ticket);
         const soldOut = remaining <= 0;
@@ -252,48 +314,51 @@ function ShowcaseTickets({
 
         return (
           <div key={ticket.id} className={`landing-showcase-ticket ${selected ? 'is-selected' : ''}`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 flex-1 gap-3">
-                <div
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg"
-                  style={{
-                    background: 'var(--showcase-accent-soft)',
-                    color: 'var(--showcase-accent)',
-                  }}
-                >
-                  <Ticket className="h-4 w-4" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div
+                className="landing-showcase-ticket-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg sm:h-10 sm:w-10"
+                style={{
+                  background: 'var(--showcase-accent-soft)',
+                  color: 'var(--showcase-accent)',
+                }}
+              >
+                <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h3 className="text-sm font-bold leading-tight sm:text-base" style={{ color: 'var(--landing-text)' }}>
+                    {ticket.name}
+                  </h3>
+                  <p className="landing-display text-sm font-semibold leading-tight sm:text-lg" style={{ color: 'var(--showcase-accent)' }}>
+                    {ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}
+                  </p>
                 </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-bold sm:text-base" style={{ color: 'var(--landing-text)' }}>
-                      {ticket.name}
-                    </h3>
-                    {soldOut ? (
-                      <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                        Sold out
-                      </span>
-                    ) : remaining <= 12 ? (
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-                        style={{ background: 'var(--showcase-card-muted)', color: 'var(--landing-text-muted)' }}
-                      >
-                        {remaining} left
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <p className="line-clamp-1 text-[11px] leading-snug sm:text-xs" style={{ color: 'var(--landing-text-muted)' }}>
                     {summary}
                   </p>
-                  <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
-                  </p>
+                  {soldOut ? (
+                    <span className="rounded-full bg-neutral-900 px-1.5 py-px text-[9px] font-bold uppercase text-white sm:px-2 sm:py-0.5 sm:text-[10px]">
+                      Sold out
+                    </span>
+                  ) : remaining <= 12 ? (
+                    <span
+                      className="rounded-full px-1.5 py-px text-[9px] font-bold uppercase sm:px-2 sm:py-0.5 sm:text-[10px]"
+                      style={{ background: 'var(--showcase-card-muted)', color: 'var(--landing-text-muted)' }}
+                    >
+                      {remaining} left
+                    </span>
+                  ) : null}
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-2 sm:pt-1">
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <QtyButton disabled={soldOut || qty <= 0} onClick={() => onTicketChange(ticket.id, qty - 1)}>
                   −
                 </QtyButton>
-                <span className="w-8 text-center text-lg font-bold tabular-nums" style={{ color: 'var(--landing-text)' }}>
+                <span
+                  className="w-6 text-center text-base font-bold tabular-nums sm:w-8 sm:text-lg"
+                  style={{ color: 'var(--landing-text)' }}
+                >
                   {qty}
                 </span>
                 <QtyButton disabled={soldOut || qty >= remaining} onClick={() => onTicketChange(ticket.id, qty + 1)}>
@@ -302,10 +367,10 @@ function ShowcaseTickets({
               </div>
             </div>
             {perks.length > 0 ? (
-              <ul className="mt-3 space-y-1 border-t pt-3" style={{ borderColor: 'var(--showcase-border)' }}>
+              <ul className="landing-showcase-ticket-perks mt-2 space-y-0.5 border-t pt-2 sm:mt-3 sm:space-y-1 sm:pt-3" style={{ borderColor: 'var(--showcase-border)' }}>
                 {perks.map((p) => (
                   <li key={p} className="landing-showcase-ticket-perk">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--showcase-accent)' }} />
+                    <Check className="mt-0.5 h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" style={{ color: 'var(--showcase-accent)' }} />
                     {p}
                   </li>
                 ))}
@@ -332,7 +397,7 @@ function QtyButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-lg border text-lg font-bold transition disabled:opacity-35"
+      className="flex h-8 w-8 items-center justify-center rounded-lg border text-base font-bold transition disabled:opacity-35 sm:h-9 sm:w-9 sm:text-lg"
       style={{ borderColor: 'var(--showcase-border)', background: 'var(--showcase-card-muted)', color: 'var(--landing-text)' }}
     >
       {children}
@@ -359,16 +424,16 @@ function ShowcaseCheckout({
   return (
     <div className="landing-showcase-card overflow-hidden">
       <div className="h-1" style={{ background: 'linear-gradient(90deg, var(--showcase-accent), var(--secondary))' }} />
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-6">
         <p className="landing-eyebrow" style={{ color: 'var(--landing-text-muted)' }}>
           Your order
         </p>
-        <h3 className="landing-display mt-1 text-2xl" style={{ color: 'var(--landing-text)' }}>
+        <h3 className="landing-display mt-1 text-xl sm:text-2xl" style={{ color: 'var(--landing-text)' }}>
           Summary
         </h3>
 
         {!hasSelection ? (
-          <div className="landing-showcase-cart-empty">
+          <div className="landing-showcase-cart-empty mt-4 sm:mt-5">
             <Ticket className="mx-auto h-9 w-9 opacity-35" style={{ color: 'var(--landing-text-muted)' }} />
             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
               Your cart is empty. Select one or more pass levels below to see your total.
@@ -600,18 +665,18 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
         <div className="flex flex-col gap-8 sm:gap-10">
           <ShowcaseCountdown event={event} urgent={fast} />
           <ShowcaseAbout event={event} />
-          <section id="landing-tickets" className="scroll-mt-28">
+          <section id="landing-tickets" className="scroll-mt-28 pb-1 sm:pb-0">
             <h2 className="landing-showcase-section-title">Passes &amp; registration</h2>
             <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
               Choose your pass level. Secure checkout powered by PayHere.
             </p>
-            <div className="mt-5">
+            <div className="mt-4 sm:mt-5">
               <ShowcaseTickets tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
             </div>
           </section>
         </div>
 
-        <aside className="landing-showcase-sidebar" aria-label="Order summary">
+        <aside className="landing-showcase-sidebar landing-showcase-sidebar--order" aria-label="Order summary">
           <ShowcaseCheckout
             tickets={tickets}
             selectedTickets={selectedTickets}
@@ -619,7 +684,7 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
             onCheckout={onCheckout}
             isPurchasing={isPurchasing}
           />
-          <ShowcasePromo event={event} />
+          <ShowcaseTicketPulse tickets={tickets} onReserve={scrollTickets} />
         </aside>
       </div>
 
