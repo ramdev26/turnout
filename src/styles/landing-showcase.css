@@ -349,10 +349,77 @@
   border: 1px solid color-mix(in srgb, var(--secondary) 40%, var(--showcase-border));
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--secondary) 12%, var(--showcase-card)) 0%,
-    var(--showcase-card) 55%
+    color-mix(in srgb, var(--showcase-accent) 10%, var(--showcase-card)) 0%,
+    color-mix(in srgb, var(--secondary) 8%, var(--showcase-card)) 45%,
+    var(--showcase-card) 100%
   );
   padding: 1.1rem 1.25rem;
+}
+
+.landing-showcase-promo--soldout {
+  border-color: color-mix(in srgb, #ef4444 35%, var(--showcase-border));
+  background: color-mix(in srgb, #ef4444 6%, var(--showcase-card));
+}
+
+.landing-showcase-promo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--showcase-accent) 35%, transparent);
+  background: var(--showcase-accent-soft);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--showcase-accent);
+}
+
+.landing-showcase-promo-meter {
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: var(--showcase-card-muted);
+  overflow: hidden;
+}
+
+.landing-showcase-promo-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--showcase-accent), var(--secondary));
+  transition: width 0.5s ease;
+}
+
+.landing-showcase-promo-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.landing-showcase-promo-stat {
+  border-radius: 0.5rem;
+  border: 1px solid var(--showcase-border);
+  background: var(--showcase-card-muted);
+  padding: 0.5rem 0.35rem;
+  text-align: center;
+}
+
+.landing-showcase-promo-stat .num {
+  display: block;
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--landing-text);
+}
+
+.landing-showcase-promo-stat .lbl {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--landing-text-muted);
 }
 
 .landing-showcase-footer {

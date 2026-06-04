@@ -423,23 +423,130 @@ function ShowcaseCheckout({
   );
 }
 
-function ShowcasePromo({ event }: { event: Event }) {
-  const scrollAbout = () => document.getElementById('landing-about')?.scrollIntoView({ behavior: 'smooth' });
+function ShowcaseTicketPulse({ tickets, onReserve }: { tickets: EventTicket[]; onReserve: () => void }) {
+  const pulse = useMemo(() => computeTicketPulse(tickets), [tickets]);
+
+  if (!pulse.hasTickets) {
+    return (
+      <div className="landing-showcase-promo">
+        <p className="text-sm font-semibold" style={{ color: 'var(--landing-text)' }}>
+          Passes opening soon
+        </p>
+        <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+          Ticket tiers are not on sale yet. Check back shortly.
+        </p>
+      </div>
+    );
+  }
+
+  if (pulse.allSoldOut) {
+    return (
+      <div className="landing-showcase-promo landing-showcase-promo--soldout">
+        <span className="landing-showcase-promo-badge">Fully booked</span>
+        <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--landing-text)' }}>
+          Every pass tier has sold out
+        </p>
+        <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+          {pulse.totalSold.toLocaleString()} passes were claimed for this event.
+        </p>
+      </div>
+    );
+  }
+
+  const headline =
+    pulse.soldOutCount > 0
+      ? `${pulse.soldOutCount} tier${pulse.soldOutCount === 1 ? '' : 's'} already sold out`
+      : pulse.percentSold >= 60
+        ? 'Selling faster than expected'
+        : 'Passes are going quickly';
+
   return (
     <div className="landing-showcase-promo">
-      <p className="text-sm font-semibold" style={{ color: 'var(--landing-text)' }}>
-        Plan your visit to {event.title}
+      <div className="flex items-start justify-between gap-2">
+        <span className="landing-showcase-promo-badge">
+          <Flame className="h-3 w-3" />
+          Live availability
+        </span>
+        <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--showcase-accent)' }}>
+          {pulse.percentSold}% claimed
+        </span>
+      </div>
+
+      <p className="mt-3 text-sm font-semibold leading-snug" style={{ color: 'var(--landing-text)' }}>
+        {headline}
       </p>
-      <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
-        Read the full experience details, venue information, and what to expect on the day.
+
+      <div className="landing-showcase-promo-meter mt-3" aria-hidden>
+        <div className="landing-showcase-promo-meter-fill" style={{ width: `${pulse.percentSold}%` }} />
+      </div>
+
+      <div className="landing-showcase-promo-stats mt-4">
+        <div className="landing-showcase-promo-stat">
+          <span className="num tabular-nums">{pulse.totalSold.toLocaleString()}</span>
+          <span className="lbl">Sold</span>
+        </div>
+        <div className="landing-showcase-promo-stat">
+          <span className="num tabular-nums">{pulse.totalRemaining.toLocaleString()}</span>
+          <span className="lbl">Left</span>
+        </div>
+        <div className="landing-showcase-promo-stat">
+          <span className="num tabular-nums">{pulse.soldOutCount}</span>
+          <span className="lbl">Sold out</span>
+        </div>
+      </div>
+
+      {pulse.soldOutNames.length > 0 ? (
+        <div className="mt-4">
+          <p className="landing-eyebrow mb-1.5" style={{ color: 'var(--landing-text-muted)' }}>
+            No longer available
+          </p>
+          <ul className="space-y-1">
+            {pulse.soldOutNames.slice(0, 4).map((name) => (
+              <li key={name} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--landing-text-muted)' }}>
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500/80" />
+                <span className="line-through opacity-80">{name}</span>
+              </li>
+            ))}
+            {pulse.soldOutNames.length > 4 ? (
+              <li className="text-[11px]" style={{ color: 'var(--landing-text-muted)' }}>
+                +{pulse.soldOutNames.length - 4} more sold out
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
+
+      {pulse.lowStock.length > 0 ? (
+        <div className="mt-4 rounded-lg border px-3 py-2.5" style={{ borderColor: 'var(--showcase-border)', background: 'var(--showcase-card-muted)' }}>
+          <p className="flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--showcase-accent)' }}>
+            <TrendingUp className="h-3.5 w-3.5" />
+            Almost gone
+          </p>
+          <ul className="mt-2 space-y-1">
+            {pulse.lowStock.map((t) => (
+              <li key={t.name} className="flex justify-between gap-2 text-xs" style={{ color: 'var(--landing-text)' }}>
+                <span className="truncate">{t.name}</span>
+                <span className="shrink-0 font-bold tabular-nums">{t.remaining} left</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <p className="mt-4 text-xs leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+        {pulse.totalRemaining <= 30
+          ? `Only ${pulse.totalRemaining} passes remain across all tiers — secure yours before they're gone.`
+          : pulse.soldOutCount > 0
+            ? 'Popular tiers sell out first. Grab your pass while your preferred level is still available.'
+            : `${pulse.totalRemaining.toLocaleString()} passes still available — don't wait until the best seats are taken.`}
       </p>
+
       <button
         type="button"
-        onClick={scrollAbout}
-        className="mt-3 inline-flex items-center gap-1 text-xs font-bold"
-        style={{ color: 'var(--showcase-accent)' }}
+        onClick={onReserve}
+        className="landing-showcase-btn-cta mt-4 flex w-full items-center justify-center gap-1.5 py-2.5 text-[11px]"
       >
-        View experience
+        Reserve your passes
         <ArrowRight className="h-3.5 w-3.5" />
       </button>
     </div>
