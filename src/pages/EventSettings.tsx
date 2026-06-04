@@ -14,6 +14,7 @@ import { api, toApiUrl } from '../api/client';
 import { Attendee, CheckoutFieldDefinition, Event, Session, Speaker, Ticket as EventTicket } from '../types';
 import { normalizeCheckoutFields } from '../utils/checkoutFields';
 import { slugify } from '../utils/slug';
+import { resolveHeroTitleLines, splitHeroTitle } from '../utils/heroTitle';
 import { formatLKR } from '../utils/money';
 import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
@@ -135,6 +136,10 @@ export const EventSettings: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [shortDescription, setShortDescription] = useState('');
+  const [heroTitleSplitMode, setHeroTitleSplitMode] = useState<'auto' | 'custom'>('auto');
+  const [heroTitleAccentWords, setHeroTitleAccentWords] = useState(2);
+  const [heroTitleAccent, setHeroTitleAccent] = useState('');
+  const [heroTitleMain, setHeroTitleMain] = useState('');
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
   const [scheduleTba, setScheduleTba] = useState(false);
@@ -186,6 +191,13 @@ export const EventSettings: React.FC = () => {
       setTitle(ev.title);
       setDescription(ev.description || '');
       setShortDescription(ev.customization?.heroSubtext || '');
+      setHeroTitleSplitMode(ev.customization?.heroTitleSplitMode === 'custom' ? 'custom' : 'auto');
+      const accentWords = ev.customization?.heroTitleAccentWords;
+      setHeroTitleAccentWords(
+        typeof accentWords === 'number' && accentWords >= 1 && accentWords <= 4 ? accentWords : 2
+      );
+      setHeroTitleAccent(ev.customization?.heroTitleAccent || '');
+      setHeroTitleMain(ev.customization?.heroTitleMain || '');
       setLocation(ev.location);
       setDate(toDatetimeLocalValue(new Date(ev.date)));
       setScheduleTba(!!ev.customization?.scheduleTba);
@@ -242,6 +254,56 @@ export const EventSettings: React.FC = () => {
   const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
   const checkedInCount = attendeeStats.checkedIn;
   const attendeeTotal = attendeeStats.total;
+  const landingTitlePreview = useMemo(() => {
+    const previewEvent: Event = {
+      ...(event || {
+        id: '',
+        slug: '',
+        organizerId: '',
+        title: title.trim() || 'Event title',
+        description: '',
+        date: new Date().toISOString(),
+        location: '',
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+      }),
+      title: title.trim() || 'Event title',
+      customization: {
+        ...(event?.customization || {
+          heroText: title.trim(),
+          heroSubtext: '',
+          layout: 'centered',
+          primaryColor: design.primaryColor,
+          secondaryColor: design.secondaryColor,
+          fontFamily: design.fontFamily,
+        }),
+        heroText: title.trim(),
+        heroTitleSplitMode,
+        heroTitleAccentWords,
+        heroTitleAccent: heroTitleSplitMode === 'custom' ? heroTitleAccent : '',
+        heroTitleMain: heroTitleSplitMode === 'custom' ? heroTitleMain : '',
+      },
+    };
+    return resolveHeroTitleLines(previewEvent);
+  }, [
+    design.fontFamily,
+    design.primaryColor,
+    design.secondaryColor,
+    event,
+    heroTitleAccent,
+    heroTitleAccentWords,
+    heroTitleMain,
+    heroTitleSplitMode,
+    title,
+  ]);
+
+  const applySuggestedTitleSplit = () => {
+    const words = heroTitleSplitMode === 'auto' ? heroTitleAccentWords : 2;
+    const { accent, main } = splitHeroTitle(title.trim() || 'Event title', words);
+    setHeroTitleAccent(accent);
+    setHeroTitleMain(main);
+  };
+
   const readinessScore = useMemo(() => {
     let score = 0;
     if (slug.length >= 3) score += 20;
@@ -304,6 +366,10 @@ export const EventSettings: React.FC = () => {
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
+        heroTitleSplitMode,
+        heroTitleAccentWords: heroTitleSplitMode === 'auto' ? heroTitleAccentWords : undefined,
+        heroTitleAccent: heroTitleSplitMode === 'custom' ? heroTitleAccent.trim() : '',
+        heroTitleMain: heroTitleSplitMode === 'custom' ? heroTitleMain.trim() : '',
       });
       setEvent(res.event);
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
@@ -609,6 +675,125 @@ export const EventSettings: React.FC = () => {
               <p className="mb-4 text-xs" style={{ color: ui.textSubtle }}>
                 Shown under the title on your public page. Leave blank for no subtitle.
               </p>
+
+              <div className="mb-4 rounded-xl border p-4" style={cardMutedStyle}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Landing page title lines
+                </p>
+                <p className="mt-1 text-xs leading-relaxed" style={{ color: ui.textMuted }}>
+                  Controls how the big headline splits on your public page (Showcase layout). Use custom lines for names like{' '}
+                  <span className="font-medium" style={{ color: ui.text }}>MH Omar</span> on line 1 and{' '}
+                  <span className="font-medium" style={{ color: ui.text }}>Championship</span> on line 2.
+                </p>
+
+                <div className="mt-3 inline-flex rounded-xl border p-1" style={cardStyle}>
+                  <button
+                    type="button"
+                    onClick={() => setHeroTitleSplitMode('auto')}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                    style={
+                      heroTitleSplitMode === 'auto'
+                        ? { backgroundColor: ui.accent, color: '#fff' }
+                        : { color: ui.textMuted }
+                    }
+                  >
+                    Automatic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeroTitleSplitMode('custom')}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                    style={
+                      heroTitleSplitMode === 'custom'
+                        ? { backgroundColor: ui.accent, color: '#fff' }
+                        : { color: ui.textMuted }
+                    }
+                  >
+                    Custom lines
+                  </button>
+                </div>
+
+                {heroTitleSplitMode === 'auto' ? (
+                  <label className="mt-3 flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold" style={{ color: ui.textMuted }}>
+                      Words on the first line
+                    </span>
+                    <select
+                      value={heroTitleAccentWords}
+                      onChange={(e) => setHeroTitleAccentWords(Number(e.target.value))}
+                      className={cn(fieldClass, 'max-w-[12rem]')}
+                      style={fieldStyle}
+                    >
+                      <option value={1}>1 word (e.g. MH)</option>
+                      <option value={2}>2 words (e.g. MH Omar)</option>
+                      <option value={3}>3 words</option>
+                      <option value={4}>4 words</option>
+                    </select>
+                    <p className="text-xs" style={{ color: ui.textSubtle }}>
+                      Tip: for a 3-word title, choose <strong>2 words</strong> to keep the surname on line 1. You can also use a colon:{' '}
+                      <span className="font-mono">MH Omar: Championship</span>
+                    </p>
+                  </label>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold" style={{ color: ui.textMuted }}>
+                        First line (accent)
+                      </span>
+                      <input
+                        value={heroTitleAccent}
+                        onChange={(e) => setHeroTitleAccent(e.target.value)}
+                        placeholder="e.g. MH Omar"
+                        maxLength={80}
+                        className={fieldClass}
+                        style={fieldStyle}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold" style={{ color: ui.textMuted }}>
+                        Second line (main)
+                      </span>
+                      <input
+                        value={heroTitleMain}
+                        onChange={(e) => setHeroTitleMain(e.target.value)}
+                        placeholder="e.g. Championship"
+                        maxLength={120}
+                        className={fieldClass}
+                        style={fieldStyle}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={applySuggestedTitleSplit}
+                      className="text-xs font-semibold underline-offset-2 hover:underline"
+                      style={{ color: ui.accent }}
+                    >
+                      Fill from event name
+                    </button>
+                  </div>
+                )}
+
+                <div
+                  className="mt-4 rounded-lg border px-4 py-3"
+                  style={{ borderColor: ui.borderColor, background: ui.fieldBg }}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Preview
+                  </p>
+                  {landingTitlePreview.accent ? (
+                    <p className="mt-1 text-lg font-semibold" style={{ color: ui.accent, fontFamily: titleFont }}>
+                      {landingTitlePreview.accent}
+                    </p>
+                  ) : null}
+                  <p
+                    className={`${landingTitlePreview.accent ? 'text-2xl' : 'text-2xl mt-1'} font-bold tracking-tight`}
+                    style={{ color: ui.text, fontFamily: titleFont }}
+                  >
+                    {landingTitlePreview.main || landingTitlePreview.fullTitle}
+                  </p>
+                </div>
+              </div>
+
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                 Full description
               </label>

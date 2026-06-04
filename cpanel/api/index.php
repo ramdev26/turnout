@@ -2297,6 +2297,24 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('checkoutFields', $body)) {
     $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);
   }
+  if (array_key_exists('heroTitleSplitMode', $body)) {
+    $splitMode = trim((string)$body['heroTitleSplitMode']);
+    if (in_array($splitMode, ['auto', 'custom'], true)) {
+      $customization['heroTitleSplitMode'] = $splitMode;
+    }
+  }
+  if (array_key_exists('heroTitleAccentWords', $body)) {
+    $accentWords = (int)$body['heroTitleAccentWords'];
+    if ($accentWords >= 1 && $accentWords <= 4) {
+      $customization['heroTitleAccentWords'] = $accentWords;
+    }
+  }
+  if (array_key_exists('heroTitleAccent', $body)) {
+    $customization['heroTitleAccent'] = mb_substr(trim((string)$body['heroTitleAccent']), 0, 80);
+  }
+  if (array_key_exists('heroTitleMain', $body)) {
+    $customization['heroTitleMain'] = mb_substr(trim((string)$body['heroTitleMain']), 0, 120);
+  }
 
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);

@@ -23,24 +23,7 @@ import {
   useCountdown,
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
-
-function splitHeroTitle(title: string): { accent: string; main: string } {
-  const trimmed = title.trim();
-  const colon = trimmed.indexOf(':');
-  if (colon > 0 && colon < trimmed.length - 1) {
-    return {
-      accent: trimmed.slice(0, colon).trim(),
-      main: trimmed.slice(colon + 1).trim(),
-    };
-  }
-  const words = trimmed.split(/\s+/);
-  if (words.length <= 2) return { accent: trimmed, main: '' };
-  const accentWords = Math.min(2, Math.ceil(words.length / 3));
-  return {
-    accent: words.slice(0, accentWords).join(' '),
-    main: words.slice(accentWords).join(' '),
-  };
-}
+import { resolveHeroTitleLines } from '../../utils/heroTitle';
 
 function ticketCopy(ticket: EventTicket): { summary: string; perks: string[] } {
   const raw = (ticket.description || 'Full event access').trim();
@@ -149,8 +132,7 @@ function ShowcaseHeader({ event, onTickets }: { event: Event; onTickets: () => v
 }
 
 function ShowcaseHero({ event }: { event: Event }) {
-  const heroText = event.customization?.heroText?.trim() || event.title;
-  const { accent, main } = splitHeroTitle(heroText);
+  const { accent, main, fullTitle } = resolveHeroTitleLines(event);
   const subtitle =
     (event.customization?.heroSubtext || event.description || '').trim().slice(0, 320) ||
     'Join us for an unforgettable live experience. Reserve your passes online.';
@@ -167,7 +149,7 @@ function ShowcaseHero({ event }: { event: Event }) {
       </span>
 
       {accent ? <p className="landing-showcase-hero-accent mt-6">{accent}</p> : null}
-      <h1 className={`landing-showcase-hero-title ${accent ? 'mt-1' : 'mt-6'}`}>{main || heroText}</h1>
+      <h1 className={`landing-showcase-hero-title ${accent ? 'mt-1' : 'mt-6'}`}>{main || fullTitle}</h1>
       <p className="landing-showcase-hero-lead">{subtitle}</p>
 
       <div id="landing-venue" className="landing-showcase-info-grid scroll-mt-28">
