@@ -1302,8 +1302,8 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
   $displayName = trim((string)($body['displayName'] ?? ''));
 
   if ($organizationName === '') json_response(400, ['error' => 'invalid_organization_name']);
-  if ($logoUrl !== '' && !filter_var($logoUrl, FILTER_VALIDATE_URL) && !str_starts_with($logoUrl, '/api/uploads/organizer-logos/')) {
-    json_response(400, ['error' => 'invalid_logo_url']);
+  if (!is_valid_organizer_logo_url($logoUrl)) {
+    json_response(400, ['error' => 'invalid_logo_url', 'message' => 'Logo must be an uploaded image URL or HTTPS link.']);
   }
   if ($website !== '' && !filter_var($website, FILTER_VALIDATE_URL)) {
     json_response(400, ['error' => 'invalid_website']);
@@ -1312,44 +1312,14 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     $pdo->prepare('UPDATE users SET display_name = ? WHERE id = ?')->execute([$displayName, $uid]);
   }
 
-  ensure_organizer_workspace_tables($pdo);
-  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-  if ($driver === 'sqlite') {
-    $upsert = $pdo->prepare(
-      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone, updated_at)
-       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT(user_id) DO UPDATE SET
-         organization_name = excluded.organization_name,
-         logo_url = excluded.logo_url,
-         website = excluded.website,
-         phone = excluded.phone,
-         updated_at = CURRENT_TIMESTAMP'
-    );
-    $upsert->execute([
-      $uid,
-      mb_substr($organizationName, 0, 255),
-      $logoUrl !== '' ? $logoUrl : null,
-      $website !== '' ? $website : null,
-      $phone !== '' ? $phone : null,
-    ]);
-  } else {
-    $upsert = $pdo->prepare(
-      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         organization_name = VALUES(organization_name),
-         logo_url = VALUES(logo_url),
-         website = VALUES(website),
-         phone = VALUES(phone)'
-    );
-    $upsert->execute([
-      $uid,
-      mb_substr($organizationName, 0, 255),
-      $logoUrl !== '' ? $logoUrl : null,
-      $website !== '' ? $website : null,
-      $phone !== '' ? $phone : null,
-    ]);
-  }
+  upsert_organizer_profile_row(
+    $pdo,
+    $uid,
+    $organizationName,
+    $logoUrl !== '' ? $logoUrl : null,
+    $website !== '' ? $website : null,
+    $phone !== '' ? $phone : null
+  );
 
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
 }
@@ -2294,8 +2264,29 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('scheduleTba', $body)) {
     $customization['scheduleTba'] = (bool)$body['scheduleTba'];
   }
+  if (array_key_exists('checkoutFieldPresets', $body)) {
+    $customization['checkoutFieldPresets'] = normalize_checkout_field_presets($body['checkoutFieldPresets']);
+  }
   if (array_key_exists('checkoutFields', $body)) {
     $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);
+  }
+  if (array_key_exists('heroTitleSplitMode', $body)) {
+    $splitMode = trim((string)$body['heroTitleSplitMode']);
+    if (in_array($splitMode, ['auto', 'custom'], true)) {
+      $customization['heroTitleSplitMode'] = $splitMode;
+    }
+  }
+  if (array_key_exists('heroTitleAccentWords', $body)) {
+    $accentWords = (int)$body['heroTitleAccentWords'];
+    if ($accentWords >= 1 && $accentWords <= 4) {
+      $customization['heroTitleAccentWords'] = $accentWords;
+    }
+  }
+  if (array_key_exists('heroTitleAccent', $body)) {
+    $customization['heroTitleAccent'] = mb_substr(trim((string)$body['heroTitleAccent']), 0, 80);
+  }
+  if (array_key_exists('heroTitleMain', $body)) {
+    $customization['heroTitleMain'] = mb_substr(trim((string)$body['heroTitleMain']), 0, 120);
   }
 
   if (array_key_exists('bannerUrl', $body)) {

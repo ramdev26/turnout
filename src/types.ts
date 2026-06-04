@@ -111,6 +111,8 @@ export type LandingDisplayMode = 'auto' | 'light' | 'dark';
 /** Landing surface treatment (Apple-style "Style" control) */
 export type LandingStyle = 'glass' | 'minimal' | 'bold';
 
+export type CheckoutFieldType = 'text' | 'date' | 'tel' | 'select';
+
 /** Organizer-defined fields collected per ticket holder at checkout (e.g. NIC). */
 export type CheckoutFieldDefinition = {
   id: string;
@@ -119,6 +121,26 @@ export type CheckoutFieldDefinition = {
   key: string;
   required: boolean;
   placeholder?: string;
+  type?: CheckoutFieldType;
+  /** Options for select fields (e.g. event category). */
+  options?: string[];
+  /** Show this field only when another field matches one of these values. */
+  showWhen?: { fieldKey: string; values: string[] };
+};
+
+/** Built-in checkout questions organizers enable per event (all off by default). */
+export type CheckoutFieldPresetsConfig = {
+  dateOfBirth?: boolean;
+  emergencyContactName?: boolean;
+  emergencyContactPhone?: boolean;
+  duprRating?: boolean;
+  eventCategory?: boolean;
+  partnerName?: boolean;
+  partnerPhone?: boolean;
+  /** Dropdown options when event category is enabled */
+  eventCategoryOptions?: string[];
+  /** Category values that require partner name & phone (e.g. Doubles) */
+  doublesCategoryValues?: string[];
 };
 
 export interface EventCustomization {
@@ -135,6 +157,14 @@ export interface EventCustomization {
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
   heroText: string;
+  /** How the showcase hero title is split across two lines */
+  heroTitleSplitMode?: 'auto' | 'custom';
+  /** Auto mode: how many words appear on the accent (first) line (1–4, default 2) */
+  heroTitleAccentWords?: number;
+  /** Custom mode: first line (accent colour), e.g. "MH Omar" */
+  heroTitleAccent?: string;
+  /** Custom mode: second line (main headline), e.g. "Championship" */
+  heroTitleMain?: string;
   heroSubtext: string;
   layout: 'standard' | 'centered' | 'split';
   customDomain?: string;
@@ -147,7 +177,9 @@ export interface EventCustomization {
   ticketPdfAccentColor?: string;
   ticketPdfBadgeText?: string;
   ticketPdfFooterNote?: string;
-  /** Extra questions asked for each ticket holder during checkout */
+  /** Built-in optional checkout questions (disabled by default) */
+  checkoutFieldPresets?: CheckoutFieldPresetsConfig;
+  /** Extra custom questions asked for each ticket holder during checkout */
   checkoutFields?: CheckoutFieldDefinition[];
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;

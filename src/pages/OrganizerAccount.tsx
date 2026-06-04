@@ -12,6 +12,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowAlert, FlowButton, FlowCard, FlowInput, FlowLabel, FlowPage } from '../components/flow/FlowPrimitives';
 import { organizerMainNav } from '../utils/organizerNav';
+import { formatApiError } from '../utils/apiError';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
@@ -104,14 +105,13 @@ export const OrganizerAccount: React.FC = () => {
         body: formData,
         credentials: 'include',
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as { logoUrl?: string; message?: string; error?: string };
       if (!res.ok || !data.logoUrl) {
-        throw new Error(data.message || 'Logo upload failed');
+        throw new Error(formatApiError(data, data.message || 'Logo upload failed'));
       }
       setProfile((p) => ({ ...p, logoUrl: normalizeLogoUrl(data.logoUrl) }));
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      setError(err?.message || 'Logo upload failed');
+      setError(formatApiError(e, 'Logo upload failed'));
     } finally {
       setUploadingLogo(false);
     }
@@ -136,8 +136,7 @@ export const OrganizerAccount: React.FC = () => {
       setProfile((p) => ({ ...p, ...res.profile }));
       setFeedback('Organization profile saved.');
     } catch (e: unknown) {
-      const err = e as { message?: string; error?: string };
-      setError(err?.message || err?.error || 'Failed to save profile');
+      setError(formatApiError(e, 'Failed to save profile'));
     } finally {
       setSavingProfile(false);
     }

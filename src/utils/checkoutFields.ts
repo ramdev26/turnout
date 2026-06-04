@@ -1,4 +1,7 @@
 import type { CheckoutFieldDefinition } from '../types';
+import { isCheckoutFieldVisible, normalizeCheckoutFieldsOnly } from './checkoutFieldPresets';
+
+export { buildActiveCheckoutFields, normalizeCheckoutFieldsOnly, normalizeCheckoutPresets } from './checkoutFieldPresets';
 
 export function slugifyCheckoutFieldKey(label: string): string {
   const base = label
@@ -11,29 +14,9 @@ export function slugifyCheckoutFieldKey(label: string): string {
   return /^[a-z]/.test(base) ? base : `f_${base}`;
 }
 
+/** @deprecated Use normalizeCheckoutFieldsOnly for custom fields only */
 export function normalizeCheckoutFields(raw: unknown): CheckoutFieldDefinition[] {
-  if (!Array.isArray(raw)) return [];
-  const seen = new Set<string>();
-  const out: CheckoutFieldDefinition[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const row = item as Partial<CheckoutFieldDefinition>;
-    const label = String(row.label ?? '').trim();
-    let key = String(row.key ?? '').trim().toLowerCase();
-    if (!key && label) key = slugifyCheckoutFieldKey(label);
-    if (!label || !/^[a-z][a-z0-9_]{0,31}$/.test(key)) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      id: String(row.id ?? `cf_${key}`),
-      label: label.slice(0, 80),
-      key,
-      required: !!row.required,
-      placeholder: row.placeholder ? String(row.placeholder).slice(0, 120) : undefined,
-    });
-    if (out.length >= 12) break;
-  }
-  return out;
+  return normalizeCheckoutFieldsOnly(raw);
 }
 
 export function validateCustomFieldValues(
@@ -42,7 +25,11 @@ export function validateCustomFieldValues(
   contextLabel?: string
 ): string | null {
   for (const field of fields) {
+    if (!isCheckoutFieldVisible(field, values)) continue;
     const val = (values[field.key] ?? '').trim();
+    if (field.type === 'select' && field.options?.length && val && !field.options.includes(val)) {
+      return `${field.label} must be one of the listed options.`;
+    }
     if (field.required && !val) {
       return contextLabel
         ? `${field.label} is required for ${contextLabel}.`
