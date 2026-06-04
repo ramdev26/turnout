@@ -252,3 +252,71 @@ function organizer_workspace_context(PDO $pdo, int $uid): array {
     'canEditEvents' => true,
   ];
 }
+
+/** Logo URL from upload (relative API path, HTTPS, or Vercel Blob). */
+function is_valid_organizer_logo_url(string $logoUrl): bool {
+  if ($logoUrl === '') {
+    return true;
+  }
+  if (str_starts_with($logoUrl, '/api/uploads/organizer-logos/')) {
+    return true;
+  }
+  if (filter_var($logoUrl, FILTER_VALIDATE_URL)) {
+    return true;
+  }
+  return false;
+}
+
+function upsert_organizer_profile_row(
+  PDO $pdo,
+  int $uid,
+  string $organizationName,
+  ?string $logoUrl,
+  ?string $website,
+  ?string $phone
+): void {
+  ensure_organizer_workspace_tables($pdo);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $orgName = function_exists('mb_substr') ? mb_substr($organizationName, 0, 255) : substr($organizationName, 0, 255);
+
+  if ($driver === 'sqlite') {
+    $upsert = $pdo->prepare(
+      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone, updated_at)
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         organization_name = excluded.organization_name,
+         logo_url = excluded.logo_url,
+         website = excluded.website,
+         phone = excluded.phone,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $upsert->execute([$uid, $orgName, $logoUrl, $website, $phone]);
+    return;
+  }
+
+  if ($driver === 'pgsql') {
+    $upsert = $pdo->prepare(
+      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone, updated_at)
+       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         organization_name = EXCLUDED.organization_name,
+         logo_url = EXCLUDED.logo_url,
+         website = EXCLUDED.website,
+         phone = EXCLUDED.phone,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $upsert->execute([$uid, $orgName, $logoUrl, $website, $phone]);
+    return;
+  }
+
+  $upsert = $pdo->prepare(
+    'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       organization_name = VALUES(organization_name),
+       logo_url = VALUES(logo_url),
+       website = VALUES(website),
+       phone = VALUES(phone)'
+  );
+  $upsert->execute([$uid, $orgName, $logoUrl, $website, $phone]);
+}
