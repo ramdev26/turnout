@@ -219,6 +219,64 @@ function storedHexColor(value: string | undefined): string | undefined {
   return normalized && /^#[0-9a-f]{6}$/.test(normalized) ? normalized : undefined;
 }
 
+const LIGHT_LANDING_TEXT = '#0f172a';
+const LIGHT_LANDING_TEXT_MUTED = '#475569';
+
+function parseHexRgb(hex: string): { r: number; g: number; b: number } | null {
+  const normalized = hex.trim().toLowerCase();
+  const match = /^#?([0-9a-f]{6})$/.exec(normalized);
+  if (!match) return null;
+  const raw = match[1];
+  return {
+    r: parseInt(raw.slice(0, 2), 16),
+    g: parseInt(raw.slice(2, 4), 16),
+    b: parseInt(raw.slice(4, 6), 16),
+  };
+}
+
+/** WCAG relative luminance (sRGB). */
+export function relativeLuminance(hex: string): number | null {
+  const rgb = parseHexRgb(hex);
+  if (!rgb) return null;
+  const channel = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
+}
+
+/** True for white and other very light brand colours from the custom picker. */
+export function isLightHex(hex: string): boolean {
+  const lum = relativeLuminance(hex);
+  return lum !== null && lum >= 0.62;
+}
+
+function pickReadableAccent(primary: string, secondary?: string): string {
+  if (!isLightHex(primary)) return primary;
+  if (secondary && !isLightHex(secondary)) return secondary;
+  return TURNOUT_BRAND.teal700;
+}
+
+/** Dark text on light pages; fixes white brand colour + auto/dark display. */
+function ensureReadableLandingSurfaces(
+  surfaces: LandingSurfaces,
+  primary: string,
+  secondary?: string
+): LandingSurfaces {
+  const brandIsLight = isLightHex(primary) || (secondary ? isLightHex(secondary) : false);
+  if (!brandIsLight) return surfaces;
+
+  const light = generatedLightSurfaces(primary, secondary);
+  return {
+    ...light,
+    text: LIGHT_LANDING_TEXT,
+    textMuted: LIGHT_LANDING_TEXT_MUTED,
+    glassBg: light.glassBg,
+    glassBorder: light.glassBorder,
+    cardShadow: light.cardShadow,
+  };
+}
+
 /** Events created before event categories — keep their saved palette when present. */
 export function isLegacyLandingCustomization(customization: LandingCustomizationInput): boolean {
   return !isEventCategoryId(customization?.eventCategory);
@@ -453,14 +511,22 @@ export function landingCssVars(customization: LandingCustomizationInput): CSSPro
   const primary = c.primaryColor || theme.primary;
   const secondary = c.secondaryColor || theme.secondary;
   const style = resolveLandingStyle(c);
-  const surfaces = applyStyleOverrides(style, resolveLandingSurfaces(c, theme), primary);
+  const surfaces = ensureReadableLandingSurfaces(
+    applyStyleOverrides(style, resolveLandingSurfaces(c, theme), primary),
+    primary,
+    secondary
+  );
   const isDark = surfaces.isDark;
   const font = resolveLandingFont(c.fontFamily);
   const radius = style === 'bold' ? '1.75rem' : style === 'minimal' ? '1rem' : '1.5rem';
+  const accentReadable = pickReadableAccent(primary, secondary);
+  const onPrimary = isLightHex(primary) ? TURNOUT_BRAND.ink : '#ffffff';
 
   return {
     ['--primary' as string]: primary,
     ['--secondary' as string]: secondary,
+    ['--landing-accent-readable' as string]: accentReadable,
+    ['--landing-on-primary' as string]: onPrimary,
     ['--landing-page-bg' as string]: surfaces.pageBg,
     ['--landing-surface' as string]: surfaces.surfaceBg,
     ['--landing-surface-muted' as string]: surfaces.surfaceMutedBg,

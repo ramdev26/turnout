@@ -115,7 +115,7 @@
 }
 
 .landing-btn-primary {
-  color: #0a2426;
+  color: var(--landing-on-primary, #0a2426);
   background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--secondary) 65%, var(--primary)) 100%);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.08),

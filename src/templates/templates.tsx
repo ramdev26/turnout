@@ -61,7 +61,7 @@ function ticketsMain(props: LandingTemplateProps, variant: 'default' | 'dark' = 
         tickets={props.tickets}
         selectedTickets={props.selectedTickets}
         onTicketChange={props.onTicketChange}
-        accent={variant === 'dark' ? 'var(--secondary)' : 'var(--primary)'}
+        accent={variant === 'dark' ? 'var(--secondary)' : 'var(--landing-accent-readable, var(--primary))'}
         variant={variant}
       />
     </TicketsSection>

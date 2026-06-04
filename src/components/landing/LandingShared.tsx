@@ -137,7 +137,7 @@ export function PremiumBadge({ children, tone = 'glass' }: { children: React.Rea
     return (
       <span
         className="landing-eyebrow inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5"
-        style={{ background: 'var(--primary)', color: '#fff' }}
+        style={{ background: 'var(--primary)', color: 'var(--landing-on-primary, #fff)' }}
       >
         <Sparkles className="h-3 w-3" />
         {children}
@@ -157,7 +157,7 @@ export function PremiumBadge({ children, tone = 'glass' }: { children: React.Rea
   }
   return (
     <span className="landing-eyebrow landing-glass inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5" style={{ color: 'var(--landing-text-muted)' }}>
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--primary)' }} />
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--landing-accent-readable, var(--primary))' }} />
       {children}
     </span>
   );
@@ -296,7 +296,7 @@ function MetaChip({
       className="landing-glass inline-flex max-w-full items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-medium"
       style={style ?? { color: 'var(--landing-text)' }}
     >
-      <span style={{ color: 'var(--primary)' }}>{icon}</span>
+      <span style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>{icon}</span>
       <span className="truncate">{label}</span>
     </div>
   );
@@ -349,7 +349,7 @@ export function CountdownDisplay({
             <div key={u.label} className="landing-countdown-unit rounded-2xl border px-2 py-4 text-center" style={{ borderColor: 'var(--landing-border)' }}>
               <div
                 className={`landing-display tabular-nums ${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}
-                style={{ color: 'var(--primary)' }}
+                style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
               >
                 {pad2(u.value)}
               </div>
@@ -376,7 +376,7 @@ export function SectionHeading({
   return (
     <div id={id} className="mb-8 scroll-mt-28">
       <div className="landing-divider-glow mb-5 w-16" />
-      <p className="landing-eyebrow mb-2" style={{ color: 'var(--primary)' }}>
+      <p className="landing-eyebrow mb-2" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
         Experience
       </p>
       <h2 className="landing-display text-3xl sm:text-4xl" style={{ color: 'var(--landing-text)' }}>
@@ -417,7 +417,7 @@ export function AboutBlock({ event }: { event: Event }) {
             type="button"
             onClick={() => setExpanded((v) => !v)}
             className="mt-3 text-sm font-semibold underline-offset-2 hover:underline sm:hidden"
-            style={{ color: 'var(--primary)' }}
+            style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
             aria-expanded={expanded}
           >
             {expanded ? 'Show less' : 'Read more'}
@@ -621,7 +621,7 @@ export function CheckoutPanel({
           <div className="landing-divider-glow my-4" />
           <div className="flex justify-between">
             <span className="font-semibold">Total</span>
-            <span className="landing-display text-2xl" style={{ color: 'var(--primary)' }}>
+            <span className="landing-display text-2xl" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
               {totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}
             </span>
           </div>
@@ -649,7 +649,7 @@ export function CheckoutPanel({
 function TrustRow({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--landing-text-muted)' }}>
-      <span style={{ color: 'var(--primary)' }}>{icon}</span>
+      <span style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>{icon}</span>
       {text}
     </div>
   );
