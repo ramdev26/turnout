@@ -132,6 +132,7 @@ export function LandingDesignDock({
       fontFamily: cat.fontFamily,
       primaryColor: cat.primaryColor,
       secondaryColor: cat.secondaryColor,
+      accentColor: cat.primaryColor,
       landingStyle: cat.landingStyle,
     });
   };
@@ -264,7 +265,13 @@ export function LandingDesignDock({
                         key={preset.id}
                         type="button"
                         title={preset.name}
-                        onClick={() => update({ primaryColor: preset.primary, secondaryColor: preset.secondary })}
+                        onClick={() =>
+                          update({
+                            primaryColor: preset.primary,
+                            secondaryColor: preset.secondary,
+                            accentColor: preset.primary,
+                          })
+                        }
                         className={cn(
                           'grid h-9 w-9 place-items-center rounded-full transition hover:scale-105',
                           isActive ? 'ring-2 ring-offset-2' : ''
@@ -296,6 +303,32 @@ export function LandingDesignDock({
                     />
                     {!activePreset && <Check className="pointer-events-none h-3.5 w-3.5 text-white drop-shadow" />}
                   </label>
+                </div>
+                <div className="mt-3 border-t pt-3" style={{ borderColor: DOCK_BORDER }}>
+                  <p className="mb-1 text-xs font-medium" style={{ color: TEXT_MUTED }}>
+                    Highlight colour
+                  </p>
+                  <p className="mb-2 text-[11px] leading-snug" style={{ color: TEXT_MUTED }}>
+                    Titles, prices, and buttons (e.g. when background is white).
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <label
+                      className="relative grid h-9 w-9 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full ring-1 ring-white/25"
+                      title="Highlight colour"
+                      style={{ background: design.accentColor }}
+                    >
+                      <input
+                        type="color"
+                        value={/^#([0-9a-f]{6})$/i.test(design.accentColor) ? design.accentColor : '#0d585b'}
+                        onChange={(e) => update({ accentColor: e.target.value })}
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                        aria-label="Pick highlight colour"
+                      />
+                    </label>
+                    <span className="font-mono text-[11px] tabular-nums" style={{ color: TEXT_MUTED }}>
+                      {design.accentColor}
+                    </span>
+                  </div>
                 </div>
               </Popover>
             )}

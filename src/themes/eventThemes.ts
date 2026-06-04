@@ -257,6 +257,17 @@ function pickReadableAccent(primary: string, secondary?: string): string {
   return TURNOUT_BRAND.teal700;
 }
 
+/** Accent for titles, prices, and buttons on the public landing. */
+export function resolveLandingAccent(
+  primary: string,
+  secondary?: string,
+  accentColor?: string
+): string {
+  const stored = storedHexColor(accentColor);
+  if (stored) return stored;
+  return pickReadableAccent(primary, secondary);
+}
+
 /** Dark text on light pages; fixes white brand colour + auto/dark display. */
 function ensureReadableLandingSurfaces(
   surfaces: LandingSurfaces,
@@ -525,7 +536,7 @@ export function landingCssVars(customization: LandingCustomizationInput): CSSPro
   const isDark = surfaces.isDark;
   const font = resolveLandingFont(c.fontFamily);
   const radius = style === 'bold' ? '1.75rem' : style === 'minimal' ? '1rem' : '1.5rem';
-  const accentReadable = pickReadableAccent(primary, secondary);
+  const accentReadable = resolveLandingAccent(primary, secondary, c.accentColor);
   const onPrimary = isLightHex(primary) ? TURNOUT_BRAND.ink : '#ffffff';
 
   return {

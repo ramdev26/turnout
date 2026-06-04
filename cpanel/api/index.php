@@ -2265,6 +2265,12 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization['secondaryColor'] = $secondaryColor;
     }
   }
+  if (array_key_exists('accentColor', $body)) {
+    $accentColor = strtolower(trim((string)$body['accentColor']));
+    if (preg_match('/^#([0-9a-f]{6})$/', $accentColor)) {
+      $customization['accentColor'] = $accentColor;
+    }
+  }
   if (array_key_exists('fontFamily', $body)) {
     $fontFamily = trim((string)$body['fontFamily']);
     $allowedFonts = ['fraunces', 'playfair', 'sora', 'space-grotesk', 'dm-serif', 'poppins', 'manrope'];
