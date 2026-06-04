@@ -299,11 +299,28 @@
 }
 
 .landing-showcase-ticket {
-  border-radius: 0.75rem;
+  border-radius: 0.625rem;
   border: 1px solid var(--showcase-border);
   background: var(--showcase-card);
-  padding: 1rem 1.1rem;
+  padding: 0.625rem 0.75rem;
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-ticket {
+    border-radius: 0.75rem;
+    padding: 1rem 1.1rem;
+  }
+}
+
+.landing-showcase-ticket-perks {
+  font-size: 0.6875rem;
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-ticket-perks {
+    font-size: inherit;
+  }
 }
 
 .landing-showcase-ticket.is-selected {

@@ -289,7 +289,7 @@ function ShowcaseTickets({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="landing-showcase-ticket-list flex flex-col gap-2 sm:gap-3">
       {tickets.map((ticket) => {
         const remaining = ticketRemaining(ticket);
         const soldOut = remaining <= 0;
@@ -299,48 +299,51 @@ function ShowcaseTickets({
 
         return (
           <div key={ticket.id} className={`landing-showcase-ticket ${selected ? 'is-selected' : ''}`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 flex-1 gap-3">
-                <div
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg"
-                  style={{
-                    background: 'var(--showcase-accent-soft)',
-                    color: 'var(--showcase-accent)',
-                  }}
-                >
-                  <Ticket className="h-4 w-4" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div
+                className="landing-showcase-ticket-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg sm:h-10 sm:w-10"
+                style={{
+                  background: 'var(--showcase-accent-soft)',
+                  color: 'var(--showcase-accent)',
+                }}
+              >
+                <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h3 className="text-sm font-bold leading-tight sm:text-base" style={{ color: 'var(--landing-text)' }}>
+                    {ticket.name}
+                  </h3>
+                  <p className="landing-display text-sm font-semibold leading-tight sm:text-lg" style={{ color: 'var(--showcase-accent)' }}>
+                    {ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}
+                  </p>
                 </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-bold sm:text-base" style={{ color: 'var(--landing-text)' }}>
-                      {ticket.name}
-                    </h3>
-                    {soldOut ? (
-                      <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                        Sold out
-                      </span>
-                    ) : remaining <= 12 ? (
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-                        style={{ background: 'var(--showcase-card-muted)', color: 'var(--landing-text-muted)' }}
-                      >
-                        {remaining} left
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <p className="line-clamp-1 text-[11px] leading-snug sm:text-xs" style={{ color: 'var(--landing-text-muted)' }}>
                     {summary}
                   </p>
-                  <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
-                  </p>
+                  {soldOut ? (
+                    <span className="rounded-full bg-neutral-900 px-1.5 py-px text-[9px] font-bold uppercase text-white sm:px-2 sm:py-0.5 sm:text-[10px]">
+                      Sold out
+                    </span>
+                  ) : remaining <= 12 ? (
+                    <span
+                      className="rounded-full px-1.5 py-px text-[9px] font-bold uppercase sm:px-2 sm:py-0.5 sm:text-[10px]"
+                      style={{ background: 'var(--showcase-card-muted)', color: 'var(--landing-text-muted)' }}
+                    >
+                      {remaining} left
+                    </span>
+                  ) : null}
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-2 sm:pt-1">
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <QtyButton disabled={soldOut || qty <= 0} onClick={() => onTicketChange(ticket.id, qty - 1)}>
                   −
                 </QtyButton>
-                <span className="w-8 text-center text-lg font-bold tabular-nums" style={{ color: 'var(--landing-text)' }}>
+                <span
+                  className="w-6 text-center text-base font-bold tabular-nums sm:w-8 sm:text-lg"
+                  style={{ color: 'var(--landing-text)' }}
+                >
                   {qty}
                 </span>
                 <QtyButton disabled={soldOut || qty >= remaining} onClick={() => onTicketChange(ticket.id, qty + 1)}>
@@ -349,10 +352,10 @@ function ShowcaseTickets({
               </div>
             </div>
             {perks.length > 0 ? (
-              <ul className="mt-3 space-y-1 border-t pt-3" style={{ borderColor: 'var(--showcase-border)' }}>
+              <ul className="landing-showcase-ticket-perks mt-2 space-y-0.5 border-t pt-2 sm:mt-3 sm:space-y-1 sm:pt-3" style={{ borderColor: 'var(--showcase-border)' }}>
                 {perks.map((p) => (
                   <li key={p} className="landing-showcase-ticket-perk">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--showcase-accent)' }} />
+                    <Check className="mt-0.5 h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" style={{ color: 'var(--showcase-accent)' }} />
                     {p}
                   </li>
                 ))}
@@ -379,7 +382,7 @@ function QtyButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-lg border text-lg font-bold transition disabled:opacity-35"
+      className="flex h-8 w-8 items-center justify-center rounded-lg border text-base font-bold transition disabled:opacity-35 sm:h-9 sm:w-9 sm:text-lg"
       style={{ borderColor: 'var(--showcase-border)', background: 'var(--showcase-card-muted)', color: 'var(--landing-text)' }}
     >
       {children}
@@ -652,7 +655,7 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
             <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
               Choose your pass level. Secure checkout powered by PayHere.
             </p>
-            <div className="mt-5">
+            <div className="mt-4 sm:mt-5">
               <ShowcaseTickets tickets={tickets} selectedTickets={selectedTickets} onTicketChange={onTicketChange} />
             </div>
           </section>
