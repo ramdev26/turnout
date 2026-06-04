@@ -211,6 +211,15 @@
   max-width: 80rem;
   margin-inline: auto;
   padding: 2.5rem 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-grid {
+    gap: 2.75rem;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -342,7 +351,21 @@
   gap: 1rem;
 }
 
+@media (max-width: 1023px) {
+  .landing-showcase-sidebar--order {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--showcase-border);
+  }
+}
+
 @media (min-width: 1024px) {
+  .landing-showcase-sidebar--order {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
   .landing-showcase-sidebar {
     position: sticky;
     top: 5.75rem;

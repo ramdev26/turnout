@@ -409,16 +409,16 @@ function ShowcaseCheckout({
   return (
     <div className="landing-showcase-card overflow-hidden">
       <div className="h-1" style={{ background: 'linear-gradient(90deg, var(--showcase-accent), var(--secondary))' }} />
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-6">
         <p className="landing-eyebrow" style={{ color: 'var(--landing-text-muted)' }}>
           Your order
         </p>
-        <h3 className="landing-display mt-1 text-2xl" style={{ color: 'var(--landing-text)' }}>
+        <h3 className="landing-display mt-1 text-xl sm:text-2xl" style={{ color: 'var(--landing-text)' }}>
           Summary
         </h3>
 
         {!hasSelection ? (
-          <div className="landing-showcase-cart-empty">
+          <div className="landing-showcase-cart-empty mt-4 sm:mt-5">
             <Ticket className="mx-auto h-9 w-9 opacity-35" style={{ color: 'var(--landing-text-muted)' }} />
             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
               Your cart is empty. Select one or more pass levels below to see your total.
@@ -650,7 +650,7 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
         <div className="flex flex-col gap-8 sm:gap-10">
           <ShowcaseCountdown event={event} urgent={fast} />
           <ShowcaseAbout event={event} />
-          <section id="landing-tickets" className="scroll-mt-28">
+          <section id="landing-tickets" className="scroll-mt-28 pb-1 sm:pb-0">
             <h2 className="landing-showcase-section-title">Passes &amp; registration</h2>
             <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
               Choose your pass level. Secure checkout powered by PayHere.
@@ -661,7 +661,7 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
           </section>
         </div>
 
-        <aside className="landing-showcase-sidebar" aria-label="Order summary">
+        <aside className="landing-showcase-sidebar landing-showcase-sidebar--order" aria-label="Order summary">
           <ShowcaseCheckout
             tickets={tickets}
             selectedTickets={selectedTickets}
