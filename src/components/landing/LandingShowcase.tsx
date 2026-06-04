@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
-import { format } from 'date-fns';
 import {
   ArrowRight,
   Calendar,
   Check,
+  Flame,
   MapPin,
   ShieldCheck,
   Sparkles,
   Ticket,
   Lock,
+  TrendingUp,
 } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
+  formatLandingEventDate,
+  isLandingScheduleTba,
   LandingPageShell,
   pad2,
   resolveLandingOrganizerBrand,
@@ -51,6 +54,50 @@ function sellingFast(tickets: EventTicket[]): boolean {
     const r = ticketRemaining(t);
     return r > 0 && r <= 24;
   });
+}
+
+type TicketPulse = {
+  totalCapacity: number;
+  totalSold: number;
+  totalRemaining: number;
+  soldOutCount: number;
+  soldOutNames: string[];
+  lowStock: { name: string; remaining: number }[];
+  percentSold: number;
+  allSoldOut: boolean;
+  hasTickets: boolean;
+};
+
+function computeTicketPulse(tickets: EventTicket[] | null | undefined): TicketPulse {
+  const list = Array.isArray(tickets) ? tickets : [];
+  let totalCapacity = 0;
+  let totalSold = 0;
+  const soldOutNames: string[] = [];
+  const lowStock: { name: string; remaining: number }[] = [];
+
+  for (const t of list) {
+    const cap = Math.max(0, t.quantity);
+    const sold = Math.min(cap, Math.max(0, t.sold));
+    totalCapacity += cap;
+    totalSold += sold;
+    const remaining = Math.max(0, cap - sold);
+    if (cap > 0 && remaining <= 0) soldOutNames.push(t.name);
+    else if (remaining > 0 && remaining <= 15) lowStock.push({ name: t.name, remaining });
+  }
+
+  const totalRemaining = Math.max(0, totalCapacity - totalSold);
+
+  return {
+    totalCapacity,
+    totalSold,
+    totalRemaining,
+    soldOutCount: soldOutNames.length,
+    soldOutNames,
+    lowStock: lowStock.sort((a, b) => a.remaining - b.remaining).slice(0, 3),
+    percentSold: totalCapacity > 0 ? Math.min(100, Math.round((totalSold / totalCapacity) * 100)) : 0,
+    allSoldOut: totalCapacity > 0 && totalRemaining <= 0,
+    hasTickets: list.length > 0,
+  };
 }
 
 function ShowcaseHeader({ event, onTickets }: { event: Event; onTickets: () => void }) {
@@ -107,9 +154,9 @@ function ShowcaseHero({ event }: { event: Event }) {
   const subtitle =
     (event.customization?.heroSubtext || event.description || '').trim().slice(0, 320) ||
     'Join us for an unforgettable live experience. Reserve your passes online.';
-  const dateStr = event.customization?.scheduleTba
+  const dateStr = isLandingScheduleTba(event)
     ? 'Date to be announced'
-    : format(new Date(event.date), 'EEEE, MMMM d · h:mm a');
+    : formatLandingEventDate(event.date, 'EEEE, MMMM d · h:mm a');
   const hasBanner = !!event.bannerUrl?.trim();
 
   return (
@@ -151,7 +198,7 @@ function ShowcaseHero({ event }: { event: Event }) {
 }
 
 function ShowcaseCountdown({ event, urgent }: { event: Event; urgent?: boolean }) {
-  const tba = !!event.customization?.scheduleTba;
+  const tba = isLandingScheduleTba(event);
   const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
 
   if (tba) return null;
@@ -193,9 +240,9 @@ function ShowcaseAbout({ event }: { event: Event }) {
 
   const tags = [
     event.location ? { icon: MapPin, text: event.location } : null,
-    event.customization?.scheduleTba
+    isLandingScheduleTba(event)
       ? { icon: Calendar, text: 'Date to be announced' }
-      : { icon: Calendar, text: format(new Date(event.date), 'MMM d, yyyy') },
+      : { icon: Calendar, text: formatLandingEventDate(event.date, 'MMM d, yyyy') },
   ].filter(Boolean) as { icon: typeof MapPin; text: string }[];
 
   return (
@@ -619,7 +666,7 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
             onCheckout={onCheckout}
             isPurchasing={isPurchasing}
           />
-          <ShowcasePromo event={event} />
+          <ShowcaseTicketPulse tickets={tickets} onReserve={scrollTickets} />
         </aside>
       </div>
 

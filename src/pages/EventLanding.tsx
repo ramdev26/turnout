@@ -168,7 +168,7 @@ export const EventLanding: React.FC = () => {
           : await api.get<{ event: Event }>(`/api/events/slug/${slug}`);
         const ticketRes = await api.get<{ tickets: Ticket[] }>(`/api/events/${eventRes.event.id}/tickets`);
         setEvent(eventRes.event);
-        setTickets(ticketRes.tickets);
+        setTickets(Array.isArray(ticketRes.tickets) ? ticketRes.tickets : []);
       } catch (error) {
         console.error('Error fetching event:', error);
       } finally {
