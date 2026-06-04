@@ -168,39 +168,79 @@
 
 .landing-showcase-info-grid {
   display: grid;
-  gap: 0.75rem;
-  margin-top: 2rem;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
 }
 
 @media (min-width: 640px) {
   .landing-showcase-info-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 0.75rem;
+    margin-top: 2rem;
   }
 }
 
 .landing-showcase-info-card {
   text-align: left;
-  border-radius: 0.75rem;
+  border-radius: 0.625rem;
   border: 1px solid var(--showcase-border);
   background: var(--showcase-card);
-  padding: 1rem 1.1rem;
+  padding: 0.625rem 0.75rem;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
+@media (min-width: 640px) {
+  .landing-showcase-info-card {
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+}
+
+.landing-showcase-info-card-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-info-card-inner {
+    gap: 0.75rem;
+  }
+}
+
+.landing-showcase-info-icon {
+  margin-top: 0.1rem;
+}
+
 .landing-showcase-info-card .label {
-  font-size: 0.625rem;
+  font-size: 0.5625rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--showcase-accent);
+  line-height: 1.2;
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-info-card .label {
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+  }
 }
 
 .landing-showcase-info-card .value {
-  margin-top: 0.35rem;
-  font-size: 0.875rem;
+  margin-top: 0.15rem;
+  font-size: 0.8125rem;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--landing-text);
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-info-card .value {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+  }
 }
 
 .landing-showcase-poster {

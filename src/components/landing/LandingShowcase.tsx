@@ -172,14 +172,22 @@ function ShowcaseHero({ event }: { event: Event }) {
 
       <div id="landing-venue" className="landing-showcase-info-grid scroll-mt-28">
         <div className="landing-showcase-info-card">
-          <Calendar className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
-          <p className="label">Event date &amp; time</p>
-          <p className="value">{dateStr}</p>
+          <div className="landing-showcase-info-card-inner">
+            <Calendar className="landing-showcase-info-icon h-4 w-4 shrink-0" style={{ color: 'var(--showcase-accent)' }} />
+            <div className="min-w-0">
+              <p className="label">Event date &amp; time</p>
+              <p className="value">{dateStr}</p>
+            </div>
+          </div>
         </div>
         <div className="landing-showcase-info-card">
-          <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
-          <p className="label">Venue</p>
-          <p className="value">{event.location || 'Venue to be announced'}</p>
+          <div className="landing-showcase-info-card-inner">
+            <MapPin className="landing-showcase-info-icon h-4 w-4 shrink-0" style={{ color: 'var(--showcase-accent)' }} />
+            <div className="min-w-0">
+              <p className="label">Venue</p>
+              <p className="value">{event.location || 'Venue to be announced'}</p>
+            </div>
+          </div>
         </div>
       </div>
 
