@@ -19,9 +19,22 @@
     radial-gradient(ellipse 50% 40% at 100% 0%, color-mix(in srgb, var(--secondary) 10%, transparent) 0%, transparent 50%);
 }
 
-.landing-showcase > * {
+.landing-showcase > *:not(.landing-showcase-header) {
   position: relative;
   z-index: 1;
+}
+
+/* Sticky order summary — also used by legacy templates via landing-content-aside */
+@media (min-width: 1024px) {
+  .landing-content-aside {
+    position: sticky;
+    top: 5.75rem;
+    align-self: start;
+    z-index: 25;
+    max-height: calc(100dvh - 6.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 .landing-showcase .landing-showcase-header {
@@ -306,16 +319,23 @@
   color: var(--landing-text-muted);
 }
 
-.landing-showcase-sidebar-sticky {
+.landing-showcase-sidebar {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
 @media (min-width: 1024px) {
-  .landing-showcase-sidebar-sticky {
+  .landing-showcase-sidebar {
     position: sticky;
-    top: 5.5rem;
+    top: 5.75rem;
+    align-self: start;
+    z-index: 25;
+    max-height: calc(100dvh - 6.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
   }
 }
 

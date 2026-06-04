@@ -484,7 +484,7 @@ export const EventLanding: React.FC = () => {
   const template = getLandingTemplateForEvent(event);
 
   return (
-    <div style={landingCssVars(event.customization)} className="min-h-dvh overflow-x-hidden transition-[background] duration-700">
+    <div style={landingCssVars(event.customization)} className="min-h-dvh transition-[background] duration-700">
       {template.render({
         event,
         tickets,

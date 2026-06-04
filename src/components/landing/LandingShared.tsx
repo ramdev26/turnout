@@ -654,7 +654,7 @@ export function CheckoutPanel({
   const lines = tickets.filter((t) => (selectedTickets[t.id] || 0) > 0);
 
   return (
-    <div className="landing-card-premium landing-checkout-card relative overflow-hidden rounded-2xl p-5 sm:rounded-3xl sm:p-7 lg:sticky lg:top-24">
+    <div className="landing-card-premium landing-checkout-card relative overflow-hidden rounded-2xl p-5 sm:rounded-3xl sm:p-7">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-1"
         style={{ background: 'linear-gradient(90deg, var(--primary), var(--secondary))' }}
@@ -740,9 +740,9 @@ export function LandingContentGrid({
   aside: React.ReactNode;
 }) {
   return (
-    <div className="relative z-10 mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:gap-12 sm:px-6 sm:py-16 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-14 lg:px-8 lg:py-20">
+    <div className="landing-content-grid relative z-10 mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:gap-12 sm:px-6 sm:py-16 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-14 lg:px-8 lg:py-20">
       <div className="min-w-0">{main}</div>
-      <div className="min-w-0 max-lg:order-last lg:sticky lg:top-24 lg:self-start">{aside}</div>
+      <div className="landing-content-aside min-w-0 max-lg:order-last">{aside}</div>
     </div>
   );
 }

@@ -504,7 +504,7 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
           </section>
         </div>
 
-        <aside className="landing-showcase-sidebar-sticky">
+        <aside className="landing-showcase-sidebar" aria-label="Order summary">
           <ShowcaseCheckout
             tickets={tickets}
             selectedTickets={selectedTickets}
