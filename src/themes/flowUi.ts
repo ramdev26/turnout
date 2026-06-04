@@ -32,3 +32,15 @@ export function cardMutedStyleFor(ui: CreateThemeUI): CSSProperties {
     borderColor: ui.borderColor,
   };
 }
+
+/** Nested panel inside a flow card (PIN boxes, list rows, etc.). */
+export function insetCardStyleFor(ui: CreateThemeUI): CSSProperties {
+  return {
+    backgroundColor: ui.fieldBg,
+    borderColor: ui.borderColor,
+    color: ui.text,
+  };
+}
+
+export const FLOW_FONT_FAMILY =
+  'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';

@@ -6,7 +6,7 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowPage, FlowCard, FlowInput, FlowTextarea, FlowButton, FlowAlert } from '../components/flow/FlowPrimitives';
 import { eventWorkspaceNav } from '../utils/organizerNav';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardMutedStyleFor } from '../themes/flowUi';
+import { cardMutedStyleFor, insetCardStyleFor } from '../themes/flowUi';
 
 export const AgendaManager: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -139,23 +139,23 @@ export const AgendaManager: React.FC = () => {
 
           <div className="mt-6 flex flex-col gap-3">
             {speakers.length === 0 ? (
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">No speakers yet.</div>
+              <div className="rounded-xl border p-4 text-sm" style={{ ...cardMutedStyleFor(ui), color: ui.textMuted }}>
+                No speakers yet.
+              </div>
             ) : (
               speakers.map((s) => (
-                <div key={s.id} className="flex items-start justify-between gap-4 rounded-xl border border-neutral-200 bg-white p-4">
+                <div key={s.id} className="flex items-start justify-between gap-4 rounded-xl border p-4" style={insetCardStyleFor(ui)}>
                   <div>
-                    <div className="text-sm font-extrabold text-neutral-900">{s.name}</div>
-                    <div className="mt-1 text-xs text-neutral-500">
+                    <div className="text-sm font-extrabold" style={{ color: ui.text }}>
+                      {s.name}
+                    </div>
+                    <div className="mt-1 text-xs" style={{ color: ui.textMuted }}>
                       {[s.title, s.company].filter(Boolean).join(' • ') || '—'}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => deleteSpeaker(s.id)}
-                    className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-50"
-                  >
+                  <FlowButton variant="secondary" type="button" onClick={() => deleteSpeaker(s.id)} className="!px-3 !py-2 text-xs">
                     Delete
-                  </button>
+                  </FlowButton>
                 </div>
               ))
             )}
@@ -173,15 +173,19 @@ export const AgendaManager: React.FC = () => {
             </div>
             <FlowInput value={seLocation} onChange={(e) => setSeLocation(e.target.value)} placeholder="Location (optional)" />
             <div className="rounded-xl border p-4" style={cardMutedStyleFor(ui)}>
-              <div className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">Speakers for this session</div>
+              <div className="text-xs font-extrabold uppercase tracking-wider" style={{ color: ui.textSubtle }}>
+                Speakers for this session
+              </div>
               <div className="mt-3 flex flex-col gap-2">
                 {speakers.length === 0 ? (
-                  <div className="text-sm text-neutral-600">Add speakers first.</div>
+                  <div className="text-sm" style={{ color: ui.textMuted }}>
+                    Add speakers first.
+                  </div>
                 ) : (
                   speakers.map((sp) => {
                     const checked = seSpeakerIds.includes(sp.id);
                     return (
-                      <label key={sp.id} className="flex items-center gap-2 text-sm text-neutral-800">
+                      <label key={sp.id} className="flex items-center gap-2 text-sm" style={{ color: ui.text }}>
                         <input
                           type="checkbox"
                           checked={checked}
@@ -192,7 +196,9 @@ export const AgendaManager: React.FC = () => {
                           }}
                         />
                         <span className="font-semibold">{sp.name}</span>
-                        <span className="text-xs text-neutral-500">{speakerById[sp.id]?.company || ''}</span>
+                        <span className="text-xs" style={{ color: ui.textMuted }}>
+                          {speakerById[sp.id]?.company || ''}
+                        </span>
                       </label>
                     );
                   })
@@ -206,31 +212,31 @@ export const AgendaManager: React.FC = () => {
 
           <div className="mt-6 flex flex-col gap-3">
             {sessions.length === 0 ? (
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">No sessions yet.</div>
+              <div className="rounded-xl border p-4 text-sm" style={{ ...cardMutedStyleFor(ui), color: ui.textMuted }}>
+                No sessions yet.
+              </div>
             ) : (
               sessions.map((s) => (
-                <div key={s.id} className="rounded-xl border border-neutral-200 bg-white p-4">
+                <div key={s.id} className="rounded-xl border p-4" style={insetCardStyleFor(ui)}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-sm font-extrabold text-neutral-900">{s.title}</div>
-                      <div className="mt-1 text-xs text-neutral-500">
+                      <div className="text-sm font-extrabold" style={{ color: ui.text }}>
+                        {s.title}
+                      </div>
+                      <div className="mt-1 text-xs" style={{ color: ui.textMuted }}>
                         {new Date(s.startsAt).toLocaleString()} → {new Date(s.endsAt).toLocaleString()}
                         {s.location ? ` • ${s.location}` : ''}
                       </div>
-                      <div className="mt-2 text-xs text-neutral-600">
+                      <div className="mt-2 text-xs" style={{ color: ui.textMuted }}>
                         Speakers:{' '}
                         {s.speakerIds.length
                           ? s.speakerIds.map((id) => speakerById[id]?.name || 'Unknown').join(', ')
                           : '—'}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => deleteSession(s.id)}
-                      className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-50"
-                    >
+                    <FlowButton variant="secondary" type="button" onClick={() => deleteSession(s.id)} className="!px-3 !py-2 text-xs">
                       Delete
-                    </button>
+                    </FlowButton>
                   </div>
                 </div>
               ))

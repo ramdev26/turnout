@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { EVENT_THEMES } from '../../themes/eventThemes';
+import { FLOW_FONT_FAMILY } from '../../themes/flowUi';
 import { cn } from '../../utils/cn';
 import type { FlowNavLink } from '../../utils/organizerNav';
 
@@ -37,7 +38,7 @@ export const OrganizerFlowShell: React.FC<OrganizerFlowShellProps> = ({
   return (
     <div
       className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background] duration-500 sm:min-h-[calc(100vh-4rem)]"
-      style={{ background: ui.pageBg, color: ui.text }}
+      style={{ background: ui.pageBg, color: ui.text, fontFamily: FLOW_FONT_FAMILY }}
     >
       <header
         className="sticky top-0 z-30 shrink-0 border-b backdrop-blur-md"
