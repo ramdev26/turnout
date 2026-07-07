@@ -25,6 +25,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   const cardMutedStyle = cardMutedStyleFor(ui);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [addingCard, setAddingCard] = useState(false);
   const [settings, setSettings] = useState<OrganizerPaymentSettings | null>(null);
@@ -43,10 +44,13 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         await loadSettings();
       } catch (e: unknown) {
-        onError?.(formatApiError(e, 'Failed to load payment settings'));
+        const message = formatApiError(e, 'Failed to load payment settings');
+        setLoadError(message);
+        onError?.(message);
       } finally {
         setLoading(false);
       }
@@ -111,6 +115,10 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
         Loading payment settings…
       </div>
     );
+  }
+
+  if (loadError) {
+    return <FlowAlert variant="error">{loadError}</FlowAlert>;
   }
 
   const commissionPct = settings?.commissionPct ?? 10;

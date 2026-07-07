@@ -1361,10 +1361,8 @@ if ($path === '/organizer/payment-settings' && $method === 'GET') {
   $uid = require_organizer_user_id();
   $pdo = db();
   $ctx = organizer_workspace_context($pdo, $uid);
-  if (!($ctx['isOwner'] ?? false)) {
-    json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can manage payment settings.']);
-  }
-  json_response(200, ['settings' => organizer_payment_settings_api_shape($pdo, $uid)]);
+  $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
+  json_response(200, ['settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId)]);
 }
 
 if ($path === '/organizer/payment-settings' && $method === 'POST') {
@@ -1374,6 +1372,7 @@ if ($path === '/organizer/payment-settings' && $method === 'POST') {
   if (!($ctx['isOwner'] ?? false)) {
     json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can manage payment settings.']);
   }
+  $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
   $body = read_json_body();
   $gatewayMode = normalize_organizer_gateway_mode((string)($body['gatewayMode'] ?? 'turnout'));
   $fields = ['gateway_mode' => $gatewayMode];
@@ -1383,8 +1382,8 @@ if ($path === '/organizer/payment-settings' && $method === 'POST') {
       $fields['payhere_merchant_secret'] = trim((string)$body['ownPayhereMerchantSecret']);
     }
   }
-  upsert_organizer_payment_settings($pdo, $uid, $fields);
-  json_response(200, ['ok' => true, 'settings' => organizer_payment_settings_api_shape($pdo, $uid)]);
+  upsert_organizer_payment_settings($pdo, $ownerUserId, $fields);
+  json_response(200, ['ok' => true, 'settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId)]);
 }
 
 if ($path === '/organizer/billing/preapprove' && $method === 'POST') {
@@ -1394,25 +1393,19 @@ if ($path === '/organizer/billing/preapprove' && $method === 'POST') {
   if (!($ctx['isOwner'] ?? false)) {
     json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can add a billing card.']);
   }
+  $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
 
-  $profile = load_user_profile($uid);
+  $profile = load_user_profile($ownerUserId);
   $email = trim((string)($profile['email'] ?? ''));
   $displayName = trim((string)($profile['displayName'] ?? 'Organizer'));
   if ($email === '') json_response(400, ['error' => 'missing_email']);
 
   $cfg = payhere_cfg();
-  $setupOrderId = organizer_billing_setup_order_id($uid);
-  create_organizer_billing_session($pdo, $uid, $setupOrderId);
+  $setupOrderId = organizer_billing_setup_order_id($ownerUserId);
+  create_organizer_billing_session($pdo, $ownerUserId, $setupOrderId);
 
-  upsert_organizer_payment_settings($pdo, $uid, ['gateway_mode' => 'turnout']);
-  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-  if ($driver === 'sqlite') {
-    $pdo->prepare('UPDATE organizer_payment_settings SET billing_setup_status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
-      ->execute(['pending', $uid]);
-  } else {
-    $pdo->prepare('UPDATE organizer_payment_settings SET billing_setup_status = ? WHERE user_id = ?')
-      ->execute(['pending', $uid]);
-  }
+  upsert_organizer_payment_settings($pdo, $ownerUserId, ['gateway_mode' => 'turnout']);
+  set_organizer_billing_setup_status($pdo, $ownerUserId, 'pending');
 
   $firstName = explode(' ', $displayName)[0] ?: 'Organizer';
   $lastName = trim(substr($displayName, strlen($firstName))) ?: ' ';
@@ -1452,20 +1445,22 @@ if ($path === '/organizer/billing/preapprove' && $method === 'POST') {
 if ($path === '/organizer/billing/status' && $method === 'GET') {
   $uid = require_organizer_user_id();
   $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
   $setupOrderId = trim((string)($_GET['setup_order_id'] ?? ''));
   if ($setupOrderId === '') {
-    json_response(200, ['settings' => organizer_payment_settings_api_shape($pdo, $uid)]);
+    json_response(200, ['settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId)]);
   }
 
   ensure_organizer_payment_tables($pdo);
   $stmt = $pdo->prepare('SELECT status FROM organizer_billing_sessions WHERE setup_order_id = ? AND user_id = ? LIMIT 1');
-  $stmt->execute([$setupOrderId, $uid]);
+  $stmt->execute([$setupOrderId, $ownerUserId]);
   $session = $stmt->fetch();
   $sessionStatus = is_array($session) ? (string)$session['status'] : 'pending';
 
   json_response(200, [
     'sessionStatus' => $sessionStatus,
-    'settings' => organizer_payment_settings_api_shape($pdo, $uid),
+    'settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId),
   ]);
 }
 

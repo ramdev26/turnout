@@ -237,6 +237,9 @@ function upsert_organizer_payment_settings(PDO $pdo, int $userId, array $fields)
   }
 
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $merchantIdValue = $merchantId !== '' ? $merchantId : null;
+  $secretEncValue = $secretEnc !== '' ? $secretEnc : null;
+
   if ($driver === 'sqlite') {
     $stmt = $pdo->prepare(
       'INSERT INTO organizer_payment_settings (user_id, gateway_mode, payhere_merchant_id, payhere_merchant_secret_enc, updated_at)
@@ -247,12 +250,18 @@ function upsert_organizer_payment_settings(PDO $pdo, int $userId, array $fields)
          payhere_merchant_secret_enc = excluded.payhere_merchant_secret_enc,
          updated_at = CURRENT_TIMESTAMP'
     );
-    $stmt->execute([
-      $userId,
-      $gatewayMode,
-      $merchantId !== '' ? $merchantId : null,
-      $secretEnc !== '' ? $secretEnc : null,
-    ]);
+    $stmt->execute([$userId, $gatewayMode, $merchantIdValue, $secretEncValue]);
+  } elseif ($driver === 'pgsql') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, payhere_merchant_id, payhere_merchant_secret_enc, updated_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         gateway_mode = EXCLUDED.gateway_mode,
+         payhere_merchant_id = EXCLUDED.payhere_merchant_id,
+         payhere_merchant_secret_enc = EXCLUDED.payhere_merchant_secret_enc,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$userId, $gatewayMode, $merchantIdValue, $secretEncValue]);
   } else {
     $stmt = $pdo->prepare(
       'INSERT INTO organizer_payment_settings (user_id, gateway_mode, payhere_merchant_id, payhere_merchant_secret_enc)
@@ -262,22 +271,57 @@ function upsert_organizer_payment_settings(PDO $pdo, int $userId, array $fields)
          payhere_merchant_id = VALUES(payhere_merchant_id),
          payhere_merchant_secret_enc = VALUES(payhere_merchant_secret_enc)'
     );
-    $stmt->execute([
-      $userId,
-      $gatewayMode,
-      $merchantId !== '' ? $merchantId : null,
-      $secretEnc !== '' ? $secretEnc : null,
-    ]);
+    $stmt->execute([$userId, $gatewayMode, $merchantIdValue, $secretEncValue]);
   }
 
   return organizer_payment_settings_row($pdo, $userId);
+}
+
+function set_organizer_billing_setup_status(PDO $pdo, int $userId, string $status): void {
+  ensure_organizer_payment_tables($pdo);
+  $status = in_array($status, ORGANIZER_BILLING_STATUSES, true) ? $status : 'none';
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+  if ($driver === 'sqlite') {
+    $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, billing_setup_status, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         billing_setup_status = excluded.billing_setup_status,
+         updated_at = CURRENT_TIMESTAMP'
+    )->execute([$userId, 'turnout', $status]);
+    return;
+  }
+
+  if ($driver === 'pgsql') {
+    $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, billing_setup_status, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         billing_setup_status = EXCLUDED.billing_setup_status,
+         updated_at = CURRENT_TIMESTAMP'
+    )->execute([$userId, 'turnout', $status]);
+    return;
+  }
+
+  $pdo->prepare(
+    'INSERT INTO organizer_payment_settings (user_id, gateway_mode, billing_setup_status)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE billing_setup_status = VALUES(billing_setup_status)'
+  )->execute([$userId, 'turnout', $status]);
 }
 
 function payhere_cfg_for_organizer(PDO $pdo, int $organizerUserId): array {
   $row = organizer_payment_settings_row($pdo, $organizerUserId);
   $mode = normalize_organizer_gateway_mode((string)($row['gateway_mode'] ?? 'turnout'));
 
-  if ($mode === 'own_payhere' && organizer_own_payhere_is_configured($row)) {
+  if ($mode === 'own_payhere') {
+    if (!organizer_own_payhere_is_configured($row)) {
+      json_response(400, [
+        'error' => 'organizer_payhere_not_configured',
+        'message' => 'Connect your PayHere merchant ID and secret in Organization settings before selling tickets.',
+      ]);
+    }
     $platform = payhere_cfg();
     $merchantId = trim((string)$row['payhere_merchant_id']);
     $merchantSecret = decrypt_payment_secret((string)($row['payhere_merchant_secret_enc'] ?? ''));
@@ -417,8 +461,7 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
   $updSession = $pdo->prepare('UPDATE organizer_billing_sessions SET status = ?, raw_notify_json = ? WHERE id = ?');
   if ($statusCode !== '2' || $customerToken === '') {
     $updSession->execute(['failed', $rawJson, (int)$session['id']]);
-    $pdo->prepare('UPDATE organizer_payment_settings SET billing_setup_status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
-      ->execute(['failed', $userId]);
+    set_organizer_billing_setup_status($pdo, $userId, 'failed');
     return false;
   }
 
@@ -441,11 +484,35 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
         billing_setup_status, billing_setup_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id) DO UPDATE SET
+        gateway_mode = excluded.gateway_mode,
         billing_customer_token = excluded.billing_customer_token,
         billing_card_last4 = excluded.billing_card_last4,
         billing_card_brand = excluded.billing_card_brand,
         billing_setup_status = excluded.billing_setup_status,
         billing_setup_at = excluded.billing_setup_at,
+        updated_at = CURRENT_TIMESTAMP'
+    );
+    $upsert->execute([
+      $userId,
+      'turnout',
+      $customerToken,
+      $last4 !== '' ? $last4 : null,
+      $brand !== '' ? $brand : null,
+      'active',
+    ]);
+  } elseif ($driver === 'pgsql') {
+    $upsert = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (
+        user_id, gateway_mode, billing_customer_token, billing_card_last4, billing_card_brand,
+        billing_setup_status, billing_setup_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id) DO UPDATE SET
+        gateway_mode = EXCLUDED.gateway_mode,
+        billing_customer_token = EXCLUDED.billing_customer_token,
+        billing_card_last4 = EXCLUDED.billing_card_last4,
+        billing_card_brand = EXCLUDED.billing_card_brand,
+        billing_setup_status = EXCLUDED.billing_setup_status,
+        billing_setup_at = EXCLUDED.billing_setup_at,
         updated_at = CURRENT_TIMESTAMP'
     );
     $upsert->execute([
@@ -463,6 +530,7 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
         billing_setup_status, billing_setup_at
       ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON DUPLICATE KEY UPDATE
+        gateway_mode = VALUES(gateway_mode),
         billing_customer_token = VALUES(billing_customer_token),
         billing_card_last4 = VALUES(billing_card_last4),
         billing_card_brand = VALUES(billing_card_brand),
