@@ -4,17 +4,17 @@ import path from 'path';
 import type { Connect } from 'vite';
 import { defineConfig } from 'vite';
 
-/** Serve the static marketing page at `/` during local dev (matches Vercel rewrite). */
-function marketingHomeAtRoot(): import('vite').Plugin {
+/** Serve the static marketing page at `/landing` during local dev (matches Vercel rewrite). */
+function marketingLandingPage(): import('vite').Plugin {
   const rewrite: Connect.NextHandleFunction = (req, _res, next) => {
     const pathname = req.url?.split('?')[0] ?? '';
-    if (pathname === '/') {
+    if (pathname === '/landing') {
       req.url = '/turnout-landing.html';
     }
     next();
   };
   return {
-    name: 'marketing-home-at-root',
+    name: 'marketing-landing-page',
     configureServer(server) {
       server.middlewares.use(rewrite);
     },
@@ -25,7 +25,7 @@ function marketingHomeAtRoot(): import('vite').Plugin {
 }
 
 export default defineConfig(() => ({
-  plugins: [react(), tailwindcss(), marketingHomeAtRoot()],
+  plugins: [react(), tailwindcss(), marketingLandingPage()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),

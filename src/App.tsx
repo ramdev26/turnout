@@ -97,7 +97,26 @@ export default function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<MarketingLanding />} />
+          <Route
+            path="/"
+            element={
+              user ? (
+                <Navigate
+                  to={
+                    user.role === 'super_admin'
+                      ? '/admin'
+                      : user.role === 'attendee'
+                        ? '/attendee/dashboard'
+                        : '/dashboard'
+                  }
+                  replace
+                />
+              ) : (
+                <Signup />
+              )
+            }
+          />
+          <Route path="/landing" element={<MarketingLanding />} />
           <Route path="/discover" element={<Home />} />
           <Route
             path="/login"
@@ -105,7 +124,25 @@ export default function App() {
               user ? <Navigate to={user.role === 'super_admin' ? '/admin' : user.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'} replace /> : <Login />
             }
           />
-          <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup />} />
+          <Route
+            path="/signup"
+            element={
+              user ? (
+                <Navigate
+                  to={
+                    user.role === 'super_admin'
+                      ? '/admin'
+                      : user.role === 'attendee'
+                        ? '/attendee/dashboard'
+                        : '/dashboard'
+                  }
+                  replace
+                />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
           <Route
             path="/forgot-password"
             element={

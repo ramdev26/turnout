@@ -26,13 +26,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isAttendeeConsole = /^\/attendee/.test(path) && path !== '/attendee/signup';
   const isAdminConsole = /^\/admin/.test(path);
   const isAuthPage =
+    path === '/' ||
     path === '/login' ||
     path === '/signup' ||
     path === '/attendee/signup' ||
     path === '/forgot-password' ||
     path === '/reset-password';
 
-  const isMarketingHome = path === '/';
+  const isMarketingHome = path === '/landing';
 
   const isOrderConfirmation = /^\/orders\/\d+\/success$/.test(path);
 
