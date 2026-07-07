@@ -10,6 +10,7 @@ require __DIR__ . '/lib/domains.php';
 require __DIR__ . '/lib/checkin.php';
 require __DIR__ . '/lib/checkout_fields.php';
 require __DIR__ . '/lib/organizer_team.php';
+require __DIR__ . '/lib/organizer_payment.php';
 
 set_cors_headers_for_same_domain();
 
@@ -39,6 +40,7 @@ function enforce_write_request_integrity(string $path, string $method): void {
   if ($method !== 'POST') return;
   // Webhooks are cross-origin by design.
   if ($path === '/payhere/notify') return;
+  if ($path === '/organizer/billing/notify') return;
   // Public auth bootstrap endpoints are intentionally available pre-session.
   if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/forgot-password' || $path === '/auth/reset-password') return;
   // CSRF protection is required only for authenticated cookie sessions.
@@ -837,6 +839,7 @@ ensure_finance_tables(db());
 ensure_events_custom_domain_column(db());
 ensure_attendees_custom_fields_column(db());
 ensure_organizer_workspace_tables(db());
+ensure_organizer_payment_tables(db());
 enforce_write_request_integrity($path, $method);
 
 function load_event_row_or_404(PDO $pdo, int $eventId): array {
@@ -1354,6 +1357,172 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
 }
 
+if ($path === '/organizer/payment-settings' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  if (!($ctx['isOwner'] ?? false)) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can manage payment settings.']);
+  }
+  json_response(200, ['settings' => organizer_payment_settings_api_shape($pdo, $uid)]);
+}
+
+if ($path === '/organizer/payment-settings' && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  if (!($ctx['isOwner'] ?? false)) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can manage payment settings.']);
+  }
+  $body = read_json_body();
+  $gatewayMode = normalize_organizer_gateway_mode((string)($body['gatewayMode'] ?? 'turnout'));
+  $fields = ['gateway_mode' => $gatewayMode];
+  if ($gatewayMode === 'own_payhere') {
+    $fields['payhere_merchant_id'] = trim((string)($body['ownPayhereMerchantId'] ?? ''));
+    if (array_key_exists('ownPayhereMerchantSecret', $body)) {
+      $fields['payhere_merchant_secret'] = trim((string)$body['ownPayhereMerchantSecret']);
+    }
+  }
+  upsert_organizer_payment_settings($pdo, $uid, $fields);
+  json_response(200, ['ok' => true, 'settings' => organizer_payment_settings_api_shape($pdo, $uid)]);
+}
+
+if ($path === '/organizer/billing/preapprove' && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  if (!($ctx['isOwner'] ?? false)) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can add a billing card.']);
+  }
+
+  $profile = load_user_profile($uid);
+  $email = trim((string)($profile['email'] ?? ''));
+  $displayName = trim((string)($profile['displayName'] ?? 'Organizer'));
+  if ($email === '') json_response(400, ['error' => 'missing_email']);
+
+  $cfg = payhere_cfg();
+  $setupOrderId = organizer_billing_setup_order_id($uid);
+  create_organizer_billing_session($pdo, $uid, $setupOrderId);
+
+  upsert_organizer_payment_settings($pdo, $uid, ['gateway_mode' => 'turnout']);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $pdo->prepare('UPDATE organizer_payment_settings SET billing_setup_status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+      ->execute(['pending', $uid]);
+  } else {
+    $pdo->prepare('UPDATE organizer_payment_settings SET billing_setup_status = ? WHERE user_id = ?')
+      ->execute(['pending', $uid]);
+  }
+
+  $firstName = explode(' ', $displayName)[0] ?: 'Organizer';
+  $lastName = trim(substr($displayName, strlen($firstName))) ?: ' ';
+  $returnUrl = $cfg['app_base_url'] . '/organizer/billing/return?setup_order_id=' . rawurlencode($setupOrderId);
+  $cancelUrl = $cfg['app_base_url'] . '/organizer/billing/cancel?setup_order_id=' . rawurlencode($setupOrderId);
+  $notifyUrl = $cfg['app_base_url'] . '/api/organizer/billing/notify';
+
+  $preapprove = payhere_preapprove_payment(
+    $cfg,
+    $cfg['merchant_id'],
+    $cfg['merchant_secret'],
+    $setupOrderId,
+    'Turnout platform billing verification',
+    $firstName,
+    $lastName,
+    $email,
+    '0770000000',
+    $returnUrl,
+    $cancelUrl,
+    $notifyUrl
+  );
+
+  $actionUrl = $cfg['sandbox']
+    ? 'https://sandbox.payhere.lk/pay/preapprove'
+    : 'https://www.payhere.lk/pay/preapprove';
+
+  json_response(200, [
+    'setupOrderId' => $setupOrderId,
+    'actionUrl' => $actionUrl,
+    'sandbox' => $cfg['sandbox'],
+    'hash' => $preapprove['hash'],
+    'fields' => $preapprove,
+    'sdkPayment' => $preapprove,
+  ]);
+}
+
+if ($path === '/organizer/billing/status' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $setupOrderId = trim((string)($_GET['setup_order_id'] ?? ''));
+  if ($setupOrderId === '') {
+    json_response(200, ['settings' => organizer_payment_settings_api_shape($pdo, $uid)]);
+  }
+
+  ensure_organizer_payment_tables($pdo);
+  $stmt = $pdo->prepare('SELECT status FROM organizer_billing_sessions WHERE setup_order_id = ? AND user_id = ? LIMIT 1');
+  $stmt->execute([$setupOrderId, $uid]);
+  $session = $stmt->fetch();
+  $sessionStatus = is_array($session) ? (string)$session['status'] : 'pending';
+
+  json_response(200, [
+    'sessionStatus' => $sessionStatus,
+    'settings' => organizer_payment_settings_api_shape($pdo, $uid),
+  ]);
+}
+
+if ($path === '/organizer/billing/notify' && $method === 'POST') {
+  $merchantId = (string)($_POST['merchant_id'] ?? '');
+  $orderId = (string)($_POST['order_id'] ?? '');
+  $payhereAmount = (string)($_POST['payhere_amount'] ?? '');
+  $payhereCurrency = (string)($_POST['payhere_currency'] ?? '');
+  $statusCode = (string)($_POST['status_code'] ?? '');
+  $md5sig = (string)($_POST['md5sig'] ?? '');
+
+  if ($merchantId === '' || $orderId === '' || $statusCode === '' || $md5sig === '') {
+    http_response_code(400);
+    echo 'bad_request';
+    exit;
+  }
+
+  $pdo = db();
+  $cfg = resolve_payhere_cfg_by_merchant_id($pdo, $merchantId);
+  if ($cfg === null) {
+    http_response_code(403);
+    echo 'forbidden';
+    exit;
+  }
+
+  $localMd5sig = payhere_local_md5sig(
+    $merchantId,
+    $orderId,
+    $payhereAmount,
+    $payhereCurrency,
+    $statusCode,
+    $cfg['merchant_secret']
+  );
+  if (!payhere_notify_signature_valid($localMd5sig, $md5sig)) {
+    http_response_code(403);
+    echo 'invalid_signature';
+    exit;
+  }
+
+  if (!str_starts_with($orderId, 'bill')) {
+    http_response_code(400);
+    echo 'invalid_order';
+    exit;
+  }
+
+  if (!preg_match('/^bill(\d+)t\d+$/', $orderId, $m)) {
+    http_response_code(400);
+    echo 'invalid_order';
+    exit;
+  }
+  $userId = (int)$m[1];
+  complete_organizer_billing_session($pdo, $userId, $orderId, $_POST);
+  http_response_code(200);
+  echo 'ok';
+  exit;
+}
+
 if ($path === '/organizer/team' && $method === 'GET') {
   $uid = require_organizer_user_id();
   $pdo = db();
@@ -1655,7 +1824,11 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
 
   $accessToken = issue_order_access_token($orderId);
 
-  $cfg = payhere_cfg();
+  $organizerUserId = (int)($ev['organizer_user_id'] ?? 0);
+  if ($organizerUserId <= 0) {
+    json_response(400, ['error' => 'invalid_event_organizer']);
+  }
+  $cfg = payhere_cfg_for_organizer($pdo, $organizerUserId);
   $merchantId = $cfg['merchant_id'];
   $merchantSecret = $cfg['merchant_secret'];
   $currency = 'LKR';
@@ -1736,13 +1909,15 @@ if ($path === '/payhere/notify' && $method === 'POST') {
   $methodSel = (string)($_POST['method'] ?? '');
   $statusMessage = (string)($_POST['status_message'] ?? '');
 
-  $cfg = payhere_cfg();
   if ($merchantId === '' || $orderId === '' || $statusCode === '' || $md5sig === '') {
     http_response_code(400);
     echo 'bad_request';
     exit;
   }
-  if ($merchantId !== $cfg['merchant_id']) {
+
+  $pdo = db();
+  $cfg = resolve_payhere_cfg_by_merchant_id($pdo, $merchantId);
+  if ($cfg === null) {
     http_response_code(403);
     echo 'forbidden';
     exit;
@@ -1763,7 +1938,6 @@ if ($path === '/payhere/notify' && $method === 'POST') {
     exit;
   }
 
-  $pdo = db();
   ensure_payhere_tables($pdo);
 
   // Log transaction (idempotent enough for MVP)

@@ -95,6 +95,37 @@ export type OrganizerWorkspace = {
   canEditEvents: boolean;
 };
 
+export type OrganizerGatewayMode = 'turnout' | 'own_payhere';
+
+export type OrganizerBillingStatus = 'none' | 'pending' | 'active' | 'failed';
+
+export type OrganizerPaymentSettings = {
+  gatewayMode: OrganizerGatewayMode;
+  ownPayhereMerchantId: string;
+  ownPayhereSecretConfigured: boolean;
+  billing: {
+    status: OrganizerBillingStatus;
+    cardLast4: string | null;
+    cardBrand: string | null;
+    setupAt: string | null;
+  };
+  commissionPct: number;
+  isReady: boolean;
+  requirements: {
+    needsBillingCard: boolean;
+    needsOwnPayhereCredentials: boolean;
+  };
+};
+
+export type OrganizerBillingPreapproveResponse = {
+  setupOrderId: string;
+  actionUrl: string;
+  sandbox: boolean;
+  hash: string;
+  fields: Record<string, unknown>;
+  sdkPayment: Record<string, unknown>;
+};
+
 export type AttendeeProfile = {
   displayName: string;
   email: string;

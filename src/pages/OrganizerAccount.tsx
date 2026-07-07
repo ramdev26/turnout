@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, Mail, Trash2, UserPlus, Users } from 'lucide-react';
+import { Building2, CreditCard, Mail, Trash2, UserPlus, Users } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
 import {
   OrganizerProfile,
@@ -15,6 +15,7 @@ import { organizerMainNav } from '../utils/organizerNav';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
+import { OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
 
 const ROLE_LABELS: Record<OrganizerTeamRole, string> = {
   owner: 'Owner',
@@ -267,6 +268,26 @@ export const OrganizerAccount: React.FC = () => {
               Only the workspace owner can edit the organization profile.
             </p>
           )}
+        </FlowCard>
+
+        <FlowCard className="mt-6">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" style={{ color: ui.accent }} />
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Payments
+            </h2>
+          </div>
+          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+            Choose Turnout Pay or connect your own PayHere account. Turnout Pay requires a billing card for platform fees
+            and ticket commissions.
+          </p>
+          <div className="mt-5">
+            <OrganizerPaymentSettingsPanel
+              isOwner={!!workspace?.isOwner}
+              onFeedback={setFeedback}
+              onError={setError}
+            />
+          </div>
         </FlowCard>
 
         {workspace?.canManageTeam ? (

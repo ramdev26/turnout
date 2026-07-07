@@ -30,6 +30,7 @@ import { PayHereCancel } from './pages/PayHereCancel';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { OrganizerEarnings } from './pages/OrganizerEarnings';
 import { OrganizerAccount } from './pages/OrganizerAccount';
+import { OrganizerBillingCancel, OrganizerBillingReturn } from './pages/OrganizerBillingReturn';
 import { AcceptInvite } from './pages/AcceptInvite';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminEvents } from './pages/AdminEvents';
@@ -226,6 +227,22 @@ export default function App() {
             element={
               <RequireOrganizer>
                 <OrganizerAccount />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/organizer/billing/return"
+            element={
+              <RequireOrganizer>
+                <OrganizerBillingReturn />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/organizer/billing/cancel"
+            element={
+              <RequireOrganizer>
+                <OrganizerBillingCancel />
               </RequireOrganizer>
             }
           />
