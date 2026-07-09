@@ -176,10 +176,10 @@ function organizer_own_payhere_is_configured(array $row): bool {
 
 function organizer_payment_is_ready(array $row): bool {
   $mode = normalize_organizer_gateway_mode((string)($row['gateway_mode'] ?? 'turnout'));
-  if ($mode === 'own_payhere') {
-    return organizer_own_payhere_is_configured($row);
+  if ($mode === 'turnout') {
+    return true;
   }
-  return organizer_billing_is_active($row);
+  return organizer_own_payhere_is_configured($row) && organizer_billing_is_active($row);
 }
 
 function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
@@ -204,7 +204,7 @@ function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
     'commissionPct' => $commissionPct,
     'isReady' => organizer_payment_is_ready($row),
     'requirements' => [
-      'needsBillingCard' => $mode === 'turnout' && !organizer_billing_is_active($row),
+      'needsBillingCard' => $mode === 'own_payhere' && !organizer_billing_is_active($row),
       'needsOwnPayhereCredentials' => $mode === 'own_payhere' && !organizer_own_payhere_is_configured($row),
     ],
   ];
@@ -280,6 +280,8 @@ function upsert_organizer_payment_settings(PDO $pdo, int $userId, array $fields)
 function set_organizer_billing_setup_status(PDO $pdo, int $userId, string $status): void {
   ensure_organizer_payment_tables($pdo);
   $status = in_array($status, ORGANIZER_BILLING_STATUSES, true) ? $status : 'none';
+  $existing = organizer_payment_settings_row($pdo, $userId);
+  $gatewayMode = normalize_organizer_gateway_mode((string)($existing['gateway_mode'] ?? 'own_payhere'));
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 
   if ($driver === 'sqlite') {
@@ -289,7 +291,7 @@ function set_organizer_billing_setup_status(PDO $pdo, int $userId, string $statu
        ON CONFLICT(user_id) DO UPDATE SET
          billing_setup_status = excluded.billing_setup_status,
          updated_at = CURRENT_TIMESTAMP'
-    )->execute([$userId, 'turnout', $status]);
+    )->execute([$userId, $gatewayMode, $status]);
     return;
   }
 
@@ -300,7 +302,7 @@ function set_organizer_billing_setup_status(PDO $pdo, int $userId, string $statu
        ON CONFLICT (user_id) DO UPDATE SET
          billing_setup_status = EXCLUDED.billing_setup_status,
          updated_at = CURRENT_TIMESTAMP'
-    )->execute([$userId, 'turnout', $status]);
+    )->execute([$userId, $gatewayMode, $status]);
     return;
   }
 
@@ -308,7 +310,7 @@ function set_organizer_billing_setup_status(PDO $pdo, int $userId, string $statu
     'INSERT INTO organizer_payment_settings (user_id, gateway_mode, billing_setup_status)
      VALUES (?, ?, ?)
      ON DUPLICATE KEY UPDATE billing_setup_status = VALUES(billing_setup_status)'
-  )->execute([$userId, 'turnout', $status]);
+  )->execute([$userId, $gatewayMode, $status]);
 }
 
 function payhere_cfg_for_organizer(PDO $pdo, int $organizerUserId): array {
@@ -320,6 +322,12 @@ function payhere_cfg_for_organizer(PDO $pdo, int $organizerUserId): array {
       json_response(400, [
         'error' => 'organizer_payhere_not_configured',
         'message' => 'Connect your PayHere merchant ID and secret in Organization settings before selling tickets.',
+      ]);
+    }
+    if (!organizer_billing_is_active($row)) {
+      json_response(400, [
+        'error' => 'organizer_billing_required',
+        'message' => 'Add a billing card in Organization settings. Ticket sales go to your PayHere account, so Turnout needs your card on file to collect platform fees.',
       ]);
     }
     $platform = payhere_cfg();
@@ -340,13 +348,6 @@ function payhere_cfg_for_organizer(PDO $pdo, int $organizerUserId): array {
       'gateway_mode' => 'own_payhere',
       'organizer_user_id' => $organizerUserId,
     ];
-  }
-
-  if (!organizer_billing_is_active($row)) {
-    json_response(400, [
-      'error' => 'organizer_billing_required',
-      'message' => 'Add a billing card in Organization settings before selling tickets with Turnout Pay.',
-    ]);
   }
 
   $platform = payhere_cfg();
@@ -476,6 +477,9 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
     $brand = 'MASTERCARD';
   }
 
+  $existing = organizer_payment_settings_row($pdo, $userId);
+  $gatewayMode = normalize_organizer_gateway_mode((string)($existing['gateway_mode'] ?? 'own_payhere'));
+
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
   if ($driver === 'sqlite') {
     $upsert = $pdo->prepare(
@@ -484,7 +488,6 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
         billing_setup_status, billing_setup_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id) DO UPDATE SET
-        gateway_mode = excluded.gateway_mode,
         billing_customer_token = excluded.billing_customer_token,
         billing_card_last4 = excluded.billing_card_last4,
         billing_card_brand = excluded.billing_card_brand,
@@ -494,7 +497,7 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
     );
     $upsert->execute([
       $userId,
-      'turnout',
+      $gatewayMode,
       $customerToken,
       $last4 !== '' ? $last4 : null,
       $brand !== '' ? $brand : null,
@@ -507,7 +510,6 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
         billing_setup_status, billing_setup_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT (user_id) DO UPDATE SET
-        gateway_mode = EXCLUDED.gateway_mode,
         billing_customer_token = EXCLUDED.billing_customer_token,
         billing_card_last4 = EXCLUDED.billing_card_last4,
         billing_card_brand = EXCLUDED.billing_card_brand,
@@ -517,7 +519,7 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
     );
     $upsert->execute([
       $userId,
-      'turnout',
+      $gatewayMode,
       $customerToken,
       $last4 !== '' ? $last4 : null,
       $brand !== '' ? $brand : null,
@@ -530,7 +532,6 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
         billing_setup_status, billing_setup_at
       ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON DUPLICATE KEY UPDATE
-        gateway_mode = VALUES(gateway_mode),
         billing_customer_token = VALUES(billing_customer_token),
         billing_card_last4 = VALUES(billing_card_last4),
         billing_card_brand = VALUES(billing_card_brand),
@@ -539,7 +540,7 @@ function complete_organizer_billing_session(PDO $pdo, int $userId, string $setup
     );
     $upsert->execute([
       $userId,
-      'turnout',
+      $gatewayMode,
       $customerToken,
       $last4 !== '' ? $last4 : null,
       $brand !== '' ? $brand : null,

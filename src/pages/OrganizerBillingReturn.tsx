@@ -55,7 +55,7 @@ export const OrganizerBillingReturn: React.FC = () => {
   }, [setupOrderId]);
 
   return (
-    <AuthFlowLayout title="Billing card setup" subtitle="Turnout platform fees">
+    <AuthFlowLayout title="Billing card setup" subtitle="Platform fee billing for your PayHere account">
       {error ? <FlowAlert variant="error">{error}</FlowAlert> : <FlowAlert variant="success">{message}</FlowAlert>}
       <div className="mt-6">
         <Link to="/dashboard/organization">

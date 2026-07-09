@@ -1404,7 +1404,6 @@ if ($path === '/organizer/billing/preapprove' && $method === 'POST') {
   $setupOrderId = organizer_billing_setup_order_id($ownerUserId);
   create_organizer_billing_session($pdo, $ownerUserId, $setupOrderId);
 
-  upsert_organizer_payment_settings($pdo, $ownerUserId, ['gateway_mode' => 'turnout']);
   set_organizer_billing_setup_status($pdo, $ownerUserId, 'pending');
 
   $firstName = explode(' ', $displayName)[0] ?: 'Organizer';

@@ -278,8 +278,8 @@ export const OrganizerAccount: React.FC = () => {
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Choose Turnout Pay or connect your own PayHere account. Turnout Pay requires a billing card for platform fees
-            and ticket commissions.
+            Choose Turnout Pay (we handle fees and payouts) or connect your own PayHere account (requires a billing
+            card for platform fees).
           </p>
           <div className="mt-5">
             <OrganizerPaymentSettingsPanel

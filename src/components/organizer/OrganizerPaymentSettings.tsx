@@ -18,6 +18,70 @@ type Props = {
   onError?: (message: string) => void;
 };
 
+function BillingCardSection({
+  isOwner,
+  billingActive,
+  settings,
+  addingCard,
+  onAddCard,
+  commissionPct,
+}: {
+  isOwner: boolean;
+  billingActive: boolean;
+  settings: OrganizerPaymentSettings | null;
+  addingCard: boolean;
+  onAddCard: () => void;
+  commissionPct: number;
+}) {
+  const ui = APP_FLOW_UI;
+  const cardMutedStyle = cardMutedStyleFor(ui);
+
+  return (
+    <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold" style={{ color: ui.text }}>
+            Billing card for platform fees
+          </p>
+          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+            Ticket sales go to your PayHere account, so Turnout cannot deduct the {commissionPct}% platform fee
+            automatically. Add a card on file so we can charge commissions.
+          </p>
+        </div>
+        {billingActive ? (
+          <span
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
+            style={{ background: ui.accentSoft, color: ui.accent }}
+          >
+            <CreditCard className="h-3.5 w-3.5" />
+            {settings?.billing.cardBrand || 'Card'} ···· {settings?.billing.cardLast4 || '****'}
+          </span>
+        ) : (
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textMuted }}>
+            Not set up
+          </span>
+        )}
+      </div>
+
+      {isOwner ? (
+        <div className="mt-4">
+          <FlowButton onClick={onAddCard} disabled={addingCard}>
+            {addingCard ? 'Opening secure card form…' : billingActive ? 'Update billing card' : 'Add billing card'}
+          </FlowButton>
+        </div>
+      ) : null}
+
+      {settings?.requirements.needsBillingCard ? (
+        <div className="mt-4">
+          <FlowAlert variant="info">
+            Add a billing card before selling paid tickets with your own PayHere account.
+          </FlowAlert>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeedback, onError }) => {
   const ui = APP_FLOW_UI;
   const fieldClass = fieldClassFor(ui);
@@ -89,7 +153,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
           );
           setSettings(statusRes.settings);
           if (statusRes.settings.billing.status === 'active') {
-            onFeedback?.('Billing card saved. Turnout can collect platform fees from this card.');
+            onFeedback?.('Billing card saved. Turnout can charge platform fees to this card.');
           } else {
             onError?.('Card setup did not complete. Try again.');
           }
@@ -143,8 +207,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
             Turnout Pay
           </div>
           <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
-            Use our built-in PayHere gateway. Add a billing card so we can collect the {commissionPct}% platform fee and
-            ticket commission from your account.
+            Use our built-in PayHere gateway. We collect ticket payments, deduct the {commissionPct}% platform fee,
+            and send your earnings as a payout. No billing card needed.
           </p>
         </button>
 
@@ -164,82 +228,64 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
             Your PayHere account
           </div>
           <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
-            Connect your own PayHere merchant ID and secret. Ticket payments go directly to your PayHere account.
+            Connect your PayHere merchant ID and secret. Ticket payments go directly to you — add a billing card so
+            Turnout can charge platform fees.
           </p>
         </button>
       </div>
 
       {gatewayMode === 'turnout' ? (
         <div className="rounded-2xl border p-4" style={cardMutedStyle}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-semibold" style={{ color: ui.text }}>
-                Billing card for platform fees
-              </p>
-              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                Required before you can sell paid tickets with Turnout Pay. We use PayHere to securely tokenize your card
-                for commission collection.
-              </p>
-            </div>
-            {billingActive ? (
-              <span
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
-                style={{ background: ui.accentSoft, color: ui.accent }}
-              >
-                <CreditCard className="h-3.5 w-3.5" />
-                {settings?.billing.cardBrand || 'Card'} ···· {settings?.billing.cardLast4 || '****'}
-              </span>
-            ) : (
-              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textMuted }}>
-                Not set up
-              </span>
-            )}
-          </div>
-
-          {isOwner ? (
-            <div className="mt-4">
-              <FlowButton onClick={addBillingCard} disabled={addingCard}>
-                {addingCard ? 'Opening secure card form…' : billingActive ? 'Update billing card' : 'Add billing card'}
-              </FlowButton>
-            </div>
-          ) : null}
-
-          {settings?.requirements.needsBillingCard ? (
-            <div className="mt-4">
-              <FlowAlert variant="info">Add a billing card to enable paid ticket sales with Turnout Pay.</FlowAlert>
-            </div>
-          ) : null}
+          <p className="font-semibold" style={{ color: ui.text }}>
+            How Turnout Pay works
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm" style={{ color: ui.textMuted }}>
+            <li>Attendees pay through Turnout&apos;s PayHere account.</li>
+            <li>Platform fees are deducted from each sale automatically.</li>
+            <li>Your net earnings are paid out to your bank account.</li>
+          </ul>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
-            <FlowLabel>PayHere merchant ID</FlowLabel>
-            <FlowInput
-              value={merchantId}
-              disabled={!isOwner}
-              onChange={(e) => setMerchantId(e.target.value)}
-              placeholder="121XXXX"
-              className={fieldClass}
-              style={fieldStyle}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
-            <FlowLabel>PayHere merchant secret</FlowLabel>
-            <FlowInput
-              type="password"
-              value={merchantSecret}
-              disabled={!isOwner}
-              onChange={(e) => setMerchantSecret(e.target.value)}
-              placeholder={settings?.ownPayhereSecretConfigured ? '••••••••••••••••' : 'Paste merchant secret'}
-              className={fieldClass}
-              style={fieldStyle}
-            />
-            {settings?.ownPayhereSecretConfigured ? (
-              <p className="text-xs" style={{ color: ui.textMuted }}>
-                Secret is saved. Leave blank to keep the current secret.
-              </p>
-            ) : null}
-          </label>
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <FlowLabel>PayHere merchant ID</FlowLabel>
+              <FlowInput
+                value={merchantId}
+                disabled={!isOwner}
+                onChange={(e) => setMerchantId(e.target.value)}
+                placeholder="121XXXX"
+                className={fieldClass}
+                style={fieldStyle}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <FlowLabel>PayHere merchant secret</FlowLabel>
+              <FlowInput
+                type="password"
+                value={merchantSecret}
+                disabled={!isOwner}
+                onChange={(e) => setMerchantSecret(e.target.value)}
+                placeholder={settings?.ownPayhereSecretConfigured ? '••••••••••••••••' : 'Paste merchant secret'}
+                className={fieldClass}
+                style={fieldStyle}
+              />
+              {settings?.ownPayhereSecretConfigured ? (
+                <p className="text-xs" style={{ color: ui.textMuted }}>
+                  Secret is saved. Leave blank to keep the current secret.
+                </p>
+              ) : null}
+            </label>
+          </div>
+
+          <BillingCardSection
+            isOwner={isOwner}
+            billingActive={billingActive}
+            settings={settings}
+            addingCard={addingCard}
+            onAddCard={addBillingCard}
+            commissionPct={commissionPct}
+          />
         </div>
       )}
 
