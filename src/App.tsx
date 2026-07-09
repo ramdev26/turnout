@@ -17,10 +17,8 @@ import { api } from './api/client';
 import { parseAuthPayload } from './api/authResponse';
 import { clearAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
-import { AgendaManager } from './pages/AgendaManager';
 import { CheckInManager } from './pages/CheckInManager';
 import { StaffCheckInScanner } from './pages/StaffCheckInScanner';
-import { RunbookManager } from './pages/RunbookManager';
 import { AttendeeLogin } from './pages/AttendeeLogin';
 import { AttendeeSignup } from './pages/AttendeeSignup';
 import { AttendeeDashboard } from './pages/AttendeeDashboard';
@@ -279,14 +277,7 @@ export default function App() {
               </RequireOrganizer>
             }
           />
-          <Route
-            path="/dashboard/events/:eventId/agenda"
-            element={
-              <RequireOrganizer>
-                <AgendaManager />
-              </RequireOrganizer>
-            }
-          />
+          <Route path="/dashboard/events/:eventId/agenda" element={<Navigate to="/dashboard" replace />} />
           <Route
             path="/dashboard/events/:eventId/checkin"
             element={
@@ -295,14 +286,7 @@ export default function App() {
               </RequireOrganizer>
             }
           />
-          <Route
-            path="/dashboard/events/:eventId/runbook"
-            element={
-              <RequireOrganizer>
-                <RunbookManager />
-              </RequireOrganizer>
-            }
-          />
+          <Route path="/dashboard/events/:eventId/runbook" element={<Navigate to="/dashboard" replace />} />
           <Route path="/staff/checkin/:eventId" element={<StaffCheckInScanner />} />
           <Route path="/events/:eventId" element={<EventLanding />} />
           <Route path="/e/:slug" element={<EventLanding />} />

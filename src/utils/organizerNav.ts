@@ -1,9 +1,7 @@
 import {
   Building2,
   CalendarCheck,
-  ClipboardList,
   LayoutDashboard,
-  Mic2,
   Plus,
   Settings,
   Wallet,
@@ -22,9 +20,7 @@ export const organizerMainNav: AppNavLink[] = [
 export function eventWorkspaceNav(eventId: string): AppNavLink[] {
   return [
     { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', icon: Settings, exact: true },
-    { to: `/dashboard/events/${eventId}/agenda`, label: 'Agenda', icon: Mic2 },
     { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in', icon: CalendarCheck },
-    { to: `/dashboard/events/${eventId}/runbook`, label: 'Runbook', icon: ClipboardList },
   ];
 }
 
