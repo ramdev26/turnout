@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Contrast, Palette } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, Check, Contrast, Palette, Sparkles, Type as TypeIcon, RotateCcw, X } from 'lucide-react';
 import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
 import { companionSecondaryColor } from '../../themes/organizerLiveDesign';
@@ -13,12 +13,14 @@ import { cn } from '../../utils/cn';
 
 type DockControl = 'colour' | 'style' | 'font' | 'display' | null;
 
-const DOCK_BG = 'rgba(28, 25, 23, 0.94)';
-const DOCK_BORDER = 'rgba(255, 255, 255, 0.10)';
-const SEG_BG = 'rgba(255, 255, 255, 0.06)';
-const SEG_BORDER = 'rgba(255, 255, 255, 0.10)';
-const TEXT = '#f5f5f4';
-const TEXT_MUTED = 'rgba(245, 245, 244, 0.55)';
+const DOCK_BG = 'rgba(21, 22, 26, 0.96)';
+const DOCK_BORDER = 'rgba(255, 255, 255, 0.14)';
+const SEG_BG = 'rgba(255, 255, 255, 0.07)';
+const SEG_BORDER = 'rgba(255, 255, 255, 0.14)';
+const TEXT = '#ffffff';
+const TEXT_MUTED = 'rgba(255, 255, 255, 0.62)';
+const TEXT_SUBTLE = 'rgba(255, 255, 255, 0.45)';
+const DEFAULT_CATEGORY_ID = 'default';
 
 const CategoryThumb: React.FC<{
   category: (typeof EVENT_CATEGORIES)[number];
@@ -75,7 +77,7 @@ function Segment({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-[44px] w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition"
+      className="flex min-h-[46px] w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:brightness-110"
       style={{
         background: active ? 'rgba(255,255,255,0.12)' : SEG_BG,
         border: `1px solid ${SEG_BORDER}`,
@@ -95,15 +97,33 @@ function Segment({
   );
 }
 
-function Popover({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'center' }) {
+function Popover({
+  children,
+  title,
+  align = 'left',
+  onClose,
+}: {
+  children: React.ReactNode;
+  title: string;
+  align?: 'left' | 'center';
+  onClose: () => void;
+}) {
   return (
     <div
       className={cn(
-        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(52vh,320px)] w-[min(92vw,360px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
+        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(55vh,360px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
         align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0'
       )}
       style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
     >
+      <div className="mb-2 flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.10)' }}>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: TEXT_MUTED }}>
+          {title}
+        </p>
+        <button type="button" onClick={onClose} className="rounded p-1" aria-label={`Close ${title}`}>
+          <X className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />
+        </button>
+      </div>
       {children}
     </div>
   );
@@ -116,6 +136,7 @@ export function LandingDesignDock({
   design: LandingDesignValue;
   onDesignChange: (next: LandingDesignValue) => void;
 }) {
+  const defaultCategory = resolveEventCategory(DEFAULT_CATEGORY_ID);
   const [open, setOpen] = useState<DockControl>(null);
   const [expanded, setExpanded] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -141,7 +162,21 @@ export function LandingDesignDock({
     onDesignChange({ ...design, fontFamily: key });
   };
 
-  const activeCategory = design.eventCategory || 'default';
+  const activeCategory = design.eventCategory || DEFAULT_CATEGORY_ID;
+
+  const resetToDefault = () => {
+    loadLandingFont(defaultCategory.fontFamily);
+    onDesignChange({
+      ...design,
+      eventCategory: defaultCategory.id,
+      fontFamily: defaultCategory.fontFamily,
+      primaryColor: defaultCategory.primaryColor,
+      secondaryColor: defaultCategory.secondaryColor,
+      landingStyle: defaultCategory.landingStyle,
+      displayMode: 'auto',
+    });
+    setOpen(null);
+  };
 
   useEffect(() => {
     loadLandingFont(design.fontFamily);
@@ -181,6 +216,10 @@ export function LandingDesignDock({
   const fontKey = resolveLandingFontKey(design.fontFamily);
   const fontValue = LANDING_FONTS[fontKey].name;
   const displayValue = DISPLAY_OPTIONS.find((d) => d.id === design.displayMode)?.name ?? 'Auto';
+  const summary = useMemo(
+    () => `${styleValue} · ${fontValue} · ${displayValue}`,
+    [styleValue, fontValue, displayValue]
+  );
 
   if (!expanded) {
     return (
@@ -206,7 +245,7 @@ export function LandingDesignDock({
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4"
     >
       <div
-        className="landing-fade-in pointer-events-auto w-full max-w-3xl rounded-2xl px-3 pb-3 pt-2 shadow-2xl sm:px-4 sm:pb-4"
+        className="landing-fade-in pointer-events-auto w-full max-w-4xl rounded-2xl px-3 pb-3 pt-2 shadow-2xl sm:px-4 sm:pb-4"
         style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
       >
         <button
@@ -222,9 +261,25 @@ export function LandingDesignDock({
           <span className="h-1 w-9 rounded-full transition group-hover:w-12" style={{ background: 'rgba(255,255,255,0.25)' }} />
         </button>
 
-        <p className="mb-2 text-center text-[11px] font-medium" style={{ color: TEXT_MUTED }}>
-          Changes apply live on this page
-        </p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: TEXT_MUTED }}>
+              Customize design
+            </p>
+            <p className="text-[11px]" style={{ color: TEXT_SUBTLE }}>
+              {summary}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={resetToDefault}
+            className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
+            style={{ color: TEXT_MUTED, borderColor: 'rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.04)' }}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset
+          </button>
+        </div>
 
         <div className="flex items-start gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {EVENT_CATEGORIES.map((cat) => (
@@ -252,10 +307,7 @@ export function LandingDesignDock({
               onClick={() => toggle('colour')}
             />
             {open === 'colour' && (
-              <Popover>
-                <p className="mb-2 text-xs font-medium" style={{ color: TEXT_MUTED }}>
-                  Presets
-                </p>
+              <Popover title="Colour presets" onClose={() => setOpen(null)}>
                 <div className="flex flex-wrap items-center gap-2">
                   {COLOR_PRESETS.map((preset) => {
                     const isActive = activePreset?.id === preset.id;
@@ -310,7 +362,7 @@ export function LandingDesignDock({
               onClick={() => toggle('style')}
             />
             {open === 'style' && (
-              <Popover align="center">
+              <Popover title="Choose style" align="center" onClose={() => setOpen(null)}>
                 <div className="flex flex-col gap-1">
                   {STYLE_OPTIONS.map((opt) => (
                     <button
@@ -351,7 +403,7 @@ export function LandingDesignDock({
               onClick={() => toggle('font')}
             />
             {open === 'font' && (
-              <Popover align="center">
+              <Popover title="Choose font" align="center" onClose={() => setOpen(null)}>
                 <div className="flex flex-col gap-1">
                   {LANDING_FONT_KEYS.map((key) => {
                     const font = LANDING_FONTS[key];
@@ -393,7 +445,7 @@ export function LandingDesignDock({
               onClick={() => toggle('display')}
             />
             {open === 'display' && (
-              <Popover>
+              <Popover title="Display mode" onClose={() => setOpen(null)}>
                 <div className="grid grid-cols-3 gap-1">
                   {DISPLAY_OPTIONS.map((opt) => (
                     <button
