@@ -68,11 +68,15 @@ export type OrganizerProfile = {
   phone?: string | null;
   businessAddress?: string | null;
   businessRegistrationNo?: string | null;
+  businessRegistrationDocUrl?: string | null;
+  businessRegistrationDocUploaded?: boolean;
   bankAccountHolderName?: string | null;
   bankName?: string | null;
   bankBranch?: string | null;
   bankAccountNumberLast4?: string | null;
   bankAccountConfigured?: boolean;
+  bankStatementDocUrl?: string | null;
+  bankStatementDocUploaded?: boolean;
 };
 
 export type OrganizerPaidEventRequirements = {
@@ -91,6 +95,8 @@ export type OrganizerPaidEventReadiness = {
   business: {
     businessAddress: string | null;
     businessRegistrationNo: string | null;
+    businessRegistrationDocUrl: string | null;
+    businessRegistrationDocUploaded: boolean;
   };
   bank: {
     bankAccountHolderName: string | null;
@@ -98,6 +104,8 @@ export type OrganizerPaidEventReadiness = {
     bankBranch: string | null;
     bankAccountNumberLast4: string | null;
     bankAccountConfigured: boolean;
+    bankStatementDocUrl: string | null;
+    bankStatementDocUploaded: boolean;
   };
 };
 
