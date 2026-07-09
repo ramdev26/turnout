@@ -229,6 +229,8 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   bank_name TEXT NULL,
   bank_branch TEXT NULL,
   bank_account_number TEXT NULL,
+  business_registration_doc_url TEXT NULL,
+  bank_statement_doc_url TEXT NULL,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

@@ -87,7 +87,7 @@ export const PaidEventSetupGate: React.FC<Props> = ({
               done={businessDone}
               icon={<Building2 className="h-4 w-4" />}
               label="Business details"
-              detail="Organization name, business address, and phone number."
+              detail="Organization name, business address, phone number, and BR document."
             />
 
             {gatewayMode === 'turnout' ? (
@@ -95,7 +95,7 @@ export const PaidEventSetupGate: React.FC<Props> = ({
                 done={bankDone}
                 icon={<Landmark className="h-4 w-4" />}
                 label="Bank account for payouts"
-                detail="Account holder name, bank, branch, and account number so Turnout can send your earnings."
+                  detail="Account holder name, bank, branch, account number, and latest bank statement."
               />
             ) : (
               <>

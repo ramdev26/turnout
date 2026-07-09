@@ -72,6 +72,9 @@ if (preg_match('#^/uploads/banners/([^/]+)$#', $path, $bannerMatch) && $method =
 if (preg_match('#^/uploads/organizer-logos/([^/]+)$#', $path, $logoMatch) && $method === 'GET') {
   serve_local_organizer_logo_file($logoMatch[1]);
 }
+if (preg_match('#^/uploads/organizer-docs/([^/]+)$#', $path, $docMatch) && $method === 'GET') {
+  serve_local_organizer_doc_file($docMatch[1]);
+}
 
 if ($path === '/uploads/banner' && $method === 'POST') {
   handle_banner_upload_post();
@@ -79,6 +82,10 @@ if ($path === '/uploads/banner' && $method === 'POST') {
 
 if ($path === '/uploads/organizer-logo' && $method === 'POST') {
   handle_organizer_logo_upload_post();
+}
+if ($path === '/uploads/organizer-document' && $method === 'POST') {
+  $kind = trim((string)($_GET['kind'] ?? ''));
+  handle_organizer_doc_upload_post($kind);
 }
 
 function slugify(string $s): string {
@@ -2389,10 +2396,15 @@ if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'PO
     ]);
   }
 
+  $platformVerified = (bool)($vercel['verified'] ?? false);
+  $platformSkipped = (bool)($vercel['skipped'] ?? false);
+  $configured = $platformVerified || ($platformSkipped && $dnsOk);
+
   json_response(200, [
     'dnsDetected' => $dnsOk,
     'vercel' => $vercel,
-    'configured' => (bool)($vercel['verified'] ?? false) || $dnsOk,
+    'configured' => $configured,
+    'platformVerified' => $platformVerified,
   ]);
 }
 

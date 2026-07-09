@@ -36,6 +36,8 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         bank_name TEXT NULL,
         bank_branch TEXT NULL,
         bank_account_number TEXT NULL,
+        business_registration_doc_url TEXT NULL,
+        bank_statement_doc_url TEXT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -82,6 +84,8 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         bank_name VARCHAR(255) NULL,
         bank_branch VARCHAR(255) NULL,
         bank_account_number VARCHAR(64) NULL,
+        business_registration_doc_url TEXT NULL,
+        bank_statement_doc_url TEXT NULL,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -125,6 +129,8 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
       bank_name VARCHAR(255) NULL,
       bank_branch VARCHAR(255) NULL,
       bank_account_number VARCHAR(64) NULL,
+      business_registration_doc_url TEXT NULL,
+      bank_statement_doc_url TEXT NULL,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id),
       CONSTRAINT fk_org_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -248,6 +254,8 @@ function load_organizer_profile_row(PDO $pdo, int $ownerUserId): array {
       'bank_name' => null,
       'bank_branch' => null,
       'bank_account_number' => null,
+      'business_registration_doc_url' => null,
+      'bank_statement_doc_url' => null,
     ];
   }
   return $row;
@@ -267,6 +275,8 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
     'phone' => $row['phone'] ?? null,
     'businessAddress' => trim((string)($row['business_address'] ?? '')) ?: null,
     'businessRegistrationNo' => trim((string)($row['business_registration_no'] ?? '')) ?: null,
+    'businessRegistrationDocUrl' => trim((string)($row['business_registration_doc_url'] ?? '')) ?: null,
+    'businessRegistrationDocUploaded' => trim((string)($row['business_registration_doc_url'] ?? '')) !== '',
     'bankAccountHolderName' => trim((string)($row['bank_account_holder_name'] ?? '')) ?: null,
     'bankName' => trim((string)($row['bank_name'] ?? '')) ?: null,
     'bankBranch' => trim((string)($row['bank_branch'] ?? '')) ?: null,
@@ -274,6 +284,8 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
       ? substr(trim((string)$row['bank_account_number']), -4)
       : null,
     'bankAccountConfigured' => trim((string)($row['bank_account_number'] ?? '')) !== '',
+    'bankStatementDocUrl' => trim((string)($row['bank_statement_doc_url'] ?? '')) ?: null,
+    'bankStatementDocUploaded' => trim((string)($row['bank_statement_doc_url'] ?? '')) !== '',
   ];
 }
 

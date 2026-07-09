@@ -83,7 +83,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
         dns: DomainState['dns'];
         vercel: DomainState['vercel'];
       }>(`/api/events/${eventId}/domain`, { domain });
-      setMessage(res.vercel?.message || 'Domain saved. Add the DNS records below at your registrar.');
+      setMessage('Domain saved. Add the DNS records below at your DNS provider.');
       onUpdated?.(res.customDomain);
       await load();
     } catch (e: any) {
@@ -113,14 +113,21 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
     setVerifying(true);
     setError(null);
     try {
-      const res = await api.post<{ dnsDetected: boolean; configured: boolean; vercel: DomainState['vercel'] }>(
+      const res = await api.post<{
+        dnsDetected: boolean;
+        configured: boolean;
+        platformVerified?: boolean;
+        vercel: DomainState['vercel'];
+      }>(
         `/api/events/${eventId}/domain/verify`
       );
-      setMessage(
-        res.configured
-          ? 'DNS looks good. Your custom domain should be live within a few minutes.'
-          : 'DNS not detected yet. Double-check records at your registrar, then try again.'
-      );
+      if (res.configured) {
+        setMessage('Domain is active. Your custom URL should now open this event.');
+      } else if (res.dnsDetected) {
+        setMessage('DNS records are detected, but activation is still pending. Wait a few minutes and check again.');
+      } else {
+        setMessage('DNS not detected yet. Double-check records at your DNS provider, then try again.');
+      }
       await load();
     } catch (e: any) {
       setError(e?.message || e?.error || 'Verification failed');
@@ -206,10 +213,10 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
               {state?.dns?.records?.length ? (
                 <div className="mt-5 rounded-xl border p-4" style={cardMutedStyle}>
                   <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                    DNS records
+                    DNS setup
                   </p>
                   <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
-                    {state.dns.note}
+                    Add these records where your domain is managed (Cloudflare, GoDaddy, Namecheap, etc.).
                   </p>
                   <div className="mt-3 space-y-2">
                     {state.dns.records.map((rec) => (
@@ -219,7 +226,10 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                         style={cardStyle}
                       >
                         <div className="font-mono" style={{ color: ui.text }}>
-                          <span className="font-bold">{rec.type}</span> {rec.name} → {rec.value}
+                          <span className="font-bold">{rec.type}</span> {rec.name} →{' '}
+                          {String(rec.value).toLowerCase().includes('vercel')
+                            ? 'domain target (copy below)'
+                            : rec.value}
                         </div>
                         <button
                           type="button"
@@ -272,7 +282,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                 </p>
               )}
               <p className="mt-3 text-xs" style={{ color: ui.textSubtle }}>
-                Fallback: <span className="font-mono">{state?.defaultUrl}</span>
+                Default event link: <span className="font-mono">{state?.defaultUrl}</span>
               </p>
             </>
           )}
