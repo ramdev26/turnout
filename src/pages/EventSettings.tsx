@@ -11,7 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, Session, Speaker, Ticket as EventTicket } from '../types';
+import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
 import { normalizeCheckoutFields } from '../utils/checkoutFields';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
@@ -121,8 +121,6 @@ export const EventSettings: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<EventTicket[]>([]);
-  const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [themeId, setThemeId] = useState<EventThemeId>('minimal');
   const [design, setDesign] = useState<LandingDesignValue>({
@@ -150,7 +148,15 @@ export const EventSettings: React.FC = () => {
   const [savingTicket, setSavingTicket] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [savingTicketDesign, setSavingTicketDesign] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    details: true,
+    schedule: true,
+    location: true,
+    publicUrl: false,
+    tickets: true,
+    checkout: false,
+    advanced: false,
+  });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
 
   const toggleSection = (id: string) => {
@@ -213,17 +219,13 @@ export const EventSettings: React.FC = () => {
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
       setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
 
-      const [ticketsRes, speakersRes, sessionsRes, attendeesRes] = await Promise.all([
+      const [ticketsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
-        api.get<{ speakers: Speaker[] }>(`/api/events/${eventId}/speakers`),
-        api.get<{ sessions: Session[] }>(`/api/events/${eventId}/sessions`),
         api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number; pending: number } }>(
           `/api/events/${eventId}/attendees?limit=1`
         ),
       ]);
       setTickets(ticketsRes.tickets);
-      setSpeakers(speakersRes.speakers);
-      setSessions(sessionsRes.sessions);
       setAttendees(attendeesRes.attendees);
       setAttendeeStats(attendeesRes.stats ?? { total: attendeesRes.attendees.length, checkedIn: 0, pending: 0 });
     } catch (e: any) {
@@ -259,11 +261,11 @@ export const EventSettings: React.FC = () => {
     let score = 0;
     if (slug.length >= 3) score += 20;
     if (tickets.length > 0) score += 20;
-    if (speakers.length > 0) score += 20;
-    if (sessions.length > 0) score += 20;
+    if (location.trim().length > 2) score += 20;
+    if (scheduleTba || !!date) score += 20;
     if (event?.status === 'published') score += 20;
     return score;
-  }, [event?.status, sessions.length, slug, speakers.length, tickets.length]);
+  }, [date, event?.status, location, scheduleTba, slug, tickets.length]);
 
   const uploadBannerFile = async (file: File) => {
     setIsUploadingBanner(true);
@@ -491,6 +493,23 @@ export const EventSettings: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={saveBranding}
+              disabled={savingBranding}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-40"
+              style={{ backgroundColor: ui.accent }}
+            >
+              {savingBranding ? 'Saving…' : 'Save changes'}
+            </button>
+            <button
+              type="button"
+              onClick={() => updateEventStatus(event.status === 'published' ? 'draft' : 'published')}
+              className="rounded-xl border px-4 py-2 text-sm font-semibold"
+              style={{ ...cardStyle, color: ui.text }}
+            >
+              {event.status === 'published' ? 'Unpublish' : 'Publish'}
+            </button>
             <span
               className="inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold"
               style={{
@@ -505,7 +524,7 @@ export const EventSettings: React.FC = () => {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:grid-cols-[360px_1fr] lg:gap-10 lg:py-8 lg:pb-72">
+        <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-44 sm:px-8 lg:grid-cols-[360px_1fr] lg:gap-10 lg:py-8 lg:pb-44">
           {/* Left */}
           <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
             <BannerUploadSquare
@@ -997,25 +1016,6 @@ export const EventSettings: React.FC = () => {
         </div>
       </div>
 
-      <footer
-        className="shrink-0 border-t px-4 py-4 backdrop-blur-md sm:px-8"
-        style={{ background: ui.footerBg, borderColor: ui.borderColor }}
-      >
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm" style={{ color: ui.textSubtle }}>
-            Save changes to publish design, details, and schedule to your public landing page.
-          </p>
-          <button
-            type="button"
-            onClick={saveBranding}
-            disabled={savingBranding}
-            className="w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition hover:brightness-105 disabled:opacity-40 sm:w-auto"
-            style={{ backgroundColor: ui.accent }}
-          >
-            {savingBranding ? 'Saving…' : 'Save changes'}
-          </button>
-        </div>
-      </footer>
       <LandingDesignDock design={design} onDesignChange={setDesign} />
     </div>
   );
