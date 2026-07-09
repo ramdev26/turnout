@@ -42,6 +42,7 @@ export const OrganizerAccount: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [removingLogo, setRemovingLogo] = useState(false);
   const [uploadingBrDoc, setUploadingBrDoc] = useState(false);
   const [uploadingBankStatementDoc, setUploadingBankStatementDoc] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -200,6 +201,35 @@ export const OrganizerAccount: React.FC = () => {
     }
   };
 
+  const removeLogo = async () => {
+    if (!workspace?.isOwner) return;
+    setRemovingLogo(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ ok: boolean; profile: OrganizerProfile; user: Parameters<typeof setUser>[0] }>(
+        '/api/me/organizer-profile',
+        {
+          displayName: profile.displayName.trim(),
+          organizationName: profile.organizationName.trim(),
+          logoUrl: '',
+          website: profile.website?.trim() || undefined,
+          phone: profile.phone?.trim() || undefined,
+          businessAddress: profile.businessAddress?.trim() || undefined,
+          businessRegistrationNo: profile.businessRegistrationNo?.trim() || undefined,
+        }
+      );
+      setUser(res.user);
+      setProfile((p) => ({ ...p, ...res.profile, logoUrl: '' }));
+      setFeedback('Organization logo removed.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to remove logo');
+    } finally {
+      setRemovingLogo(false);
+    }
+  };
+
   const sendInvite = async () => {
     setInviting(true);
     setError(null);
@@ -278,6 +308,16 @@ export const OrganizerAccount: React.FC = () => {
               <p className="mt-2 text-center text-xs" style={{ color: ui.textMuted }}>
                 Organization logo
               </p>
+              {workspace?.isOwner && profile.logoUrl ? (
+                <button
+                  type="button"
+                  onClick={() => void removeLogo()}
+                  disabled={removingLogo || uploadingLogo}
+                  className="mt-2 w-full rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-60"
+                >
+                  {removingLogo ? 'Removing…' : 'Remove logo'}
+                </button>
+              ) : null}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 sm:col-span-2">
