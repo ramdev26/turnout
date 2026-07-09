@@ -11,7 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee, CheckoutFieldDefinition, Event, Session, Speaker, Ticket as EventTicket } from '../types';
+import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, Session, Speaker, Ticket as EventTicket } from '../types';
 import { normalizeCheckoutFields } from '../utils/checkoutFields';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
@@ -20,6 +20,7 @@ import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
+import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
@@ -165,6 +166,7 @@ export const EventSettings: React.FC = () => {
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const { ui, landingVars, titleFont, bodyFont, panelClass, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(
@@ -234,6 +236,17 @@ export const EventSettings: React.FC = () => {
   useEffect(() => {
     void loadAll();
   }, [eventId]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get<{ readiness: OrganizerPaidEventReadiness }>('/api/organizer/paid-event-readiness');
+        setPaidEventReadiness(res.readiness);
+      } catch {
+        setPaidEventReadiness(null);
+      }
+    })();
+  }, []);
 
   const publicUrl = useMemo(() => (slug ? `/e/${slug}` : ''), [slug]);
   const staffCheckInUrl = useMemo(() => `/staff/checkin/${eventId}`, [eventId]);
@@ -354,6 +367,10 @@ export const EventSettings: React.FC = () => {
       setError('Ticket name is required');
       return;
     }
+    if (ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
+      setError('Complete business and payment setup in Organization settings before adding paid tickets.');
+      return;
+    }
     setSavingTicket(true);
     setError(null);
     try {
@@ -367,6 +384,11 @@ export const EventSettings: React.FC = () => {
       setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
       setFeedback('Tickets updated.');
     } catch (e: any) {
+      if (e?.error === 'paid_event_setup_required') {
+        setPaidEventReadiness(e.readiness || paidEventReadiness);
+        setError(e?.message || 'Complete Organization setup before selling paid tickets.');
+        return;
+      }
       setError(e?.message || e?.error || 'Failed to save ticket');
     } finally {
       setSavingTicket(false);
@@ -812,6 +834,12 @@ export const EventSettings: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady ? (
+                <div className="mt-4">
+                  <PaidEventSetupGate readiness={paidEventReadiness} title="Paid ticket setup required" />
+                </div>
+              ) : null}
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <input

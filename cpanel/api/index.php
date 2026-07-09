@@ -11,6 +11,7 @@ require __DIR__ . '/lib/checkin.php';
 require __DIR__ . '/lib/checkout_fields.php';
 require __DIR__ . '/lib/organizer_team.php';
 require __DIR__ . '/lib/organizer_payment.php';
+require __DIR__ . '/lib/organizer_paid_event.php';
 
 set_cors_headers_for_same_domain();
 
@@ -1303,7 +1304,17 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
   $website = trim((string)($body['website'] ?? ''));
   $phone = trim((string)($body['phone'] ?? ''));
   $displayName = trim((string)($body['displayName'] ?? ''));
+  $businessAddress = trim((string)($body['businessAddress'] ?? ''));
+  $businessRegistrationNo = trim((string)($body['businessRegistrationNo'] ?? ''));
+  $bankAccountHolderName = trim((string)($body['bankAccountHolderName'] ?? ''));
+  $bankName = trim((string)($body['bankName'] ?? ''));
+  $bankBranch = trim((string)($body['bankBranch'] ?? ''));
+  $bankAccountNumber = trim((string)($body['bankAccountNumber'] ?? ''));
 
+  if ($organizationName === '') {
+    $existingProfile = load_organizer_profile_row($pdo, $uid);
+    $organizationName = trim((string)($existingProfile['organization_name'] ?? ''));
+  }
   if ($organizationName === '') json_response(400, ['error' => 'invalid_organization_name']);
   if ($logoUrl !== '' && !filter_var($logoUrl, FILTER_VALIDATE_URL) && !str_starts_with($logoUrl, '/api/uploads/organizer-logos/')) {
     json_response(400, ['error' => 'invalid_logo_url']);
@@ -1315,46 +1326,28 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     $pdo->prepare('UPDATE users SET display_name = ? WHERE id = ?')->execute([$displayName, $uid]);
   }
 
-  ensure_organizer_workspace_tables($pdo);
-  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-  if ($driver === 'sqlite') {
-    $upsert = $pdo->prepare(
-      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone, updated_at)
-       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT(user_id) DO UPDATE SET
-         organization_name = excluded.organization_name,
-         logo_url = excluded.logo_url,
-         website = excluded.website,
-         phone = excluded.phone,
-         updated_at = CURRENT_TIMESTAMP'
-    );
-    $upsert->execute([
-      $uid,
-      mb_substr($organizationName, 0, 255),
-      $logoUrl !== '' ? $logoUrl : null,
-      $website !== '' ? $website : null,
-      $phone !== '' ? $phone : null,
-    ]);
-  } else {
-    $upsert = $pdo->prepare(
-      'INSERT INTO organizer_profiles (user_id, organization_name, logo_url, website, phone)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         organization_name = VALUES(organization_name),
-         logo_url = VALUES(logo_url),
-         website = VALUES(website),
-         phone = VALUES(phone)'
-    );
-    $upsert->execute([
-      $uid,
-      mb_substr($organizationName, 0, 255),
-      $logoUrl !== '' ? $logoUrl : null,
-      $website !== '' ? $website : null,
-      $phone !== '' ? $phone : null,
-    ]);
-  }
+  upsert_organizer_profile_paid_event_fields($pdo, $uid, [
+    'organization_name' => $organizationName,
+    'logo_url' => $logoUrl,
+    'website' => $website,
+    'phone' => $phone,
+    'business_address' => $businessAddress,
+    'business_registration_no' => $businessRegistrationNo,
+    'bank_account_holder_name' => $bankAccountHolderName,
+    'bank_name' => $bankName,
+    'bank_branch' => $bankBranch,
+    'bank_account_number' => $bankAccountNumber,
+  ]);
 
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
+}
+
+if ($path === '/organizer/paid-event-readiness' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
+  json_response(200, ['readiness' => organizer_paid_event_readiness_api_shape($pdo, $ownerUserId)]);
 }
 
 if ($path === '/organizer/payment-settings' && $method === 'GET') {
@@ -1362,7 +1355,10 @@ if ($path === '/organizer/payment-settings' && $method === 'GET') {
   $pdo = db();
   $ctx = organizer_workspace_context($pdo, $uid);
   $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
-  json_response(200, ['settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId)]);
+  json_response(200, [
+    'settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId),
+    'readiness' => organizer_paid_event_readiness_api_shape($pdo, $ownerUserId),
+  ]);
 }
 
 if ($path === '/organizer/payment-settings' && $method === 'POST') {
@@ -1383,7 +1379,29 @@ if ($path === '/organizer/payment-settings' && $method === 'POST') {
     }
   }
   upsert_organizer_payment_settings($pdo, $ownerUserId, $fields);
-  json_response(200, ['ok' => true, 'settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId)]);
+
+  $bankFields = [];
+  if (array_key_exists('bankAccountHolderName', $body)) {
+    $bankFields['bank_account_holder_name'] = trim((string)$body['bankAccountHolderName']);
+  }
+  if (array_key_exists('bankName', $body)) {
+    $bankFields['bank_name'] = trim((string)$body['bankName']);
+  }
+  if (array_key_exists('bankBranch', $body)) {
+    $bankFields['bank_branch'] = trim((string)$body['bankBranch']);
+  }
+  if (array_key_exists('bankAccountNumber', $body)) {
+    $bankFields['bank_account_number'] = trim((string)$body['bankAccountNumber']);
+  }
+  if ($bankFields !== []) {
+    upsert_organizer_profile_paid_event_fields($pdo, $ownerUserId, $bankFields);
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId),
+    'readiness' => organizer_paid_event_readiness_api_shape($pdo, $ownerUserId),
+  ]);
 }
 
 if ($path === '/organizer/billing/preapprove' && $method === 'POST') {
@@ -2070,6 +2088,7 @@ if ($path === '/events' && $method === 'POST') {
       json_response(403, ['error' => 'forbidden']);
     }
   }
+  assert_organizer_can_sell_paid_ticket_list($pdo, $eventOwnerId, $tickets);
   $baseSlug = $requestedSlug !== '' ? slugify($requestedSlug) : slugify($title);
   $slug = unique_slug($pdo, $baseSlug);
   $pdo->beginTransaction();
@@ -2605,6 +2624,7 @@ if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'POST') {
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
+  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], $price);
 
   $ins = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
   $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null]);
@@ -2650,6 +2670,7 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'P
   $ticket = $existing->fetch();
   if (!$ticket) json_response(404, ['error' => 'ticket_not_found']);
   if ($quantity < (int)$ticket['sold']) json_response(400, ['error' => 'quantity_below_sold']);
+  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], $price);
 
   $upd = $pdo->prepare('UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ? WHERE id = ? AND event_id = ?');
   $upd->execute([$name, (int)round($price * 100), $quantity, $description !== '' ? $description : null, $ticketId, $eventId]);

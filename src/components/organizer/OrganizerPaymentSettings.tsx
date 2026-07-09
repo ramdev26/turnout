@@ -4,6 +4,7 @@ import { api } from '../../api/client';
 import {
   OrganizerBillingPreapproveResponse,
   OrganizerGatewayMode,
+  OrganizerPaidEventReadiness,
   OrganizerPaymentSettings,
 } from '../../types';
 import { startPayHerePreapprove } from '../../lib/payhereCheckout';
@@ -96,13 +97,25 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   const [gatewayMode, setGatewayMode] = useState<OrganizerGatewayMode>('turnout');
   const [merchantId, setMerchantId] = useState('');
   const [merchantSecret, setMerchantSecret] = useState('');
+  const [bankAccountHolderName, setBankAccountHolderName] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [bankBranch, setBankBranch] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [readiness, setReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
 
   const loadSettings = useCallback(async () => {
-    const res = await api.get<{ settings: OrganizerPaymentSettings }>('/api/organizer/payment-settings');
+    const res = await api.get<{ settings: OrganizerPaymentSettings; readiness: OrganizerPaidEventReadiness }>(
+      '/api/organizer/payment-settings'
+    );
     setSettings(res.settings);
+    setReadiness(res.readiness);
     setGatewayMode(res.settings.gatewayMode);
     setMerchantId(res.settings.ownPayhereMerchantId || '');
     setMerchantSecret('');
+    setBankAccountHolderName(res.readiness.bank.bankAccountHolderName || '');
+    setBankName(res.readiness.bank.bankName || '');
+    setBankBranch(res.readiness.bank.bankBranch || '');
+    setBankAccountNumber('');
   }, []);
 
   useEffect(() => {
@@ -131,9 +144,22 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
           body.ownPayhereMerchantSecret = merchantSecret.trim();
         }
       }
-      const res = await api.post<{ settings: OrganizerPaymentSettings }>('/api/organizer/payment-settings', body);
+      if (gatewayMode === 'turnout') {
+        body.bankAccountHolderName = bankAccountHolderName.trim();
+        body.bankName = bankName.trim();
+        body.bankBranch = bankBranch.trim();
+        if (bankAccountNumber.trim()) {
+          body.bankAccountNumber = bankAccountNumber.trim();
+        }
+      }
+      const res = await api.post<{
+        settings: OrganizerPaymentSettings;
+        readiness: OrganizerPaidEventReadiness;
+      }>('/api/organizer/payment-settings', body);
       setSettings(res.settings);
+      setReadiness(res.readiness);
       setMerchantSecret('');
+      setBankAccountNumber('');
       onFeedback?.('Payment settings saved.');
     } catch (e: unknown) {
       onError?.(formatApiError(e, 'Failed to save payment settings'));
@@ -235,15 +261,82 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
       </div>
 
       {gatewayMode === 'turnout' ? (
-        <div className="rounded-2xl border p-4" style={cardMutedStyle}>
-          <p className="font-semibold" style={{ color: ui.text }}>
-            How Turnout Pay works
-          </p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm" style={{ color: ui.textMuted }}>
-            <li>Attendees pay through Turnout&apos;s PayHere account.</li>
-            <li>Platform fees are deducted from each sale automatically.</li>
-            <li>Your net earnings are paid out to your bank account.</li>
-          </ul>
+        <div className="space-y-4">
+          <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+            <p className="font-semibold" style={{ color: ui.text }}>
+              How Turnout Pay works
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm" style={{ color: ui.textMuted }}>
+              <li>Attendees pay through Turnout&apos;s PayHere account.</li>
+              <li>Platform fees are deducted from each sale automatically.</li>
+              <li>Your net earnings are paid out to your bank account.</li>
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+            <p className="font-semibold" style={{ color: ui.text }}>
+              Bank account for payouts
+            </p>
+            <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+              Required before your first paid event when using Turnout Pay.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <FlowLabel>Account holder name</FlowLabel>
+                <FlowInput
+                  value={bankAccountHolderName}
+                  disabled={!isOwner}
+                  onChange={(e) => setBankAccountHolderName(e.target.value)}
+                  placeholder="Name as shown on bank account"
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <FlowLabel>Bank name</FlowLabel>
+                <FlowInput
+                  value={bankName}
+                  disabled={!isOwner}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="e.g. Commercial Bank"
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <FlowLabel>Branch</FlowLabel>
+                <FlowInput
+                  value={bankBranch}
+                  disabled={!isOwner}
+                  onChange={(e) => setBankBranch(e.target.value)}
+                  placeholder="Branch name or code"
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <FlowLabel>Account number</FlowLabel>
+                <FlowInput
+                  type="password"
+                  value={bankAccountNumber}
+                  disabled={!isOwner}
+                  onChange={(e) => setBankAccountNumber(e.target.value)}
+                  placeholder={
+                    readiness?.bank.bankAccountConfigured
+                      ? `Saved · ends ${readiness.bank.bankAccountNumberLast4 || '****'}`
+                      : 'Enter account number'
+                  }
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+                {readiness?.bank.bankAccountConfigured ? (
+                  <p className="text-xs" style={{ color: ui.textMuted }}>
+                    Account number is saved. Leave blank to keep the current number.
+                  </p>
+                ) : null}
+              </label>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

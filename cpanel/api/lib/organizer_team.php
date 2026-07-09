@@ -30,6 +30,12 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         logo_url TEXT NULL,
         website TEXT NULL,
         phone TEXT NULL,
+        business_address TEXT NULL,
+        business_registration_no TEXT NULL,
+        bank_account_holder_name TEXT NULL,
+        bank_name TEXT NULL,
+        bank_branch TEXT NULL,
+        bank_account_number TEXT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -70,6 +76,12 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         logo_url TEXT NULL,
         website VARCHAR(255) NULL,
         phone VARCHAR(60) NULL,
+        business_address TEXT NULL,
+        business_registration_no VARCHAR(128) NULL,
+        bank_account_holder_name VARCHAR(255) NULL,
+        bank_name VARCHAR(255) NULL,
+        bank_branch VARCHAR(255) NULL,
+        bank_account_number VARCHAR(64) NULL,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -107,6 +119,12 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
       logo_url TEXT NULL,
       website VARCHAR(255) NULL,
       phone VARCHAR(60) NULL,
+      business_address TEXT NULL,
+      business_registration_no VARCHAR(128) NULL,
+      bank_account_holder_name VARCHAR(255) NULL,
+      bank_name VARCHAR(255) NULL,
+      bank_branch VARCHAR(255) NULL,
+      bank_account_number VARCHAR(64) NULL,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id),
       CONSTRAINT fk_org_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -224,6 +242,12 @@ function load_organizer_profile_row(PDO $pdo, int $ownerUserId): array {
       'logo_url' => null,
       'website' => null,
       'phone' => null,
+      'business_address' => null,
+      'business_registration_no' => null,
+      'bank_account_holder_name' => null,
+      'bank_name' => null,
+      'bank_branch' => null,
+      'bank_account_number' => null,
     ];
   }
   return $row;
@@ -231,6 +255,7 @@ function load_organizer_profile_row(PDO $pdo, int $ownerUserId): array {
 
 function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
   $user = load_user_profile($ownerUserId);
+  ensure_organizer_profile_paid_event_columns($pdo);
   $row = load_organizer_profile_row($pdo, $ownerUserId);
   return [
     'ownerUserId' => (string)$ownerUserId,
@@ -240,6 +265,15 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
     'logoUrl' => $row['logo_url'] ?? null,
     'website' => $row['website'] ?? null,
     'phone' => $row['phone'] ?? null,
+    'businessAddress' => trim((string)($row['business_address'] ?? '')) ?: null,
+    'businessRegistrationNo' => trim((string)($row['business_registration_no'] ?? '')) ?: null,
+    'bankAccountHolderName' => trim((string)($row['bank_account_holder_name'] ?? '')) ?: null,
+    'bankName' => trim((string)($row['bank_name'] ?? '')) ?: null,
+    'bankBranch' => trim((string)($row['bank_branch'] ?? '')) ?: null,
+    'bankAccountNumberLast4' => trim((string)($row['bank_account_number'] ?? '')) !== ''
+      ? substr(trim((string)$row['bank_account_number']), -4)
+      : null,
+    'bankAccountConfigured' => trim((string)($row['bank_account_number'] ?? '')) !== '',
   ];
 }
 

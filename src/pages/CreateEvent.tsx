@@ -16,12 +16,13 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { EventCustomization } from '../types';
+import { EventCustomization, OrganizerPaidEventReadiness } from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
+import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
 import { EVENT_CATEGORIES } from '../themes/eventCategories';
@@ -241,6 +242,8 @@ export const CreateEvent: React.FC = () => {
   const [hasSchedule, setHasSchedule] = useState(false);
   // End time is optional — most events only need a start.
   const [hasEnd, setHasEnd] = useState(false);
+  const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
+  const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
@@ -313,6 +316,18 @@ export const CreateEvent: React.FC = () => {
     }
   }, [date, endDate, hasEnd, setValue]);
 
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const res = await api.get<{ readiness: OrganizerPaidEventReadiness }>('/api/organizer/paid-event-readiness');
+        setPaidEventReadiness(res.readiness);
+      } catch {
+        setPaidEventReadiness(null);
+      }
+    })();
+  }, [user]);
+
   const totalSeats = useMemo(
     () => tickets.reduce((sum, t) => sum + (Number.isFinite(t.quantity) ? t.quantity : 0), 0),
     [tickets]
@@ -336,6 +351,11 @@ export const CreateEvent: React.FC = () => {
   };
 
   const switchToPaidMode = () => {
+    if (paidEventReadiness && !paidEventReadiness.isReady) {
+      setShowPaidSetupGate(true);
+      return;
+    }
+    setShowPaidSetupGate(false);
     setTicketMode('paid');
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
@@ -383,6 +403,11 @@ export const CreateEvent: React.FC = () => {
       const hasPaidTier = data.tickets.some((t) => t.price > 0);
       if (!hasPaidTier) {
         setSubmitError('Add at least one paid ticket tier with a price greater than 0.');
+        return;
+      }
+      if (paidEventReadiness && !paidEventReadiness.isReady) {
+        setShowPaidSetupGate(true);
+        setSubmitError('Complete business and payment setup in Organization settings before publishing a paid event.');
         return;
       }
     }
@@ -441,6 +466,12 @@ export const CreateEvent: React.FC = () => {
       window.open(`/e/${created.slug}`, '_blank', 'noopener,noreferrer');
       navigate('/dashboard');
     } catch (error: any) {
+      if (error?.error === 'paid_event_setup_required') {
+        setPaidEventReadiness(error.readiness || paidEventReadiness);
+        setShowPaidSetupGate(true);
+        setSubmitError(error?.message || 'Complete Organization setup before selling paid tickets.');
+        return;
+      }
       setSubmitError(error?.message || error?.error || 'Failed to create event. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -788,6 +819,18 @@ export const CreateEvent: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {ticketMode === 'paid' && showPaidSetupGate ? (
+                  <div className="mb-4">
+                    <PaidEventSetupGate
+                      readiness={paidEventReadiness}
+                      onDismiss={() => {
+                        setShowPaidSetupGate(false);
+                        switchToFreeMode();
+                      }}
+                    />
+                  </div>
+                ) : null}
 
                 {ticketMode === 'free' ? (
                   <div className="space-y-3 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardMutedStyle}>
