@@ -439,24 +439,10 @@ export const EventSettings: React.FC = () => {
     }
   };
 
-  const navPill = (to: string, label: string, active: boolean) => (
-    <Link
-      to={to}
-      className="rounded-full border px-3 py-1.5 text-xs font-medium transition"
-      style={
-        active
-          ? { background: ui.accentSoft, borderColor: ui.accent, color: ui.accent }
-          : { ...cardStyle, color: ui.textMuted }
-      }
-    >
-      {label}
-    </Link>
-  );
-
   if (loading) {
     return (
       <div
-        className="flex min-h-[calc(100vh-4rem)] items-center justify-center"
+        className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center"
         style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)' }}
       >
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: ui.accent }} />
@@ -478,7 +464,7 @@ export const EventSettings: React.FC = () => {
 
   return (
     <div
-      className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background] duration-700 ease-in-out"
+      className="flex min-h-[calc(100vh-3.5rem)] flex-col transition-[background] duration-700 ease-in-out"
       style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
     >
       <header
@@ -514,10 +500,6 @@ export const EventSettings: React.FC = () => {
             >
               {statusLabel[event.status]}
             </span>
-            {navPill(`/dashboard/events/${eventId}/settings`, 'Settings', true)}
-            {navPill(`/dashboard/events/${eventId}/agenda`, 'Agenda', false)}
-            {navPill(`/dashboard/events/${eventId}/checkin`, 'Check-in', false)}
-            {navPill(`/dashboard/events/${eventId}/runbook`, 'Runbook', false)}
           </div>
         </div>
       </header>

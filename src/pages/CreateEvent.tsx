@@ -484,7 +484,7 @@ export const CreateEvent: React.FC = () => {
 
   return (
     <div
-      className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background,color] duration-500 ease-in-out"
+      className="flex min-h-[calc(100vh-3.5rem)] flex-col transition-[background,color] duration-500 ease-in-out"
       style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
     >
       <header

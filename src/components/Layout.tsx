@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { LogOut, User, Calendar, Plus, LayoutDashboard, Wallet, Shield, Menu } from 'lucide-react';
+import { LogOut, Menu, User } from 'lucide-react';
 import { api } from '../api/client';
 import { cn } from '../utils/cn';
 import { Button } from './ui/Button';
@@ -11,6 +11,11 @@ import { cardStyleFor } from '../themes/flowUi';
 import { clearAuthToken } from '../api/authToken';
 import { TurnoutLogo } from './branding/TurnoutLogo';
 import { TURNOUT_BRAND } from '../themes/brandColors';
+import { AppSidebar } from './AppSidebar';
+import { adminMainNav } from '../utils/adminNav';
+import { attendeeMainNav } from '../utils/attendeeNav';
+import { eventWorkspaceNav, organizerMainNav } from '../utils/organizerNav';
+import type { AppNavLink } from '../utils/appNav';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -19,10 +24,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navigate = useNavigate();
   const location = useLocation();
   const path = location.pathname;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const isPublicLanding = /^\/e\/[^/]+$/.test(path) || /^\/events\/[^/]+$/.test(path);
+  const isPublicLanding =
+    /^\/e\/[^/]+$/.test(path) ||
+    (/^\/events\/[^/]+$/.test(path) && !/^\/events\/(new|themes)$/.test(path));
   const isStaffCheckin = /^\/staff\/checkin\/[^/]+$/.test(path);
-  const isOrganizerConsole = /^\/dashboard/.test(path) || path === '/events/themes';
+  const isOrganizerConsole =
+    /^\/dashboard/.test(path) || /^\/events\/(new|themes)/.test(path);
   const isAttendeeConsole = /^\/attendee/.test(path) && path !== '/attendee/signup';
   const isAdminConsole = /^\/admin/.test(path);
   const isAuthPage =
@@ -34,21 +43,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     path === '/reset-password';
 
   const isMarketingHome = path === '/landing';
-
   const isOrderConfirmation = /^\/orders\/\d+\/success$/.test(path);
 
-  const isFullscreenFlow =
-    isPublicLanding ||
-    isStaffCheckin ||
-    isMarketingHome ||
-    isOrderConfirmation ||
-    path === '/events/new' ||
-    /^\/dashboard\/events\/[^/]+\/settings$/.test(path);
-
+  const hideChrome = isPublicLanding || isStaffCheckin || isMarketingHome || isOrderConfirmation;
   const isAppFlow = isOrganizerConsole || isAttendeeConsole || isAdminConsole || isAuthPage;
-  const hideChrome = isFullscreenFlow || isPublicLanding || isStaffCheckin || isMarketingHome;
-  const useThemedBar = isAppFlow && !hideChrome;
   const chromeThemed = !hideChrome;
+
+  const showAppSidebar = !!user && !hideChrome && (isOrganizerConsole || isAttendeeConsole || isAdminConsole);
 
   const logoHref = !user
     ? '/'
@@ -57,6 +58,41 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       : user.role === 'attendee'
         ? '/attendee/dashboard'
         : '/dashboard';
+
+  const eventIdMatch = path.match(/^\/dashboard\/events\/([^/]+)/);
+  const eventId = eventIdMatch?.[1];
+
+  const { primaryLinks, secondaryTitle, secondaryLinks } = useMemo((): {
+    primaryLinks: AppNavLink[];
+    secondaryTitle?: string;
+    secondaryLinks?: AppNavLink[];
+  } => {
+    if (!user) return { primaryLinks: [] };
+
+    if (user.role === 'super_admin') {
+      return { primaryLinks: adminMainNav };
+    }
+
+    if (user.role === 'attendee') {
+      return { primaryLinks: attendeeMainNav };
+    }
+
+    const secondary =
+      eventId && !['new', 'themes'].includes(eventId) ? eventWorkspaceNav(eventId) : undefined;
+
+    return {
+      primaryLinks: organizerMainNav,
+      secondaryTitle: secondary ? 'Event workspace' : undefined,
+      secondaryLinks: secondary,
+    };
+  }, [user, eventId]);
+
+  const accountHref =
+    user?.role === 'attendee'
+      ? '/attendee/account'
+      : user?.role === 'organizer'
+        ? '/dashboard/organization'
+        : '/admin/dashboard';
 
   const handleLogout = async () => {
     setLoading(true);
@@ -72,70 +108,66 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     }
   };
 
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
   return (
     <div
       className="min-h-screen"
       style={chromeThemed || isAuthPage ? { background: ui.pageBg, color: ui.text } : undefined}
     >
-      {!hideChrome && (
-        <nav
-          className="sticky top-0 z-50 border-b backdrop-blur-xl"
-          style={{ background: ui.headerBg, borderColor: ui.borderColor }}
-        >
-          <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
-            <div className="flex min-w-0 items-center gap-3 sm:gap-6">
-              <Link
-                to={logoHref}
-                className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight sm:text-base"
-                style={{ color: ui.text }}
-              >
-                <TurnoutLogo className="h-6 w-auto" />
-              </Link>
-              {user && (
-                <div className="hidden items-center gap-1 md:flex">
-                  {user.role === 'organizer' ? (
-                    <>
-                      <NavLink to="/dashboard" active={path.startsWith('/dashboard') && path !== '/dashboard/earnings'}>
-                        <LayoutDashboard className="h-4 w-4" />
-                        Dashboard
-                      </NavLink>
-                      <NavLink to="/dashboard/earnings" active={path === '/dashboard/earnings'}>
-                        <Wallet className="h-4 w-4" />
-                        Earnings
-                      </NavLink>
-                      <NavLink to="/dashboard/organization" active={path === '/dashboard/organization'}>
-                        <User className="h-4 w-4" />
-                        Organization
-                      </NavLink>
-                      <NavLink to="/events/new" active={path.startsWith('/events/')}>
-                        <Plus className="h-4 w-4" />
-                        Create
-                      </NavLink>
-                    </>
-                  ) : null}
-                  {user.role === 'super_admin' ? (
-                    <NavLink to="/admin/dashboard" active={path.startsWith('/admin')}>
-                      <Shield className="h-4 w-4" />
-                      Admin
-                    </NavLink>
-                  ) : null}
-                  {user.role === 'attendee' ? (
-                    <NavLink to="/attendee/dashboard" active={path.startsWith('/attendee')}>
-                      <Calendar className="h-4 w-4" />
-                      Events
-                    </NavLink>
-                  ) : null}
-                </div>
+      {showAppSidebar ? (
+        <AppSidebar
+          logoHref={logoHref}
+          primaryLinks={primaryLinks}
+          secondaryTitle={secondaryTitle}
+          secondaryLinks={secondaryLinks}
+          mobileOpen={sidebarOpen}
+          onMobileClose={closeSidebar}
+        />
+      ) : null}
+
+      <div className={cn('flex min-h-screen flex-col', showAppSidebar && 'lg:pl-[240px]')}>
+        {!hideChrome && (
+          <header
+            className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b px-4 backdrop-blur-xl sm:px-6"
+            style={{ background: ui.headerBg, borderColor: ui.borderColor }}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              {showAppSidebar ? (
+                <button
+                  type="button"
+                  className="rounded-lg border p-2 lg:hidden"
+                  style={cardStyleFor(ui)}
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Open menu"
+                >
+                  <Menu className="h-4 w-4" style={{ color: ui.text }} />
+                </button>
+              ) : (
+                <Link
+                  to={logoHref}
+                  className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight"
+                  style={{ color: ui.text }}
+                >
+                  <TurnoutLogo className="h-6 w-auto" />
+                </Link>
               )}
             </div>
+
             <div className="flex items-center gap-2">
               {loading ? (
                 <Skeleton className="h-9 w-24 rounded-full" />
               ) : user ? (
                 <>
                   <Link
-                    to={user.role === 'attendee' ? '/attendee/account' : user.role === 'organizer' ? '/dashboard/organization' : '/dashboard'}
-                    title={user.role === 'attendee' ? 'Open my account' : user.role === 'organizer' ? 'Organization settings' : 'Open dashboard'}
+                    to={accountHref}
+                    title={
+                      user.role === 'attendee'
+                        ? 'Open my account'
+                        : user.role === 'organizer'
+                          ? 'Organization settings'
+                          : 'Open dashboard'
+                    }
                     className="inline-flex items-center gap-2 rounded-full border px-2 py-1.5 text-sm font-medium transition"
                     style={{ ...cardStyleFor(ui), color: ui.text }}
                   >
@@ -145,7 +177,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     >
                       <User className="h-4 w-4" />
                     </span>
-                    <span className="hidden max-w-[120px] truncate pr-1 sm:block">{user.displayName}</span>
+                    <span className="hidden max-w-[140px] truncate pr-1 sm:block">{user.displayName}</span>
                   </Link>
                   <Button
                     variant="ghost"
@@ -153,6 +185,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     onClick={handleLogout}
                     className="rounded-full px-3"
                     style={{ color: ui.textMuted }}
+                    aria-label="Sign out"
                   >
                     <LogOut className="h-4 w-4" />
                   </Button>
@@ -164,94 +197,37 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   </Button>
                 </Link>
               )}
-              {user && chromeThemed ? (
-                <details className="relative md:hidden">
-                  <summary className="list-none cursor-pointer rounded-full border p-2" style={cardStyleFor(ui)}>
-                    <Menu className="h-4 w-4" style={{ color: ui.text }} />
-                  </summary>
-                  <div
-                    className="absolute right-0 mt-2 min-w-[180px] rounded-xl border p-2 shadow-lg"
-                    style={{ ...cardStyleFor(ui), backgroundColor: ui.cardBg }}
-                  >
-                    {user.role === 'organizer' && (
-                      <>
-                        <MobileNavLink to="/dashboard" label="Dashboard" />
-                        <MobileNavLink to="/dashboard/earnings" label="Earnings" />
-                        <MobileNavLink to="/dashboard/organization" label="Organization" />
-                        <MobileNavLink to="/events/new" label="Create" />
-                      </>
-                    )}
-                    {user.role === 'attendee' && <MobileNavLink to="/attendee/dashboard" label="Events" />}
-                    {user.role === 'super_admin' && <MobileNavLink to="/admin/dashboard" label="Admin" />}
-                  </div>
-                </details>
-              ) : null}
             </div>
-          </div>
-        </nav>
-      )}
-
-      <main
-        className={cn(
-          'mx-auto w-full',
-          hideChrome || isAppFlow ? 'max-w-none px-0 py-0' : 'max-w-7xl px-4 py-8 sm:px-6 lg:px-8'
+          </header>
         )}
-      >
-        {children}
-      </main>
 
-      {!hideChrome && !isAppFlow && (
-        <footer className="mt-14 border-t" style={{ borderColor: ui.borderColor, background: ui.footerBg }}>
-          <div
-            className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-sm sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8"
-            style={{ color: ui.textMuted }}
-          >
-            <TurnoutLogo className="h-4 w-auto" />
-            <div className="flex flex-wrap items-center gap-4">
-              <span>Events</span>
-              <span>Create</span>
-              <span>Dashboard</span>
-              <span>Support</span>
+        <main
+          className={cn(
+            'mx-auto w-full flex-1',
+            hideChrome || isAppFlow ? 'max-w-none px-0 py-0' : 'max-w-7xl px-4 py-8 sm:px-6 lg:px-8'
+          )}
+        >
+          {children}
+        </main>
+
+        {!hideChrome && !isAppFlow && (
+          <footer className="mt-14 border-t" style={{ borderColor: ui.borderColor, background: ui.footerBg }}>
+            <div
+              className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-sm sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8"
+              style={{ color: ui.textMuted }}
+            >
+              <TurnoutLogo className="h-4 w-auto" />
+              <div className="flex flex-wrap items-center gap-4">
+                <span>Events</span>
+                <span>Create</span>
+                <span>Dashboard</span>
+                <span>Support</span>
+              </div>
+              <p>© {new Date().getFullYear()} Turnout</p>
             </div>
-            <p>© {new Date().getFullYear()} Turnout</p>
-          </div>
-        </footer>
-      )}
+          </footer>
+        )}
+      </div>
     </div>
   );
 };
-
-const NavLink = ({
-  to,
-  active,
-  children,
-}: {
-  to: string;
-  active: boolean;
-  children: React.ReactNode;
-}) => {
-  const ui = EVENT_THEMES.minimal.ui;
-  return (
-    <Link
-      to={to}
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition hover:opacity-90"
-      style={
-        active
-          ? { background: ui.accentSoft, color: ui.accent }
-          : { color: ui.textMuted }
-      }
-    >
-      {children}
-    </Link>
-  );
-};
-
-const MobileNavLink = ({ to, label }: { to: string; label: string }) => (
-  <Link
-    to={to}
-    className="block rounded-lg px-3 py-2 text-sm font-medium"
-    style={{ color: EVENT_THEMES.minimal.ui.text }}
-  >
-    {label}
-  </Link>
-);
