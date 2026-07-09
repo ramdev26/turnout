@@ -25,8 +25,8 @@ import { type LandingDesignValue } from '../components/organizer/LandingCustomiz
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
 import { resolveLandingFontKey } from '../themes/landingFonts';
-import { useOrganizerLiveDesign } from '../themes/organizerLiveDesign';
-import { fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -174,12 +174,10 @@ export const EventSettings: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
 
-  const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
-  const { ui, landingVars, titleFont, bodyFont, panelClass, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(
-    design,
-    themeId
-  );
-  const panelCn = cn('rounded-2xl border transition-[background,border-color,box-shadow] duration-700', panelClass);
+  const ui = APP_FLOW_UI;
+  const cardStyle = cardStyleFor(ui);
+  const cardMutedStyle = cardMutedStyleFor(ui);
+  const panelCn = cn('rounded-2xl border transition-[background,border-color,box-shadow] duration-300');
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
 
@@ -467,7 +465,7 @@ export const EventSettings: React.FC = () => {
   return (
     <div
       className="flex min-h-[calc(100vh-3.5rem)] flex-col transition-[background] duration-700 ease-in-out"
-      style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
+      style={{ background: ui.pageBg, color: ui.text }}
     >
       <header
         className="shrink-0 border-b px-4 py-4 backdrop-blur-md sm:px-8"
@@ -484,10 +482,10 @@ export const EventSettings: React.FC = () => {
               Back
             </Link>
             <div>
-              <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text, fontFamily: titleFont }}>
+              <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text }}>
                 Event settings
               </h1>
-              <p className="text-sm" style={{ color: ui.textMuted, fontFamily: titleFont }}>
+              <p className="text-sm" style={{ color: ui.textMuted }}>
                 {event.title}
               </p>
             </div>
@@ -497,7 +495,7 @@ export const EventSettings: React.FC = () => {
               type="button"
               onClick={saveBranding}
               disabled={savingBranding}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-40"
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:brightness-105 disabled:opacity-40"
               style={{ backgroundColor: ui.accent }}
             >
               {savingBranding ? 'Saving…' : 'Save changes'}
@@ -616,7 +614,7 @@ export const EventSettings: React.FC = () => {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Event name"
                 className="mb-4 w-full border-0 bg-transparent p-0 text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl"
-                style={{ color: ui.text, fontFamily: titleFont }}
+                style={{ color: ui.text }}
               />
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                 Short description
@@ -741,7 +739,7 @@ export const EventSettings: React.FC = () => {
                   type="button"
                   onClick={saveSlug}
                   disabled={savingSlug}
-                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-950 disabled:opacity-50"
                   style={{ backgroundColor: ui.accent }}
                 >
                   {savingSlug ? 'Saving…' : 'Save URL'}
@@ -881,7 +879,7 @@ export const EventSettings: React.FC = () => {
                 type="button"
                 onClick={saveTicket}
                 disabled={savingTicket}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-950 disabled:opacity-50"
                 style={{ backgroundColor: ui.accent }}
               >
                 <Plus className="h-4 w-4" />
@@ -965,7 +963,7 @@ export const EventSettings: React.FC = () => {
                         type="button"
                         onClick={saveTicketDesign}
                         disabled={savingTicketDesign}
-                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-950 disabled:opacity-50"
                         style={{ backgroundColor: ui.accent }}
                       >
                         {savingTicketDesign ? 'Saving…' : 'Save PDF design'}
