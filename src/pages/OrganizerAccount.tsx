@@ -52,6 +52,8 @@ export const OrganizerAccount: React.FC = () => {
     logoUrl: '',
     website: '',
     phone: '',
+    businessAddress: '',
+    businessRegistrationNo: '',
   });
   const [members, setMembers] = useState<OrganizerTeamMember[]>([]);
   const [invites, setInvites] = useState<OrganizerTeamInvite[]>([]);
@@ -81,6 +83,8 @@ export const OrganizerAccount: React.FC = () => {
           logoUrl: res.profile.logoUrl || '',
           website: res.profile.website || '',
           phone: res.profile.phone || '',
+          businessAddress: res.profile.businessAddress || '',
+          businessRegistrationNo: res.profile.businessRegistrationNo || '',
         });
         if (res.workspace.canManageTeam) {
           await loadTeam();
@@ -131,6 +135,8 @@ export const OrganizerAccount: React.FC = () => {
           logoUrl: profile.logoUrl || undefined,
           website: profile.website?.trim() || undefined,
           phone: profile.phone?.trim() || undefined,
+          businessAddress: profile.businessAddress?.trim() || undefined,
+          businessRegistrationNo: profile.businessRegistrationNo?.trim() || undefined,
         }
       );
       setUser(res.user);
@@ -253,6 +259,36 @@ export const OrganizerAccount: React.FC = () => {
               <label className="flex flex-col gap-1.5 sm:col-span-2">
                 <FlowLabel>Account email</FlowLabel>
                 <FlowInput value={profile.email} disabled className="opacity-70" />
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-8 border-t pt-6" style={{ borderColor: ui.borderColor }}>
+            <h3 className="text-base font-semibold" style={{ color: ui.text }}>
+              Business details for paid events
+            </h3>
+            <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+              Required before you can publish your first paid event. Free events do not need this.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <FlowLabel>Business address</FlowLabel>
+                <textarea
+                  value={profile.businessAddress || ''}
+                  onChange={(e) => setProfile((p) => ({ ...p, businessAddress: e.target.value }))}
+                  rows={3}
+                  placeholder="Street, city, postal code"
+                  className={fieldClass}
+                  style={fieldStyle}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <FlowLabel>Business registration no. (optional)</FlowLabel>
+                <FlowInput
+                  value={profile.businessRegistrationNo || ''}
+                  onChange={(e) => setProfile((p) => ({ ...p, businessRegistrationNo: e.target.value }))}
+                  placeholder="Company / BR number"
+                />
               </label>
             </div>
           </div>

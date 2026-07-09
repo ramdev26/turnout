@@ -1,0 +1,306 @@
+<?php
+
+function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
+  static $checked = false;
+  if ($checked) return;
+  ensure_organizer_workspace_tables($pdo);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+  $columns = [
+    'business_address' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'business_registration_no' => $driver === 'pgsql' ? 'VARCHAR(128) NULL' : 'VARCHAR(128) NULL',
+    'bank_account_holder_name' => $driver === 'pgsql' ? 'VARCHAR(255) NULL' : 'VARCHAR(255) NULL',
+    'bank_name' => $driver === 'pgsql' ? 'VARCHAR(255) NULL' : 'VARCHAR(255) NULL',
+    'bank_branch' => $driver === 'pgsql' ? 'VARCHAR(255) NULL' : 'VARCHAR(255) NULL',
+    'bank_account_number' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
+  ];
+
+  if ($driver === 'sqlite') {
+    foreach ($columns as $name => $type) {
+      try {
+        $pdo->exec("ALTER TABLE organizer_profiles ADD COLUMN {$name} TEXT NULL");
+      } catch (Throwable $e) {
+        // Column already exists.
+      }
+    }
+    $checked = true;
+    return;
+  }
+
+  if ($driver === 'pgsql') {
+    foreach ($columns as $name => $type) {
+      try {
+        $pdo->exec("ALTER TABLE organizer_profiles ADD COLUMN IF NOT EXISTS {$name} {$type}");
+      } catch (Throwable $e) {
+        // Ignore migration errors.
+      }
+    }
+    $checked = true;
+    return;
+  }
+
+  foreach ($columns as $name => $type) {
+    try {
+      $pdo->exec("ALTER TABLE organizer_profiles ADD COLUMN {$name} {$type}");
+    } catch (Throwable $e) {
+      // Column already exists.
+    }
+  }
+  $checked = true;
+}
+
+function organizer_business_details_complete(array $profileRow): bool {
+  return trim((string)($profileRow['organization_name'] ?? '')) !== ''
+    && trim((string)($profileRow['business_address'] ?? '')) !== ''
+    && trim((string)($profileRow['phone'] ?? '')) !== '';
+}
+
+function organizer_bank_details_complete(array $profileRow): bool {
+  return trim((string)($profileRow['bank_account_holder_name'] ?? '')) !== ''
+    && trim((string)($profileRow['bank_name'] ?? '')) !== ''
+    && trim((string)($profileRow['bank_branch'] ?? '')) !== ''
+    && trim((string)($profileRow['bank_account_number'] ?? '')) !== '';
+}
+
+function mask_bank_account_number(string $accountNumber): ?string {
+  $accountNumber = trim($accountNumber);
+  if ($accountNumber === '') return null;
+  if (strlen($accountNumber) <= 4) return str_repeat('*', strlen($accountNumber));
+  return str_repeat('*', max(0, strlen($accountNumber) - 4)) . substr($accountNumber, -4);
+}
+
+function organizer_profile_business_api_fields(array $profileRow): array {
+  return [
+    'businessAddress' => trim((string)($profileRow['business_address'] ?? '')) ?: null,
+    'businessRegistrationNo' => trim((string)($profileRow['business_registration_no'] ?? '')) ?: null,
+  ];
+}
+
+function organizer_profile_bank_api_fields(array $profileRow): array {
+  $accountNumber = trim((string)($profileRow['bank_account_number'] ?? ''));
+  return [
+    'bankAccountHolderName' => trim((string)($profileRow['bank_account_holder_name'] ?? '')) ?: null,
+    'bankName' => trim((string)($profileRow['bank_name'] ?? '')) ?: null,
+    'bankBranch' => trim((string)($profileRow['bank_branch'] ?? '')) ?: null,
+    'bankAccountNumberLast4' => $accountNumber !== '' ? substr($accountNumber, -4) : null,
+    'bankAccountConfigured' => $accountNumber !== '',
+  ];
+}
+
+/** @param list<array<string, mixed>> $tickets */
+function tickets_include_paid_price(array $tickets): bool {
+  foreach ($tickets as $ticket) {
+    if (!is_array($ticket)) continue;
+    $price = array_key_exists('price', $ticket)
+      ? (float)$ticket['price']
+      : ((int)($ticket['price_cents'] ?? 0) / 100);
+    if ($price > 0) return true;
+  }
+  return false;
+}
+
+function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  $profileRow = load_organizer_profile_row($pdo, $ownerUserId);
+  $paymentRow = organizer_payment_settings_row($pdo, $ownerUserId);
+  $gatewayMode = normalize_organizer_gateway_mode((string)($paymentRow['gateway_mode'] ?? 'turnout'));
+
+  $needsBusiness = !organizer_business_details_complete($profileRow);
+  $needsBank = $gatewayMode === 'turnout' && !organizer_bank_details_complete($profileRow);
+  $needsOwnPayhere = $gatewayMode === 'own_payhere' && !organizer_own_payhere_is_configured($paymentRow);
+  $needsBillingCard = $gatewayMode === 'own_payhere' && !organizer_billing_is_active($paymentRow);
+
+  $missing = [];
+  if ($needsBusiness) {
+    if (trim((string)($profileRow['organization_name'] ?? '')) === '') $missing[] = 'organization_name';
+    if (trim((string)($profileRow['business_address'] ?? '')) === '') $missing[] = 'business_address';
+    if (trim((string)($profileRow['phone'] ?? '')) === '') $missing[] = 'phone';
+  }
+  if ($needsBank) {
+    if (trim((string)($profileRow['bank_account_holder_name'] ?? '')) === '') $missing[] = 'bank_account_holder_name';
+    if (trim((string)($profileRow['bank_name'] ?? '')) === '') $missing[] = 'bank_name';
+    if (trim((string)($profileRow['bank_branch'] ?? '')) === '') $missing[] = 'bank_branch';
+    if (trim((string)($profileRow['bank_account_number'] ?? '')) === '') $missing[] = 'bank_account_number';
+  }
+
+  $isReady = !$needsBusiness && !$needsBank && !$needsOwnPayhere && !$needsBillingCard;
+
+  return [
+    'isReady' => $isReady,
+    'gatewayMode' => $gatewayMode,
+    'requirements' => [
+      'needsBusinessDetails' => $needsBusiness,
+      'needsBankDetails' => $needsBank,
+      'needsOwnPayhereCredentials' => $needsOwnPayhere,
+      'needsBillingCard' => $needsBillingCard,
+    ],
+    'missing' => $missing,
+    'business' => organizer_profile_business_api_fields($profileRow),
+    'bank' => organizer_profile_bank_api_fields($profileRow),
+  ];
+}
+
+function organizer_paid_event_readiness_api_shape(PDO $pdo, int $ownerUserId): array {
+  $readiness = organizer_paid_event_readiness($pdo, $ownerUserId);
+  $readiness['setupUrl'] = '/dashboard/organization';
+  return $readiness;
+}
+
+function assert_organizer_can_sell_paid_tickets(PDO $pdo, int $ownerUserId, float $price): void {
+  if ($price <= 0) return;
+  $readiness = organizer_paid_event_readiness($pdo, $ownerUserId);
+  if ($readiness['isReady']) return;
+
+  json_response(400, [
+    'error' => 'paid_event_setup_required',
+    'message' => 'Complete your business and payment setup in Organization settings before selling paid tickets.',
+    'readiness' => $readiness,
+  ]);
+}
+
+/** @param list<array<string, mixed>> $tickets */
+function assert_organizer_can_sell_paid_ticket_list(PDO $pdo, int $ownerUserId, array $tickets): void {
+  if (!tickets_include_paid_price($tickets)) return;
+  assert_organizer_can_sell_paid_tickets($pdo, $ownerUserId, 1);
+}
+
+function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array $fields): array {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  $existing = load_organizer_profile_row($pdo, $userId);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+  $organizationName = array_key_exists('organization_name', $fields)
+    ? trim((string)$fields['organization_name'])
+    : trim((string)($existing['organization_name'] ?? ''));
+  $logoUrl = array_key_exists('logo_url', $fields)
+    ? trim((string)$fields['logo_url'])
+    : trim((string)($existing['logo_url'] ?? ''));
+  $website = array_key_exists('website', $fields)
+    ? trim((string)$fields['website'])
+    : trim((string)($existing['website'] ?? ''));
+  $phone = array_key_exists('phone', $fields)
+    ? trim((string)$fields['phone'])
+    : trim((string)($existing['phone'] ?? ''));
+  $businessAddress = array_key_exists('business_address', $fields)
+    ? trim((string)$fields['business_address'])
+    : trim((string)($existing['business_address'] ?? ''));
+  $businessRegistrationNo = array_key_exists('business_registration_no', $fields)
+    ? trim((string)$fields['business_registration_no'])
+    : trim((string)($existing['business_registration_no'] ?? ''));
+  $bankAccountHolderName = array_key_exists('bank_account_holder_name', $fields)
+    ? trim((string)$fields['bank_account_holder_name'])
+    : trim((string)($existing['bank_account_holder_name'] ?? ''));
+  $bankName = array_key_exists('bank_name', $fields)
+    ? trim((string)$fields['bank_name'])
+    : trim((string)($existing['bank_name'] ?? ''));
+  $bankBranch = array_key_exists('bank_branch', $fields)
+    ? trim((string)$fields['bank_branch'])
+    : trim((string)($existing['bank_branch'] ?? ''));
+  $bankAccountNumber = array_key_exists('bank_account_number', $fields)
+    ? trim((string)$fields['bank_account_number'])
+    : trim((string)($existing['bank_account_number'] ?? ''));
+
+  if ($driver === 'sqlite') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_profiles (
+        user_id, organization_name, logo_url, website, phone,
+        business_address, business_registration_no,
+        bank_account_holder_name, bank_name, bank_branch, bank_account_number,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id) DO UPDATE SET
+        organization_name = excluded.organization_name,
+        logo_url = excluded.logo_url,
+        website = excluded.website,
+        phone = excluded.phone,
+        business_address = excluded.business_address,
+        business_registration_no = excluded.business_registration_no,
+        bank_account_holder_name = excluded.bank_account_holder_name,
+        bank_name = excluded.bank_name,
+        bank_branch = excluded.bank_branch,
+        bank_account_number = excluded.bank_account_number,
+        updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([
+      $userId,
+      mb_substr($organizationName, 0, 255),
+      $logoUrl !== '' ? $logoUrl : null,
+      $website !== '' ? $website : null,
+      $phone !== '' ? $phone : null,
+      $businessAddress !== '' ? $businessAddress : null,
+      $businessRegistrationNo !== '' ? $businessRegistrationNo : null,
+      $bankAccountHolderName !== '' ? $bankAccountHolderName : null,
+      $bankName !== '' ? $bankName : null,
+      $bankBranch !== '' ? $bankBranch : null,
+      $bankAccountNumber !== '' ? $bankAccountNumber : null,
+    ]);
+  } elseif ($driver === 'pgsql') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_profiles (
+        user_id, organization_name, logo_url, website, phone,
+        business_address, business_registration_no,
+        bank_account_holder_name, bank_name, bank_branch, bank_account_number,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id) DO UPDATE SET
+        organization_name = EXCLUDED.organization_name,
+        logo_url = EXCLUDED.logo_url,
+        website = EXCLUDED.website,
+        phone = EXCLUDED.phone,
+        business_address = EXCLUDED.business_address,
+        business_registration_no = EXCLUDED.business_registration_no,
+        bank_account_holder_name = EXCLUDED.bank_account_holder_name,
+        bank_name = EXCLUDED.bank_name,
+        bank_branch = EXCLUDED.bank_branch,
+        bank_account_number = EXCLUDED.bank_account_number,
+        updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([
+      $userId,
+      mb_substr($organizationName, 0, 255),
+      $logoUrl !== '' ? $logoUrl : null,
+      $website !== '' ? $website : null,
+      $phone !== '' ? $phone : null,
+      $businessAddress !== '' ? $businessAddress : null,
+      $businessRegistrationNo !== '' ? $businessRegistrationNo : null,
+      $bankAccountHolderName !== '' ? $bankAccountHolderName : null,
+      $bankName !== '' ? $bankName : null,
+      $bankBranch !== '' ? $bankBranch : null,
+      $bankAccountNumber !== '' ? $bankAccountNumber : null,
+    ]);
+  } else {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_profiles (
+        user_id, organization_name, logo_url, website, phone,
+        business_address, business_registration_no,
+        bank_account_holder_name, bank_name, bank_branch, bank_account_number
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        organization_name = VALUES(organization_name),
+        logo_url = VALUES(logo_url),
+        website = VALUES(website),
+        phone = VALUES(phone),
+        business_address = VALUES(business_address),
+        business_registration_no = VALUES(business_registration_no),
+        bank_account_holder_name = VALUES(bank_account_holder_name),
+        bank_name = VALUES(bank_name),
+        bank_branch = VALUES(bank_branch),
+        bank_account_number = VALUES(bank_account_number)'
+    );
+    $stmt->execute([
+      $userId,
+      mb_substr($organizationName, 0, 255),
+      $logoUrl !== '' ? $logoUrl : null,
+      $website !== '' ? $website : null,
+      $phone !== '' ? $phone : null,
+      $businessAddress !== '' ? $businessAddress : null,
+      $businessRegistrationNo !== '' ? $businessRegistrationNo : null,
+      $bankAccountHolderName !== '' ? $bankAccountHolderName : null,
+      $bankName !== '' ? $bankName : null,
+      $bankBranch !== '' ? $bankBranch : null,
+      $bankAccountNumber !== '' ? $bankAccountNumber : null,
+    ]);
+  }
+
+  return load_organizer_profile_row($pdo, $userId);
+}

@@ -264,6 +264,12 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   logo_url TEXT NULL,
   website VARCHAR(255) NULL,
   phone VARCHAR(60) NULL,
+  business_address TEXT NULL,
+  business_registration_no VARCHAR(128) NULL,
+  bank_account_holder_name VARCHAR(255) NULL,
+  bank_name VARCHAR(255) NULL,
+  bank_branch VARCHAR(255) NULL,
+  bank_account_number VARCHAR(64) NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id),
   CONSTRAINT fk_org_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

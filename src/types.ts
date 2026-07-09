@@ -66,6 +66,39 @@ export type OrganizerProfile = {
   logoUrl?: string | null;
   website?: string | null;
   phone?: string | null;
+  businessAddress?: string | null;
+  businessRegistrationNo?: string | null;
+  bankAccountHolderName?: string | null;
+  bankName?: string | null;
+  bankBranch?: string | null;
+  bankAccountNumberLast4?: string | null;
+  bankAccountConfigured?: boolean;
+};
+
+export type OrganizerPaidEventRequirements = {
+  needsBusinessDetails: boolean;
+  needsBankDetails: boolean;
+  needsOwnPayhereCredentials: boolean;
+  needsBillingCard: boolean;
+};
+
+export type OrganizerPaidEventReadiness = {
+  isReady: boolean;
+  gatewayMode: OrganizerGatewayMode;
+  requirements: OrganizerPaidEventRequirements;
+  missing: string[];
+  setupUrl: string;
+  business: {
+    businessAddress: string | null;
+    businessRegistrationNo: string | null;
+  };
+  bank: {
+    bankAccountHolderName: string | null;
+    bankName: string | null;
+    bankBranch: string | null;
+    bankAccountNumberLast4: string | null;
+    bankAccountConfigured: boolean;
+  };
 };
 
 export type OrganizerTeamMember = {

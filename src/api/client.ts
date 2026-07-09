@@ -102,6 +102,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       message:
         (data?.message as string) ||
         (text && !/^\s*</.test(text) ? text.slice(0, 240) : `Request failed (HTTP ${res.status}).`),
+      ...(data || {}),
     };
     throw fallback;
   }
