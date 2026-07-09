@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import { Layout } from './components/Layout';
@@ -43,6 +43,69 @@ function FullPageLoader() {
       <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-[var(--primary)]" />
     </div>
   );
+}
+
+function HostAwareRoot({
+  user,
+}: {
+  user: ReturnType<typeof useAuthStore>['user'];
+}) {
+  const [resolving, setResolving] = useState(true);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const host = window.location.hostname.toLowerCase();
+        const cfg = await api.get<{ platformHosts?: string[] }>('/api/domain/config');
+        const platformHosts = (cfg.platformHosts || []).map((h) => h.toLowerCase());
+        const isPlatformHost =
+          platformHosts.includes(host) ||
+          host.endsWith('.vercel.app') ||
+          host === 'localhost' ||
+          host === '127.0.0.1';
+
+        if (!isPlatformHost) {
+          const mapped = await api.get<{ path: string }>(`/api/events/by-host/${encodeURIComponent(host)}`);
+          if (!cancelled && mapped.path) {
+            setRedirectPath(mapped.path);
+            return;
+          }
+        }
+      } catch {
+        // Not a mapped event host; fall through to standard root behavior.
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (redirectPath) {
+    return <Navigate to={redirectPath} replace />;
+  }
+  if (resolving) {
+    return <FullPageLoader />;
+  }
+
+  if (user) {
+    return (
+      <Navigate
+        to={
+          user.role === 'super_admin'
+            ? '/admin'
+            : user.role === 'attendee'
+              ? '/attendee/dashboard'
+              : '/dashboard'
+        }
+        replace
+      />
+    );
+  }
+  return <Signup />;
 }
 
 function RequireOrganizer({ children }: { children: React.ReactNode }) {
@@ -98,22 +161,7 @@ export default function App() {
         <Routes>
           <Route
             path="/"
-            element={
-              user ? (
-                <Navigate
-                  to={
-                    user.role === 'super_admin'
-                      ? '/admin'
-                      : user.role === 'attendee'
-                        ? '/attendee/dashboard'
-                        : '/dashboard'
-                  }
-                  replace
-                />
-              ) : (
-                <Signup />
-              )
-            }
+            element={<HostAwareRoot user={user} />}
           />
           <Route path="/landing" element={<MarketingLanding />} />
           <Route path="/discover" element={<Home />} />
