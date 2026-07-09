@@ -592,7 +592,7 @@ export const CreateEvent: React.FC = () => {
                   <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                     When
                   </p>
-                  <div className={cn('inline-flex rounded-xl border p-1', panelClass)} style={cardStyle}>
+                  <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
                     <button
                       type="button"
                       onClick={() => setHasSchedule(false)}
