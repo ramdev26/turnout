@@ -21,6 +21,7 @@ const TEXT = '#ffffff';
 const TEXT_MUTED = 'rgba(255, 255, 255, 0.62)';
 const TEXT_SUBTLE = 'rgba(255, 255, 255, 0.45)';
 const DEFAULT_CATEGORY_ID = 'default';
+const GLOW = '0 0 0 1px rgba(16,185,129,0.35), 0 10px 28px rgba(16,185,129,0.18)';
 
 const CategoryThumb: React.FC<{
   category: (typeof EVENT_CATEGORIES)[number];
@@ -178,6 +179,39 @@ export function LandingDesignDock({
     setOpen(null);
   };
 
+  const applyTechPreset = (preset: 'signal' | 'midnight' | 'neon') => {
+    if (preset === 'signal') {
+      onDesignChange({
+        ...design,
+        eventCategory: 'tech',
+        primaryColor: '#10b981',
+        secondaryColor: '#22d3ee',
+        landingStyle: 'glass',
+        displayMode: 'auto',
+      });
+      return;
+    }
+    if (preset === 'midnight') {
+      onDesignChange({
+        ...design,
+        eventCategory: 'nightlife',
+        primaryColor: '#6366f1',
+        secondaryColor: '#8b5cf6',
+        landingStyle: 'bold',
+        displayMode: 'dark',
+      });
+      return;
+    }
+    onDesignChange({
+      ...design,
+      eventCategory: 'arts',
+      primaryColor: '#22c55e',
+      secondaryColor: '#06b6d4',
+      landingStyle: 'minimal',
+      displayMode: 'light',
+    });
+  };
+
   useEffect(() => {
     loadLandingFont(design.fontFamily);
   }, [design.fontFamily]);
@@ -246,7 +280,12 @@ export function LandingDesignDock({
     >
       <div
         className="landing-fade-in pointer-events-auto w-full max-w-4xl rounded-2xl px-3 pb-3 pt-2 shadow-2xl sm:px-4 sm:pb-4"
-        style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
+        style={{
+          background: DOCK_BG,
+          border: `1px solid ${DOCK_BORDER}`,
+          backdropFilter: 'blur(20px)',
+          boxShadow: GLOW,
+        }}
       >
         <button
           type="button"
@@ -261,24 +300,63 @@ export function LandingDesignDock({
           <span className="h-1 w-9 rounded-full transition group-hover:w-12" style={{ background: 'rgba(255,255,255,0.25)' }} />
         </button>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: TEXT_MUTED }}>
-              Customize design
-            </p>
-            <p className="text-[11px]" style={{ color: TEXT_SUBTLE }}>
-              {summary}
-            </p>
+        <div className="mb-3 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: TEXT_SUBTLE }}>
+                System design console
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: TEXT_MUTED }}>
+                Customize design
+              </p>
+              <p className="text-[11px]" style={{ color: TEXT_SUBTLE }}>
+                {summary}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => applyTechPreset('signal')}
+                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={{ borderColor: 'rgba(16,185,129,0.45)', color: '#6ee7b7', background: 'rgba(16,185,129,0.10)' }}
+              >
+                Signal
+              </button>
+              <button
+                type="button"
+                onClick={() => applyTechPreset('midnight')}
+                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={{ borderColor: 'rgba(99,102,241,0.45)', color: '#c4b5fd', background: 'rgba(99,102,241,0.12)' }}
+              >
+                Midnight
+              </button>
+              <button
+                type="button"
+                onClick={() => applyTechPreset('neon')}
+                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={{ borderColor: 'rgba(6,182,212,0.45)', color: '#67e8f9', background: 'rgba(6,182,212,0.12)' }}
+              >
+                Neon
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={resetToDefault}
-            className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
-            style={{ color: TEXT_MUTED, borderColor: 'rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.04)' }}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset
-          </button>
+
+          <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0) 0%, rgba(16,185,129,0.45) 50%, rgba(16,185,129,0) 100%)' }} />
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-medium" style={{ color: TEXT_MUTED }}>
+              Changes apply live on this page
+            </p>
+            <button
+              type="button"
+              onClick={resetToDefault}
+              className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
+              style={{ color: TEXT_MUTED, borderColor: 'rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.04)' }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </button>
+          </div>
         </div>
 
         <div className="flex items-start gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
