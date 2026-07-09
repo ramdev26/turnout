@@ -23,10 +23,11 @@ import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
 import { EVENT_CATEGORIES } from '../themes/eventCategories';
-import { useOrganizerLiveDesign } from '../themes/organizerLiveDesign';
+import { cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -297,15 +298,11 @@ export const CreateEvent: React.FC = () => {
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
 
-  const { ui, landingVars, titleFont, bodyFont, panelClass, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(
-    design,
-    themeId
-  );
+  const ui = APP_FLOW_UI;
+  const cardStyle = cardStyleFor(ui);
+  const cardMutedStyle = cardMutedStyleFor(ui);
   const fieldClass = fieldClassFor(ui);
-  const panelCn = cn(
-    'rounded-2xl border transition-[background,border-color,box-shadow] duration-700',
-    panelClass
-  );
+  const panelCn = cn('rounded-2xl border transition-[background,border-color,box-shadow] duration-300');
 
   useEffect(() => {
     if (hasEnd && !endDate && date) {
@@ -485,7 +482,7 @@ export const CreateEvent: React.FC = () => {
   return (
     <div
       className="flex min-h-[calc(100vh-3.5rem)] flex-col transition-[background,color] duration-500 ease-in-out"
-      style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
+      style={{ background: ui.pageBg, color: ui.text }}
     >
       <header
         className="shrink-0 border-b px-4 py-4 backdrop-blur-md transition-[background,border-color] duration-700 sm:px-8"
@@ -501,7 +498,7 @@ export const CreateEvent: React.FC = () => {
               <ArrowLeft className="h-4 w-4" />
               Back
             </Link>
-            <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text, fontFamily: titleFont }}>
+            <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text }}>
               Create Event
             </h1>
           </div>
@@ -585,7 +582,7 @@ export const CreateEvent: React.FC = () => {
                 {...register('title')}
                 placeholder="Event Name"
                 className="mb-6 w-full border-0 bg-transparent p-0 text-3xl font-semibold tracking-tight focus:outline-none focus:ring-0 sm:text-4xl"
-                style={{ color: ui.text, fontFamily: titleFont }}
+                style={{ color: ui.text }}
               />
               {errors.title && <p className="-mt-4 mb-4 text-xs text-rose-600">{errors.title.message}</p>}
 
@@ -864,7 +861,7 @@ export const CreateEvent: React.FC = () => {
                             setFreeUnlimited(true);
                             setValue('tickets.0.quantity', 500, { shouldDirty: true });
                           }}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold text-white"
+                          className="rounded-lg px-3 py-1 text-xs font-semibold text-emerald-950"
                           style={{
                             backgroundColor: freeUnlimited ? ui.accent : ui.accentSoft,
                             color: freeUnlimited ? '#fff' : ui.textMuted,
@@ -1086,7 +1083,7 @@ export const CreateEvent: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting || !canSubmit}
-                className="mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold text-emerald-950 transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ backgroundColor: ui.accent }}
                 onMouseEnter={(e) => {
                   if (!isSubmitting && canSubmit) e.currentTarget.style.backgroundColor = ui.accentHover;
