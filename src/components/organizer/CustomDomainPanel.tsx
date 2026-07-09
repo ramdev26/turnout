@@ -113,14 +113,21 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
     setVerifying(true);
     setError(null);
     try {
-      const res = await api.post<{ dnsDetected: boolean; configured: boolean; vercel: DomainState['vercel'] }>(
+      const res = await api.post<{
+        dnsDetected: boolean;
+        configured: boolean;
+        platformVerified?: boolean;
+        vercel: DomainState['vercel'];
+      }>(
         `/api/events/${eventId}/domain/verify`
       );
-      setMessage(
-        res.configured
-          ? 'DNS looks good. Your custom domain should be live within a few minutes.'
-          : 'DNS not detected yet. Double-check records at your registrar, then try again.'
-      );
+      if (res.configured) {
+        setMessage('Domain is active. Your custom URL should now open this event.');
+      } else if (res.dnsDetected) {
+        setMessage('DNS records are detected, but activation is still pending. Wait a few minutes and check again.');
+      } else {
+        setMessage('DNS not detected yet. Double-check records at your DNS provider, then try again.');
+      }
       await load();
     } catch (e: any) {
       setError(e?.message || e?.error || 'Verification failed');

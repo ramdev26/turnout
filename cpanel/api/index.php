@@ -2396,10 +2396,15 @@ if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'PO
     ]);
   }
 
+  $platformVerified = (bool)($vercel['verified'] ?? false);
+  $platformSkipped = (bool)($vercel['skipped'] ?? false);
+  $configured = $platformVerified || ($platformSkipped && $dnsOk);
+
   json_response(200, [
     'dnsDetected' => $dnsOk,
     'vercel' => $vercel,
-    'configured' => (bool)($vercel['verified'] ?? false) || $dnsOk,
+    'configured' => $configured,
+    'platformVerified' => $platformVerified,
   ]);
 }
 
