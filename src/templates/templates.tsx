@@ -150,7 +150,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     }
     if (b.type === 'button') {
       return (
-        <button type="button" onClick={props.onCheckout} className="landing-btn-primary w-full rounded-2xl py-4 text-sm font-bold text-white">
+        <button type="button" onClick={props.onCheckout} className="landing-btn-primary w-full rounded-2xl py-4 text-sm font-bold">
           {b.props?.text || 'Get tickets'}
         </button>
       );

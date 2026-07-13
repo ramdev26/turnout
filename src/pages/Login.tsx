@@ -11,6 +11,7 @@ import { persistAuthTokenFromResponse } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
+import { accentSegmentStyleFor } from '../themes/flowUi';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -77,11 +78,7 @@ export const Login: React.FC = () => {
             type="button"
             onClick={() => setLoginAs(role)}
             className={cn('rounded-lg px-3 py-2.5 text-sm font-semibold transition')}
-            style={
-              loginAs === role
-                ? { backgroundColor: ui.accent, color: '#fff' }
-                : { color: ui.textMuted }
-            }
+            style={loginAs === role ? accentSegmentStyleFor(ui, true) : { color: ui.textMuted }}
           >
             {role === 'organizer' ? 'Event Organizer' : 'Attendee'}
           </button>

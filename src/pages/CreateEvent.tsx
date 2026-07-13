@@ -26,6 +26,7 @@ import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
 import { EVENT_CATEGORIES } from '../themes/eventCategories';
 import { useOrganizerLiveDesign } from '../themes/organizerLiveDesign';
+import { accentButtonStyleFor, accentSegmentStyleFor } from '../themes/flowUi';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -569,7 +570,7 @@ export const CreateEvent: React.FC = () => {
                       type="button"
                       onClick={() => setHasSchedule(false)}
                       className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                      style={!hasSchedule ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                      style={accentSegmentStyleFor(ui, !hasSchedule)}
                     >
                       To be announced
                     </button>
@@ -577,7 +578,7 @@ export const CreateEvent: React.FC = () => {
                       type="button"
                       onClick={() => setHasSchedule(true)}
                       className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                      style={hasSchedule ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                      style={accentSegmentStyleFor(ui, hasSchedule)}
                     >
                       Set date &amp; time
                     </button>
@@ -768,7 +769,7 @@ export const CreateEvent: React.FC = () => {
                       className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
                       style={
                         ticketMode === 'free'
-                          ? { backgroundColor: ui.accent, color: '#fff' }
+                          ? accentButtonStyleFor(ui)
                           : { color: ui.textMuted }
                       }
                     >
@@ -780,7 +781,7 @@ export const CreateEvent: React.FC = () => {
                       className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
                       style={
                         ticketMode === 'paid'
-                          ? { backgroundColor: ui.accent, color: '#fff' }
+                          ? accentButtonStyleFor(ui)
                           : { color: ui.textMuted }
                       }
                     >
@@ -821,7 +822,7 @@ export const CreateEvent: React.FC = () => {
                             setFreeUnlimited(true);
                             setValue('tickets.0.quantity', 500, { shouldDirty: true });
                           }}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold text-white"
+                          className="turnout-btn-accent rounded-lg px-3 py-1 text-xs font-semibold"
                           style={{
                             backgroundColor: freeUnlimited ? ui.accent : ui.accentSoft,
                             color: freeUnlimited ? '#fff' : ui.textMuted,
@@ -1043,8 +1044,8 @@ export const CreateEvent: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting || !canSubmit}
-                className="mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ backgroundColor: ui.accent }}
+                className="turnout-btn-accent mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
+                style={accentButtonStyleFor(ui)}
                 onMouseEnter={(e) => {
                   if (!isSubmitting && canSubmit) e.currentTarget.style.backgroundColor = ui.accentHover;
                 }}
