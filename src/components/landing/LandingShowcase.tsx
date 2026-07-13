@@ -15,8 +15,8 @@ import {
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
+  EventBanner,
   LandingPageShell,
-  LandingTopBanner,
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
@@ -160,7 +160,13 @@ function ShowcaseHero({ event }: { event: Event }) {
 
   return (
     <section className="landing-showcase-hero px-4 sm:px-6">
-      <LandingTopBanner event={event} className="landing-showcase-hero-banner" />
+      {event.bannerUrl?.trim() ? (
+        <div className="landing-showcase-hero-banner">
+          <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto">
+            <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
+          </div>
+        </div>
+      ) : null}
 
       <span className="landing-showcase-hero-badge mt-6">
         <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--showcase-accent)' }} />

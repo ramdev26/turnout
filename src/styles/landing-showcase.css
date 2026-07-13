@@ -123,11 +123,51 @@
 }
 
 .landing-showcase-hero-banner {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
-.landing-showcase-hero-banner .landing-top-banner-img {
-  border-radius: 0.75rem;
+/* Showcase poster — centered frame, balanced height on desktop */
+.landing-poster-frame--showcase {
+  border-color: var(--showcase-border);
+  background: var(--showcase-card-muted);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 20px 48px rgba(5, 46, 48, 0.32);
+}
+
+.landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+  width: fit-content;
+  max-width: min(100%, 22rem);
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+    max-width: min(100%, 28rem);
+  }
+
+  .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+    max-height: min(50vh, 480px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+    max-width: min(100%, 34rem);
+  }
+
+  .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+    max-height: min(54vh, 560px);
+  }
+}
+
+@media (min-width: 1280px) {
+  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+    max-width: min(100%, 38rem);
+  }
+
+  .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+    max-height: min(58vh, 620px);
+  }
 }
 
 .landing-showcase-hero-badge {
@@ -499,8 +539,8 @@
   text-align: center !important;
 }
 
-.event-settings-mobile-preview .landing-top-banner-img {
-  max-height: min(42vh, 320px);
+.event-settings-mobile-preview .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+  max-height: min(38vh, 280px) !important;
 }
 
 .event-settings-mobile-preview .landing-showcase-hero {
