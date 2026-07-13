@@ -1,225 +1,8 @@
-/* Responsive layout fixes for all five landing templates */
+/* Responsive layout fixes for Showcase and Classic templates */
 
 .landing-page {
   overflow-x: clip;
   width: 100%;
-}
-
-/* ── Cinematic / Noir hero: stack on mobile, overlay on desktop ── */
-.landing-cinematic-hero {
-  position: relative;
-  width: 100%;
-}
-
-.landing-cinematic-hero-media {
-  position: relative;
-  width: 100%;
-  overflow: hidden;
-  line-height: 0;
-  background: var(--landing-page-bg);
-}
-
-.landing-cinematic-hero-img {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: min(48vh, 380px);
-  object-fit: cover;
-  object-position: center top;
-}
-
-.landing-cinematic-hero-media-overlay {
-  display: none;
-}
-
-.landing-cinematic-hero-content {
-  position: relative;
-  z-index: 2;
-  padding: 1.25rem clamp(1rem, 4vw, 1.5rem) 1.75rem;
-  background: var(--landing-page-bg);
-  text-align: center;
-}
-
-.landing-cinematic-hero-content .landing-showcase-hero-title,
-.landing-cinematic-hero-content .landing-cinematic-hero-title,
-.landing-cinematic-hero-content h1 {
-  color: var(--landing-text) !important;
-}
-
-.landing-cinematic-hero-content .landing-showcase-hero-lead,
-.landing-cinematic-hero-content .landing-cinematic-hero-subtitle,
-.landing-cinematic-hero-content p.landing-fade-in {
-  color: var(--landing-text-muted) !important;
-}
-
-.landing-cinematic-hero-badge,
-.landing-cinematic-hero-eyebrow {
-  color: var(--showcase-accent) !important;
-  border-color: var(--showcase-border) !important;
-  background: var(--showcase-card-muted) !important;
-}
-
-.landing-cinematic-hero-meta {
-  justify-content: center;
-}
-
-.landing-cinematic-hero-cta {
-  max-width: 28rem;
-  margin-inline: auto;
-}
-
-@media (min-width: 640px) {
-  .landing-cinematic-hero-img {
-    max-height: min(56vh, 480px);
-  }
-
-  .landing-cinematic-hero-content {
-    padding: 1.5rem clamp(1.25rem, 4vw, 2rem) 2rem;
-  }
-
-  .landing-cinematic-hero-cta {
-    flex-direction: row;
-  }
-}
-
-@media (min-width: 1024px) {
-  .landing-cinematic-hero-media {
-    min-height: min(68vh, 640px);
-  }
-
-  .landing-cinematic-hero-img {
-    width: 100%;
-    max-height: min(72vh, 720px);
-    min-height: min(68vh, 640px);
-    object-fit: cover;
-  }
-
-  .landing-cinematic-hero-media-overlay {
-    display: block;
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to top,
-      color-mix(in srgb, var(--landing-page-bg) 92%, black) 0%,
-      rgba(0, 0, 0, 0.55) 38%,
-      rgba(0, 0, 0, 0.15) 100%
-    );
-  }
-
-  .landing-cinematic-hero--noir .landing-cinematic-hero-media-overlay {
-    background: linear-gradient(
-      to top,
-      var(--landing-page-bg) 0%,
-      rgba(0, 0, 0, 0.82) 42%,
-      transparent 100%
-    );
-  }
-
-  .landing-cinematic-hero-content {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    padding: 2.5rem clamp(1.5rem, 4vw, 3rem) clamp(2rem, 5vw, 3.5rem);
-    background: transparent;
-    text-align: left;
-  }
-
-  .landing-cinematic-hero-content .landing-showcase-hero-title,
-  .landing-cinematic-hero-content .landing-cinematic-hero-title,
-  .landing-cinematic-hero-content h1 {
-    color: #fff !important;
-  }
-
-  .landing-cinematic-hero-content .landing-showcase-hero-lead,
-  .landing-cinematic-hero-content .landing-cinematic-hero-subtitle,
-  .landing-cinematic-hero-content p.landing-fade-in {
-    color: rgba(255, 255, 255, 0.82) !important;
-  }
-
-  .landing-cinematic-hero-badge,
-  .landing-cinematic-hero-eyebrow {
-    color: rgba(255, 255, 255, 0.85) !important;
-    border-color: rgba(255, 255, 255, 0.22) !important;
-    background: rgba(255, 255, 255, 0.1) !important;
-  }
-
-  .landing-cinematic-hero-content .landing-showcase-info-card {
-    background: rgba(255, 255, 255, 0.08) !important;
-    border-color: rgba(255, 255, 255, 0.16) !important;
-  }
-
-  .landing-cinematic-hero-content .landing-showcase-info-card .value {
-    color: rgba(255, 255, 255, 0.95) !important;
-  }
-
-  .landing-cinematic-hero-meta {
-    justify-content: flex-start;
-  }
-
-  .landing-cinematic-hero-cta {
-    justify-content: flex-start;
-    max-width: none;
-    margin-inline: 0;
-  }
-
-  .landing-cinematic-hero-cta .landing-cinematic-hero-cta-secondary {
-    border-color: rgba(255, 255, 255, 0.25) !important;
-    background: rgba(255, 255, 255, 0.1) !important;
-    color: #fff !important;
-  }
-}
-
-/* ── Avant split template ── */
-.landing-avant {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.landing-avant-story {
-  padding: 1.25rem clamp(1rem, 4vw, 1.5rem) 2rem;
-}
-
-.landing-avant-panel {
-  border-top: 1px solid var(--landing-border);
-  background: color-mix(in srgb, var(--landing-surface) 92%, transparent);
-  padding: 2rem clamp(1rem, 4vw, 1.5rem) 2.5rem;
-}
-
-.landing-avant-checkout {
-  margin-top: 2rem;
-}
-
-@media (min-width: 768px) {
-  .landing-avant-story,
-  .landing-avant-panel {
-    padding-inline: clamp(1.5rem, 5vw, 2.5rem);
-  }
-}
-
-@media (min-width: 1024px) {
-  .landing-avant {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: stretch;
-    min-height: calc(100dvh - 5rem);
-  }
-
-  .landing-avant-story {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 3rem clamp(1.5rem, 4vw, 3.5rem);
-  }
-
-  .landing-avant-panel {
-    border-top: none;
-    border-left: 1px solid var(--landing-border);
-    padding: 3rem clamp(1.5rem, 4vw, 3.5rem);
-    overflow-y: auto;
-    max-height: calc(100dvh - 5rem);
-  }
 }
 
 /* ── Classic single column ── */
@@ -240,7 +23,7 @@
   margin-inline: auto;
 }
 
-/* ── Shared content grid (Cinematic, Noir, canvas) ── */
+/* ── Shared content grid (custom canvas sections) ── */
 .landing-content-grid {
   width: 100%;
 }
@@ -340,48 +123,11 @@
   word-break: break-word;
 }
 
-/* Meta chips — wrap long venue names on small screens */
-.landing-meta-chip-label {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  text-align: left;
-}
-
-@media (min-width: 640px) {
-  .landing-meta-chip-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    word-break: normal;
-  }
-}
-
 /* Organizer mobile preview frame */
-.event-settings-mobile-preview .landing-cinematic-hero-img {
-  max-height: min(36vh, 240px) !important;
-  min-height: 0 !important;
-}
-
-.event-settings-mobile-preview .landing-cinematic-hero-content {
-  position: relative !important;
-  padding: 1rem !important;
-  text-align: center !important;
-}
-
-.event-settings-mobile-preview .landing-cinematic-hero-cta .landing-btn-primary,
-.event-settings-mobile-preview .landing-cinematic-hero-cta .landing-btn-secondary {
-  width: 100% !important;
-}
-
-.event-settings-mobile-preview .landing-avant {
+.event-settings-mobile-preview .landing-showcase-grid {
   display: flex !important;
   flex-direction: column !important;
-  min-height: 0 !important;
-}
-
-.event-settings-mobile-preview .landing-avant-panel {
-  max-height: none !important;
+  padding-bottom: 2rem !important;
 }
 
 .event-settings-mobile-preview .landing-content-grid {

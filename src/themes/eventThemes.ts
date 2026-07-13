@@ -135,7 +135,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
     name: 'Midnight',
     primary: '#818cf8',
     secondary: '#a78bfa',
-    templateId: 'template-4',
+    templateId: 'template-2',
     ui: {
       pageBg: 'linear-gradient(160deg, #0f172a 0%, #1e1b4b 48%, #4c1d95 100%)',
       headerBg: 'rgba(15,23,42,0.75)',
@@ -174,7 +174,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
     name: 'Sunset',
     primary: '#f97316',
     secondary: '#ec4899',
-    templateId: 'template-1',
+    templateId: 'template-2',
     ui: {
       pageBg: 'linear-gradient(165deg, #fff7ed 0%, #ffedd5 38%, #fce7f3 78%, #fdf2f8 100%)',
       headerBg: 'rgba(255,255,255,0.85)',
@@ -359,18 +359,12 @@ export function resolveEventTheme(_customization?: LandingCustomizationInput): E
   return EVENT_THEMES.minimal;
 }
 
-/** Respect stored layout template; canvas layouts are preserved. */
+/** Respect stored layout template; canvas layouts are preserved. Legacy templates map to Showcase. */
 export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customization'>): TemplateId {
   if (event.templateId === 'template-canvas') return 'template-canvas';
-  const id = event.templateId;
-  if (
-    id === 'template-1' ||
-    id === 'template-2' ||
-    id === 'template-3' ||
-    id === 'template-4' ||
-    id === 'template-5'
-  ) {
-    return id;
+  if (event.templateId === 'template-2' || event.templateId === 'template-5') return event.templateId;
+  if (event.templateId === 'template-1' || event.templateId === 'template-3' || event.templateId === 'template-4') {
+    return 'template-2';
   }
   return 'template-2';
 }

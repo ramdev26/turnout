@@ -2052,7 +2052,7 @@ if ($path === '/events' && $method === 'POST') {
   $date = (string)($body['date'] ?? '');
   $location = trim((string)($body['location'] ?? ''));
   $bannerUrl = (string)($body['bannerUrl'] ?? '');
-  $templateId = (string)($body['templateId'] ?? 'template-1');
+  $templateId = (string)($body['templateId'] ?? 'template-2');
   $tickets = $body['tickets'] ?? [];
 
   if ($title === '' || strlen($title) < 3) json_response(400, ['error' => 'invalid_title']);
@@ -2517,9 +2517,12 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     $row['event_date'] = date('Y-m-d H:i:s', strtotime($date));
   }
 
-  $templateId = trim((string)($body['templateId'] ?? ''));
-  if ($templateId !== '' && in_array($templateId, ['template-1', 'template-2', 'template-3', 'template-4', 'template-5', 'template-canvas'], true)) {
+  $allowedTemplates = ['template-2', 'template-5', 'template-canvas'];
+  $legacyTemplates = ['template-1', 'template-3', 'template-4'];
+  if ($templateId !== '' && in_array($templateId, $allowedTemplates, true)) {
     $row['template_id'] = $templateId;
+  } elseif ($templateId !== '' && in_array($templateId, $legacyTemplates, true)) {
+    $row['template_id'] = 'template-2';
   } elseif ($themeId !== '' && is_event_theme_id($themeId)) {
     $row['template_id'] = event_theme_catalog()[$themeId]['templateId'];
   }

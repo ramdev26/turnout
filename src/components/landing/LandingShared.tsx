@@ -3,7 +3,6 @@ import { format } from 'date-fns';
 import {
   ArrowRight,
   Calendar,
-  ChevronDown,
   Lock,
   MapPin,
   ShieldCheck,
@@ -232,46 +231,6 @@ export function EventBanner({
   );
 }
 
-function landingHeroSubtitleText(event: Event, override?: string): string {
-  const custom = (override ?? '').trim();
-  if (custom) return custom;
-  return (event.customization?.heroSubtext || '').trim();
-}
-
-/** Full-bleed hero that stacks on mobile and overlays on desktop (Cinematic + Noir). */
-export function LandingCinematicHero({
-  event,
-  onCheckout,
-  noir = false,
-}: {
-  event: Event;
-  onCheckout: () => void;
-  noir?: boolean;
-}) {
-  const subtitle = landingHeroSubtitleText(event);
-  return (
-    <section className={`landing-cinematic-hero${noir ? ' landing-cinematic-hero--noir' : ''}`}>
-      <div className="landing-cinematic-hero-media">
-        <EventBanner event={event} fullWidth overlay="none" imageClassName="landing-cinematic-hero-img" />
-        <div className="landing-cinematic-hero-media-overlay" aria-hidden />
-      </div>
-      <div className="landing-cinematic-hero-content">
-        {noir ? (
-          <span className="landing-showcase-hero-badge landing-cinematic-hero-badge">{themeDisplayName(event)}</span>
-        ) : (
-          <PremiumBadge className="landing-cinematic-hero-badge">{themeDisplayName(event)}</PremiumBadge>
-        )}
-        <HeroTitle className="landing-cinematic-hero-title mt-4 sm:mt-5">
-          {event.customization?.heroText || event.title}
-        </HeroTitle>
-        {subtitle ? <HeroSubtitle className="landing-cinematic-hero-subtitle">{subtitle}</HeroSubtitle> : null}
-        <EventMeta event={event} className="landing-cinematic-hero-meta !mt-5" />
-        <HeroCTA onGetTickets={onCheckout} className="landing-cinematic-hero-cta" light />
-      </div>
-    </section>
-  );
-}
-
 export function HeroTitle({ children, className = '' }: { children: React.ReactNode; className?: string; light?: boolean }) {
   return (
     <h1 className={`landing-showcase-hero-title landing-fade-in landing-fade-in-delay-1 ${className}`.trim()}>
@@ -285,45 +244,6 @@ export function HeroSubtitle({ children, className = '' }: { children: React.Rea
     <p className={`landing-showcase-hero-lead landing-fade-in landing-fade-in-delay-2 ${className}`.trim()}>
       {children}
     </p>
-  );
-}
-
-export function HeroCTA({
-  onGetTickets: _onGetTickets,
-  light = false,
-  className = '',
-}: {
-  onGetTickets: () => void;
-  light?: boolean;
-  className?: string;
-}) {
-  const scrollTickets = () => {
-    document.getElementById('landing-tickets')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  return (
-    <div
-      className={`landing-fade-in landing-fade-in-delay-3 mt-8 flex w-full flex-wrap items-center justify-center gap-3 sm:gap-4 ${className}`.trim()}
-    >
-      <button
-        type="button"
-        onClick={scrollTickets}
-        className="landing-showcase-btn-cta inline-flex min-h-[48px] w-full items-center justify-center gap-2 sm:w-auto"
-      >
-        Reserve your spot
-        <ArrowRight className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => document.getElementById('landing-about')?.scrollIntoView({ behavior: 'smooth' })}
-        className={`landing-btn-secondary inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold sm:w-auto ${
-          light ? 'landing-cinematic-hero-cta-secondary' : ''
-        }`}
-      >
-        Learn more
-        <ChevronDown className="h-4 w-4" />
-      </button>
-    </div>
   );
 }
 

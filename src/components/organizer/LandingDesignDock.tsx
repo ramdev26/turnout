@@ -32,13 +32,6 @@ const TemplateThumb: React.FC<{
   onClick: () => void;
 }> = ({ id, name, active, onClick }) => {
   const wireframe = {
-    'template-1': (
-      <div className="flex h-full flex-col gap-1 p-1.5">
-        <div className="h-2 rounded-sm bg-white/25" />
-        <div className="min-h-0 flex-1 rounded-sm bg-white/40" />
-        <div className="h-1.5 w-2/3 rounded-sm bg-white/20" />
-      </div>
-    ),
     'template-2': (
       <div className="grid h-full grid-cols-[1fr_0.55fr] gap-1 p-1.5">
         <div className="flex flex-col gap-1">
@@ -47,19 +40,6 @@ const TemplateThumb: React.FC<{
           <div className="flex-1 rounded-sm bg-white/15" />
         </div>
         <div className="rounded-sm bg-white/28" />
-      </div>
-    ),
-    'template-3': (
-      <div className="grid h-full grid-cols-2 gap-1 p-1.5">
-        <div className="rounded-sm bg-white/35" />
-        <div className="rounded-sm bg-white/18" />
-      </div>
-    ),
-    'template-4': (
-      <div className="flex h-full flex-col gap-1 p-1.5">
-        <div className="h-2 rounded-sm bg-white/25" />
-        <div className="min-h-0 flex-1 rounded-sm bg-black/50 ring-1 ring-white/20" />
-        <div className="h-1.5 rounded-sm bg-white/15" />
       </div>
     ),
     'template-5': (

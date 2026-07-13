@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CanvasElement, CanvasDesign, Event, SectionBlock, SectionDesign, Ticket } from '../types';
 import { api } from '../api/client';
 import type { Speaker, Session } from '../types';
-import { landingCssVars, resolveTemplateId } from '../themes/eventThemes';
+import { resolveTemplateId } from '../themes/eventThemes';
 import { LandingShowcasePage } from '../components/landing/LandingShowcase';
 import { LandingClassicPage } from '../components/landing/LandingClassic';
 import {
@@ -10,11 +10,8 @@ import {
   CheckoutPanel,
   CountdownDisplay,
   EventBanner,
-  EventMeta,
-  HeroCTA,
   HeroSubtitle,
   HeroTitle,
-  LandingCinematicHero,
   LandingContentGrid,
   LandingPageShell,
   LandingTopBar,
@@ -22,10 +19,9 @@ import {
   SectionHeading,
   TicketsList,
   TicketsSection,
-  themeDisplayName,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-1' | 'template-2' | 'template-3' | 'template-4' | 'template-5' | 'template-canvas';
+export type TemplateId = 'template-2' | 'template-5' | 'template-canvas';
 
 /** Layout templates organizers can pick in the design console (excludes custom canvas). */
 export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
@@ -36,22 +32,14 @@ export const LANDING_LAYOUT_TEMPLATES: {
   description: string;
 }[] = [
   { id: 'template-2', name: 'Showcase', description: 'Editorial hero with sidebar checkout' },
-  { id: 'template-1', name: 'Cinematic', description: 'Full-bleed banner with overlay title' },
-  { id: 'template-3', name: 'Avant', description: 'Split-screen story and tickets' },
-  { id: 'template-4', name: 'Noir', description: 'Moody dark poster hero' },
   { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
 ];
 
+const LEGACY_TEMPLATE_IDS = new Set(['template-1', 'template-3', 'template-4']);
+
 export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
-  if (
-    id === 'template-1' ||
-    id === 'template-2' ||
-    id === 'template-3' ||
-    id === 'template-4' ||
-    id === 'template-5'
-  ) {
-    return id;
-  }
+  if (id === 'template-2' || id === 'template-5') return id;
+  if (id && LEGACY_TEMPLATE_IDS.has(id)) return 'template-2';
   return 'template-2';
 }
 
@@ -161,7 +149,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     if (b.type === 'hero') {
       return (
         <div className="text-center sm:text-left">
-          <div className="landing-poster-frame landing-poster-frame--hero mx-auto mb-8">
+          <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto mb-8">
             <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
           </div>
           <PremiumBadge>{b.props?.eyebrow || 'Featured event'}</PremiumBadge>
@@ -178,7 +166,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     }
     if (b.type === 'button') {
       return (
-        <button type="button" onClick={props.onCheckout} className="landing-btn-primary w-full rounded-2xl py-4 text-sm font-bold">
+        <button type="button" onClick={props.onCheckout} className="landing-showcase-btn-cta w-full min-h-[48px]">
           {b.props?.text || 'Get tickets'}
         </button>
       );
@@ -189,7 +177,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
           <SectionHeading>{b.props?.title || 'Speakers'}</SectionHeading>
           <div className="grid gap-4 sm:grid-cols-2">
             {speakers.map((s) => (
-              <div key={s.id} className="landing-card-premium rounded-2xl p-5">
+              <div key={s.id} className="landing-showcase-card p-5">
                 <p className="font-bold">{s.name}</p>
                 <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                   {[s.title, s.company].filter(Boolean).join(' · ')}
@@ -206,7 +194,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
           <SectionHeading>{b.props?.title || 'Schedule'}</SectionHeading>
           <div className="space-y-3">
             {sessions.map((s) => (
-              <div key={s.id} className="landing-card-premium rounded-2xl p-5">
+              <div key={s.id} className="landing-showcase-card p-5">
                 <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
                   {new Date(s.startsAt).toLocaleString()}
                 </p>
@@ -227,13 +215,13 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     }
     if (b.type === 'image' && b.props?.imageUrl) {
       return (
-        <div className="overflow-hidden rounded-3xl border" style={{ borderColor: 'var(--landing-border)' }}>
+        <div className="landing-showcase-card overflow-hidden">
           <img
             src={b.props.imageUrl}
             alt=""
             referrerPolicy="no-referrer"
             className="block h-auto max-h-[min(70vh,560px)] w-full object-contain object-center"
-            style={{ background: 'var(--landing-surface-muted)' }}
+            style={{ background: 'var(--showcase-card-muted)' }}
           />
         </div>
       );
@@ -254,43 +242,18 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
 
 function CanvasRenderer(props: LandingTemplateProps) {
   const design = safeCanvas(props.event.customization?.canvas);
-  if (!design) return Template1.render(props);
+  if (!design) return TemplateShowcase.render(props);
   return (
     <LandingPageShell event={props.event}>
       <LandingTopBar event={props.event} />
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-10">
-        <div className="landing-card-premium overflow-hidden rounded-3xl" style={{ width: design.canvas.width, height: design.canvas.height, background: design.canvas.background }} />
+        <div className="landing-showcase-card overflow-hidden" style={{ width: design.canvas.width, height: design.canvas.height, background: design.canvas.background }} />
       </div>
     </LandingPageShell>
   );
 }
 
-const Template1: LandingTemplate = {
-  id: 'template-1',
-  name: 'Cinematic',
-  description: 'Full-bleed cinematic hero with editorial story.',
-  previewSeed: 'cinematic-hero',
-  render: (props) => (
-    <LandingPageShell event={props.event}>
-      <LandingTopBar event={props.event} />
-      <div className="relative z-10">
-        <LandingCinematicHero event={props.event} onCheckout={props.onCheckout} />
-        <LandingContentGrid
-          main={
-            <div className="space-y-14">
-              <CountdownDisplay targetIso={props.event.date} tba={!!props.event.customization?.scheduleTba} />
-              <AboutBlock event={props.event} />
-              {ticketsMain(props)}
-            </div>
-          }
-          aside={checkoutAside(props)}
-        />
-      </div>
-    </LandingPageShell>
-  ),
-};
-
-const Template2: LandingTemplate = {
+const TemplateShowcase: LandingTemplate = {
   id: 'template-2',
   name: 'Showcase',
   description: 'Premium two-column layout with hero, passes, and live order summary.',
@@ -298,65 +261,7 @@ const Template2: LandingTemplate = {
   render: (props) => <LandingShowcasePage {...props} />,
 };
 
-const Template3: LandingTemplate = {
-  id: 'template-3',
-  name: 'Avant',
-  description: 'Split layout with luminous gradient panel.',
-  previewSeed: 'split-gradient',
-  render: (props) => (
-    <LandingPageShell event={props.event}>
-      <LandingTopBar event={props.event} />
-      <div className="landing-avant relative z-10">
-        <div className="landing-avant-story">
-          {props.event.bannerUrl?.trim() ? (
-            <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto mb-8 max-w-md">
-              <EventBanner event={props.event} overlay="none" imageClassName="landing-poster-img" />
-            </div>
-          ) : null}
-          <PremiumBadge>{themeDisplayName(props.event)}</PremiumBadge>
-          <HeroTitle className="mt-5">{props.event.customization?.heroText || props.event.title}</HeroTitle>
-          {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-          <EventMeta event={props.event} />
-          <div className="mt-10">
-            <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
-          </div>
-        </div>
-        <div className="landing-avant-panel" id="landing-tickets">
-          <AboutBlock event={props.event} />
-          <div className="mt-12">{ticketsMain(props)}</div>
-          <div className="landing-avant-checkout">{checkoutAside(props)}</div>
-        </div>
-      </div>
-    </LandingPageShell>
-  ),
-};
-
-const Template4: LandingTemplate = {
-  id: 'template-4',
-  name: 'Noir',
-  description: 'Moody high-contrast for launches and nightlife.',
-  previewSeed: 'dark-poster',
-  render: (props) => (
-    <LandingPageShell event={props.event}>
-      <LandingTopBar event={props.event} />
-      <div className="relative z-10">
-        <LandingCinematicHero event={props.event} onCheckout={props.onCheckout} noir />
-        <LandingContentGrid
-          main={
-            <div className="space-y-14">
-              <CountdownDisplay targetIso={props.event.date} tba={!!props.event.customization?.scheduleTba} />
-              <AboutBlock event={props.event} />
-              {ticketsMain(props)}
-            </div>
-          }
-          aside={checkoutAside(props)}
-        />
-      </div>
-    </LandingPageShell>
-  ),
-};
-
-const Template5: LandingTemplate = {
+const TemplateClassic: LandingTemplate = {
   id: 'template-5',
   name: 'Classic',
   description: 'Clean centered single-column layout for any screen size.',
@@ -364,10 +269,11 @@ const Template5: LandingTemplate = {
   render: (props) => <LandingClassicPage {...props} />,
 };
 
-export const landingTemplates: LandingTemplate[] = [Template1, Template2, Template3, Template4, Template5];
+export const landingTemplates: LandingTemplate[] = [TemplateShowcase, TemplateClassic];
 
 export function getLandingTemplate(id: string | undefined): LandingTemplate {
-  return landingTemplates.find((t) => t.id === id) || Template2;
+  const resolved = resolveLayoutTemplateId(id);
+  return landingTemplates.find((t) => t.id === resolved) || TemplateShowcase;
 }
 
 const CanvasTemplate: LandingTemplate = {
@@ -385,7 +291,8 @@ const CanvasTemplate: LandingTemplate = {
 export const landingTemplatesAll: LandingTemplate[] = [...landingTemplates, CanvasTemplate];
 
 export function getLandingTemplateAll(id: string | undefined): LandingTemplate {
-  return landingTemplatesAll.find((t) => t.id === id) || Template2;
+  if (id === 'template-canvas') return CanvasTemplate;
+  return getLandingTemplate(id);
 }
 
 export function getLandingTemplateForEvent(event: Event): LandingTemplate {
