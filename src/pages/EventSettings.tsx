@@ -562,7 +562,7 @@ export const EventSettings: React.FC = () => {
               style={showLivePreview ? accentButtonStyleFor(ui) : { ...cardStyle, color: ui.text }}
             >
               <Eye className="h-4 w-4" />
-              {showLivePreview ? 'Hide preview' : 'Live preview'}
+              {showLivePreview ? 'Hide preview' : 'Mobile preview'}
             </button>
             <button
               type="button"
@@ -599,7 +599,7 @@ export const EventSettings: React.FC = () => {
           className={cn(
             'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-44 sm:px-8 lg:gap-10 lg:py-8 lg:pb-44',
             showLivePreview
-              ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(320px,400px)]'
+              ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,460px)]'
               : 'lg:grid-cols-[360px_1fr]'
           )}
         >

@@ -462,3 +462,49 @@
 .landing-showcase-footer-links a:hover {
   color: var(--showcase-accent);
 }
+
+/* Event settings phone frame — force mobile layout regardless of desktop viewport */
+.event-settings-mobile-preview .landing-showcase-nav {
+  display: none !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-grid {
+  display: block !important;
+  max-width: none;
+  padding: 1.5rem 0.875rem 2rem;
+}
+
+.event-settings-mobile-preview .landing-showcase-sidebar {
+  position: static !important;
+  top: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin-top: 1.5rem;
+}
+
+.event-settings-mobile-preview .landing-showcase-info-grid {
+  grid-template-columns: 1fr !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-footer-inner {
+  flex-direction: column !important;
+  text-align: center !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero {
+  padding-top: 1.25rem;
+  padding-inline: 0.875rem;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero-accent {
+  font-size: 1.75rem !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero-title {
+  font-size: 1.875rem !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-header-inner {
+  padding-inline: 0.875rem;
+}
+

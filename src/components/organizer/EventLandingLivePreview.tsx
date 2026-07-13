@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, Smartphone, X } from 'lucide-react';
 import type { Event, Ticket } from '../../types';
 import { getLandingTemplateForEvent } from '../../templates/templates';
 import { landingCssVars, normalizeLandingCustomization } from '../../themes/eventThemes';
 import { loadLandingFont } from '../../themes/landingFonts';
 import { formatLKRWhole } from '../../utils/money';
 import { cn } from '../../utils/cn';
+
+/** Typical mobile viewport width (iPhone / Android). */
+const MOBILE_SCREEN_WIDTH = 390;
+const MOBILE_SCREEN_HEIGHT = 780;
 
 type EventLandingLivePreviewProps = {
   event: Event;
@@ -46,15 +50,25 @@ export const EventLandingLivePreview: React.FC<EventLandingLivePreviewProps> = (
   return (
     <div
       className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border', className)}
-      style={{ borderColor: 'var(--landing-border, #e2e8f0)', background: '#0f172a' }}
+      style={{ borderColor: 'rgba(255,255,255,0.12)', background: '#0b1220' }}
     >
       <div
         className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2.5"
         style={{ borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(15,23,42,0.95)' }}
       >
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wide text-white">Live preview</p>
-          <p className="truncate text-[11px] text-white/60">Updates as you edit — save to publish</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <div
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg"
+            style={{ background: 'rgba(255,255,255,0.08)', color: '#c0ff72' }}
+          >
+            <Smartphone className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-white">Mobile preview</p>
+            <p className="truncate text-[11px] text-white/60">
+              {MOBILE_SCREEN_WIDTH}px · updates as you edit
+            </p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {publicUrl ? (
@@ -72,7 +86,7 @@ export const EventLandingLivePreview: React.FC<EventLandingLivePreviewProps> = (
               type="button"
               onClick={onClose}
               className="grid h-7 w-7 place-items-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white"
-              aria-label="Close live preview"
+              aria-label="Close mobile preview"
             >
               <X className="h-4 w-4" />
             </button>
@@ -80,24 +94,70 @@ export const EventLandingLivePreview: React.FC<EventLandingLivePreviewProps> = (
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-neutral-950">
-        <div className="mx-auto w-full max-w-[420px] border-x border-white/10 shadow-2xl" style={landingVars}>
-          {template.render({
-            event: { ...event, status: 'published' },
-            tickets,
-            selectedTickets,
-            onTicketChange: (ticketId, quantity) => {
-              setSelectedTickets((prev) => {
-                const next = { ...prev };
-                if (quantity <= 0) delete next[ticketId];
-                else next[ticketId] = quantity;
-                return next;
-              });
-            },
-            totalAmount,
-            onCheckout: () => {},
-            isPurchasing: false,
-          })}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(ellipse_at_top,#1e293b_0%,#020617_70%)] px-3 py-5 sm:px-4">
+        <div className="mx-auto flex w-full max-w-[430px] justify-center">
+          <div
+            className="relative shrink-0 rounded-[2.75rem] p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+            style={{
+              background: 'linear-gradient(160deg, #3f3f46 0%, #18181b 45%, #09090b 100%)',
+              border: '1px solid rgba(255,255,255,0.14)',
+            }}
+          >
+            {/* Side buttons */}
+            <div
+              className="absolute -left-[3px] top-[108px] h-10 w-[3px] rounded-l bg-zinc-600"
+              aria-hidden
+            />
+            <div
+              className="absolute -left-[3px] top-[156px] h-14 w-[3px] rounded-l bg-zinc-600"
+              aria-hidden
+            />
+            <div
+              className="absolute -right-[3px] top-[132px] h-16 w-[3px] rounded-r bg-zinc-600"
+              aria-hidden
+            />
+
+            {/* Status bar + notch */}
+            <div className="relative px-3 pt-2">
+              <div className="mx-auto h-6 w-[34%] min-w-[96px] max-w-[128px] rounded-full bg-black" aria-hidden />
+              <div className="mt-2 flex items-center justify-between px-1 text-[10px] font-semibold text-white/55">
+                <span>9:41</span>
+                <span className="tracking-widest">●●●</span>
+              </div>
+            </div>
+
+            {/* Screen */}
+            <div
+              className="event-settings-mobile-preview relative mt-1 overflow-hidden rounded-[2rem] bg-black"
+              style={{
+                width: MOBILE_SCREEN_WIDTH,
+                height: `min(${MOBILE_SCREEN_HEIGHT}px, calc(100vh - 14rem))`,
+                maxHeight: MOBILE_SCREEN_HEIGHT,
+              }}
+            >
+              <div className="h-full overflow-x-hidden overflow-y-auto overscroll-contain" style={landingVars}>
+                {template.render({
+                  event: { ...event, status: 'published' },
+                  tickets,
+                  selectedTickets,
+                  onTicketChange: (ticketId, quantity) => {
+                    setSelectedTickets((prev) => {
+                      const next = { ...prev };
+                      if (quantity <= 0) delete next[ticketId];
+                      else next[ticketId] = quantity;
+                      return next;
+                    });
+                  },
+                  totalAmount,
+                  onCheckout: () => {},
+                  isPurchasing: false,
+                })}
+              </div>
+            </div>
+
+            {/* Home indicator */}
+            <div className="mx-auto mt-2.5 h-1 w-[34%] min-w-[96px] rounded-full bg-white/25" aria-hidden />
+          </div>
         </div>
       </div>
 
