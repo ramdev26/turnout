@@ -26,7 +26,7 @@ import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
 import { resolveLandingFontKey } from '../themes/landingFonts';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -495,8 +495,8 @@ export const EventSettings: React.FC = () => {
               type="button"
               onClick={saveBranding}
               disabled={savingBranding}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:brightness-105 disabled:opacity-40"
-              style={{ backgroundColor: ui.accent }}
+              className="turnout-btn-accent rounded-xl px-4 py-2 text-sm font-semibold transition hover:brightness-105 disabled:opacity-40"
+              style={accentButtonStyleFor(ui)}
             >
               {savingBranding ? 'Saving…' : 'Save changes'}
             </button>
@@ -661,7 +661,7 @@ export const EventSettings: React.FC = () => {
                     type="button"
                     onClick={() => setScheduleTba(true)}
                     className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                    style={scheduleTba ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                    style={accentSegmentStyleFor(ui, scheduleTba)}
                   >
                     To be announced
                   </button>
@@ -669,7 +669,7 @@ export const EventSettings: React.FC = () => {
                     type="button"
                     onClick={() => setScheduleTba(false)}
                     className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                    style={!scheduleTba ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                    style={accentSegmentStyleFor(ui, !scheduleTba)}
                   >
                     Set date &amp; time
                   </button>
@@ -739,8 +739,8 @@ export const EventSettings: React.FC = () => {
                   type="button"
                   onClick={saveSlug}
                   disabled={savingSlug}
-                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-950 disabled:opacity-50"
-                  style={{ backgroundColor: ui.accent }}
+                  className="turnout-btn-accent rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                  style={accentButtonStyleFor(ui)}
                 >
                   {savingSlug ? 'Saving…' : 'Save URL'}
                 </button>
@@ -879,8 +879,8 @@ export const EventSettings: React.FC = () => {
                 type="button"
                 onClick={saveTicket}
                 disabled={savingTicket}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-950 disabled:opacity-50"
-                style={{ backgroundColor: ui.accent }}
+                className="turnout-btn-accent mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                style={accentButtonStyleFor(ui)}
               >
                 <Plus className="h-4 w-4" />
                 {savingTicket ? 'Saving…' : editingTicketId ? 'Update tier' : 'Add tier'}
@@ -963,8 +963,8 @@ export const EventSettings: React.FC = () => {
                         type="button"
                         onClick={saveTicketDesign}
                         disabled={savingTicketDesign}
-                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-950 disabled:opacity-50"
-                        style={{ backgroundColor: ui.accent }}
+                        className="turnout-btn-accent rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                        style={accentButtonStyleFor(ui)}
                       >
                         {savingTicketDesign ? 'Saving…' : 'Save PDF design'}
                       </button>

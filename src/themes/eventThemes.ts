@@ -18,6 +18,7 @@ export type CreateThemeUI = {
   pillBg: string;
   accent: string;
   accentHover: string;
+  accentOn: string;
   accentSoft: string;
   text: string;
   textMuted: string;
@@ -68,6 +69,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255, 255, 255, 0.07)',
       accent: TURNOUT_BRAND.lime500,
       accentHover: TURNOUT_BRAND.lime400,
+      accentOn: TURNOUT_BRAND.ink,
       accentSoft: TURNOUT_BRAND.limeSoft,
       text: TURNOUT_BRAND.text,
       textMuted: TURNOUT_BRAND.textMuted,
@@ -106,6 +108,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255,255,255,0.9)',
       accent: '#059669',
       accentHover: '#047857',
+      accentOn: '#ffffff',
       accentSoft: 'rgba(5,150,105,0.15)',
       text: '#064e3b',
       textMuted: '#047857',
@@ -144,6 +147,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255,255,255,0.08)',
       accent: '#818cf8',
       accentHover: '#6366f1',
+      accentOn: '#ffffff',
       accentSoft: 'rgba(129,140,248,0.22)',
       text: '#f8fafc',
       textMuted: '#c7d2fe',
@@ -182,6 +186,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255,255,255,0.9)',
       accent: '#ea580c',
       accentHover: '#c2410c',
+      accentOn: '#ffffff',
       accentSoft: 'rgba(234,88,12,0.14)',
       text: '#7c2d12',
       textMuted: '#c2410c',

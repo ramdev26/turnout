@@ -3,7 +3,7 @@ import { api } from '../../api/client';
 import { CheckCircle2, ChevronDown, Copy, Globe, RefreshCw, Trash2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import type { CreateThemeUI } from '../../themes/eventThemes';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
+import { accentButtonStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
 
 type DnsRecord = { type: string; name: string; value: string; ttl: number };
 
@@ -185,8 +185,8 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                   type="button"
                   onClick={saveDomain}
                   disabled={saving}
-                  className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
-                  style={{ backgroundColor: ui.accent }}
+                  className="turnout-btn-accent rounded-xl px-5 py-2.5 text-sm font-semibold transition hover:brightness-105 disabled:opacity-50"
+                  style={accentButtonStyleFor(ui)}
                 >
                   {saving ? 'Saving…' : active ? 'Update' : 'Connect'}
                 </button>

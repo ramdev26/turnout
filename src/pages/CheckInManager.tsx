@@ -20,7 +20,7 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowPage, FlowStatCard, FlowAlert, FlowInput, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { eventWorkspaceNav } from '../utils/organizerNav';
 import { cn } from '../utils/cn';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { accentButtonStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
@@ -211,8 +211,8 @@ export const CheckInManager: React.FC = () => {
         <div className="flex flex-wrap justify-end gap-2">
           <Link
             to={`/staff/checkin/${eventId}`}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-950"
-            style={{ backgroundColor: ui.accent }}
+            className="turnout-btn-accent inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
+            style={accentButtonStyleFor(ui)}
           >
             <ScanLine className="h-4 w-4" />
             Open scanner
@@ -340,11 +340,12 @@ export const CheckInManager: React.FC = () => {
                   type="button"
                   onClick={() => setStatusFilter(f)}
                   className={cn(
-                    'rounded-full px-3 py-1.5 text-xs font-bold capitalize'
+                    'rounded-full px-3 py-1.5 text-xs font-bold capitalize',
+                    statusFilter === f ? 'turnout-btn-accent' : ''
                   )}
                   style={
                     statusFilter === f
-                      ? { backgroundColor: ui.accent, color: '#052e2b' }
+                      ? accentButtonStyleFor(ui)
                       : { background: ui.fieldBg, color: ui.textMuted }
                   }
                 >
@@ -413,8 +414,8 @@ export const CheckInManager: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => void checkIn(a.qrToken)}
-                          className="rounded-lg px-3 py-1.5 text-xs font-bold text-emerald-950"
-                          style={{ backgroundColor: ui.accent }}
+                          className="turnout-btn-accent rounded-lg px-3 py-1.5 text-xs font-bold"
+                          style={accentButtonStyleFor(ui)}
                         >
                           Check in
                         </button>

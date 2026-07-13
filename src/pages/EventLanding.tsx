@@ -455,8 +455,8 @@ export const EventLanding: React.FC = () => {
           </p>
           <Link
             to="/"
-            className="mt-6 inline-flex rounded-xl px-6 py-3 text-sm font-semibold text-white"
-            style={{ backgroundColor: 'var(--primary)' }}
+            className="turnout-btn-accent mt-6 inline-flex rounded-xl px-6 py-3 text-sm font-semibold"
+            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-on)' }}
           >
             Back to home
           </Link>

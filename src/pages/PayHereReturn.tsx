@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import { notifyPayHereOpener } from '../lib/payhereCheckout';
 import { Order } from '../types';
 import { EVENT_THEMES } from '../themes/eventThemes';
-import { cardStyleFor } from '../themes/flowUi';
+import { accentButtonStyleFor, cardStyleFor } from '../themes/flowUi';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -102,8 +102,8 @@ export const PayHereReturn: React.FC = () => {
             </button>
             <Link
               to="/"
-              className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
-              style={{ backgroundColor: ui.accent }}
+              className="turnout-btn-accent rounded-xl px-5 py-2.5 text-sm font-semibold"
+              style={accentButtonStyleFor(ui)}
             >
               Go home
             </Link>

@@ -12,6 +12,7 @@ import {
 import type { LandingDisplayMode, LandingStyle } from '../../types';
 import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { cn } from '../../utils/cn';
+import { accentSegmentStyleFor } from '../../themes/flowUi';
 
 export type LandingDesignValue = {
   eventCategory: string;
@@ -250,7 +251,7 @@ export function LandingCustomizer({
                 type="button"
                 onClick={() => update({ displayMode: opt.id })}
                 className={segmentBase}
-                style={active ? { background: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                style={accentSegmentStyleFor(ui, active)}
               >
                 {opt.name}
               </button>
@@ -328,7 +329,7 @@ export function LandingDesignPreview({
         </div>
         <button
           type="button"
-          className="landing-btn-primary w-full rounded-xl py-2.5 text-sm font-bold text-white"
+          className="landing-btn-primary w-full rounded-xl py-2.5 text-sm font-bold"
         >
           Reserve your spot
         </button>

@@ -72,6 +72,18 @@ select {
   box-shadow: 0 0 0 2px var(--ring);
 }
 
+/* Lime / primary buttons: dark ink labels (never white on #c0ff72) */
+.turnout-btn-accent,
+.landing-btn-primary {
+  color: var(--primary-on);
+}
+
+.turnout-btn-accent.text-white,
+.landing-btn-primary.text-white,
+.bg-\[var\(--primary\)\].text-white {
+  color: var(--primary-on) !important;
+}
+
 /* Google Places Autocomplete dropdown */
 .pac-container {
   z-index: 10050 !important;
