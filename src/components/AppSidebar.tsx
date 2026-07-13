@@ -43,7 +43,7 @@ function SidebarNavSection({
               )}
               style={
                 active
-                  ? { background: ui.accentSoft, color: ui.accent }
+                  ? { background: ui.accentSoft, color: ui.accentOn, border: `1px solid ${ui.borderColor}` }
                   : { color: ui.textMuted }
               }
             >
