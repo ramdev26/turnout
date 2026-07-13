@@ -10,6 +10,7 @@ export const AdminSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [payhereStatus, setPayhereStatus] = useState<string | null>(null);
   const ui = APP_FLOW_UI;
 
   const load = async () => {
@@ -38,8 +39,6 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  const onField = (k: string, v: string) => setSettings((prev) => ({ ...prev, [k]: v }));
-
   const cleanupDemoData = async () => {
     setMessage(null);
     setError(null);
@@ -49,6 +48,19 @@ export const AdminSettings: React.FC = () => {
     } catch (e: unknown) {
       const err = e as { error?: string };
       setError(err?.error || 'Failed to clean demo data');
+    }
+  };
+
+  const onField = (k: string, v: string) => setSettings((prev) => ({ ...prev, [k]: v }));
+
+  const checkPayhere = async () => {
+    setPayhereStatus(null);
+    try {
+      const res = await api.get<{ accepted?: boolean; message?: string }>('/api/admin/payhere/check');
+      setPayhereStatus(res.accepted ? 'PayHere credentials accepted.' : res.message || 'PayHere check failed.');
+    } catch (e: unknown) {
+      const err = e as { error?: string; message?: string };
+      setPayhereStatus(err?.message || err?.error || 'PayHere check failed.');
     }
   };
 
@@ -98,6 +110,23 @@ export const AdminSettings: React.FC = () => {
             Remove Demo Data
           </FlowButton>
         </div>
+      </FlowCard>
+
+      <FlowCard>
+        <h2 className="mb-3 text-base font-semibold" style={{ color: ui.text }}>
+          PayHere integration
+        </h2>
+        <p className="mb-3 text-sm" style={{ color: ui.textMuted }}>
+          Verify platform PayHere credentials are accepted before going live.
+        </p>
+        <FlowButton variant="secondary" onClick={() => void checkPayhere()}>
+          Test PayHere credentials
+        </FlowButton>
+        {payhereStatus ? (
+          <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
+            {payhereStatus}
+          </p>
+        ) : null}
       </FlowCard>
     </AdminShell>
   );

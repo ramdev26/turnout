@@ -36,7 +36,7 @@ export const AdminDashboard: React.FC = () => {
   if (error) return <AdminShell title="Super Admin Dashboard"><FlowAlert variant="error">{error}</FlowAlert></AdminShell>;
 
   return (
-    <AdminShell title="Super Admin Dashboard" subtitle="Real-time platform visibility and control.">
+    <AdminShell title="Platform Dashboard" subtitle="Revenue, users, events, payouts, and top performers across Turnout.">
       {summary && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <FlowStatCard label="Total Users" value={summary.totalUsers ?? 0} />

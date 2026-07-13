@@ -52,6 +52,7 @@ export type OrganizerPayout = {
   method: 'bank_transfer';
   reference?: string | null;
   notes?: string | null;
+  organizerName?: string | null;
   createdAt: string;
   completedAt?: string | null;
 };

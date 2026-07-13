@@ -12,7 +12,7 @@ import { clearAuthToken } from '../api/authToken';
 import { TurnoutLogo } from './branding/TurnoutLogo';
 import { TURNOUT_BRAND } from '../themes/brandColors';
 import { AppSidebar } from './AppSidebar';
-import { adminMainNav } from '../utils/adminNav';
+import { adminMainNav, BASADMIN_BASE } from '../utils/adminNav';
 import { attendeeMainNav } from '../utils/attendeeNav';
 import { eventWorkspaceNav, organizerMainNav } from '../utils/organizerNav';
 import type { AppNavLink } from '../utils/appNav';
@@ -33,7 +33,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isOrganizerConsole =
     /^\/dashboard/.test(path) || /^\/events\/(new|themes)/.test(path);
   const isAttendeeConsole = /^\/attendee/.test(path) && path !== '/attendee/signup';
-  const isAdminConsole = /^\/admin/.test(path);
+  const isAdminConsole = /^\/basadmin/.test(path) || /^\/admin/.test(path);
   const isAuthPage =
     path === '/' ||
     path === '/login' ||
@@ -54,7 +54,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const logoHref = !user
     ? '/'
     : user.role === 'super_admin'
-      ? '/admin/dashboard'
+      ? `${BASADMIN_BASE}/dashboard`
       : user.role === 'attendee'
         ? '/attendee/dashboard'
         : '/dashboard';
@@ -92,7 +92,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       ? '/attendee/account'
       : user?.role === 'organizer'
         ? '/dashboard/organization'
-        : '/admin/dashboard';
+        : `${BASADMIN_BASE}/dashboard`;
 
   const handleLogout = async () => {
     setLoading(true);

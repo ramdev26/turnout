@@ -12,6 +12,7 @@ import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
 import { accentSegmentStyleFor } from '../themes/flowUi';
+import { BASADMIN_BASE } from '../utils/adminNav';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -58,7 +59,7 @@ export const Login: React.FC = () => {
       setUser(res.user);
       const destination =
         res.user.role === 'super_admin'
-          ? '/admin/dashboard'
+          ? `${BASADMIN_BASE}/dashboard`
           : res.user.role === 'attendee'
             ? '/attendee/dashboard'
             : from;

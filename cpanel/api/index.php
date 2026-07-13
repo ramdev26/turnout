@@ -3999,6 +3999,149 @@ if (preg_match('#^/admin/transactions/(\\d+)$#', $path, $m) && $method === 'POST
   json_response(200, ['ok' => true]);
 }
 
+if ($path === '/admin/organizers' && $method === 'GET') {
+  require_super_admin_user_id();
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  ensure_organizer_profile_paid_event_columns($pdo);
+  $q = trim((string)($_GET['q'] ?? ''));
+  $sql = "SELECT u.id, u.display_name, u.email, u.status, u.created_at FROM users u WHERE u.role = 'organizer'";
+  $params = [];
+  if ($q !== '') {
+    $sql .= ' AND (LOWER(u.display_name) LIKE ? OR LOWER(u.email) LIKE ? OR LOWER(COALESCE((SELECT organization_name FROM organizer_profiles p WHERE p.user_id = u.id LIMIT 1), \'\')) LIKE ?)';
+    $like = '%' . strtolower($q) . '%';
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+  }
+  $sql .= ' ORDER BY u.created_at DESC LIMIT 500';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  $organizers = [];
+  while ($u = $stmt->fetch()) {
+    $oid = (int)$u['id'];
+    $profile = organizer_profile_api_shape($pdo, $oid);
+    $readiness = organizer_paid_event_readiness_api_shape($pdo, $oid);
+    $balStmt = $pdo->prepare(
+      "SELECT
+        COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
+        COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents,
+        COALESCE((SELECT SUM(p.total_amount_cents) FROM payouts p WHERE p.organizer_id = ? AND p.status IN ('processing','completed')),0) AS paid_cents,
+        (SELECT COUNT(*) FROM events e WHERE e.organizer_user_id = ?) AS events_count
+       FROM events e
+       LEFT JOIN transactions t ON t.event_id = e.id
+       WHERE e.organizer_user_id = ?"
+    );
+    $balStmt->execute([$oid, $oid, $oid]);
+    $b = $balStmt->fetch() ?: ['gross_cents' => 0, 'net_cents' => 0, 'paid_cents' => 0, 'events_count' => 0];
+    $net = (int)$b['net_cents'];
+    $paid = (int)$b['paid_cents'];
+    $organizers[] = [
+      'organizerId' => (string)$oid,
+      'displayName' => (string)$u['display_name'],
+      'email' => (string)$u['email'],
+      'status' => (string)$u['status'],
+      'createdAt' => gmdate('c', strtotime($u['created_at'])),
+      'organizationName' => $profile['organizationName'],
+      'phone' => $profile['phone'],
+      'businessAddress' => $profile['businessAddress'],
+      'businessRegistrationNo' => $profile['businessRegistrationNo'],
+      'businessRegistrationDocUploaded' => $profile['businessRegistrationDocUploaded'],
+      'bankStatementDocUploaded' => $profile['bankStatementDocUploaded'],
+      'bankAccountConfigured' => $profile['bankAccountConfigured'],
+      'bankName' => $profile['bankName'],
+      'bankBranch' => $profile['bankBranch'],
+      'bankAccountHolderName' => $profile['bankAccountHolderName'],
+      'bankAccountNumberLast4' => $profile['bankAccountNumberLast4'],
+      'paidEventReady' => (bool)($readiness['isReady'] ?? false),
+      'gatewayMode' => (string)($readiness['gatewayMode'] ?? 'turnout'),
+      'eventsCount' => (int)($b['events_count'] ?? 0),
+      'grossRevenue' => ((int)$b['gross_cents']) / 100,
+      'netEarnings' => $net / 100,
+      'paidOut' => $paid / 100,
+      'availableBalance' => max(0, $net - $paid) / 100,
+    ];
+  }
+  json_response(200, ['organizers' => $organizers]);
+}
+
+if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') {
+  require_super_admin_user_id();
+  $organizerId = (int)$m[1];
+  $pdo = db();
+  ensure_finance_tables($pdo);
+  ensure_organizer_profile_paid_event_columns($pdo);
+  $u = $pdo->prepare('SELECT id, email, display_name, role, status, created_at FROM users WHERE id = ? AND role = ? LIMIT 1');
+  $u->execute([$organizerId, 'organizer']);
+  $user = $u->fetch();
+  if (!$user) json_response(404, ['error' => 'organizer_not_found']);
+
+  $balStmt = $pdo->prepare(
+    "SELECT
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fees_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents,
+      COALESCE((SELECT SUM(p.total_amount_cents) FROM payouts p WHERE p.organizer_id = ? AND p.status IN ('processing','completed')),0) AS paid_cents
+     FROM events e
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE e.organizer_user_id = ?"
+  );
+  $balStmt->execute([$organizerId, $organizerId]);
+  $b = $balStmt->fetch() ?: ['gross_cents' => 0, 'fees_cents' => 0, 'net_cents' => 0, 'paid_cents' => 0];
+  $net = (int)$b['net_cents'];
+  $paid = (int)$b['paid_cents'];
+
+  $evStmt = $pdo->prepare('SELECT id, slug, title, status, event_status, created_at FROM events WHERE organizer_user_id = ? ORDER BY created_at DESC LIMIT 50');
+  $evStmt->execute([$organizerId]);
+  $events = [];
+  while ($e = $evStmt->fetch()) {
+    $events[] = [
+      'id' => (string)$e['id'],
+      'slug' => (string)$e['slug'],
+      'title' => (string)$e['title'],
+      'status' => (string)$e['status'],
+      'eventStatus' => (string)($e['event_status'] ?? 'approved'),
+      'createdAt' => gmdate('c', strtotime($e['created_at'])),
+    ];
+  }
+
+  $payStmt = $pdo->prepare('SELECT id, total_amount_cents, status, reference, notes, created_at, completed_at FROM payouts WHERE organizer_id = ? ORDER BY created_at DESC LIMIT 20');
+  $payStmt->execute([$organizerId]);
+  $payouts = [];
+  while ($p = $payStmt->fetch()) {
+    $payouts[] = [
+      'id' => (string)$p['id'],
+      'totalAmount' => ((int)$p['total_amount_cents']) / 100,
+      'status' => (string)$p['status'],
+      'reference' => $p['reference'],
+      'notes' => $p['notes'],
+      'createdAt' => gmdate('c', strtotime($p['created_at'])),
+      'completedAt' => $p['completed_at'] ? gmdate('c', strtotime($p['completed_at'])) : null,
+    ];
+  }
+
+  json_response(200, [
+    'user' => [
+      'id' => (string)$user['id'],
+      'email' => (string)$user['email'],
+      'displayName' => (string)$user['display_name'],
+      'status' => (string)$user['status'],
+      'createdAt' => gmdate('c', strtotime($user['created_at'])),
+    ],
+    'profile' => organizer_profile_api_shape($pdo, $organizerId),
+    'readiness' => organizer_paid_event_readiness_api_shape($pdo, $organizerId),
+    'balance' => [
+      'grossRevenue' => ((int)$b['gross_cents']) / 100,
+      'platformFees' => ((int)$b['fees_cents']) / 100,
+      'netEarnings' => $net / 100,
+      'paidOut' => $paid / 100,
+      'availableBalance' => max(0, $net - $paid) / 100,
+    ],
+    'events' => $events,
+    'payouts' => $payouts,
+  ]);
+}
+
 if ($path === '/admin/organizers/balances' && $method === 'GET') {
   require_super_admin_user_id();
   $pdo = db();

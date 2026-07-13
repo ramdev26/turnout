@@ -36,6 +36,8 @@ import { AdminTransactions } from './pages/AdminTransactions';
 import { AdminPayouts } from './pages/AdminPayouts';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminLogs } from './pages/AdminLogs';
+import { AdminOrganizers } from './pages/AdminOrganizers';
+import { BASADMIN_BASE } from './utils/adminNav';
 
 function FullPageLoader() {
   return (
@@ -96,7 +98,7 @@ function HostAwareRoot({
       <Navigate
         to={
           user.role === 'super_admin'
-            ? '/admin'
+            ? BASADMIN_BASE
             : user.role === 'attendee'
               ? '/attendee/dashboard'
               : '/dashboard'
@@ -168,7 +170,7 @@ export default function App() {
           <Route
             path="/login"
             element={
-              user ? <Navigate to={user.role === 'super_admin' ? '/admin' : user.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'} replace /> : <Login />
+              user ? <Navigate to={user.role === 'super_admin' ? BASADMIN_BASE : user.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'} replace /> : <Login />
             }
           />
           <Route
@@ -178,7 +180,7 @@ export default function App() {
                 <Navigate
                   to={
                     user.role === 'super_admin'
-                      ? '/admin'
+                      ? BASADMIN_BASE
                       : user.role === 'attendee'
                         ? '/attendee/dashboard'
                         : '/dashboard'
@@ -197,7 +199,7 @@ export default function App() {
                 <Navigate
                   to={
                     user.role === 'super_admin'
-                      ? '/admin/dashboard'
+                      ? `${BASADMIN_BASE}/dashboard`
                       : user.role === 'attendee'
                         ? '/attendee/dashboard'
                         : '/dashboard'
@@ -216,7 +218,7 @@ export default function App() {
                 <Navigate
                   to={
                     user.role === 'super_admin'
-                      ? '/admin/dashboard'
+                      ? `${BASADMIN_BASE}/dashboard`
                       : user.role === 'attendee'
                         ? '/attendee/dashboard'
                         : '/dashboard'
@@ -293,14 +295,23 @@ export default function App() {
             }
           />
           <Route path="/invite/accept" element={<AcceptInvite />} />
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/admin/dashboard" element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
-          <Route path="/admin/users" element={<RequireSuperAdmin><AdminUsers /></RequireSuperAdmin>} />
-          <Route path="/admin/events" element={<RequireSuperAdmin><AdminEvents /></RequireSuperAdmin>} />
-          <Route path="/admin/transactions" element={<RequireSuperAdmin><AdminTransactions /></RequireSuperAdmin>} />
-          <Route path="/admin/payouts" element={<RequireSuperAdmin><AdminPayouts /></RequireSuperAdmin>} />
-          <Route path="/admin/settings" element={<RequireSuperAdmin><AdminSettings /></RequireSuperAdmin>} />
-          <Route path="/admin/logs" element={<RequireSuperAdmin><AdminLogs /></RequireSuperAdmin>} />
+          <Route path="/admin" element={<Navigate to={`${BASADMIN_BASE}/dashboard`} replace />} />
+          <Route path="/admin/dashboard" element={<Navigate to={`${BASADMIN_BASE}/dashboard`} replace />} />
+          <Route path="/admin/users" element={<Navigate to={`${BASADMIN_BASE}/users`} replace />} />
+          <Route path="/admin/events" element={<Navigate to={`${BASADMIN_BASE}/events`} replace />} />
+          <Route path="/admin/transactions" element={<Navigate to={`${BASADMIN_BASE}/transactions`} replace />} />
+          <Route path="/admin/payouts" element={<Navigate to={`${BASADMIN_BASE}/payouts`} replace />} />
+          <Route path="/admin/settings" element={<Navigate to={`${BASADMIN_BASE}/settings`} replace />} />
+          <Route path="/admin/logs" element={<Navigate to={`${BASADMIN_BASE}/logs`} replace />} />
+          <Route path="/basadmin" element={<Navigate to={`${BASADMIN_BASE}/dashboard`} replace />} />
+          <Route path={`${BASADMIN_BASE}/dashboard`} element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/organizers`} element={<RequireSuperAdmin><AdminOrganizers /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/users`} element={<RequireSuperAdmin><AdminUsers /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/events`} element={<RequireSuperAdmin><AdminEvents /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/transactions`} element={<RequireSuperAdmin><AdminTransactions /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/payouts`} element={<RequireSuperAdmin><AdminPayouts /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/settings`} element={<RequireSuperAdmin><AdminSettings /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/logs`} element={<RequireSuperAdmin><AdminLogs /></RequireSuperAdmin>} />
           <Route
             path="/events/themes"
             element={

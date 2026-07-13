@@ -1,4 +1,5 @@
 import {
+  Building2,
   CalendarDays,
   FileText,
   LayoutDashboard,
@@ -9,12 +10,16 @@ import {
 } from 'lucide-react';
 import type { AppNavLink } from './appNav';
 
+/** Super-admin console base path (obscured slug). */
+export const BASADMIN_BASE = '/basadmin';
+
 export const adminMainNav: AppNavLink[] = [
-  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/admin/users', label: 'Users', icon: Users, exact: true },
-  { to: '/admin/events', label: 'Events', icon: CalendarDays, exact: true },
-  { to: '/admin/transactions', label: 'Transactions', icon: Wallet, exact: true },
-  { to: '/admin/payouts', label: 'Payouts', icon: Shield, exact: true },
-  { to: '/admin/settings', label: 'Settings', icon: Settings, exact: true },
-  { to: '/admin/logs', label: 'Logs', icon: FileText, exact: true },
+  { to: `${BASADMIN_BASE}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { to: `${BASADMIN_BASE}/organizers`, label: 'Organizers', icon: Building2, exact: true },
+  { to: `${BASADMIN_BASE}/users`, label: 'Users', icon: Users, exact: true },
+  { to: `${BASADMIN_BASE}/events`, label: 'Events', icon: CalendarDays, exact: true },
+  { to: `${BASADMIN_BASE}/transactions`, label: 'Transactions', icon: Wallet, exact: true },
+  { to: `${BASADMIN_BASE}/payouts`, label: 'Payouts', icon: Shield, exact: true },
+  { to: `${BASADMIN_BASE}/settings`, label: 'Settings', icon: Settings, exact: true },
+  { to: `${BASADMIN_BASE}/logs`, label: 'Logs', icon: FileText, exact: true },
 ];
