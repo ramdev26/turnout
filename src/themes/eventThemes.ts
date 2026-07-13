@@ -362,7 +362,9 @@ export function resolveEventTheme(_customization?: LandingCustomizationInput): E
 /** Respect stored layout template; canvas layouts are preserved. Legacy templates map to Showcase. */
 export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customization'>): TemplateId {
   if (event.templateId === 'template-canvas') return 'template-canvas';
-  if (event.templateId === 'template-2' || event.templateId === 'template-5') return event.templateId;
+  if (event.templateId === 'template-2' || event.templateId === 'template-5' || event.templateId === 'template-6') {
+    return event.templateId;
+  }
   if (event.templateId === 'template-1' || event.templateId === 'template-3' || event.templateId === 'template-4') {
     return 'template-2';
   }

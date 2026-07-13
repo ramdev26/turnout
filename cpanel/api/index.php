@@ -2517,7 +2517,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     $row['event_date'] = date('Y-m-d H:i:s', strtotime($date));
   }
 
-  $allowedTemplates = ['template-2', 'template-5', 'template-canvas'];
+  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-canvas'];
   $legacyTemplates = ['template-1', 'template-3', 'template-4'];
   if ($templateId !== '' && in_array($templateId, $allowedTemplates, true)) {
     $row['template_id'] = $templateId;
