@@ -3371,6 +3371,23 @@ if (preg_match('#^/events/(\\d+)/checkin/verify-pin$#', $path, $m) && $method ==
   json_response(200, ['ok' => true, 'eventTitle' => (string)$ev['title']]);
 }
 
+if (preg_match('#^/events/(\\d+)/checkin/scans$#', $path, $m) && $method === 'GET') {
+  $eventId = (int)$m[1];
+  $pin = normalize_checkin_pin((string)($_GET['staffPin'] ?? ''));
+  $volunteerSessionId = normalize_volunteer_session_id((string)($_GET['volunteerSessionId'] ?? ''));
+  if ($pin === '') json_response(401, ['error' => 'checkin_unauthorized']);
+  if ($volunteerSessionId === '') json_response(400, ['error' => 'invalid_volunteer_session']);
+
+  $pdo = db();
+  if (!verify_event_checkin_pin($pdo, $eventId, $pin)) {
+    json_response(403, ['error' => 'invalid_staff_pin', 'message' => 'Incorrect PIN for this event.']);
+  }
+
+  $limit = min(200, max(1, (int)($_GET['limit'] ?? 100)));
+  $scans = fetch_volunteer_checkin_scans($pdo, $eventId, $volunteerSessionId, $limit);
+  json_response(200, ['scans' => $scans, 'total' => count($scans)]);
+}
+
 if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
@@ -3518,8 +3535,12 @@ if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
   if (!$a) json_response(404, ['error' => 'attendee_not_found', 'message' => 'Ticket not found. Check the QR code or token.']);
 
   $attendee = attendee_api_shape($a, $eventId);
+  $volunteerSessionId = normalize_volunteer_session_id((string)($body['volunteerSessionId'] ?? ''));
 
   if ($a['checked_in_at']) {
+    if ($volunteerSessionId !== '') {
+      log_volunteer_checkin_scan($pdo, $eventId, $volunteerSessionId, $attendee, 'already_checked_in');
+    }
     json_response(200, [
       'ok' => true,
       'alreadyCheckedIn' => true,
@@ -3534,6 +3555,9 @@ if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
   $upd->execute([$now, (int)$a['id']]);
   $a['checked_in_at'] = $now;
   $attendee = attendee_api_shape($a, $eventId);
+  if ($volunteerSessionId !== '') {
+    log_volunteer_checkin_scan($pdo, $eventId, $volunteerSessionId, $attendee, 'success');
+  }
   json_response(200, [
     'ok' => true,
     'alreadyCheckedIn' => false,

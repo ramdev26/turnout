@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel';
+import { VolunteerScanHistory } from '../components/organizer/VolunteerScanHistory';
+import { clearVolunteerSessionId, getOrCreateVolunteerSessionId } from '../lib/volunteerSession';
 import { Lock } from 'lucide-react';
 import { accentButtonStyleFor } from '../themes/flowUi';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
@@ -16,6 +18,8 @@ export const StaffCheckInScanner: React.FC = () => {
   const [eventTitle, setEventTitle] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [volunteerSessionId, setVolunteerSessionId] = useState<string | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const verifyPin = useCallback(async (pinValue: string, showErrors = true) => {
     if (!eventId) return false;
@@ -28,6 +32,8 @@ export const StaffCheckInScanner: React.FC = () => {
       setEventTitle(res.eventTitle);
       sessionStorage.setItem(STAFF_PIN_KEY(eventId), pinValue);
       setStoredPin(pinValue);
+      const sessionId = getOrCreateVolunteerSessionId(eventId);
+      setVolunteerSessionId(sessionId);
       return true;
     } catch (e: unknown) {
       const err = e as { message?: string; error?: string };
@@ -47,6 +53,7 @@ export const StaffCheckInScanner: React.FC = () => {
     const saved = sessionStorage.getItem(STAFF_PIN_KEY(eventId));
     if (saved) {
       setStoredPin(saved);
+      setVolunteerSessionId(getOrCreateVolunteerSessionId(eventId));
       void verifyPin(saved, false);
     }
   }, [eventId, verifyPin]);
@@ -57,9 +64,13 @@ export const StaffCheckInScanner: React.FC = () => {
   };
 
   const signOutStaff = () => {
-    if (eventId) sessionStorage.removeItem(STAFF_PIN_KEY(eventId));
+    if (eventId) {
+      sessionStorage.removeItem(STAFF_PIN_KEY(eventId));
+      clearVolunteerSessionId(eventId);
+    }
     setStoredPin(null);
     setEventTitle(null);
+    setVolunteerSessionId(null);
   };
 
   if (!eventId) {
@@ -139,8 +150,21 @@ export const StaffCheckInScanner: React.FC = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-lg px-4 py-4">
-        <CheckInScannerPanel eventId={eventId} staffPin={storedPin} />
+      <main className="mx-auto max-w-lg space-y-4 px-4 py-4">
+        <CheckInScannerPanel
+          eventId={eventId}
+          staffPin={storedPin}
+          volunteerSessionId={volunteerSessionId}
+          onCheckInSuccess={() => setHistoryRefreshKey((k) => k + 1)}
+        />
+        {volunteerSessionId && (
+          <VolunteerScanHistory
+            eventId={eventId}
+            staffPin={storedPin}
+            volunteerSessionId={volunteerSessionId}
+            refreshKey={historyRefreshKey}
+          />
+        )}
       </main>
     </div>
   );

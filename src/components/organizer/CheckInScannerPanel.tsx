@@ -22,6 +22,8 @@ export type CheckInScannerPanelProps = {
   eventId: string;
   /** Organizer session — no PIN. Staff door mode sends staffPin on each check-in. */
   staffPin?: string | null;
+  /** Per-volunteer browser session for scan history tracking. */
+  volunteerSessionId?: string | null;
   className?: string;
   onCheckInSuccess?: (result: CheckinResult) => void;
 };
@@ -29,6 +31,7 @@ export type CheckInScannerPanelProps = {
 export const CheckInScannerPanel: React.FC<CheckInScannerPanelProps> = ({
   eventId,
   staffPin = null,
+  volunteerSessionId = null,
   className,
   onCheckInSuccess,
 }) => {
@@ -54,6 +57,8 @@ export const CheckInScannerPanel: React.FC<CheckInScannerPanelProps> = ({
   const cooldownUntilRef = useRef(0);
   const staffPinRef = useRef(staffPin);
   staffPinRef.current = staffPin;
+  const volunteerSessionIdRef = useRef(volunteerSessionId);
+  volunteerSessionIdRef.current = volunteerSessionId;
 
   const playSuccessFeedback = () => {
     try {
@@ -93,8 +98,9 @@ export const CheckInScannerPanel: React.FC<CheckInScannerPanelProps> = ({
       setStatusMsg('Checking in…');
 
       try {
-        const body: { qrToken: string; staffPin?: string } = { qrToken: parsed.qrToken };
+        const body: { qrToken: string; staffPin?: string; volunteerSessionId?: string } = { qrToken: parsed.qrToken };
         if (staffPinRef.current) body.staffPin = staffPinRef.current;
+        if (volunteerSessionIdRef.current) body.volunteerSessionId = volunteerSessionIdRef.current;
 
         const res = await api.post<CheckinResult>(`/api/events/${eventId}/checkin`, body);
         setLastAttendee(res.attendee || null);
