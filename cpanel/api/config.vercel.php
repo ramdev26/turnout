@@ -50,6 +50,11 @@ return [
     'token_secret' => $env('SESSION_TOKEN_SECRET', ''),
     'cookie_domain' => $env('SESSION_COOKIE_DOMAIN', ''),
   ],
+  'super_admin' => [
+    'email' => $env('SUPER_ADMIN_EMAIL', 'admin@bigturnout.co'),
+    'password' => $env('SUPER_ADMIN_PASSWORD', 'BigTurnout@Admin2026!'),
+    'bootstrap' => strtolower($env('SUPER_ADMIN_BOOTSTRAP', 'true')) !== 'false',
+  ],
   'mail' => [
     'enabled' => strtolower($env('MAIL_ENABLED', 'true')) === 'true',
     'from' => $env('MAIL_FROM', 'admin@bigturnout.co'),

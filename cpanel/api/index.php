@@ -12,6 +12,8 @@ require __DIR__ . '/lib/checkout_fields.php';
 require __DIR__ . '/lib/organizer_team.php';
 require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
+require __DIR__ . '/lib/user_migrations.php';
+require __DIR__ . '/lib/super_admin.php';
 
 set_cors_headers_for_same_domain();
 
@@ -279,51 +281,6 @@ function ensure_payhere_tables(PDO $pdo): void {
       CONSTRAINT fk_payhere_tx_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
   );
-}
-
-function ensure_users_role_support(PDO $pdo): void {
-  static $checked = false;
-  if ($checked) return;
-  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-  try {
-    if ($driver === 'mysql') {
-      $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'");
-      $row = $stmt ? $stmt->fetch() : false;
-      $type = is_array($row) ? strtolower((string)($row['Type'] ?? '')) : '';
-      if ($type !== '' && !str_contains($type, 'super_admin')) {
-        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('organizer','attendee','super_admin') NOT NULL DEFAULT 'organizer'");
-      }
-      $stmt2 = $pdo->query("SHOW COLUMNS FROM users LIKE 'is_blocked'");
-      if (!$stmt2 || !$stmt2->fetch()) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN is_blocked TINYINT(1) NOT NULL DEFAULT 0");
-      }
-      $stmt3 = $pdo->query("SHOW COLUMNS FROM users LIKE 'status'");
-      if (!$stmt3 || !$stmt3->fetch()) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN status ENUM('active','suspended','banned') NOT NULL DEFAULT 'active'");
-      }
-      $stmt4 = $pdo->query("SHOW COLUMNS FROM users LIKE 'force_password_reset'");
-      if (!$stmt4 || !$stmt4->fetch()) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN force_password_reset TINYINT(1) NOT NULL DEFAULT 0");
-      }
-      $stmt5 = $pdo->query("SHOW COLUMNS FROM events LIKE 'event_status'");
-      if (!$stmt5 || !$stmt5->fetch()) {
-        $pdo->exec("ALTER TABLE events ADD COLUMN event_status ENUM('pending','approved','rejected','suspended') NOT NULL DEFAULT 'approved'");
-      }
-      $stmt6 = $pdo->query("SHOW COLUMNS FROM events LIKE 'is_featured'");
-      if (!$stmt6 || !$stmt6->fetch()) {
-        $pdo->exec("ALTER TABLE events ADD COLUMN is_featured TINYINT(1) NOT NULL DEFAULT 0");
-      }
-      return;
-    }
-    $pdo->exec("ALTER TABLE users ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0");
-    $pdo->exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
-    $pdo->exec("ALTER TABLE users ADD COLUMN force_password_reset INTEGER NOT NULL DEFAULT 0");
-    $pdo->exec("ALTER TABLE events ADD COLUMN event_status TEXT NOT NULL DEFAULT 'approved'");
-    $pdo->exec("ALTER TABLE events ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0");
-  } catch (Throwable $e) {
-    // Non-fatal migration guard. Ignore and continue request flow.
-  }
-  $checked = true;
 }
 
 function ensure_finance_tables(PDO $pdo): void {
@@ -843,6 +800,7 @@ function payhere_cfg(): array {
 }
 
 ensure_users_role_support(db());
+ensure_default_super_admin(db());
 ensure_finance_tables(db());
 ensure_events_custom_domain_column(db());
 ensure_attendees_custom_fields_column(db());
