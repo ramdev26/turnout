@@ -27,6 +27,8 @@ type AdminOrganizerRow = {
   bankAccountNumberLast4: string | null;
   paidEventReady: boolean;
   gatewayMode: string;
+  commissionMode?: 'percentage' | 'flat_per_ticket';
+  commissionValue?: number;
   eventsCount: number;
   grossRevenue: number;
   netEarnings: number;
@@ -39,6 +41,10 @@ type OrganizerDetail = {
   user: { id: string; email: string; displayName: string; status: string; createdAt: string };
   profile: OrganizerProfile;
   readiness: OrganizerPaidEventReadiness;
+  commission: {
+    mode: 'percentage' | 'flat_per_ticket';
+    value: number;
+  };
   balance: {
     grossRevenue: number;
     platformFees: number;
@@ -89,6 +95,9 @@ export const AdminOrganizers: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [commissionMode, setCommissionMode] = useState<'percentage' | 'flat_per_ticket'>('percentage');
+  const [commissionValue, setCommissionValue] = useState<string>('10');
+  const [savingCommission, setSavingCommission] = useState(false);
 
   const load = async () => {
     setError(null);
@@ -112,6 +121,8 @@ export const AdminOrganizers: React.FC = () => {
       const res = await api.get<OrganizerDetail>(`/api/admin/organizers/${organizerId}`);
       setDetail(res);
       setSelectedId(organizerId);
+      setCommissionMode(res.commission.mode);
+      setCommissionValue(String(res.commission.value ?? ''));
     } catch (e: unknown) {
       const err = e as { error?: string };
       setError(err?.error || 'Failed to load organizer details');
@@ -144,6 +155,36 @@ export const AdminOrganizers: React.FC = () => {
     } catch (e: unknown) {
       const err = e as { error?: string; message?: string };
       setError(err?.message || err?.error || 'Could not create payout');
+    }
+  };
+
+  const saveCommission = async (organizerId: string) => {
+    const value = Number(commissionValue);
+    if (!Number.isFinite(value) || value < 0) {
+      setError('Commission value must be a positive number.');
+      return;
+    }
+    setSavingCommission(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await api.post<{ commission: { mode: 'percentage' | 'flat_per_ticket'; value: number } }>(
+        `/api/admin/organizers/${organizerId}/commission`,
+        {
+          commissionMode,
+          commissionValue: value,
+        },
+      );
+      setCommissionMode(res.commission.mode);
+      setCommissionValue(String(res.commission.value));
+      setMessage('Commission updated.');
+      await load();
+      if (selectedId === organizerId) await loadDetail(organizerId);
+    } catch (e: unknown) {
+      const err = e as { error?: string; message?: string };
+      setError(err?.message || err?.error || 'Failed to update commission');
+    } finally {
+      setSavingCommission(false);
     }
   };
 
@@ -212,6 +253,14 @@ export const AdminOrganizers: React.FC = () => {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <StatusPill ok={o.paidEventReady} label={o.paidEventReady ? 'Paid ready' : 'Setup incomplete'} />
+                      <StatusPill
+                        ok
+                        label={
+                          o.commissionMode === 'flat_per_ticket'
+                            ? `Fee ${formatLKR(o.commissionValue ?? 0)} / ticket`
+                            : `${o.commissionValue ?? 10}% fee`
+                        }
+                      />
                       <StatusPill ok={o.bankAccountConfigured} label="Bank" />
                       <StatusPill ok={o.businessRegistrationDocUploaded} label="BR doc" />
                       <StatusPill ok={o.bankStatementDocUploaded} label="Statement" />
@@ -265,6 +314,48 @@ export const AdminOrganizers: React.FC = () => {
                       Pay {formatLKR(detail.balance.availableBalance)}
                     </FlowButton>
                   )}
+
+                  <div className="rounded-xl border p-3" style={cardMutedStyleFor(ui)}>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                      Organizer commission
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="text-xs" style={{ color: ui.textMuted }}>
+                        Type
+                        <select
+                          className="mt-1 w-full rounded-lg border bg-transparent px-2.5 py-2 text-sm"
+                          value={commissionMode}
+                          onChange={(e) => setCommissionMode(e.target.value as 'percentage' | 'flat_per_ticket')}
+                          style={{ borderColor: 'rgba(255,255,255,0.12)', color: ui.text }}
+                        >
+                          <option value="percentage">Percentage (%)</option>
+                          <option value="flat_per_ticket">Flat fee per ticket (LKR)</option>
+                        </select>
+                      </label>
+                      <label className="text-xs" style={{ color: ui.textMuted }}>
+                        Value
+                        <FlowInput
+                          className="mt-1"
+                          type="number"
+                          min={0}
+                          step={commissionMode === 'flat_per_ticket' ? '0.01' : '0.1'}
+                          value={commissionValue}
+                          onChange={(e) => setCommissionValue(e.target.value)}
+                          placeholder={commissionMode === 'flat_per_ticket' ? 'e.g. 50' : 'e.g. 10'}
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <p className="text-xs" style={{ color: ui.textMuted }}>
+                        Current: {detail.commission.mode === 'flat_per_ticket'
+                          ? `${formatLKR(detail.commission.value)} per ticket`
+                          : `${detail.commission.value}% of order total`}
+                      </p>
+                      <FlowButton onClick={() => void saveCommission(detail.user.id)} disabled={savingCommission}>
+                        {savingCommission ? 'Saving…' : 'Save commission'}
+                      </FlowButton>
+                    </div>
+                  </div>
 
                   <div>
                     <p className="mb-1 text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>

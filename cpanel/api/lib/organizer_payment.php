@@ -2,6 +2,7 @@
 
 const ORGANIZER_GATEWAY_MODES = ['turnout', 'own_payhere'];
 const ORGANIZER_BILLING_STATUSES = ['none', 'pending', 'active', 'failed'];
+const ORGANIZER_COMMISSION_MODES = ['percentage', 'flat_per_ticket'];
 
 function payment_encryption_key(): string {
   $cfg = get_config();
@@ -51,6 +52,8 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
         billing_card_brand TEXT NULL,
         billing_setup_status TEXT NOT NULL DEFAULT "none",
         billing_setup_at TEXT NULL,
+        commission_mode TEXT NOT NULL DEFAULT "percentage",
+        commission_value REAL NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -64,6 +67,8 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode TEXT NOT NULL DEFAULT "percentage"'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN commission_value REAL NULL'); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
     $checked = true;
     return;
@@ -81,6 +86,8 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
         billing_card_brand VARCHAR(32) NULL,
         billing_setup_status VARCHAR(16) NOT NULL DEFAULT \'none\',
         billing_setup_at TIMESTAMP NULL,
+        commission_mode VARCHAR(32) NOT NULL DEFAULT \'percentage\',
+        commission_value NUMERIC(12,2) NULL,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -94,6 +101,8 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode VARCHAR(32) NOT NULL DEFAULT 'percentage'"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_value NUMERIC(12,2) NULL"); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
     $checked = true;
     return;
@@ -110,6 +119,8 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
       billing_card_brand VARCHAR(32) NULL,
       billing_setup_status ENUM('none','pending','active','failed') NOT NULL DEFAULT 'none',
       billing_setup_at DATETIME NULL,
+      commission_mode ENUM('percentage','flat_per_ticket') NOT NULL DEFAULT 'percentage',
+      commission_value DECIMAL(12,2) NULL,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id),
       CONSTRAINT fk_org_payment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -129,6 +140,8 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
       CONSTRAINT fk_billing_session_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
   );
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode ENUM('percentage','flat_per_ticket') NOT NULL DEFAULT 'percentage'"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_value DECIMAL(12,2) NULL"); } catch (Throwable $e) {}
   $checked = true;
 }
 
@@ -156,6 +169,116 @@ function default_organizer_payment_settings_row(int $userId): array {
     'billing_card_brand' => null,
     'billing_setup_status' => 'none',
     'billing_setup_at' => null,
+    'commission_mode' => 'percentage',
+    'commission_value' => null,
+  ];
+}
+
+function normalize_organizer_commission_mode(string $mode): string {
+  $mode = strtolower(trim($mode));
+  return in_array($mode, ORGANIZER_COMMISSION_MODES, true) ? $mode : 'percentage';
+}
+
+function sanitize_organizer_commission_value(string $mode, mixed $value): ?float {
+  if ($value === null || $value === '') return null;
+  $numeric = (float)$value;
+  if ($mode === 'flat_per_ticket') {
+    if ($numeric < 0) $numeric = 0;
+    if ($numeric > 1000000) $numeric = 1000000;
+    return round($numeric, 2);
+  }
+  if ($numeric < 0) $numeric = 0;
+  if ($numeric > 100) $numeric = 100;
+  return round($numeric, 2);
+}
+
+function organizer_commission_config(PDO $pdo, int $userId, ?float $fallbackPct = null): array {
+  $row = organizer_payment_settings_row($pdo, $userId);
+  $mode = normalize_organizer_commission_mode((string)($row['commission_mode'] ?? 'percentage'));
+  $value = sanitize_organizer_commission_value($mode, $row['commission_value'] ?? null);
+  if ($value === null) {
+    $value = $fallbackPct ?? get_platform_commission_pct($pdo);
+    $mode = 'percentage';
+  }
+  return [
+    'mode' => $mode,
+    'value' => $value,
+  ];
+}
+
+function set_organizer_commission_config(PDO $pdo, int $userId, string $mode, mixed $value): array {
+  ensure_organizer_payment_tables($pdo);
+  $mode = normalize_organizer_commission_mode($mode);
+  $numeric = sanitize_organizer_commission_value($mode, $value);
+  if ($numeric === null) {
+    json_response(400, ['error' => 'invalid_commission_value', 'message' => 'Commission value is required.']);
+  }
+
+  $existing = organizer_payment_settings_row($pdo, $userId);
+  $gatewayMode = normalize_organizer_gateway_mode((string)($existing['gateway_mode'] ?? 'turnout'));
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+  if ($driver === 'sqlite') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, commission_mode, commission_value, updated_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         commission_mode = excluded.commission_mode,
+         commission_value = excluded.commission_value,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$userId, $gatewayMode, $mode, $numeric]);
+  } elseif ($driver === 'pgsql') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, commission_mode, commission_value, updated_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         commission_mode = EXCLUDED.commission_mode,
+         commission_value = EXCLUDED.commission_value,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$userId, $gatewayMode, $mode, $numeric]);
+  } else {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, commission_mode, commission_value)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         commission_mode = VALUES(commission_mode),
+         commission_value = VALUES(commission_value)'
+    );
+    $stmt->execute([$userId, $gatewayMode, $mode, $numeric]);
+  }
+
+  return organizer_commission_config($pdo, $userId);
+}
+
+function organizer_platform_fee_breakdown(
+  PDO $pdo,
+  int $organizerUserId,
+  int $amountCents,
+  int $ticketCount,
+  float $fallbackPct
+): array {
+  $cfg = organizer_commission_config($pdo, $organizerUserId, $fallbackPct);
+  $mode = $cfg['mode'];
+  $value = (float)$cfg['value'];
+  $ticketCount = max(1, $ticketCount);
+
+  if ($mode === 'flat_per_ticket') {
+    $platformFeeCents = (int)round(($value * 100) * $ticketCount);
+  } else {
+    $platformFeeCents = (int)round(($amountCents * $value) / 100);
+  }
+
+  if ($platformFeeCents < 0) $platformFeeCents = 0;
+  if ($platformFeeCents > $amountCents) $platformFeeCents = $amountCents;
+  $organizerAmountCents = $amountCents - $platformFeeCents;
+
+  return [
+    'commissionMode' => $mode,
+    'commissionValue' => $value,
+    'platformFeeCents' => $platformFeeCents,
+    'organizerAmountCents' => $organizerAmountCents,
   ];
 }
 
@@ -186,6 +309,7 @@ function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
   $row = organizer_payment_settings_row($pdo, $userId);
   $mode = normalize_organizer_gateway_mode((string)($row['gateway_mode'] ?? 'turnout'));
   $commissionPct = get_platform_commission_pct($pdo);
+  $commissionCfg = organizer_commission_config($pdo, $userId, $commissionPct);
   $billingStatus = (string)($row['billing_setup_status'] ?? 'none');
   if (!in_array($billingStatus, ORGANIZER_BILLING_STATUSES, true)) {
     $billingStatus = 'none';
@@ -202,6 +326,10 @@ function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
       'setupAt' => $row['billing_setup_at'] ?? null,
     ],
     'commissionPct' => $commissionPct,
+    'commission' => [
+      'mode' => $commissionCfg['mode'],
+      'value' => $commissionCfg['value'],
+    ],
     'isReady' => organizer_payment_is_ready($row),
     'requirements' => [
       'needsBillingCard' => $mode === 'own_payhere' && !organizer_billing_is_active($row),

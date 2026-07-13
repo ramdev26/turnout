@@ -610,9 +610,34 @@ function payhere_request_base_url(): string {
 
 function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, int $amountCents, string $status, ?string $reference): array {
   $commissionPct = get_platform_commission_pct($pdo);
-  $platformFeeCents = (int)round(($amountCents * $commissionPct) / 100);
-  if ($platformFeeCents > $amountCents) $platformFeeCents = $amountCents;
-  $organizerAmountCents = $amountCents - $platformFeeCents;
+
+  $orgStmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $orgStmt->execute([$eventId]);
+  $orgRow = $orgStmt->fetch();
+  $organizerUserId = (int)($orgRow['organizer_user_id'] ?? 0);
+  if ($organizerUserId <= 0) {
+    json_response(400, ['error' => 'organizer_not_found']);
+  }
+
+  $ticketCount = 1;
+  $orderStmt = $pdo->prepare('SELECT tickets_json FROM orders WHERE id = ? LIMIT 1');
+  $orderStmt->execute([$orderId]);
+  $orderRow = $orderStmt->fetch();
+  if (is_array($orderRow)) {
+    $items = json_decode((string)($orderRow['tickets_json'] ?? '[]'), true);
+    if (is_array($items)) {
+      $count = 0;
+      foreach ($items as $it) {
+        if (!is_array($it)) continue;
+        $count += max(0, (int)($it['quantity'] ?? 0));
+      }
+      $ticketCount = max(1, $count);
+    }
+  }
+
+  $commission = organizer_platform_fee_breakdown($pdo, $organizerUserId, $amountCents, $ticketCount, $commissionPct);
+  $platformFeeCents = (int)$commission['platformFeeCents'];
+  $organizerAmountCents = (int)$commission['organizerAmountCents'];
 
   $existingStmt = $pdo->prepare('SELECT id FROM transactions WHERE order_id = ? LIMIT 1');
   $existingStmt->execute([$orderId]);
@@ -627,6 +652,8 @@ function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, 
 
   return [
     'commissionPct' => $commissionPct,
+    'commissionMode' => (string)($commission['commissionMode'] ?? 'percentage'),
+    'commissionValue' => (float)($commission['commissionValue'] ?? $commissionPct),
     'platformFeeCents' => $platformFeeCents,
     'organizerAmountCents' => $organizerAmountCents,
   ];
@@ -3982,6 +4009,7 @@ if ($path === '/admin/organizers' && $method === 'GET') {
     $oid = (int)$u['id'];
     $profile = organizer_profile_api_shape($pdo, $oid);
     $readiness = organizer_paid_event_readiness_api_shape($pdo, $oid);
+    $commission = organizer_commission_config($pdo, $oid);
     $balStmt = $pdo->prepare(
       "SELECT
         COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
@@ -4015,6 +4043,8 @@ if ($path === '/admin/organizers' && $method === 'GET') {
       'bankAccountNumberLast4' => $profile['bankAccountNumberLast4'],
       'paidEventReady' => (bool)($readiness['isReady'] ?? false),
       'gatewayMode' => (string)($readiness['gatewayMode'] ?? 'turnout'),
+      'commissionMode' => (string)($commission['mode'] ?? 'percentage'),
+      'commissionValue' => (float)($commission['value'] ?? get_platform_commission_pct($pdo)),
       'eventsCount' => (int)($b['events_count'] ?? 0),
       'grossRevenue' => ((int)$b['gross_cents']) / 100,
       'netEarnings' => $net / 100,
@@ -4090,6 +4120,7 @@ if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') 
     ],
     'profile' => organizer_profile_api_shape($pdo, $organizerId),
     'readiness' => organizer_paid_event_readiness_api_shape($pdo, $organizerId),
+    'commission' => organizer_commission_config($pdo, $organizerId),
     'balance' => [
       'grossRevenue' => ((int)$b['gross_cents']) / 100,
       'platformFees' => ((int)$b['fees_cents']) / 100,
@@ -4100,6 +4131,27 @@ if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') 
     'events' => $events,
     'payouts' => $payouts,
   ]);
+}
+
+if (preg_match('#^/admin/organizers/(\d+)/commission$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $organizerId = (int)$m[1];
+  $pdo = db();
+  $exists = $pdo->prepare('SELECT id FROM users WHERE id = ? AND role = ? LIMIT 1');
+  $exists->execute([$organizerId, 'organizer']);
+  if (!$exists->fetch()) json_response(404, ['error' => 'organizer_not_found']);
+
+  $body = read_json_body();
+  $mode = (string)($body['commissionMode'] ?? 'percentage');
+  $value = $body['commissionValue'] ?? null;
+  $commission = set_organizer_commission_config($pdo, $organizerId, $mode, $value);
+
+  write_log($pdo, $adminId, 'super_admin', 'admin.organizer.commission_updated', 'user', (string)$organizerId, [
+    'commissionMode' => $commission['mode'],
+    'commissionValue' => $commission['value'],
+  ]);
+
+  json_response(200, ['commission' => $commission]);
 }
 
 if ($path === '/admin/organizers/balances' && $method === 'GET') {
