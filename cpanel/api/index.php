@@ -2219,6 +2219,15 @@ if ($path === '/domain/config' && $method === 'GET') {
   ]);
 }
 
+// Public runtime config for the SPA (keys safe to expose in browser)
+if ($path === '/public/config' && $method === 'GET') {
+  $mapsKey = trim((string)(getenv('GOOGLE_MAPS_API_KEY') ?: getenv('VITE_GOOGLE_MAPS_API_KEY') ?: ''));
+  json_response(200, [
+    'googleMapsApiKey' => $mapsKey,
+    'googleMapsConfigured' => $mapsKey !== '',
+  ]);
+}
+
 // Resolve custom hostname → event slug (edge middleware + diagnostics)
 if (preg_match('#^/events/by-host/(.+)$#', $path, $m) && $method === 'GET') {
   $host = normalize_event_hostname(urldecode($m[1]));

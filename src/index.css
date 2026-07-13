@@ -89,8 +89,36 @@ select {
   z-index: 10050 !important;
   border-radius: 12px;
   margin-top: 4px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border);
+  background: rgba(5, 46, 48, 0.98);
+  color: var(--text);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   font-family: inherit;
+}
+
+.pac-item {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(192, 255, 114, 0.1);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+  background: rgba(192, 255, 114, 0.12);
+}
+
+.pac-item-query {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.pac-matched {
+  color: var(--primary);
+}
+
+.pac-icon {
+  filter: brightness(1.4);
 }
 
 /*
