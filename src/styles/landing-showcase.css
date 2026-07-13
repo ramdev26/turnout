@@ -119,7 +119,7 @@
   max-width: 56rem;
   margin-inline: auto;
   text-align: center;
-  padding-top: 2rem;
+  padding-top: 1.5rem;
 }
 
 .landing-showcase-hero-badge {
@@ -489,6 +489,10 @@
 .event-settings-mobile-preview .landing-showcase-footer-inner {
   flex-direction: column !important;
   text-align: center !important;
+}
+
+.event-settings-mobile-preview .landing-top-banner-img {
+  max-height: min(42vh, 320px);
 }
 
 .event-settings-mobile-preview .landing-showcase-hero {

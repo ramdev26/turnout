@@ -54,6 +54,22 @@
   line-height: 0;
 }
 
+/* Full-width banner strip — first element on event landing pages */
+.landing-top-banner {
+  width: 100%;
+  line-height: 0;
+  background: var(--landing-page-bg);
+}
+
+.landing-top-banner-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(75vh, 800px);
+  object-fit: contain;
+  object-position: top center;
+}
+
 /* Editorial hero — larger poster on desktop without stretching aspect ratio */
 .landing-poster-frame--hero {
   width: fit-content;

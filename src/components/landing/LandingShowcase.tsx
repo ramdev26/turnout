@@ -16,6 +16,7 @@ import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
   LandingPageShell,
+  LandingTopBanner,
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
@@ -156,7 +157,6 @@ function ShowcaseHero({ event }: { event: Event }) {
   const dateStr = event.customization?.scheduleTba
     ? 'Date to be announced'
     : format(new Date(event.date), 'EEEE, MMMM d · h:mm a');
-  const hasBanner = !!event.bannerUrl?.trim();
 
   return (
     <section className="landing-showcase-hero px-4 sm:px-6">
@@ -181,17 +181,6 @@ function ShowcaseHero({ event }: { event: Event }) {
           <p className="value">{event.location || 'Venue to be announced'}</p>
         </div>
       </div>
-
-      {hasBanner ? (
-        <div className="landing-showcase-poster landing-poster-frame landing-poster-frame--hero mx-auto w-fit max-w-full">
-          <img
-            src={event.bannerUrl}
-            alt=""
-            className="landing-poster-img block rounded-lg"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -639,6 +628,7 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
 
   return (
     <LandingPageShell event={event} showcase>
+      <LandingTopBanner event={event} />
       <ShowcaseHeader event={event} onTickets={scrollTickets} />
       <ShowcaseHero event={event} />
 

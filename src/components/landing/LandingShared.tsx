@@ -77,6 +77,21 @@ export const landingShellStyle = (): React.CSSProperties => ({
   color: 'var(--landing-text)',
 });
 
+/** Full-width event banner at the very top of the landing page (before nav/header). */
+export function LandingTopBanner({ event, className = '' }: { event: Event; className?: string }) {
+  if (!event.bannerUrl?.trim()) return null;
+  return (
+    <div className={`landing-top-banner ${className}`.trim()}>
+      <img
+        src={event.bannerUrl}
+        alt=""
+        className="landing-top-banner-img"
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  );
+}
+
 export function LandingPageShell({
   event,
   children,
