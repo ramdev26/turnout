@@ -3846,7 +3846,10 @@ if ($path === '/admin/events' && $method === 'GET') {
   $pdo = db();
   $status = trim((string)($_GET['status'] ?? ''));
   $q = trim((string)($_GET['q'] ?? ''));
-  $sql = 'SELECT e.id, e.slug, e.title, e.status, e.event_status, e.is_featured, e.created_at, u.display_name AS organizer_name FROM events e JOIN users u ON u.id = e.organizer_user_id WHERE 1=1';
+  $sql = 'SELECT e.id, e.slug, e.title, e.status, e.event_status, e.is_featured, e.created_at, u.display_name AS organizer_name,
+    (SELECT COUNT(*) FROM attendees a WHERE a.event_id = e.id) AS attendee_total,
+    (SELECT COUNT(*) FROM attendees a WHERE a.event_id = e.id AND a.checked_in_at IS NOT NULL) AS attendee_checked_in
+    FROM events e JOIN users u ON u.id = e.organizer_user_id WHERE 1=1';
   $params = [];
   if (in_array($status, ['pending', 'approved', 'rejected', 'suspended'], true)) {
     $sql .= ' AND e.event_status = ?';
@@ -3863,6 +3866,8 @@ if ($path === '/admin/events' && $method === 'GET') {
   $stmt->execute($params);
   $events = [];
   while ($e = $stmt->fetch()) {
+    $attendeeTotal = (int)($e['attendee_total'] ?? 0);
+    $attendeeCheckedIn = (int)($e['attendee_checked_in'] ?? 0);
     $events[] = [
       'id' => (string)$e['id'],
       'slug' => $e['slug'],
@@ -3872,6 +3877,11 @@ if ($path === '/admin/events' && $method === 'GET') {
       'isFeatured' => boolish($e['is_featured'] ?? 0),
       'organizerName' => $e['organizer_name'],
       'createdAt' => gmdate('c', strtotime($e['created_at'])),
+      'attendeeStats' => [
+        'total' => $attendeeTotal,
+        'checkedIn' => $attendeeCheckedIn,
+        'pending' => max(0, $attendeeTotal - $attendeeCheckedIn),
+      ],
     ];
   }
   json_response(200, ['events' => $events]);
@@ -3914,6 +3924,120 @@ if (preg_match('#^/admin/events/(\\d+)/moderate$#', $path, $m) && $method === 'P
   $upd->execute($params);
   write_log(db(), $adminId, 'super_admin', 'admin.event.moderated', 'event', (string)$eventId, ['eventStatus' => $eventStatus, 'isFeatured' => $isFeatured === 1]);
   json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/admin/events/(\\d+)$#', $path, $m) && $method === 'GET') {
+  require_super_admin_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  $stmt = $pdo->prepare(
+    'SELECT e.*, u.display_name AS organizer_name, u.email AS organizer_email
+     FROM events e
+     JOIN users u ON u.id = e.organizer_user_id
+     WHERE e.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$eventId]);
+  $e = $stmt->fetch();
+  if (!$e) json_response(404, ['error' => 'event_not_found']);
+
+  $orderStmt = $pdo->prepare(
+    "SELECT
+       COUNT(*) AS orders_count,
+       COALESCE(SUM(total_amount_cents), 0) AS revenue_cents
+     FROM orders
+     WHERE event_id = ? AND status = 'paid'"
+  );
+  $orderStmt->execute([$eventId]);
+  $orders = $orderStmt->fetch() ?: ['orders_count' => 0, 'revenue_cents' => 0];
+
+  $ticketStmt = $pdo->prepare(
+    'SELECT t.id, t.name, t.price_cents, t.quantity,
+       (SELECT COUNT(*) FROM attendees a WHERE a.ticket_id = t.id) AS sold
+     FROM tickets t
+     WHERE t.event_id = ?
+     ORDER BY t.id ASC'
+  );
+  $ticketStmt->execute([$eventId]);
+  $tickets = [];
+  while ($t = $ticketStmt->fetch()) {
+    $tickets[] = [
+      'id' => (string)$t['id'],
+      'name' => (string)$t['name'],
+      'price' => ((int)$t['price_cents']) / 100,
+      'quantity' => $t['quantity'] !== null ? (int)$t['quantity'] : null,
+      'sold' => (int)$t['sold'],
+    ];
+  }
+
+  json_response(200, [
+    'event' => [
+      'id' => (string)$e['id'],
+      'slug' => (string)$e['slug'],
+      'title' => (string)$e['title'],
+      'status' => (string)$e['status'],
+      'eventStatus' => (string)($e['event_status'] ?? 'approved'),
+      'isFeatured' => boolish($e['is_featured'] ?? 0),
+      'date' => !empty($e['date']) ? gmdate('c', strtotime($e['date'])) : null,
+      'location' => $e['location'] ?? null,
+      'createdAt' => gmdate('c', strtotime($e['created_at'])),
+      'organizerName' => (string)$e['organizer_name'],
+      'organizerEmail' => (string)$e['organizer_email'],
+    ],
+    'attendeeStats' => fetch_attendee_stats($pdo, $eventId),
+    'orders' => [
+      'paidCount' => (int)$orders['orders_count'],
+      'revenue' => ((int)$orders['revenue_cents']) / 100,
+    ],
+    'tickets' => $tickets,
+  ]);
+}
+
+if (preg_match('#^/admin/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') {
+  require_super_admin_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  $exists = $pdo->prepare('SELECT id FROM events WHERE id = ? LIMIT 1');
+  $exists->execute([$eventId]);
+  if (!$exists->fetch()) json_response(404, ['error' => 'event_not_found']);
+
+  $q = trim((string)($_GET['q'] ?? ''));
+  $status = trim((string)($_GET['status'] ?? 'all'));
+  $limit = (int)($_GET['limit'] ?? 500);
+  if ($limit < 1) $limit = 1;
+  if ($limit > 2000) $limit = 2000;
+
+  $where = 'a.event_id = ?';
+  $params = [$eventId];
+  if ($status === 'checked_in') {
+    $where .= ' AND a.checked_in_at IS NOT NULL';
+  } elseif ($status === 'pending') {
+    $where .= ' AND a.checked_in_at IS NULL';
+  }
+  if ($q !== '') {
+    $like = '%' . $q . '%';
+    $where .= ' AND (a.full_name LIKE ? OR a.email LIKE ? OR a.qr_token LIKE ? OR t.name LIKE ?)';
+    array_push($params, $like, $like, $like, $like);
+  }
+
+  $sql =
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, a.custom_fields_json, t.name AS ticket_name
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE ' . $where . '
+     ORDER BY a.checked_in_at IS NULL DESC, a.created_at DESC
+     LIMIT ?';
+  $params[] = $limit;
+
+  $stmt2 = $pdo->prepare($sql);
+  $stmt2->execute($params);
+
+  $attendees = [];
+  while ($a = $stmt2->fetch()) {
+    $attendees[] = attendee_api_shape($a, $eventId);
+  }
+
+  json_response(200, ['attendees' => $attendees, 'stats' => fetch_attendee_stats($pdo, $eventId)]);
 }
 
 if ($path === '/admin/transactions' && $method === 'GET') {
