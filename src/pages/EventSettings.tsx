@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Copy,
   ExternalLink,
+  Eye,
   MapPin,
   Plus,
   Ticket as TicketIcon,
@@ -23,7 +24,9 @@ import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
+import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
+import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { resolveLandingFontKey } from '../themes/landingFonts';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
@@ -159,6 +162,7 @@ export const EventSettings: React.FC = () => {
     advanced: false,
   });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
+  const [showLivePreview, setShowLivePreview] = useState(false);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -268,6 +272,59 @@ export const EventSettings: React.FC = () => {
     if (event?.status === 'published') score += 20;
     return score;
   }, [date, event?.status, location, scheduleTba, slug, tickets.length]);
+
+  const previewEvent = useMemo((): Event | null => {
+    if (!event) return null;
+    const baseCustomization = landingCustomizationFromDesign(design, themeId);
+    return {
+      ...event,
+      title: title.trim() || 'Your event title',
+      description:
+        description.trim() || event.description || 'Join us for an unforgettable live experience. Reserve your passes online.',
+      location: location.trim() || 'Venue to be announced',
+      date: !scheduleTba && date ? new Date(date).toISOString() : event.date,
+      bannerUrl: bannerUrl ? normalizeBannerUrl(bannerUrl) : event.bannerUrl,
+      slug: slug || event.slug,
+      templateId: event.templateId || 'template-2',
+      status: 'published',
+      customization: {
+        ...event.customization,
+        ...baseCustomization,
+        scheduleTba,
+        heroSubtext: shortDescription.trim(),
+        heroText: title.trim() || event.title,
+        layout: event.customization?.layout || 'standard',
+      },
+    };
+  }, [
+    bannerUrl,
+    date,
+    description,
+    design,
+    event,
+    location,
+    scheduleTba,
+    shortDescription,
+    slug,
+    themeId,
+    title,
+  ]);
+
+  const previewTickets = useMemo((): EventTicket[] => {
+    if (tickets.length > 0) return tickets;
+    if (!eventId) return [];
+    return [
+      {
+        id: 'preview-tier',
+        eventId,
+        name: 'General Admission',
+        price: 2500,
+        quantity: 100,
+        sold: 0,
+        description: 'Add ticket tiers in settings to preview real pricing.',
+      },
+    ];
+  }, [eventId, tickets]);
 
   const uploadBannerFile = async (file: File) => {
     setIsUploadingBanner(true);
@@ -497,6 +554,18 @@ export const EventSettings: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={() => setShowLivePreview((v) => !v)}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition',
+                showLivePreview && 'turnout-btn-accent'
+              )}
+              style={showLivePreview ? accentButtonStyleFor(ui) : { ...cardStyle, color: ui.text }}
+            >
+              <Eye className="h-4 w-4" />
+              {showLivePreview ? 'Hide preview' : 'Live preview'}
+            </button>
+            <button
+              type="button"
               onClick={saveBranding}
               disabled={savingBranding}
               className="turnout-btn-accent rounded-xl px-4 py-2 text-sm font-semibold transition hover:brightness-105 disabled:opacity-40"
@@ -526,7 +595,14 @@ export const EventSettings: React.FC = () => {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-44 sm:px-8 lg:grid-cols-[360px_1fr] lg:gap-10 lg:py-8 lg:pb-44">
+        <div
+          className={cn(
+            'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-44 sm:px-8 lg:gap-10 lg:py-8 lg:pb-44',
+            showLivePreview
+              ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(320px,400px)]'
+              : 'lg:grid-cols-[360px_1fr]'
+          )}
+        >
           {/* Left */}
           <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
             <BannerUploadSquare
@@ -548,7 +624,7 @@ export const EventSettings: React.FC = () => {
             </div>
 
             <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
-              Customize design below — changes apply live. Tap Save changes when you are done.
+              Customize design below — changes apply live in preview. Tap Save changes when you are done.
             </p>
 
             <div className="rounded-2xl border p-4" style={cardMutedStyle}>
@@ -1015,6 +1091,25 @@ export const EventSettings: React.FC = () => {
               </div>
             </SettingsCollapsibleSection>
           </div>
+
+          {showLivePreview && previewEvent && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+                aria-hidden
+                onClick={() => setShowLivePreview(false)}
+              />
+              <aside className="fixed inset-0 z-50 flex flex-col p-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:static lg:z-auto lg:col-start-3 lg:row-start-1 lg:min-h-[calc(100vh-8rem)] lg:p-0 lg:pt-0">
+                <EventLandingLivePreview
+                  event={previewEvent}
+                  tickets={previewTickets}
+                  publicUrl={publicUrl || undefined}
+                  onClose={() => setShowLivePreview(false)}
+                  className="h-full min-h-0 shadow-2xl lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]"
+                />
+              </aside>
+            </>
+          )}
         </div>
       </div>
 
