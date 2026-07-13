@@ -160,7 +160,9 @@ function ShowcaseHero({ event }: { event: Event }) {
 
   return (
     <section className="landing-showcase-hero px-4 sm:px-6">
-      <span className="landing-showcase-hero-badge">
+      <LandingTopBanner event={event} className="landing-showcase-hero-banner" />
+
+      <span className="landing-showcase-hero-badge mt-6">
         <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--showcase-accent)' }} />
         {event.status === 'published' ? 'Now booking passes online' : event.status}
       </span>
@@ -628,7 +630,6 @@ export function LandingShowcasePage(props: LandingTemplateProps) {
 
   return (
     <LandingPageShell event={event} showcase>
-      <LandingTopBanner event={event} />
       <ShowcaseHeader event={event} onTickets={scrollTickets} />
       <ShowcaseHero event={event} />
 

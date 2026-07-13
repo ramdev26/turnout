@@ -134,6 +134,9 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     if (b.type === 'hero') {
       return (
         <div className="text-center sm:text-left">
+          <div className="landing-poster-frame landing-poster-frame--hero mx-auto mb-8">
+            <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
+          </div>
           <PremiumBadge>{b.props?.eyebrow || 'Featured event'}</PremiumBadge>
           <HeroTitle className="mt-6">{b.props?.title || event.title}</HeroTitle>
           {landingHeroSubtitle(event, b.props?.subtitle) ? <HeroSubtitle>{landingHeroSubtitle(event, b.props?.subtitle)}</HeroSubtitle> : null}
@@ -213,7 +216,6 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
 
   return (
     <LandingPageShell event={event}>
-      <LandingTopBanner event={event} />
       <LandingTopBar event={event} onGetTickets={props.onCheckout} />
       <LandingContentGrid
         main={<div className="space-y-12">{design.blocks.map((b) => <div key={b.id}>{renderBlock(b)}</div>)}</div>}
@@ -243,6 +245,7 @@ const Template1: LandingTemplate = {
   previewSeed: 'cinematic-hero',
   render: (props) => (
     <LandingPageShell event={props.event}>
+      <LandingTopBar event={props.event} />
       <div className="relative z-10">
         <div className="relative">
           <EventBanner event={props.event} overlay="cinematic" fullWidth />
@@ -256,7 +259,6 @@ const Template1: LandingTemplate = {
             <HeroCTA onGetTickets={props.onCheckout} light />
           </div>
         </div>
-        <LandingTopBar event={props.event} />
         <LandingContentGrid
           main={
             <div className="space-y-14">
@@ -287,8 +289,8 @@ const Template3: LandingTemplate = {
   previewSeed: 'split-gradient',
   render: (props) => (
     <LandingPageShell event={props.event}>
-      <LandingTopBanner event={props.event} />
       <LandingTopBar event={props.event} />
+      <LandingTopBanner event={props.event} />
       <div className="relative z-10 lg:grid lg:min-h-[calc(100vh-5rem)] lg:grid-cols-2">
         <div className="flex flex-col justify-center px-6 py-14 lg:px-14 lg:py-20">
           <PremiumBadge>{themeDisplayName(props.event)}</PremiumBadge>
@@ -319,6 +321,7 @@ const Template4: LandingTemplate = {
   previewSeed: 'dark-poster',
   render: (props) => (
     <LandingPageShell event={props.event}>
+      <LandingTopBar event={props.event} />
       <div className="relative z-10">
         <div className="relative">
           <EventBanner event={props.event} maxHeightClass="max-h-[min(65vh,560px)]" overlay="cinematic" fullWidth />
@@ -332,7 +335,6 @@ const Template4: LandingTemplate = {
             <HeroCTA onGetTickets={props.onCheckout} light />
           </div>
         </div>
-        <LandingTopBar event={props.event} />
         <LandingContentGrid
           main={
             <div className="space-y-14">

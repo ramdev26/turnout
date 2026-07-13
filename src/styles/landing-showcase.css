@@ -119,7 +119,15 @@
   max-width: 56rem;
   margin-inline: auto;
   text-align: center;
-  padding-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.landing-showcase-hero-banner {
+  margin-bottom: 0.25rem;
+}
+
+.landing-showcase-hero-banner .landing-top-banner-img {
+  border-radius: 0.75rem;
 }
 
 .landing-showcase-hero-badge {
