@@ -9,11 +9,10 @@ import {
   ExternalLink,
   Loader2,
   Percent,
-  Search,
   Ticket,
-  X,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
+import { AdminSearchBar } from '../components/admin/AdminSearchBar';
 import { AdminShell } from '../components/admin/AdminShell';
 import { FlowAlert, FlowButton, FlowCard, FlowInput, FlowLabel, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
@@ -284,27 +283,6 @@ export const AdminOrganizers: React.FC = () => {
       {error ? <FlowAlert variant="error">{error}</FlowAlert> : null}
       {message ? <FlowAlert variant="success">{message}</FlowAlert> : null}
 
-      <div className="relative mb-4 max-w-xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: ui.textMuted }} />
-        <FlowInput
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search name, email, or organization…"
-          className="pl-10 pr-10"
-          aria-label="Search organizers"
-        />
-        {q ? (
-          <button
-            type="button"
-            onClick={() => setQ('')}
-            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition hover:bg-white/10"
-            aria-label="Clear search"
-          >
-            <X className="h-4 w-4" style={{ color: ui.textMuted }} />
-          </button>
-        ) : null}
-      </div>
-
       {initialLoading ? (
         <FlowCard>
           <p className="text-sm" style={{ color: ui.textMuted }}>
@@ -313,7 +291,16 @@ export const AdminOrganizers: React.FC = () => {
         </FlowCard>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(400px,480px)]">
-          <FlowCard className="p-0">
+          <FlowCard className="overflow-hidden p-0">
+            <div className="border-b p-4 sm:p-5" style={{ borderColor: ui.borderColor, background: ui.cardBg }}>
+              <AdminSearchBar
+                value={q}
+                onChange={setQ}
+                placeholder="Search name, email, or organization…"
+                refreshing={refreshing}
+                aria-label="Search organizers"
+              />
+            </div>
             <div className="border-b px-5 py-4" style={{ borderColor: ui.borderColor }}>
               <p className="text-sm font-semibold" style={{ color: ui.text }}>
                 {rows.length} organizer{rows.length === 1 ? '' : 's'}
