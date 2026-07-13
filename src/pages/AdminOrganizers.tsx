@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertCircle,
@@ -7,9 +7,11 @@ import {
   CheckCircle2,
   Circle,
   ExternalLink,
+  Loader2,
   Percent,
   Search,
   Ticket,
+  X,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
 import { AdminShell } from '../components/admin/AdminShell';
@@ -152,30 +154,41 @@ export const AdminOrganizers: React.FC = () => {
   const fieldStyle = fieldStyleFor(ui);
   const [rows, setRows] = useState<AdminOrganizerRow[]>([]);
   const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrganizerDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [commissionMode, setCommissionMode] = useState<'percentage' | 'flat_per_ticket'>('percentage');
   const [commissionValue, setCommissionValue] = useState<string>('10');
   const [savingCommission, setSavingCommission] = useState(false);
 
-  const load = async () => {
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (q.trim()) params.set('q', q.trim());
-      const res = await api.get<{ organizers: AdminOrganizerRow[] }>(`/api/admin/organizers?${params.toString()}`);
-      setRows(res.organizers);
-    } catch (e: unknown) {
-      const err = e as { error?: string };
-      setError(err?.error || 'Failed to load organizers');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = useCallback(
+    async (opts?: { background?: boolean }) => {
+      const background = opts?.background ?? false;
+      if (background) setRefreshing(true);
+      else if (!hasLoadedOnceRef.current) setInitialLoading(true);
+      if (!background) setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (debouncedQ.trim()) params.set('q', debouncedQ.trim());
+        const res = await api.get<{ organizers: AdminOrganizerRow[] }>(`/api/admin/organizers?${params.toString()}`);
+        setRows(res.organizers);
+        hasLoadedOnceRef.current = true;
+      } catch (e: unknown) {
+        const err = e as { error?: string };
+        setError(err?.error || 'Failed to load organizers');
+      } finally {
+        setInitialLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [debouncedQ],
+  );
 
   const loadDetail = async (organizerId: string) => {
     setDetailLoading(true);
@@ -195,8 +208,13 @@ export const AdminOrganizers: React.FC = () => {
   };
 
   useEffect(() => {
-    void load();
-  }, []);
+    const timer = window.setTimeout(() => setDebouncedQ(q), 300);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    void load({ background: hasLoadedOnceRef.current });
+  }, [load]);
 
   useEffect(() => {
     if (!message) return;
@@ -220,7 +238,7 @@ export const AdminOrganizers: React.FC = () => {
         notes: 'Created from BasAdmin organizers panel',
       });
       setMessage('Payout created successfully.');
-      await load();
+      await load({ background: true });
       if (selectedId === organizerId) await loadDetail(organizerId);
     } catch (e: unknown) {
       const err = e as { error?: string; message?: string };
@@ -248,7 +266,7 @@ export const AdminOrganizers: React.FC = () => {
       setCommissionMode(res.commission.mode);
       setCommissionValue(String(res.commission.value));
       setMessage('Commission saved.');
-      await load();
+      await load({ background: true });
       if (selectedId === organizerId) await loadDetail(organizerId);
     } catch (e: unknown) {
       const err = e as { error?: string; message?: string };
@@ -266,23 +284,28 @@ export const AdminOrganizers: React.FC = () => {
       {error ? <FlowAlert variant="error">{error}</FlowAlert> : null}
       {message ? <FlowAlert variant="success">{message}</FlowAlert> : null}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: ui.textMuted }} />
-          <FlowInput
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void load();
-            }}
-            placeholder="Search name, email, or organization…"
-            className="pl-10"
-          />
-        </div>
-        <FlowButton onClick={() => void load()}>Search</FlowButton>
+      <div className="relative mb-4 max-w-xl">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: ui.textMuted }} />
+        <FlowInput
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search name, email, or organization…"
+          className="pl-10 pr-10"
+          aria-label="Search organizers"
+        />
+        {q ? (
+          <button
+            type="button"
+            onClick={() => setQ('')}
+            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition hover:bg-white/10"
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" style={{ color: ui.textMuted }} />
+          </button>
+        ) : null}
       </div>
 
-      {loading ? (
+      {initialLoading ? (
         <FlowCard>
           <p className="text-sm" style={{ color: ui.textMuted }}>
             Loading organizers…
@@ -294,9 +317,22 @@ export const AdminOrganizers: React.FC = () => {
             <div className="border-b px-5 py-4" style={{ borderColor: ui.borderColor }}>
               <p className="text-sm font-semibold" style={{ color: ui.text }}>
                 {rows.length} organizer{rows.length === 1 ? '' : 's'}
+                {debouncedQ.trim() ? (
+                  <span className="font-normal" style={{ color: ui.textMuted }}>
+                    {' '}
+                    matching &ldquo;{debouncedQ.trim()}&rdquo;
+                  </span>
+                ) : null}
               </p>
-              <p className="text-xs" style={{ color: ui.textMuted }}>
-                Select one to edit commission and review setup
+              <p className="flex items-center gap-2 text-xs" style={{ color: ui.textMuted }}>
+                {refreshing ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Updating results…
+                  </>
+                ) : (
+                  'Select one to edit commission and review setup'
+                )}
               </p>
             </div>
             <div className="max-h-[calc(100vh-16rem)] divide-y overflow-y-auto" style={{ borderColor: ui.borderColor }}>
