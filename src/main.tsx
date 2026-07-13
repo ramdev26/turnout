@@ -4,6 +4,7 @@ import App from './App.tsx';
 import './index.css';
 import './styles/landing-premium.css';
 import './styles/landing-showcase.css';
+import './styles/landing-templates-responsive.css';
 
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 

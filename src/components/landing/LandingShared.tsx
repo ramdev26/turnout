@@ -185,11 +185,19 @@ export function LandingTopBar({
   );
 }
 
-export function PremiumBadge({ children, tone = 'glass' }: { children: React.ReactNode; tone?: 'glass' | 'solid' | 'hero' }) {
+export function PremiumBadge({
+  children,
+  tone = 'glass',
+  className = '',
+}: {
+  children: React.ReactNode;
+  tone?: 'glass' | 'solid' | 'hero';
+  className?: string;
+}) {
   if (tone === 'solid') {
     return (
       <span
-        className="landing-eyebrow inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5"
+        className={`landing-eyebrow inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ${className}`.trim()}
         style={{ background: 'var(--primary)', color: 'var(--landing-on-primary, #fff)' }}
       >
         <Sparkles className="h-3 w-3" />
@@ -200,7 +208,7 @@ export function PremiumBadge({ children, tone = 'glass' }: { children: React.Rea
   if (tone === 'hero') {
     return (
       <span
-        className="landing-eyebrow inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 backdrop-blur-md"
+        className={`landing-eyebrow inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 backdrop-blur-md ${className}`.trim()}
         style={{ borderColor: 'rgba(255,255,255,0.22)', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.92)' }}
       >
         <span className="h-1.5 w-1.5 rounded-full bg-white/90" />
@@ -209,7 +217,10 @@ export function PremiumBadge({ children, tone = 'glass' }: { children: React.Rea
     );
   }
   return (
-    <span className="landing-eyebrow landing-glass inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5" style={{ color: 'var(--landing-text-muted)' }}>
+    <span
+      className={`landing-eyebrow landing-glass inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 ${className}`.trim()}
+      style={{ color: 'var(--landing-text-muted)' }}
+    >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--landing-accent-readable, var(--primary))' }} />
       {children}
     </span>
@@ -274,6 +285,48 @@ export function EventBanner({
   );
 }
 
+function landingHeroSubtitleText(event: Event, override?: string): string {
+  const custom = (override ?? '').trim();
+  if (custom) return custom;
+  return (event.customization?.heroSubtext || '').trim();
+}
+
+/** Full-bleed hero that stacks on mobile and overlays on desktop (Cinematic + Noir). */
+export function LandingCinematicHero({
+  event,
+  onCheckout,
+  noir = false,
+}: {
+  event: Event;
+  onCheckout: () => void;
+  noir?: boolean;
+}) {
+  const subtitle = landingHeroSubtitleText(event);
+  return (
+    <section className={`landing-cinematic-hero${noir ? ' landing-cinematic-hero--noir' : ''}`}>
+      <div className="landing-cinematic-hero-media">
+        <EventBanner event={event} fullWidth overlay="none" imageClassName="landing-cinematic-hero-img" />
+        <div className="landing-cinematic-hero-media-overlay" aria-hidden />
+      </div>
+      <div className="landing-cinematic-hero-content">
+        {noir ? (
+          <span className="landing-eyebrow landing-cinematic-hero-eyebrow">{themeDisplayName(event)}</span>
+        ) : (
+          <PremiumBadge tone="glass" className="landing-cinematic-hero-badge">
+            {themeDisplayName(event)}
+          </PremiumBadge>
+        )}
+        <HeroTitle className="landing-cinematic-hero-title mt-4 sm:mt-5">
+          {event.customization?.heroText || event.title}
+        </HeroTitle>
+        {subtitle ? <HeroSubtitle className="landing-cinematic-hero-subtitle">{subtitle}</HeroSubtitle> : null}
+        <EventMeta event={event} tone="light" className="landing-cinematic-hero-meta !mt-5" />
+        <HeroCTA onGetTickets={onCheckout} className="landing-cinematic-hero-cta" />
+      </div>
+    </section>
+  );
+}
+
 export function HeroTitle({ children, className = '', light = false }: { children: React.ReactNode; className?: string; light?: boolean }) {
   return (
     <h1
@@ -296,17 +349,27 @@ export function HeroSubtitle({ children, className = '', light = false }: { chil
   );
 }
 
-export function HeroCTA({ onGetTickets: _onGetTickets, light = false }: { onGetTickets: () => void; light?: boolean }) {
+export function HeroCTA({
+  onGetTickets: _onGetTickets,
+  light = false,
+  className = '',
+}: {
+  onGetTickets: () => void;
+  light?: boolean;
+  className?: string;
+}) {
   const scrollTickets = () => {
     document.getElementById('landing-tickets')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
-    <div className="landing-fade-in landing-fade-in-delay-3 mt-8 flex w-full flex-wrap items-center justify-center gap-3 sm:gap-4">
+    <div
+      className={`landing-fade-in landing-fade-in-delay-3 mt-8 flex w-full flex-wrap items-center justify-center gap-3 sm:gap-4 ${className}`.trim()}
+    >
       <button
         type="button"
         onClick={scrollTickets}
-        className="landing-btn-primary inline-flex min-h-[44px] items-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold"
+        className="landing-btn-primary inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-bold sm:w-auto"
       >
         Reserve your spot
         <ArrowRight className="h-4 w-4" />
@@ -314,7 +377,7 @@ export function HeroCTA({ onGetTickets: _onGetTickets, light = false }: { onGetT
       <button
         type="button"
         onClick={() => document.getElementById('landing-about')?.scrollIntoView({ behavior: 'smooth' })}
-        className={`landing-btn-secondary inline-flex min-h-[44px] items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold ${
+        className={`landing-btn-secondary inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold sm:w-auto ${
           light ? '!border-white/25 !bg-white/10 !text-white' : ''
         }`}
       >
@@ -372,7 +435,7 @@ function MetaChip({
       <span className="shrink-0" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
         {icon}
       </span>
-      <span className="truncate">{label}</span>
+      <span className="landing-meta-chip-label min-w-0">{label}</span>
     </div>
   );
 }

@@ -159,7 +159,7 @@ function ShowcaseHero({ event }: { event: Event }) {
     : format(new Date(event.date), 'EEEE, MMMM d · h:mm a');
 
   return (
-    <section className="landing-showcase-hero px-4 sm:px-6">
+    <section className="landing-showcase-hero">
       {event.bannerUrl?.trim() ? (
         <div className="landing-showcase-hero-banner">
           <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto">

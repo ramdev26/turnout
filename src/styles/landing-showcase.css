@@ -258,7 +258,6 @@
 .landing-showcase-grid {
   max-width: 80rem;
   margin-inline: auto;
-  padding: 2.5rem 1rem 3rem;
 }
 
 @media (min-width: 1024px) {

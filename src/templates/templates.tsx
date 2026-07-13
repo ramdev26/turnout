@@ -14,10 +14,10 @@ import {
   HeroCTA,
   HeroSubtitle,
   HeroTitle,
+  LandingCinematicHero,
   LandingContentGrid,
   LandingPageShell,
   LandingTopBar,
-  LandingTopBanner,
   PremiumBadge,
   SectionHeading,
   TicketsList,
@@ -276,18 +276,7 @@ const Template1: LandingTemplate = {
     <LandingPageShell event={props.event}>
       <LandingTopBar event={props.event} />
       <div className="relative z-10">
-        <div className="relative">
-          <EventBanner event={props.event} overlay="cinematic" fullWidth />
-          <div className="absolute inset-x-0 bottom-0 px-4 pb-14 pt-32 sm:px-8 lg:px-12 lg:pb-20">
-            <PremiumBadge tone="hero">{themeDisplayName(props.event)}</PremiumBadge>
-            <HeroTitle light className="mt-5 text-white">
-              {props.event.customization?.heroText || props.event.title}
-            </HeroTitle>
-            {landingHeroSubtitle(props.event) ? <HeroSubtitle light>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-            <EventMeta event={props.event} tone="dark" />
-            <HeroCTA onGetTickets={props.onCheckout} light />
-          </div>
-        </div>
+        <LandingCinematicHero event={props.event} onCheckout={props.onCheckout} />
         <LandingContentGrid
           main={
             <div className="space-y-14">
@@ -319,9 +308,13 @@ const Template3: LandingTemplate = {
   render: (props) => (
     <LandingPageShell event={props.event}>
       <LandingTopBar event={props.event} />
-      <LandingTopBanner event={props.event} />
-      <div className="relative z-10 lg:grid lg:min-h-[calc(100vh-5rem)] lg:grid-cols-2">
-        <div className="flex flex-col justify-center px-6 py-14 lg:px-14 lg:py-20">
+      <div className="landing-avant relative z-10">
+        <div className="landing-avant-story">
+          {props.event.bannerUrl?.trim() ? (
+            <div className="landing-poster-frame landing-poster-frame--hero mx-auto mb-8 max-w-md">
+              <EventBanner event={props.event} overlay="none" imageClassName="landing-poster-img" />
+            </div>
+          ) : null}
           <PremiumBadge>{themeDisplayName(props.event)}</PremiumBadge>
           <HeroTitle className="mt-5">{props.event.customization?.heroText || props.event.title}</HeroTitle>
           {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
@@ -330,13 +323,10 @@ const Template3: LandingTemplate = {
             <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
           </div>
         </div>
-        <div
-          className="border-t px-6 py-14 lg:border-l lg:border-t-0 lg:px-14 lg:py-20"
-          style={{ borderColor: 'var(--landing-border)', background: 'color-mix(in srgb, var(--landing-surface) 92%, transparent)' }}
-        >
+        <div className="landing-avant-panel" id="landing-tickets">
           <AboutBlock event={props.event} />
           <div className="mt-12">{ticketsMain(props)}</div>
-          <div className="mt-10 hidden lg:block">{checkoutAside(props)}</div>
+          <div className="landing-avant-checkout">{checkoutAside(props)}</div>
         </div>
       </div>
     </LandingPageShell>
@@ -352,18 +342,7 @@ const Template4: LandingTemplate = {
     <LandingPageShell event={props.event}>
       <LandingTopBar event={props.event} />
       <div className="relative z-10">
-        <div className="relative">
-          <EventBanner event={props.event} maxHeightClass="max-h-[min(65vh,560px)]" overlay="cinematic" fullWidth />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--landing-page-bg)] via-black/80 to-transparent px-4 pb-12 pt-28 sm:px-8 lg:px-12">
-            <span className="landing-eyebrow text-white/70">{themeDisplayName(props.event)}</span>
-            <HeroTitle light className="mt-3">
-              {props.event.customization?.heroText || props.event.title}
-            </HeroTitle>
-            {landingHeroSubtitle(props.event) ? <HeroSubtitle light>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-            <EventMeta event={props.event} tone="dark" />
-            <HeroCTA onGetTickets={props.onCheckout} light />
-          </div>
-        </div>
+        <LandingCinematicHero event={props.event} onCheckout={props.onCheckout} noir />
         <LandingContentGrid
           main={
             <div className="space-y-14">

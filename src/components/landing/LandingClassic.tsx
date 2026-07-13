@@ -43,7 +43,7 @@ export function LandingClassicPage(props: LandingTemplateProps) {
         </div>
 
         <div className="mt-8 flex justify-center">
-          <EventMeta event={event} tone="light" />
+          <EventMeta event={event} tone="light" className="landing-classic-meta !mt-0" />
         </div>
 
         <div className="mt-10">
