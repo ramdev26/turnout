@@ -2225,6 +2225,7 @@ if ($path === '/public/config' && $method === 'GET') {
   json_response(200, [
     'googleMapsApiKey' => $mapsKey,
     'googleMapsConfigured' => $mapsKey !== '',
+    'appBaseUrl' => canonical_public_app_origin(app_base_url()),
   ]);
 }
 

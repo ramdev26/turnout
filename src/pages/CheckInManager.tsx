@@ -24,6 +24,7 @@ import { eventWorkspaceNav } from '../utils/organizerNav';
 import { cn } from '../utils/cn';
 import { accentButtonStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { parseQrCheckInPayload } from '../utils/qrCheckIn';
+import { absoluteAppUrl } from '../lib/publicAppUrl';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
 type CheckinConfig = { staffPin: string; staffUrl: string };
@@ -35,17 +36,6 @@ type CheckinResult = {
 };
 
 type PanelView = 'scan' | 'list';
-
-function absoluteStaffUrl(url: string): string {
-  const trimmed = url.trim();
-  if (!trimmed) return '';
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (typeof window !== 'undefined') {
-    const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-    return `${window.location.origin}${path}`;
-  }
-  return trimmed;
-}
 
 export const CheckInManager: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -71,7 +61,7 @@ export const CheckInManager: React.FC = () => {
 
   const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
   const volunteerScannerUrl = useMemo(
-    () => (config?.staffUrl ? absoluteStaffUrl(config.staffUrl) : ''),
+    () => (config?.staffUrl ? absoluteAppUrl(config.staffUrl) : ''),
     [config?.staffUrl]
   );
   const ui = APP_FLOW_UI;

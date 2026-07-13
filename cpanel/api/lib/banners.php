@@ -23,6 +23,22 @@ function app_base_url(): string {
   return $proto . '://' . $host;
 }
 
+function canonical_public_app_origin(string $base): string {
+  $canonical = 'https://app.bigturnout.co';
+  $base = rtrim(trim($base), '/');
+  if ($base === '') return $canonical;
+
+  $host = parse_url($base, PHP_URL_HOST);
+  if (!is_string($host) || $host === '') return $base;
+
+  $host = strtolower($host);
+  if (str_ends_with($host, '.vercel.app') || $host === 'turnout-omega.vercel.app') {
+    return $canonical;
+  }
+
+  return $base;
+}
+
 function public_api_url(string $path): string {
   $path = '/' . ltrim($path, '/');
   $base = app_base_url();

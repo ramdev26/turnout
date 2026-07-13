@@ -211,8 +211,8 @@ function normalize_qr_token_lookup(string $raw): string {
 
 function staff_checkin_public_url(int $eventId): string {
   $path = '/staff/checkin/' . $eventId;
-  $base = app_base_url();
-  return $base !== '' ? $base . $path : $path;
+  $base = canonical_public_app_origin(app_base_url());
+  return $base . $path;
 }
 
 function fetch_attendee_stats(PDO $pdo, int $eventId): array {

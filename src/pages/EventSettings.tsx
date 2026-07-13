@@ -27,6 +27,7 @@ import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '
 import { resolveLandingFontKey } from '../themes/landingFonts';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { absoluteAppUrl } from '../lib/publicAppUrl';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -249,7 +250,10 @@ export const EventSettings: React.FC = () => {
   }, []);
 
   const publicUrl = useMemo(() => (slug ? `/e/${slug}` : ''), [slug]);
-  const staffCheckInUrl = useMemo(() => `/staff/checkin/${eventId}`, [eventId]);
+  const staffCheckInUrl = useMemo(
+    () => (eventId ? absoluteAppUrl(`/staff/checkin/${eventId}`) : ''),
+    [eventId]
+  );
   const soldTickets = useMemo(() => tickets.reduce((sum, t) => sum + t.sold, 0), [tickets]);
   const totalRevenue = useMemo(() => tickets.reduce((sum, t) => sum + t.sold * t.price, 0), [tickets]);
   const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
@@ -431,7 +435,7 @@ export const EventSettings: React.FC = () => {
 
   const copyStaffLink = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${staffCheckInUrl}`);
+      await navigator.clipboard.writeText(staffCheckInUrl);
       setCopyMsg('Staff link copied');
       window.setTimeout(() => setCopyMsg(null), 2500);
     } catch {
