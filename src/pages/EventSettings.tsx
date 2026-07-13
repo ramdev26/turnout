@@ -26,6 +26,8 @@ import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
+import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
+import { normalizeArenaGalleryImages } from '../components/landing/arenaGallery';
 import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
 import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { resolveLandingFontKey } from '../themes/landingFonts';
@@ -144,6 +146,8 @@ export const EventSettings: React.FC = () => {
   const [date, setDate] = useState('');
   const [scheduleTba, setScheduleTba] = useState(false);
   const [bannerUrl, setBannerUrl] = useState('');
+  const [arenaGalleryImages, setArenaGalleryImages] = useState<string[]>([]);
+  const [isUploadingArenaGallery, setIsUploadingArenaGallery] = useState(false);
   const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingBranding, setSavingBranding] = useState(false);
@@ -203,6 +207,7 @@ export const EventSettings: React.FC = () => {
       setDate(toDatetimeLocalValue(new Date(ev.date)));
       setScheduleTba(!!ev.customization?.scheduleTba);
       setBannerUrl(ev.bannerUrl || '');
+      setArenaGalleryImages(normalizeArenaGalleryImages(ev.customization?.arenaGalleryImages));
       setSlug(ev.slug);
       const landing = normalizeLandingCustomization(ev.customization);
       const minimal = EVENT_THEMES.minimal;
@@ -297,9 +302,11 @@ export const EventSettings: React.FC = () => {
         heroSubtext: shortDescription.trim(),
         heroText: title.trim() || event.title,
         layout: event.customization?.layout || 'standard',
+        arenaGalleryImages,
       },
     };
   }, [
+    arenaGalleryImages,
     bannerUrl,
     date,
     description,
@@ -333,29 +340,49 @@ export const EventSettings: React.FC = () => {
     setIsUploadingBanner(true);
     setBannerUploadError(null);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(toApiUrl('/api/uploads/banner'), {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-      const text = await res.text();
-      let data: { bannerUrl?: string; message?: string } | null = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = null;
-      }
-      if (res.ok && data?.bannerUrl) {
-        setBannerUrl(normalizeBannerUrl(data.bannerUrl));
-        return;
-      }
-      setBannerUploadError(data?.message || 'Upload failed');
+      const url = await uploadImageFile(file);
+      if (url) setBannerUrl(url);
+      else setBannerUploadError('Upload failed');
     } catch {
       setBannerUploadError('Upload failed. Check your connection.');
     } finally {
       setIsUploadingBanner(false);
+    }
+  };
+
+  const uploadImageFile = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(toApiUrl('/api/uploads/banner'), {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const text = await res.text();
+    let data: { bannerUrl?: string; message?: string } | null = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (res.ok && data?.bannerUrl) return normalizeBannerUrl(data.bannerUrl);
+    return null;
+  };
+
+  const uploadArenaGalleryFile = async (file: File) => {
+    setIsUploadingArenaGallery(true);
+    setBannerUploadError(null);
+    try {
+      const url = await uploadImageFile(file);
+      if (!url) {
+        setBannerUploadError('Gallery upload failed');
+        return;
+      }
+      setArenaGalleryImages((prev) => normalizeArenaGalleryImages([...prev, url]));
+    } catch {
+      setBannerUploadError('Gallery upload failed. Check your connection.');
+    } finally {
+      setIsUploadingArenaGallery(false);
     }
   };
 
@@ -382,8 +409,10 @@ export const EventSettings: React.FC = () => {
         landingStyle: design.landingStyle,
         templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
+        arenaGalleryImages,
       });
       setEvent(res.event);
+      setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {
@@ -617,6 +646,23 @@ export const EventSettings: React.FC = () => {
               placeholderClassName={ui.bannerPlaceholder}
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
+
+            {design.templateId === 'template-6' ? (
+              <ArenaGalleryEditor
+                images={arenaGalleryImages}
+                disabled={savingBranding}
+                uploading={isUploadingArenaGallery}
+                onUpload={uploadArenaGalleryFile}
+                onRemove={(index) => setArenaGalleryImages((prev) => prev.filter((_, i) => i !== index))}
+                ui={{
+                  borderColor: ui.borderColor,
+                  text: ui.text,
+                  textMuted: ui.textMuted,
+                  textSubtle: ui.textSubtle,
+                  cardBg: ui.cardMutedBg,
+                }}
+              />
+            ) : null}
 
             <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>

@@ -9,6 +9,7 @@ require __DIR__ . '/lib/checkout.php';
 require __DIR__ . '/lib/domains.php';
 require __DIR__ . '/lib/checkin.php';
 require __DIR__ . '/lib/checkout_fields.php';
+require __DIR__ . '/lib/arena_gallery.php';
 require __DIR__ . '/lib/organizer_team.php';
 require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
@@ -2492,6 +2493,9 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('checkoutFields', $body)) {
     $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);
   }
+  if (array_key_exists('arenaGalleryImages', $body)) {
+    $customization['arenaGalleryImages'] = normalize_arena_gallery_images($body['arenaGalleryImages']);
+  }
 
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);
@@ -2517,6 +2521,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     $row['event_date'] = date('Y-m-d H:i:s', strtotime($date));
   }
 
+  $templateId = trim((string)($body['templateId'] ?? ''));
   $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-canvas'];
   $legacyTemplates = ['template-1', 'template-3', 'template-4'];
   if ($templateId !== '' && in_array($templateId, $allowedTemplates, true)) {

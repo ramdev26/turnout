@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   ArrowRight,
@@ -23,6 +23,7 @@ import {
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
+import { resolveArenaCarouselSlides } from './arenaGallery';
 
 function ticketIcon(ticket: EventTicket) {
   const name = ticket.name.toLowerCase();
@@ -61,15 +62,14 @@ function ArenaHeader({ event }: { event: Event }) {
 }
 
 function ArenaCarousel({ event }: { event: Event }) {
-  const slides = useMemo(() => {
-    const urls: string[] = [];
-    if (event.bannerUrl?.trim()) urls.push(event.bannerUrl.trim());
-    return urls;
-  }, [event.bannerUrl]);
-
+  const slides = useMemo(() => resolveArenaCarouselSlides(event), [event.bannerUrl, event.customization?.arenaGalleryImages]);
   const [index, setIndex] = useState(0);
   const hasMultiple = slides.length > 1;
   const current = slides[index] ?? null;
+
+  useEffect(() => {
+    setIndex((i) => (slides.length === 0 ? 0 : Math.min(i, slides.length - 1)));
+  }, [slides.length]);
 
   const go = (dir: -1 | 1) => {
     if (!hasMultiple) return;
@@ -93,9 +93,9 @@ function ArenaCarousel({ event }: { event: Event }) {
               <ChevronRight className="h-5 w-5" />
             </button>
             <div className="landing-arena-carousel-dots">
-              {slides.map((_, i) => (
+              {slides.map((url, i) => (
                 <button
-                  key={i}
+                  key={url}
                   type="button"
                   className={`landing-arena-carousel-dot${i === index ? ' is-active' : ''}`}
                   onClick={() => setIndex(i)}

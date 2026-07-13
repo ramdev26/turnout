@@ -76,24 +76,42 @@
 
 .landing-arena-carousel {
   position: relative;
-  background: #111;
-  max-width: 56rem;
+  background: #0a0a0a;
+  max-width: 42rem;
   margin-inline: auto;
 }
 
 .landing-arena-carousel-stage {
   position: relative;
-  aspect-ratio: 16 / 10;
-  max-height: min(52vh, 360px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: min(58vh, 420px);
+  max-height: min(72vh, 560px);
+  padding: 0.75rem clamp(0.75rem, 4vw, 1.25rem);
   overflow: hidden;
 }
 
 .landing-arena-carousel-img {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(56vh, 400px);
+  object-fit: contain;
   object-position: center;
+  border-radius: 0.35rem;
+}
+
+@media (min-width: 640px) {
+  .landing-arena-carousel-stage {
+    min-height: min(52vh, 460px);
+    max-height: min(68vh, 600px);
+  }
+
+  .landing-arena-carousel-img {
+    max-height: min(60vh, 480px);
+  }
 }
 
 .landing-arena-carousel-placeholder {
@@ -161,6 +179,8 @@
   padding: 0.65rem 1rem 0.85rem;
   max-width: 42rem;
   margin-inline: auto;
+  overflow-x: auto;
+  background: #0a0a0a;
 }
 
 .landing-arena-carousel-thumb {
@@ -614,5 +634,11 @@
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-stage {
-  max-height: 200px !important;
+  min-height: 220px !important;
+  max-height: 260px !important;
+  padding: 0.5rem !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel-img {
+  max-height: min(42vh, 220px) !important;
 }

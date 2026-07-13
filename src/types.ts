@@ -229,6 +229,8 @@ export interface EventCustomization {
   ticketPdfFooterNote?: string;
   /** Extra questions asked for each ticket holder during checkout */
   checkoutFields?: CheckoutFieldDefinition[];
+  /** Extra carousel slides for Arena template (banner is always slide 1). */
+  arenaGalleryImages?: string[];
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }
