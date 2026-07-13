@@ -1084,10 +1084,10 @@ if ($path === '/auth/login' && $method === 'POST') {
   $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
   $stmt->execute([$email]);
   $row = $stmt->fetch();
-  if (!$row) json_response(401, ['error' => 'invalid_credentials']);
+  if (!$row) json_response(401, ['error' => 'invalid_credentials', 'message' => 'Invalid email or password.']);
   $passwordHash = (string)($row['password_hash'] ?? '');
   if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
-    json_response(401, ['error' => 'invalid_credentials']);
+    json_response(401, ['error' => 'invalid_credentials', 'message' => 'Invalid email or password.']);
   }
   if ((int)($row['is_blocked'] ?? 0) === 1) json_response(403, ['error' => 'user_blocked']);
   if (in_array((string)($row['status'] ?? 'active'), ['suspended', 'banned'], true)) json_response(403, ['error' => 'user_suspended']);

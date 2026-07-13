@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { formatApiError } from '../utils/apiError';
 import { AdminSummary } from '../types';
 import { formatLKR } from '../utils/money';
 import { AdminShell } from '../components/admin/AdminShell';
@@ -23,8 +24,8 @@ export const AdminDashboard: React.FC = () => {
     (async () => {
       try {
         await load();
-      } catch (e: any) {
-        setError(e?.error || 'Failed to load admin dashboard');
+      } catch (e: unknown) {
+        setError(formatApiError(e, 'Failed to load admin dashboard'));
       } finally {
         setLoading(false);
       }

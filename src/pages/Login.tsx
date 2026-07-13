@@ -7,7 +7,7 @@ import { api } from '../api/client';
 import { parseAuthPayload } from '../api/authResponse';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
-import { persistAuthTokenFromResponse } from '../api/authToken';
+import { persistAuthTokenFromResponse, getAuthToken, clearAuthToken } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
@@ -65,7 +65,21 @@ export const Login: React.FC<{ basadmin?: boolean }> = ({ basadmin = false }) =>
         return;
       }
       persistAuthTokenFromResponse(res);
+      if (!getAuthToken()) {
+        setServerError('Sign-in succeeded but the session could not be saved. Check browser storage settings.');
+        return;
+      }
       setUser(res.user);
+      try {
+        const me = await api.get<unknown>('/api/auth/me');
+        setUser(parseAuthPayload(me).user);
+      } catch (e: unknown) {
+        clearAuthToken();
+        setUser(null);
+        const err = e as { message?: string; error?: string };
+        setServerError(err?.message || err?.error || 'Could not verify your session. Try again.');
+        return;
+      }
       const destination =
         res.user.role === 'super_admin'
           ? basadminDestination(nextParam)

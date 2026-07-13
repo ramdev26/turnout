@@ -15,7 +15,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { Signup } from './pages/Signup';
 import { api } from './api/client';
 import { parseAuthPayload } from './api/authResponse';
-import { clearAuthToken } from './api/authToken';
+import { clearAuthToken, getAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
 import { CheckInManager } from './pages/CheckInManager';
 import { StaffCheckInScanner } from './pages/StaffCheckInScanner';
@@ -131,9 +131,32 @@ function basadminLoginPath(returnTo: string) {
 }
 
 function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuthStore();
+  const { user, loading, setUser } = useAuthStore();
   const location = useLocation();
-  if (loading) return <FullPageLoader />;
+  const [hydrating, setHydrating] = useState(false);
+
+  useEffect(() => {
+    if (loading || user || !getAuthToken()) return;
+
+    let cancelled = false;
+    setHydrating(true);
+    (async () => {
+      try {
+        const raw = await api.get<unknown>('/api/auth/me');
+        if (!cancelled) setUser(parseAuthPayload(raw).user);
+      } catch {
+        if (!cancelled) clearAuthToken();
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, setUser]);
+
+  if (loading || hydrating) return <FullPageLoader />;
   if (!user) {
     const returnTo = `${location.pathname}${location.search}`;
     return <Navigate to={basadminLoginPath(returnTo)} replace />;
@@ -163,11 +186,35 @@ function LoginRoute() {
 }
 
 function BasAdminLoginRoute() {
-  const { user } = useAuthStore();
+  const { user, loading, setUser } = useAuthStore();
   const [searchParams] = useSearchParams();
+  const [hydrating, setHydrating] = useState(false);
   const next = searchParams.get('next');
   const destination =
     next && next.startsWith(BASADMIN_BASE) ? next : `${BASADMIN_BASE}/dashboard`;
+
+  useEffect(() => {
+    if (loading || user || !getAuthToken()) return;
+
+    let cancelled = false;
+    setHydrating(true);
+    (async () => {
+      try {
+        const raw = await api.get<unknown>('/api/auth/me');
+        if (!cancelled) setUser(parseAuthPayload(raw).user);
+      } catch {
+        if (!cancelled) clearAuthToken();
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, setUser]);
+
+  if (loading || hydrating) return <FullPageLoader />;
 
   if (user?.role === 'super_admin') {
     return <Navigate to={destination} replace />;
@@ -188,7 +235,7 @@ export default function App() {
         const raw = await api.get<unknown>('/api/auth/me');
         if (!cancelled) setUser(parseAuthPayload(raw).user);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !useAuthStore.getState().user) {
           clearAuthToken();
           setUser(null);
         }

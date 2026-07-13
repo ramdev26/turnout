@@ -91,9 +91,18 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     if (res.status === 401) {
+      const errorCode = (data?.error as string) || 'unauthorized';
+      let message = (data?.message as string) || '';
+      if (!message) {
+        if (errorCode === 'invalid_credentials') {
+          message = 'Invalid email or password.';
+        } else {
+          message = 'Your session has expired. Please sign in again.';
+        }
+      }
       throw {
-        error: 'unauthorized',
-        message: (data?.message as string) || 'Your session has expired. Please sign in again.',
+        error: errorCode,
+        message,
       } as ApiError;
     }
 
