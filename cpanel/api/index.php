@@ -14,6 +14,7 @@ require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
 require __DIR__ . '/lib/user_migrations.php';
 require __DIR__ . '/lib/super_admin.php';
+require __DIR__ . '/lib/admin_analytics.php';
 
 set_cors_headers_for_same_domain();
 
@@ -3703,6 +3704,7 @@ if ($path === '/admin/summary' && $method === 'GET') {
       'activeEvents' => (int)($counts['active_events'] ?? 0),
       'topEvents' => array_map(fn($r) => ['id' => (string)$r['id'], 'title' => $r['title'], 'revenue' => ((int)$r['revenue_cents']) / 100], $topEvents ?: []),
       'topOrganizers' => array_map(fn($r) => ['id' => (string)$r['id'], 'name' => $r['display_name'], 'earnings' => ((int)$r['earnings_cents']) / 100], $topOrganizers ?: []),
+      'charts' => admin_build_chart_payload($pdo),
     ],
   ]);
 }

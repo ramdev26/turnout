@@ -27,6 +27,13 @@ export type AdminSummary = {
   activeEvents?: number;
   topEvents?: { id: string; title: string; revenue: number }[];
   topOrganizers?: { id: string; name: string; earnings: number }[];
+  charts?: {
+    days: number;
+    revenueByDay: { date: string; revenue: number; transactions: number }[];
+    signupsByDay: { date: string; signups: number }[];
+    transactionsByStatus: { status: string; count: number; amount: number }[];
+    usersByRole: { role: string; count: number }[];
+  };
 };
 
 export type PlatformTransaction = {
