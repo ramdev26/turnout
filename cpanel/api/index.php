@@ -3319,11 +3319,9 @@ if (preg_match('#^/events/(\\d+)/checkin-config$#', $path, $m) && $method === 'G
   if ($pin === null) {
     $pin = set_event_checkin_pin($pdo, $eventId, null);
   }
-  $cfg = get_config();
-  $base = rtrim((string)(($cfg['app'] ?? [])['base_url'] ?? ''), '/');
   json_response(200, [
     'staffPin' => $pin,
-    'staffUrl' => $base . '/staff/checkin/' . $eventId,
+    'staffUrl' => staff_checkin_public_url($eventId),
   ]);
 }
 
@@ -3343,12 +3341,10 @@ if (preg_match('#^/events/(\\d+)/checkin-config$#', $path, $m) && $method === 'P
     $pin = get_event_checkin_pin($pdo, $eventId);
     if ($pin === null) $pin = set_event_checkin_pin($pdo, $eventId, null);
   }
-  $cfg = get_config();
-  $base = rtrim((string)(($cfg['app'] ?? [])['base_url'] ?? ''), '/');
   json_response(200, [
     'ok' => true,
     'staffPin' => $pin,
-    'staffUrl' => $base . '/staff/checkin/' . $eventId,
+    'staffUrl' => staff_checkin_public_url($eventId),
   ]);
 }
 

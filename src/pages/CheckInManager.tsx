@@ -36,6 +36,17 @@ type CheckinResult = {
 
 type PanelView = 'scan' | 'list';
 
+function absoluteStaffUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (typeof window !== 'undefined') {
+    const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return `${window.location.origin}${path}`;
+  }
+  return trimmed;
+}
+
 export const CheckInManager: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [stats, setStats] = useState<AttendeeStats>({ total: 0, checkedIn: 0, pending: 0 });
@@ -59,6 +70,10 @@ export const CheckInManager: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
 
   const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
+  const volunteerScannerUrl = useMemo(
+    () => (config?.staffUrl ? absoluteStaffUrl(config.staffUrl) : ''),
+    [config?.staffUrl]
+  );
   const ui = APP_FLOW_UI;
   const cardStyle = cardStyleFor(ui);
   const cardMutedStyle = cardMutedStyleFor(ui);
@@ -345,21 +360,33 @@ export const CheckInManager: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <div className="rounded-xl border p-4" style={cardMutedStyle}>
+                  <div className="rounded-xl border p-4 sm:col-span-2" style={cardMutedStyle}>
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                       Volunteer scanner link
                     </p>
-                    <p className="mt-2 break-all text-sm font-medium" style={{ color: ui.accent }}>
-                      {config.staffUrl}
+                    <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
+                      Share this full link with volunteers — they enter the PIN above to open the scanner.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => void copyText(config.staffUrl, 'Volunteer link')}
-                      className="mt-2 text-xs font-bold"
-                      style={{ color: ui.textMuted }}
-                    >
-                      Copy link
-                    </button>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        type="text"
+                        readOnly
+                        value={volunteerScannerUrl}
+                        onFocus={(e) => e.currentTarget.select()}
+                        className={cn(fieldClass, 'min-w-0 flex-1 font-mono text-xs sm:text-sm')}
+                        style={fieldStyle}
+                        aria-label="Volunteer scanner link"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void copyText(volunteerScannerUrl, 'Volunteer link')}
+                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold"
+                        style={{ ...cardStyle, color: ui.text }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy link
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

@@ -209,6 +209,12 @@ function normalize_qr_token_lookup(string $raw): string {
   return strlen($hex) === 32 ? $hex : '';
 }
 
+function staff_checkin_public_url(int $eventId): string {
+  $path = '/staff/checkin/' . $eventId;
+  $base = app_base_url();
+  return $base !== '' ? $base . $path : $path;
+}
+
 function fetch_attendee_stats(PDO $pdo, int $eventId): array {
   $stmt = $pdo->prepare(
     'SELECT
