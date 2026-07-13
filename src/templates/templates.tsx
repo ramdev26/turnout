@@ -85,15 +85,13 @@ function checkoutAside(props: LandingTemplateProps) {
   );
 }
 
-function ticketsMain(props: LandingTemplateProps, variant: 'default' | 'dark' = 'default') {
+function ticketsMain(props: LandingTemplateProps) {
   return (
     <TicketsSection>
       <TicketsList
         tickets={props.tickets}
         selectedTickets={props.selectedTickets}
         onTicketChange={props.onTicketChange}
-        accent={variant === 'dark' ? 'var(--secondary)' : 'var(--landing-accent-readable, var(--primary))'}
-        variant={variant}
       />
     </TicketsSection>
   );
@@ -311,14 +309,14 @@ const Template3: LandingTemplate = {
       <div className="landing-avant relative z-10">
         <div className="landing-avant-story">
           {props.event.bannerUrl?.trim() ? (
-            <div className="landing-poster-frame landing-poster-frame--hero mx-auto mb-8 max-w-md">
+            <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto mb-8 max-w-md">
               <EventBanner event={props.event} overlay="none" imageClassName="landing-poster-img" />
             </div>
           ) : null}
           <PremiumBadge>{themeDisplayName(props.event)}</PremiumBadge>
           <HeroTitle className="mt-5">{props.event.customization?.heroText || props.event.title}</HeroTitle>
           {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-          <EventMeta event={props.event} tone="light" />
+          <EventMeta event={props.event} />
           <div className="mt-10">
             <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
           </div>
@@ -348,7 +346,7 @@ const Template4: LandingTemplate = {
             <div className="space-y-14">
               <CountdownDisplay targetIso={props.event.date} tba={!!props.event.customization?.scheduleTba} />
               <AboutBlock event={props.event} />
-              {ticketsMain(props, 'dark')}
+              {ticketsMain(props)}
             </div>
           }
           aside={checkoutAside(props)}

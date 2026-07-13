@@ -40,19 +40,23 @@
   text-align: center;
 }
 
+.landing-cinematic-hero-content .landing-showcase-hero-title,
 .landing-cinematic-hero-content .landing-cinematic-hero-title,
 .landing-cinematic-hero-content h1 {
   color: var(--landing-text) !important;
 }
 
+.landing-cinematic-hero-content .landing-showcase-hero-lead,
 .landing-cinematic-hero-content .landing-cinematic-hero-subtitle,
 .landing-cinematic-hero-content p.landing-fade-in {
   color: var(--landing-text-muted) !important;
 }
 
-.landing-cinematic-hero-eyebrow,
-.landing-cinematic-hero-badge {
-  color: var(--landing-text-muted) !important;
+.landing-cinematic-hero-badge,
+.landing-cinematic-hero-eyebrow {
+  color: var(--showcase-accent) !important;
+  border-color: var(--showcase-border) !important;
+  background: var(--showcase-card-muted) !important;
 }
 
 .landing-cinematic-hero-meta {
@@ -121,31 +125,36 @@
     text-align: left;
   }
 
+  .landing-cinematic-hero-content .landing-showcase-hero-title,
   .landing-cinematic-hero-content .landing-cinematic-hero-title,
   .landing-cinematic-hero-content h1 {
     color: #fff !important;
   }
 
+  .landing-cinematic-hero-content .landing-showcase-hero-lead,
   .landing-cinematic-hero-content .landing-cinematic-hero-subtitle,
   .landing-cinematic-hero-content p.landing-fade-in {
     color: rgba(255, 255, 255, 0.82) !important;
   }
 
-  .landing-cinematic-hero-eyebrow,
-  .landing-cinematic-hero-badge {
-    color: rgba(255, 255, 255, 0.72) !important;
+  .landing-cinematic-hero-badge,
+  .landing-cinematic-hero-eyebrow {
+    color: rgba(255, 255, 255, 0.85) !important;
     border-color: rgba(255, 255, 255, 0.22) !important;
     background: rgba(255, 255, 255, 0.1) !important;
   }
 
-  .landing-cinematic-hero-meta {
-    justify-content: flex-start;
+  .landing-cinematic-hero-content .landing-showcase-info-card {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.16) !important;
   }
 
-  .landing-cinematic-hero-content .landing-glass {
-    background: rgba(255, 255, 255, 0.1) !important;
-    border-color: rgba(255, 255, 255, 0.18) !important;
+  .landing-cinematic-hero-content .landing-showcase-info-card .value {
     color: rgba(255, 255, 255, 0.95) !important;
+  }
+
+  .landing-cinematic-hero-meta {
+    justify-content: flex-start;
   }
 
   .landing-cinematic-hero-cta {
@@ -154,7 +163,7 @@
     margin-inline: 0;
   }
 
-  .landing-cinematic-hero-cta .landing-btn-secondary {
+  .landing-cinematic-hero-cta .landing-cinematic-hero-cta-secondary {
     border-color: rgba(255, 255, 255, 0.25) !important;
     background: rgba(255, 255, 255, 0.1) !important;
     color: #fff !important;
@@ -229,16 +238,6 @@
   width: 100%;
   max-width: 36rem;
   margin-inline: auto;
-}
-
-.landing-classic-meta .landing-meta-chip-label {
-  text-align: center;
-}
-
-@media (min-width: 640px) {
-  .landing-classic-meta .landing-meta-chip-label {
-    text-align: left;
-  }
 }
 
 /* ── Shared content grid (Cinematic, Noir, canvas) ── */

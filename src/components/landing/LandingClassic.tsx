@@ -31,7 +31,7 @@ export function LandingClassicPage(props: LandingTemplateProps) {
 
       <main className="landing-classic-main mx-auto w-full max-w-3xl px-4 pb-16 pt-6 sm:px-6 sm:pt-8 lg:max-w-4xl lg:pb-20">
         {hasBanner ? (
-          <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--classic mx-auto">
+          <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase landing-poster-frame--classic mx-auto">
             <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
           </div>
         ) : null}
@@ -43,7 +43,7 @@ export function LandingClassicPage(props: LandingTemplateProps) {
         </div>
 
         <div className="mt-8 flex justify-center">
-          <EventMeta event={event} tone="light" className="landing-classic-meta !mt-0" />
+          <EventMeta event={event} className="landing-classic-meta !mt-0" />
         </div>
 
         <div className="mt-10">
@@ -60,7 +60,6 @@ export function LandingClassicPage(props: LandingTemplateProps) {
               tickets={tickets}
               selectedTickets={selectedTickets}
               onTicketChange={onTicketChange}
-              accent="var(--landing-accent-readable, var(--primary))"
             />
           </TicketsSection>
         </div>

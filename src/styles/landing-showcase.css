@@ -8,17 +8,6 @@
   --showcase-border: var(--landing-border);
 }
 
-.landing-showcase[data-landing-tone='dark']::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 90% 55% at 50% -15%, color-mix(in srgb, var(--showcase-accent) 16%, transparent) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 40% at 100% 0%, color-mix(in srgb, var(--secondary) 10%, transparent) 0%, transparent 50%);
-}
-
 .landing-showcase > *:not(.landing-showcase-header) {
   position: relative;
   z-index: 1;
