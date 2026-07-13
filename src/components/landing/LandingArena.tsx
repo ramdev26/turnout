@@ -127,12 +127,47 @@ function ArenaCarousel({ event }: { event: Event }) {
 function ArenaEventIntro({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
   const title = event.customization?.heroText?.trim() || event.title;
+  const lead = (event.customization?.heroSubtext || '').trim();
 
   return (
     <div className="landing-arena-intro">
       <p className="landing-arena-organizer">{brand.name.toUpperCase()}</p>
       <h1 className="landing-arena-title">{title}</h1>
+      {lead ? <p className="landing-arena-lead">{lead}</p> : null}
     </div>
+  );
+}
+
+const ARENA_ABOUT_READ_MORE_MIN = 160;
+
+function ArenaAbout({ event }: { event: Event }) {
+  const desc = event.description?.trim();
+  const [expanded, setExpanded] = useState(false);
+  if (!desc) return null;
+
+  const canExpand = desc.length > ARENA_ABOUT_READ_MORE_MIN;
+
+  return (
+    <section className="landing-arena-about" id="landing-about">
+      <h2 className="landing-arena-about-title">About this event</h2>
+      <div className="landing-arena-about-card">
+        <p
+          className={`landing-arena-about-text${canExpand && !expanded ? ' is-clamped' : ''}`}
+        >
+          {desc}
+        </p>
+        {canExpand ? (
+          <button
+            type="button"
+            className="landing-arena-about-toggle"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+          >
+            {expanded ? 'Show less' : 'Read more'}
+          </button>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -379,6 +414,7 @@ export function LandingArenaPage({
           <main className="landing-arena-content-col" id="landing-tickets">
             <ArenaEventIntro event={event} />
             <ArenaEventDetailsCard event={event} />
+            <ArenaAbout event={event} />
 
             <div className="landing-arena-section-head">
               <h2 className="landing-arena-section-title">Select seating</h2>

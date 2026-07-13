@@ -365,6 +365,71 @@
   }
 }
 
+.landing-arena-lead {
+  margin-top: 0.65rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--arena-muted);
+}
+
+.landing-arena-about {
+  margin-top: 1.25rem;
+}
+
+.landing-arena-about-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+
+.landing-arena-about-card {
+  margin-top: 0.65rem;
+  border: 1px solid var(--arena-border);
+  border-radius: 0.875rem;
+  background: #fff;
+  padding: 1rem 1.1rem;
+}
+
+.landing-arena-about-text {
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--arena-muted);
+}
+
+.landing-arena-about-text.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .landing-arena-about-text.is-clamped {
+    -webkit-line-clamp: unset;
+    display: block;
+    overflow: visible;
+  }
+
+  .landing-arena-about-toggle {
+    display: none;
+  }
+}
+
+.landing-arena-about-toggle {
+  margin-top: 0.65rem;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--arena-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .landing-arena-date-row {
   display: flex;
   align-items: flex-start;
