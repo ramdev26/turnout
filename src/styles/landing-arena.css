@@ -27,12 +27,21 @@
 .landing-arena-header-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.75rem;
   max-width: 42rem;
   margin-inline: auto;
   padding: 0.75rem 1rem;
   min-height: 3.25rem;
+}
+
+@media (min-width: 1024px) {
+  .landing-arena-header-inner {
+    justify-content: center;
+    max-width: 72rem;
+    padding: 0.85rem 2rem;
+    min-height: 3.5rem;
+  }
 }
 
 .landing-arena-header-brand {
@@ -74,11 +83,92 @@
   color: #fff;
 }
 
+.landing-arena-shell {
+  max-width: 42rem;
+  margin-inline: auto;
+  padding: 0 0 5rem;
+}
+
+.landing-arena-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-arena-gallery-col {
+  min-width: 0;
+}
+
+.landing-arena-content-col {
+  min-width: 0;
+  padding: 1.25rem 1rem 0;
+}
+
+.landing-arena-intro {
+  margin-bottom: 1rem;
+}
+
+.landing-arena-bottom {
+  padding: 0 1rem;
+}
+
+@media (min-width: 640px) {
+  .landing-arena-content-col {
+    padding: 1.5rem 1.25rem 0;
+  }
+
+  .landing-arena-bottom {
+    padding: 0 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-arena-shell {
+    max-width: 72rem;
+    padding: 0 2rem 4rem;
+  }
+
+  .landing-arena-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(2rem, 4vw, 3.5rem);
+    align-items: start;
+    padding-top: 2rem;
+  }
+
+  .landing-arena-gallery-col {
+    position: sticky;
+    top: 4.25rem;
+    align-self: start;
+  }
+
+  .landing-arena-content-col {
+    padding: 0;
+  }
+
+  .landing-arena-intro {
+    margin-bottom: 1.25rem;
+  }
+
+  .landing-arena-bottom {
+    max-width: 42rem;
+    margin: 2.5rem auto 0;
+    padding: 0;
+  }
+}
+
 .landing-arena-carousel {
   position: relative;
   background: #0a0a0a;
   max-width: 42rem;
   margin-inline: auto;
+}
+
+@media (min-width: 1024px) {
+  .landing-arena-gallery-col .landing-arena-carousel {
+    max-width: none;
+    margin-inline: 0;
+    background: transparent;
+  }
 }
 
 .landing-arena-carousel-stage {
@@ -111,6 +201,21 @@
 
   .landing-arena-carousel-img {
     max-height: min(60vh, 480px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-arena-carousel-stage {
+    min-height: 420px;
+    max-height: min(72vh, 640px);
+    padding: 0;
+    background: #0a0a0a;
+    border-radius: 0.875rem;
+  }
+
+  .landing-arena-carousel-img {
+    max-height: min(68vh, 600px);
+    border-radius: 0.5rem;
   }
 }
 
@@ -183,6 +288,16 @@
   background: #0a0a0a;
 }
 
+@media (min-width: 1024px) {
+  .landing-arena-carousel-thumbs {
+    max-width: none;
+    margin-inline: 0;
+    padding: 0.75rem 0 0;
+    background: transparent;
+    overflow-x: visible;
+  }
+}
+
 .landing-arena-carousel-thumb {
   width: 3.25rem;
   height: 3.25rem;
@@ -191,7 +306,18 @@
   border: 2px solid transparent;
   padding: 0;
   opacity: 0.65;
+  flex-shrink: 0;
   transition: opacity 0.2s, border-color 0.2s;
+}
+
+@media (min-width: 1024px) {
+  .landing-arena-carousel-thumb {
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 0.5rem;
+    border-color: var(--arena-border);
+    background: #fff;
+  }
 }
 
 .landing-arena-carousel-thumb.is-active {
@@ -203,18 +329,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.landing-arena-main {
-  max-width: 42rem;
-  margin-inline: auto;
-  padding: 1.25rem 1rem 5rem;
-}
-
-@media (min-width: 640px) {
-  .landing-arena-main {
-    padding: 1.5rem 1.25rem 6rem;
-  }
 }
 
 .landing-arena-event-card {
@@ -244,11 +358,17 @@
   color: var(--arena-text);
 }
 
+@media (min-width: 1024px) {
+  .landing-arena-title {
+    font-size: clamp(1.75rem, 2.4vw, 2.25rem);
+    line-height: 1.05;
+  }
+}
+
 .landing-arena-date-row {
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
-  margin-top: 1.15rem;
 }
 
 .landing-arena-date-block {
@@ -342,8 +462,24 @@
 .landing-arena-countdown-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem 1rem;
+  align-items: center;
+  gap: 0;
   margin-top: 0.5rem;
+}
+
+.landing-arena-countdown-unit {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  padding: 0 0.65rem;
+}
+
+.landing-arena-countdown-unit:first-child {
+  padding-left: 0;
+}
+
+.landing-arena-countdown-unit:not(:last-child) {
+  border-right: 1px solid var(--arena-border);
 }
 
 .landing-arena-countdown-unit .num {
@@ -353,8 +489,13 @@
   letter-spacing: -0.02em;
 }
 
+@media (min-width: 1024px) {
+  .landing-arena-countdown-unit .num {
+    font-size: 1.25rem;
+  }
+}
+
 .landing-arena-countdown-unit .lbl {
-  margin-left: 0.2rem;
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -368,6 +509,12 @@
   justify-content: space-between;
   gap: 0.75rem;
   margin: 1.75rem 0 1rem;
+}
+
+@media (min-width: 1024px) {
+  .landing-arena-section-head {
+    margin-top: 2rem;
+  }
 }
 
 .landing-arena-section-title {
@@ -546,6 +693,12 @@
   text-align: center;
 }
 
+@media (min-width: 1024px) {
+  .landing-arena-trust {
+    margin-top: 0;
+  }
+}
+
 .landing-arena-payment-row {
   display: flex;
   flex-wrap: wrap;
@@ -622,23 +775,47 @@
   text-decoration: underline;
 }
 
-@media (min-width: 1024px) {
-  .landing-arena-carousel-stage {
-    max-height: 420px;
-    border-radius: 0 0 0.5rem 0.5rem;
-  }
+.event-settings-mobile-preview .landing-arena-shell {
+  max-width: 100% !important;
+  padding-inline: 0 !important;
 }
 
-.event-settings-mobile-preview .landing-arena-main {
-  padding-inline: 0.75rem !important;
+.event-settings-mobile-preview .landing-arena-layout {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  padding-top: 0 !important;
+}
+
+.event-settings-mobile-preview .landing-arena-gallery-col {
+  position: static !important;
+}
+
+.event-settings-mobile-preview .landing-arena-content-col {
+  padding: 1rem 0.75rem 0 !important;
+}
+
+.event-settings-mobile-preview .landing-arena-bottom {
+  padding: 0 0.75rem !important;
+  max-width: none !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel {
+  background: #0a0a0a !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-stage {
   min-height: 220px !important;
   max-height: 260px !important;
   padding: 0.5rem !important;
+  border-radius: 0 !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-img {
   max-height: min(42vh, 220px) !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel-thumbs {
+  background: #0a0a0a !important;
+  padding: 0.5rem 0.75rem !important;
 }

@@ -124,13 +124,23 @@ function ArenaCarousel({ event }: { event: Event }) {
   );
 }
 
-function ArenaEventCard({ event }: { event: Event }) {
+function ArenaEventIntro({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
+  const title = event.customization?.heroText?.trim() || event.title;
+
+  return (
+    <div className="landing-arena-intro">
+      <p className="landing-arena-organizer">{brand.name.toUpperCase()}</p>
+      <h1 className="landing-arena-title">{title}</h1>
+    </div>
+  );
+}
+
+function ArenaEventDetailsCard({ event }: { event: Event }) {
   const tba = !!event.customization?.scheduleTba;
   const eventDate = new Date(event.date);
   const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
   const category = resolveEventCategory(event.customization?.eventCategory);
-  const title = event.customization?.heroText?.trim() || event.title;
 
   const mapsUrl = event.location?.trim()
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
@@ -138,9 +148,6 @@ function ArenaEventCard({ event }: { event: Event }) {
 
   return (
     <div className="landing-arena-event-card">
-      <p className="landing-arena-organizer">{brand.name.toUpperCase()}</p>
-      <h1 className="landing-arena-title">{title}</h1>
-
       <div className="landing-arena-date-row">
         <div>
           {tba ? (
@@ -362,45 +369,55 @@ export function LandingArenaPage({
       style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}
     >
       <ArenaHeader event={event} />
-      <ArenaCarousel event={event} />
 
-      <main className="landing-arena-main" id="landing-tickets">
-        <ArenaEventCard event={event} />
+      <div className="landing-arena-shell">
+        <div className="landing-arena-layout">
+          <div className="landing-arena-gallery-col">
+            <ArenaCarousel event={event} />
+          </div>
 
-        <div className="landing-arena-section-head">
-          <h2 className="landing-arena-section-title">Select seating</h2>
-          <span className="landing-arena-currency">Pay in LKR</span>
+          <main className="landing-arena-content-col" id="landing-tickets">
+            <ArenaEventIntro event={event} />
+            <ArenaEventDetailsCard event={event} />
+
+            <div className="landing-arena-section-head">
+              <h2 className="landing-arena-section-title">Select seating</h2>
+              <span className="landing-arena-currency">Pay in LKR</span>
+            </div>
+
+            {tickets.length === 0 ? (
+              <div className="landing-arena-ticket">
+                <p className="text-sm" style={{ color: 'var(--arena-muted)' }}>
+                  Registration opens soon.
+                </p>
+              </div>
+            ) : (
+              tickets.map((ticket) => (
+                <ArenaTicketCard
+                  key={ticket.id}
+                  ticket={ticket}
+                  qty={selectedTickets[ticket.id] || 0}
+                  popular={ticket.id === popularId}
+                  onChange={(q) => onTicketChange(ticket.id, q)}
+                />
+              ))
+            )}
+
+            <ArenaSummary
+              tickets={tickets}
+              selectedTickets={selectedTickets}
+              totalAmount={totalAmount}
+              onCheckout={onCheckout}
+              isPurchasing={isPurchasing}
+            />
+          </main>
         </div>
 
-        {tickets.length === 0 ? (
-          <div className="landing-arena-ticket">
-            <p className="text-sm" style={{ color: 'var(--arena-muted)' }}>
-              Registration opens soon.
-            </p>
-          </div>
-        ) : (
-          tickets.map((ticket) => (
-            <ArenaTicketCard
-              key={ticket.id}
-              ticket={ticket}
-              qty={selectedTickets[ticket.id] || 0}
-              popular={ticket.id === popularId}
-              onChange={(q) => onTicketChange(ticket.id, q)}
-            />
-          ))
-        )}
-
-        <ArenaSummary
-          tickets={tickets}
-          selectedTickets={selectedTickets}
-          totalAmount={totalAmount}
-          onCheckout={onCheckout}
-          isPurchasing={isPurchasing}
-        />
-
-        <ArenaTrust />
-        <ArenaFooter event={event} />
-      </main>
+        <div className="landing-arena-bottom">
+          <ArenaTrust />
+          <ArenaFooter event={event} />
+        </div>
+      </div>
     </div>
   );
 }
