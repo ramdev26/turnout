@@ -21,7 +21,12 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export const Login: React.FC = () => {
+function basadminDestination(nextParam: string | null) {
+  if (nextParam && nextParam.startsWith(BASADMIN_BASE)) return nextParam;
+  return `${BASADMIN_BASE}/dashboard`;
+}
+
+export const Login: React.FC<{ basadmin?: boolean }> = ({ basadmin = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -47,11 +52,15 @@ export const Login: React.FC = () => {
     try {
       const raw = await api.post<unknown>('/api/auth/login', values);
       const res = parseAuthPayload(raw);
-      if (loginAs === 'organizer' && !['organizer', 'super_admin'].includes(res.user.role)) {
+      if (basadmin) {
+        if (res.user.role !== 'super_admin') {
+          setServerError('Super admin access only. Use a super admin account.');
+          return;
+        }
+      } else if (loginAs === 'organizer' && !['organizer', 'super_admin'].includes(res.user.role)) {
         setServerError('This account is attendee type. Switch to "Attendee" and try again.');
         return;
-      }
-      if (loginAs === 'attendee' && res.user.role !== 'attendee') {
+      } else if (loginAs === 'attendee' && res.user.role !== 'attendee') {
         setServerError('This account is organizer type. Switch to "Organizer" and try again.');
         return;
       }
@@ -59,7 +68,7 @@ export const Login: React.FC = () => {
       setUser(res.user);
       const destination =
         res.user.role === 'super_admin'
-          ? `${BASADMIN_BASE}/dashboard`
+          ? basadminDestination(nextParam)
           : res.user.role === 'attendee'
             ? '/attendee/dashboard'
             : from;
@@ -71,20 +80,25 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <AuthFlowLayout title="Sign in" subtitle="Choose account type, then continue.">
-      <div className="grid grid-cols-2 gap-2 rounded-xl border p-1" style={{ borderColor: ui.borderColor, background: ui.fieldBg }}>
-        {(['organizer', 'attendee'] as const).map((role) => (
-          <button
-            key={role}
-            type="button"
-            onClick={() => setLoginAs(role)}
-            className={cn('rounded-lg px-3 py-2.5 text-sm font-semibold transition')}
-            style={loginAs === role ? accentSegmentStyleFor(ui, true) : { color: ui.textMuted }}
-          >
-            {role === 'organizer' ? 'Event Organizer' : 'Attendee'}
-          </button>
-        ))}
-      </div>
+    <AuthFlowLayout
+      title={basadmin ? 'BasAdmin sign in' : 'Sign in'}
+      subtitle={basadmin ? 'Super admin access to the platform console.' : 'Choose account type, then continue.'}
+    >
+      {!basadmin && (
+        <div className="grid grid-cols-2 gap-2 rounded-xl border p-1" style={{ borderColor: ui.borderColor, background: ui.fieldBg }}>
+          {(['organizer', 'attendee'] as const).map((role) => (
+            <button
+              key={role}
+              type="button"
+              onClick={() => setLoginAs(role)}
+              className={cn('rounded-lg px-3 py-2.5 text-sm font-semibold transition')}
+              style={loginAs === role ? accentSegmentStyleFor(ui, true) : { color: ui.textMuted }}
+            >
+              {role === 'organizer' ? 'Event Organizer' : 'Attendee'}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-6 flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
@@ -109,16 +123,18 @@ export const Login: React.FC = () => {
         </FlowButton>
       </form>
 
-      <p className="mt-6 text-center text-sm sm:text-left" style={{ color: ui.textMuted }}>
-        Don&apos;t have an account?{' '}
-        <Link
-          to={loginAs === 'attendee' ? '/attendee/signup' : '/signup'}
-          className="font-semibold"
-          style={{ color: ui.accent }}
-        >
-          {loginAs === 'attendee' ? 'Create attendee account' : 'Create organizer account'}
-        </Link>
-      </p>
+      {!basadmin && (
+        <p className="mt-6 text-center text-sm sm:text-left" style={{ color: ui.textMuted }}>
+          Don&apos;t have an account?{' '}
+          <Link
+            to={loginAs === 'attendee' ? '/attendee/signup' : '/signup'}
+            className="font-semibold"
+            style={{ color: ui.accent }}
+          >
+            {loginAs === 'attendee' ? 'Create attendee account' : 'Create organizer account'}
+          </Link>
+        </p>
+      )}
     </AuthFlowLayout>
   );
 };

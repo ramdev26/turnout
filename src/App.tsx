@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
@@ -126,12 +126,56 @@ function RequireAttendee({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function basadminLoginPath(returnTo: string) {
+  return `${BASADMIN_BASE}/login?next=${encodeURIComponent(returnTo)}`;
+}
+
 function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore();
+  const location = useLocation();
   if (loading) return <FullPageLoader />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    const returnTo = `${location.pathname}${location.search}`;
+    return <Navigate to={basadminLoginPath(returnTo)} replace />;
+  }
   if (user.role !== 'super_admin') return <Navigate to="/" replace />;
   return <>{children}</>;
+}
+
+function loginRedirectForUser(
+  user: NonNullable<ReturnType<typeof useAuthStore>['user']>,
+  next: string | null,
+) {
+  if (user.role === 'super_admin') {
+    return next && next.startsWith(BASADMIN_BASE) ? next : `${BASADMIN_BASE}/dashboard`;
+  }
+  if (user.role === 'attendee') return '/attendee/dashboard';
+  return next && next.startsWith('/') && !next.startsWith(BASADMIN_BASE) ? next : '/dashboard';
+}
+
+function LoginRoute() {
+  const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  if (user) {
+    return <Navigate to={loginRedirectForUser(user, searchParams.get('next'))} replace />;
+  }
+  return <Login />;
+}
+
+function BasAdminLoginRoute() {
+  const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const next = searchParams.get('next');
+  const destination =
+    next && next.startsWith(BASADMIN_BASE) ? next : `${BASADMIN_BASE}/dashboard`;
+
+  if (user?.role === 'super_admin') {
+    return <Navigate to={destination} replace />;
+  }
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+  return <Login basadmin />;
 }
 
 export default function App() {
@@ -167,12 +211,7 @@ export default function App() {
           />
           <Route path="/landing" element={<MarketingLanding />} />
           <Route path="/discover" element={<Home />} />
-          <Route
-            path="/login"
-            element={
-              user ? <Navigate to={user.role === 'super_admin' ? BASADMIN_BASE : user.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'} replace /> : <Login />
-            }
-          />
+          <Route path="/login" element={<LoginRoute />} />
           <Route
             path="/signup"
             element={
@@ -304,6 +343,7 @@ export default function App() {
           <Route path="/admin/settings" element={<Navigate to={`${BASADMIN_BASE}/settings`} replace />} />
           <Route path="/admin/logs" element={<Navigate to={`${BASADMIN_BASE}/logs`} replace />} />
           <Route path="/basadmin" element={<Navigate to={`${BASADMIN_BASE}/dashboard`} replace />} />
+          <Route path={`${BASADMIN_BASE}/login`} element={<BasAdminLoginRoute />} />
           <Route path={`${BASADMIN_BASE}/dashboard`} element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
           <Route path={`${BASADMIN_BASE}/organizers`} element={<RequireSuperAdmin><AdminOrganizers /></RequireSuperAdmin>} />
           <Route path={`${BASADMIN_BASE}/users`} element={<RequireSuperAdmin><AdminUsers /></RequireSuperAdmin>} />

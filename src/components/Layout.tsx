@@ -37,6 +37,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isAuthPage =
     path === '/' ||
     path === '/login' ||
+    path === `${BASADMIN_BASE}/login` ||
     path === '/signup' ||
     path === '/attendee/signup' ||
     path === '/forgot-password' ||
