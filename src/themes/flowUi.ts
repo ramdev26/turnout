@@ -32,3 +32,16 @@ export function cardMutedStyleFor(ui: CreateThemeUI): CSSProperties {
     borderColor: ui.borderColor,
   };
 }
+
+/** Filled accent button — dark ink on lime, light text on darker accent colors. */
+export function accentButtonStyleFor(ui: CreateThemeUI): CSSProperties {
+  return {
+    backgroundColor: ui.accent,
+    color: ui.accentOn,
+  };
+}
+
+export function accentSegmentStyleFor(ui: CreateThemeUI, active: boolean): CSSProperties {
+  if (!active) return { color: ui.textMuted };
+  return accentButtonStyleFor(ui);
+}

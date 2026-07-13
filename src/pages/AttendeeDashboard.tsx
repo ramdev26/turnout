@@ -5,7 +5,7 @@ import { Order } from '../types';
 import { EmptyState } from '../components/ui/Feedback';
 import { AttendeeShell } from '../components/attendee/AttendeeShell';
 import { FlowStatCard, FlowCard, FlowAlert, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardStyleFor } from '../themes/flowUi';
+import { accentButtonStyleFor, accentSegmentStyleFor, cardStyleFor } from '../themes/flowUi';
 import { cn } from '../utils/cn';
 
 function downloadTextFile(filename: string, text: string) {
@@ -148,7 +148,7 @@ export const AttendeeDashboard: React.FC = () => {
                 className={cn('rounded-lg px-3 py-2 text-xs font-bold capitalize')}
                 style={
                   activeFilter === f
-                    ? { backgroundColor: ui.accent, color: '#fff' }
+                    ? accentSegmentStyleFor(ui, true)
                     : { ...cardStyleFor(ui), color: ui.textMuted }
                 }
               >
