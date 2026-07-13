@@ -10,11 +10,13 @@ import {
   type LandingFontKey,
 } from '../../themes/landingFonts';
 import type { LandingDisplayMode, LandingStyle } from '../../types';
+import type { LayoutTemplateId } from '../../templates/templates';
 import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { cn } from '../../utils/cn';
 import { accentSegmentStyleFor } from '../../themes/flowUi';
 
 export type LandingDesignValue = {
+  templateId: LayoutTemplateId;
   eventCategory: string;
   primaryColor: string;
   secondaryColor: string;
@@ -22,6 +24,8 @@ export type LandingDesignValue = {
   displayMode: LandingDisplayMode;
   landingStyle: LandingStyle;
 };
+
+export { LANDING_LAYOUT_TEMPLATES } from '../../templates/templates';
 
 type ColorPreset = {
   id: string;

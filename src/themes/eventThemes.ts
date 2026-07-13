@@ -359,9 +359,19 @@ export function resolveEventTheme(_customization?: LandingCustomizationInput): E
   return EVENT_THEMES.minimal;
 }
 
-/** Editorial template (template-2) is the default; canvas layouts are preserved. */
+/** Respect stored layout template; canvas layouts are preserved. */
 export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customization'>): TemplateId {
   if (event.templateId === 'template-canvas') return 'template-canvas';
+  const id = event.templateId;
+  if (
+    id === 'template-1' ||
+    id === 'template-2' ||
+    id === 'template-3' ||
+    id === 'template-4' ||
+    id === 'template-5'
+  ) {
+    return id;
+  }
   return 'template-2';
 }
 

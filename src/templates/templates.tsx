@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import type { Speaker, Session } from '../types';
 import { landingCssVars, resolveTemplateId } from '../themes/eventThemes';
 import { LandingShowcasePage } from '../components/landing/LandingShowcase';
+import { LandingClassicPage } from '../components/landing/LandingClassic';
 import {
   AboutBlock,
   CheckoutPanel,
@@ -24,7 +25,35 @@ import {
   themeDisplayName,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-1' | 'template-2' | 'template-3' | 'template-4' | 'template-canvas';
+export type TemplateId = 'template-1' | 'template-2' | 'template-3' | 'template-4' | 'template-5' | 'template-canvas';
+
+/** Layout templates organizers can pick in the design console (excludes custom canvas). */
+export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
+
+export const LANDING_LAYOUT_TEMPLATES: {
+  id: LayoutTemplateId;
+  name: string;
+  description: string;
+}[] = [
+  { id: 'template-2', name: 'Showcase', description: 'Editorial hero with sidebar checkout' },
+  { id: 'template-1', name: 'Cinematic', description: 'Full-bleed banner with overlay title' },
+  { id: 'template-3', name: 'Avant', description: 'Split-screen story and tickets' },
+  { id: 'template-4', name: 'Noir', description: 'Moody dark poster hero' },
+  { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
+];
+
+export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
+  if (
+    id === 'template-1' ||
+    id === 'template-2' ||
+    id === 'template-3' ||
+    id === 'template-4' ||
+    id === 'template-5'
+  ) {
+    return id;
+  }
+  return 'template-2';
+}
 
 export type LandingTemplate = {
   id: TemplateId;
@@ -350,10 +379,18 @@ const Template4: LandingTemplate = {
   ),
 };
 
-export const landingTemplates: LandingTemplate[] = [Template1, Template2, Template3, Template4];
+const Template5: LandingTemplate = {
+  id: 'template-5',
+  name: 'Classic',
+  description: 'Clean centered single-column layout for any screen size.',
+  previewSeed: 'classic-stack',
+  render: (props) => <LandingClassicPage {...props} />,
+};
+
+export const landingTemplates: LandingTemplate[] = [Template1, Template2, Template3, Template4, Template5];
 
 export function getLandingTemplate(id: string | undefined): LandingTemplate {
-  return landingTemplates.find((t) => t.id === id) || Template1;
+  return landingTemplates.find((t) => t.id === id) || Template2;
 }
 
 const CanvasTemplate: LandingTemplate = {
@@ -371,7 +408,7 @@ const CanvasTemplate: LandingTemplate = {
 export const landingTemplatesAll: LandingTemplate[] = [...landingTemplates, CanvasTemplate];
 
 export function getLandingTemplateAll(id: string | undefined): LandingTemplate {
-  return landingTemplatesAll.find((t) => t.id === id) || Template1;
+  return landingTemplatesAll.find((t) => t.id === id) || Template2;
 }
 
 export function getLandingTemplateForEvent(event: Event): LandingTemplate {

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { resolveLayoutTemplateId, LANDING_LAYOUT_TEMPLATES } from '../templates/templates';
 import {
   ArrowLeft,
   ChevronDown,
@@ -128,6 +129,7 @@ export const EventSettings: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [themeId, setThemeId] = useState<EventThemeId>('minimal');
   const [design, setDesign] = useState<LandingDesignValue>({
+    templateId: 'template-2',
     eventCategory: 'default',
     primaryColor: '#059669',
     secondaryColor: '#10b981',
@@ -206,6 +208,7 @@ export const EventSettings: React.FC = () => {
       const minimal = EVENT_THEMES.minimal;
       setThemeId('minimal');
       setDesign({
+        templateId: resolveLayoutTemplateId(ev.templateId),
         eventCategory: landing.eventCategory || 'default',
         primaryColor: landing.primaryColor || minimal.primary,
         secondaryColor: landing.secondaryColor || minimal.secondary,
@@ -285,7 +288,7 @@ export const EventSettings: React.FC = () => {
       date: !scheduleTba && date ? new Date(date).toISOString() : event.date,
       bannerUrl: bannerUrl ? normalizeBannerUrl(bannerUrl) : event.bannerUrl,
       slug: slug || event.slug,
-      templateId: event.templateId || 'template-2',
+      templateId: design.templateId,
       status: 'published',
       customization: {
         ...event.customization,
@@ -377,6 +380,7 @@ export const EventSettings: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
       });
       setEvent(res.event);
@@ -616,10 +620,10 @@ export const EventSettings: React.FC = () => {
 
             <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                Theme
+                Layout template
               </p>
               <p className="mt-0.5 text-sm font-medium" style={{ color: ui.text }}>
-                Minimal
+                {LANDING_LAYOUT_TEMPLATES.find((t) => t.id === design.templateId)?.name ?? 'Showcase'}
               </p>
             </div>
 

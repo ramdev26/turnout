@@ -120,6 +120,24 @@
   }
 }
 
+.landing-poster-frame--classic {
+  max-width: min(100%, 36rem);
+}
+
+.landing-classic-main {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .landing-poster-frame--classic {
+    max-width: min(100%, 40rem);
+  }
+
+  .landing-poster-frame--classic .landing-poster-img {
+    max-height: min(56vh, 560px);
+  }
+}
+
 .landing-hero-img {
   animation: landing-ken-burns 24s ease-in-out infinite alternate;
   transform-origin: center center;

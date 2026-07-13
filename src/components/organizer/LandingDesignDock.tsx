@@ -7,11 +7,13 @@ import {
   COLOR_PRESETS,
   STYLE_OPTIONS,
   DISPLAY_OPTIONS,
+  LANDING_LAYOUT_TEMPLATES,
   type LandingDesignValue,
 } from './LandingCustomizer';
+import { LayoutTemplate } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
-type DockControl = 'colour' | 'style' | 'font' | 'display' | null;
+type DockControl = 'template' | 'colour' | 'style' | 'font' | 'display' | null;
 
 const DOCK_BG = 'rgba(21, 22, 26, 0.96)';
 const DOCK_BORDER = 'rgba(255, 255, 255, 0.14)';
@@ -22,6 +24,80 @@ const TEXT_MUTED = 'rgba(255, 255, 255, 0.62)';
 const TEXT_SUBTLE = 'rgba(255, 255, 255, 0.45)';
 const DEFAULT_CATEGORY_ID = 'default';
 const GLOW = '0 0 0 1px rgba(16,185,129,0.35), 0 10px 28px rgba(16,185,129,0.18)';
+
+const TemplateThumb: React.FC<{
+  id: LandingDesignValue['templateId'];
+  name: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ id, name, active, onClick }) => {
+  const wireframe = {
+    'template-1': (
+      <div className="flex h-full flex-col gap-1 p-1.5">
+        <div className="h-2 rounded-sm bg-white/25" />
+        <div className="min-h-0 flex-1 rounded-sm bg-white/40" />
+        <div className="h-1.5 w-2/3 rounded-sm bg-white/20" />
+      </div>
+    ),
+    'template-2': (
+      <div className="grid h-full grid-cols-[1fr_0.55fr] gap-1 p-1.5">
+        <div className="flex flex-col gap-1">
+          <div className="h-1.5 rounded-sm bg-white/20" />
+          <div className="h-4 rounded-sm bg-white/35" />
+          <div className="flex-1 rounded-sm bg-white/15" />
+        </div>
+        <div className="rounded-sm bg-white/28" />
+      </div>
+    ),
+    'template-3': (
+      <div className="grid h-full grid-cols-2 gap-1 p-1.5">
+        <div className="rounded-sm bg-white/35" />
+        <div className="rounded-sm bg-white/18" />
+      </div>
+    ),
+    'template-4': (
+      <div className="flex h-full flex-col gap-1 p-1.5">
+        <div className="h-2 rounded-sm bg-white/25" />
+        <div className="min-h-0 flex-1 rounded-sm bg-black/50 ring-1 ring-white/20" />
+        <div className="h-1.5 rounded-sm bg-white/15" />
+      </div>
+    ),
+    'template-5': (
+      <div className="flex h-full flex-col items-center gap-1 p-1.5">
+        <div className="h-3 w-3/4 rounded-sm bg-white/35" />
+        <div className="h-1.5 w-1/2 rounded-sm bg-white/20" />
+        <div className="w-2/3 flex-1 rounded-sm bg-white/15" />
+      </div>
+    ),
+  }[id];
+
+  return (
+    <button type="button" onClick={onClick} className="group flex shrink-0 flex-col items-center gap-1.5" title={name}>
+      <span
+        className={cn(
+          'relative h-14 w-[4.5rem] overflow-hidden rounded-xl border transition',
+          active ? 'ring-2 ring-offset-2' : 'opacity-85 hover:opacity-100',
+        )}
+        style={{
+          background: 'linear-gradient(160deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 100%)',
+          borderColor: active ? 'rgba(192,255,114,0.55)' : 'rgba(255,255,255,0.14)',
+          ['--tw-ring-color' as string]: '#c0ff72',
+          ['--tw-ring-offset-color' as string]: DOCK_BG,
+        }}
+      >
+        {wireframe}
+        {active ? (
+          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-black/40">
+            <Check className="h-2.5 w-2.5 text-white" />
+          </span>
+        ) : null}
+      </span>
+      <span className="max-w-[4.5rem] truncate text-[11px] font-medium" style={{ color: active ? TEXT : TEXT_MUTED }}>
+        {name}
+      </span>
+    </button>
+  );
+};
 
 const CategoryThumb: React.FC<{
   category: (typeof EVENT_CATEGORIES)[number];
@@ -169,6 +245,7 @@ export function LandingDesignDock({
     loadLandingFont(defaultCategory.fontFamily);
     onDesignChange({
       ...design,
+      templateId: 'template-2',
       eventCategory: defaultCategory.id,
       fontFamily: defaultCategory.fontFamily,
       primaryColor: defaultCategory.primaryColor,
@@ -250,9 +327,10 @@ export function LandingDesignDock({
   const fontKey = resolveLandingFontKey(design.fontFamily);
   const fontValue = LANDING_FONTS[fontKey].name;
   const displayValue = DISPLAY_OPTIONS.find((d) => d.id === design.displayMode)?.name ?? 'Auto';
+  const templateValue = LANDING_LAYOUT_TEMPLATES.find((t) => t.id === design.templateId)?.name ?? 'Showcase';
   const summary = useMemo(
-    () => `${styleValue} · ${fontValue} · ${displayValue}`,
-    [styleValue, fontValue, displayValue]
+    () => `${templateValue} · ${styleValue} · ${fontValue} · ${displayValue}`,
+    [templateValue, styleValue, fontValue, displayValue]
   );
 
   if (!expanded) {
@@ -359,6 +437,18 @@ export function LandingDesignDock({
           </div>
         </div>
 
+        <div className="mb-2 flex items-start gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {LANDING_LAYOUT_TEMPLATES.map((tpl) => (
+            <TemplateThumb
+              key={tpl.id}
+              id={tpl.id}
+              name={tpl.name}
+              active={design.templateId === tpl.id}
+              onClick={() => update({ templateId: tpl.id })}
+            />
+          ))}
+        </div>
+
         <div className="flex items-start gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {EVENT_CATEGORIES.map((cat) => (
             <CategoryThumb
@@ -370,7 +460,44 @@ export function LandingDesignDock({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="relative col-span-1">
+            <Segment
+              icon={<LayoutTemplate className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
+              label="Layout"
+              value={templateValue}
+              active={open === 'template'}
+              onClick={() => toggle('template')}
+            />
+            {open === 'template' && (
+              <Popover title="Landing layout" align="center" onClose={() => setOpen(null)}>
+                <div className="flex flex-col gap-1">
+                  {LANDING_LAYOUT_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        update({ templateId: tpl.id });
+                        setOpen(null);
+                      }}
+                      className="flex min-h-[44px] items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/10"
+                    >
+                      <span>
+                        <span className="block text-sm font-medium" style={{ color: TEXT }}>
+                          {tpl.name}
+                        </span>
+                        <span className="block text-xs" style={{ color: TEXT_MUTED }}>
+                          {tpl.description}
+                        </span>
+                      </span>
+                      {design.templateId === tpl.id && <Check className="h-4 w-4" style={{ color: design.primaryColor }} />}
+                    </button>
+                  ))}
+                </div>
+              </Popover>
+            )}
+          </div>
+
           <div className="relative col-span-1">
             <Segment
               icon={

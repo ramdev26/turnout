@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { resolveLayoutTemplateId } from '../templates/templates';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -254,6 +255,7 @@ export const CreateEvent: React.FC = () => {
   const [design, setDesign] = useState<LandingDesignValue>(() => {
     const cat = EVENT_CATEGORIES[0];
     return {
+      templateId: 'template-2' as const,
       eventCategory: cat.id,
       primaryColor: cat.primaryColor,
       secondaryColor: cat.secondaryColor,
@@ -461,7 +463,7 @@ export const CreateEvent: React.FC = () => {
         date: data.date,
         location: data.location,
         bannerUrl: data.bannerUrl || `https://picsum.photos/seed/${Date.now()}/1200/600`,
-        templateId: selectedTheme.templateId,
+        templateId: design.templateId,
         customization,
         tickets: payloadTickets,
       });
@@ -510,7 +512,7 @@ export const CreateEvent: React.FC = () => {
       bannerUrl: bannerUrl
         ? normalizeBannerUrl(bannerUrl)
         : 'https://picsum.photos/seed/turnout-create-preview/1200/600',
-      templateId: 'template-2',
+      templateId: design.templateId,
       customization,
       status: 'published',
       createdAt: new Date().toISOString(),

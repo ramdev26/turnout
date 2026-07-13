@@ -2518,7 +2518,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   }
 
   $templateId = trim((string)($body['templateId'] ?? ''));
-  if ($templateId !== '' && in_array($templateId, ['template-1', 'template-2', 'template-3', 'template-4', 'template-canvas'], true)) {
+  if ($templateId !== '' && in_array($templateId, ['template-1', 'template-2', 'template-3', 'template-4', 'template-5', 'template-canvas'], true)) {
     $row['template_id'] = $templateId;
   } elseif ($themeId !== '' && is_event_theme_id($themeId)) {
     $row['template_id'] = event_theme_catalog()[$themeId]['templateId'];
