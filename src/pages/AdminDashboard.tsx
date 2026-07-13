@@ -14,8 +14,8 @@ import { AdminSummary } from '../types';
 import { formatLKR } from '../utils/money';
 import { AdminShell } from '../components/admin/AdminShell';
 import { AdminDashboardCharts } from '../components/admin/AdminDashboardCharts';
-import { FlowStatCard, FlowCard, FlowAlert, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardMutedStyleFor } from '../themes/flowUi';
+import { FlowCard, FlowAlert, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { accentButtonStyleFor, cardMutedStyleFor } from '../themes/flowUi';
 import { Skeleton } from '../components/ui/Feedback';
 import { cn } from '../utils/cn';
 
@@ -24,6 +24,41 @@ function pctChange(current: number, previous: number): string | null {
   const delta = ((current - previous) / previous) * 100;
   const sign = delta >= 0 ? '+' : '';
   return `${sign}${delta.toFixed(0)}%`;
+}
+
+function KpiCard({
+  label,
+  value,
+  hint,
+  icon,
+  highlight,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  icon?: React.ReactNode;
+  highlight?: 'warn' | 'accent';
+}) {
+  const ui = APP_FLOW_UI;
+  const hintColor = highlight === 'warn' ? '#fbbf24' : highlight === 'accent' ? ui.accent : ui.textMuted;
+  return (
+    <div className="rounded-2xl border p-5" style={cardMutedStyleFor(ui)}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: ui.textMuted }}>
+          {label}
+        </p>
+        {icon ? <span style={{ color: ui.textSubtle }}>{icon}</span> : null}
+      </div>
+      <p className="mt-2 text-2xl font-bold tabular-nums sm:text-3xl" style={{ color: ui.text }}>
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-1.5 text-xs font-medium" style={{ color: hintColor }}>
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export const AdminDashboard: React.FC = () => {
@@ -60,14 +95,6 @@ export const AdminDashboard: React.FC = () => {
     return pctChange(recent, prior);
   }, [summary]);
 
-  const signupTrend = useMemo(() => {
-    const series = summary?.charts?.signupsByDay ?? [];
-    if (series.length < 2) return null;
-    const recent = series.slice(-7).reduce((sum, row) => sum + row.signups, 0);
-    const prior = series.slice(-14, -7).reduce((sum, row) => sum + row.signups, 0);
-    return pctChange(recent, prior);
-  }, [summary]);
-
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -79,21 +106,33 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const refreshButton = (
+    <button
+      type="button"
+      onClick={handleRefresh}
+      disabled={refreshing}
+      className={cn(
+        'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition',
+        refreshing && 'opacity-60',
+      )}
+      style={accentButtonStyleFor(ui)}
+    >
+      <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+      {refreshing ? 'Refreshing…' : 'Refresh'}
+    </button>
+  );
+
   if (loading) {
     return (
       <AdminShell title="Platform Dashboard" subtitle="Loading analytics…">
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-32 rounded-2xl" />
+            <Skeleton className="h-32 rounded-2xl" />
+            <Skeleton className="h-32 rounded-2xl" />
+            <Skeleton className="h-32 rounded-2xl" />
           </div>
           <Skeleton className="h-[360px] rounded-2xl" />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Skeleton className="h-[360px] rounded-2xl" />
-            <Skeleton className="h-[360px] rounded-2xl" />
-          </div>
         </div>
       </AdminShell>
     );
@@ -101,7 +140,7 @@ export const AdminDashboard: React.FC = () => {
 
   if (error) {
     return (
-      <AdminShell title="Platform Dashboard">
+      <AdminShell title="Platform Dashboard" actions={refreshButton}>
         <FlowAlert variant="error">{error}</FlowAlert>
       </AdminShell>
     );
@@ -110,158 +149,94 @@ export const AdminDashboard: React.FC = () => {
   return (
     <AdminShell
       title="Platform Dashboard"
-      subtitle="Live revenue, growth, payouts, and performance analytics across Turnout."
+      subtitle="Revenue, growth, payouts, and performance across Turnout."
+      actions={refreshButton}
     >
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className={cn(
-            'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition',
-            refreshing && 'opacity-60',
-          )}
-          style={cardMutedStyleFor(ui)}
-        >
-          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-          {refreshing ? 'Refreshing…' : 'Refresh data'}
-        </button>
-      </div>
-
       {summary && (
-        <>
+        <div className="space-y-8">
           <FlowCard className="overflow-hidden p-0">
             <div
-              className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-4 xl:p-8"
-              style={{
-                background: `linear-gradient(135deg, ${ui.cardBg} 0%, rgba(192, 255, 114, 0.08) 100%)`,
-              }}
+              className="border-b px-6 py-5 sm:px-8"
+              style={{ borderColor: ui.borderColor, background: 'rgba(255,255,255,0.03)' }}
             >
-              <div className="sm:col-span-2 xl:col-span-1">
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: ui.textMuted }}>
-                  Gross revenue
-                </p>
-                <p className="mt-2 text-3xl font-bold tabular-nums sm:text-4xl" style={{ color: ui.accent }}>
-                  {formatLKR(summary.totalRevenue)}
-                </p>
-                <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
-                  Today {formatLKR(summary.todayRevenue ?? 0)}
-                  {revenueTrend ? <span style={{ color: ui.accent }}> · {revenueTrend} vs prior week</span> : null}
-                </p>
-              </div>
-              <FlowStatCard
-                label="Total users"
+              <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: ui.textMuted }}>
+                At a glance
+              </p>
+              <p className="mt-2 text-3xl font-bold tabular-nums sm:text-4xl" style={{ color: ui.text }}>
+                {formatLKR(summary.totalRevenue)}
+              </p>
+              <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
+                Total gross revenue
+                <span className="mx-2 opacity-40">·</span>
+                Today {formatLKR(summary.todayRevenue ?? 0)}
+                {revenueTrend ? (
+                  <>
+                    <span className="mx-2 opacity-40">·</span>
+                    <span
+                      className="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold"
+                      style={{ background: ui.accentSoft, color: ui.accentOn }}
+                    >
+                      {revenueTrend} vs last week
+                    </span>
+                  </>
+                ) : null}
+              </p>
+            </div>
+            <div className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-4 sm:p-8">
+              <KpiCard
+                label="Users"
                 value={summary.totalUsers ?? 0}
                 icon={<Users className="h-4 w-4" />}
-                accent={signupTrend ? ui.accent : undefined}
               />
-              <FlowStatCard
+              <KpiCard
                 label="Active events"
                 value={summary.activeEvents ?? 0}
+                hint={`${summary.totalEvents ?? 0} total events`}
                 icon={<CalendarDays className="h-4 w-4" />}
               />
-              <FlowStatCard
+              <KpiCard
                 label="Pending payouts"
                 value={formatLKR(summary.pendingPayoutAmount)}
+                hint={summary.pendingPayoutCount > 0 ? `${summary.pendingPayoutCount} open requests` : 'No open requests'}
                 icon={<Wallet className="h-4 w-4" />}
-                accent={summary.pendingPayoutAmount > 0 ? '#fbbf24' : undefined}
+                highlight={summary.pendingPayoutAmount > 0 ? 'warn' : undefined}
+              />
+              <KpiCard
+                label="Platform fees"
+                value={formatLKR(summary.totalPlatformFees)}
+                hint={`${summary.transactionCount} transactions`}
+                icon={<TrendingUp className="h-4 w-4" />}
               />
             </div>
           </FlowCard>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <FlowStatCard label="Total events" value={summary.totalEvents ?? 0} icon={<CalendarDays className="h-4 w-4" />} />
-            <FlowStatCard label="Platform fees" value={formatLKR(summary.totalPlatformFees)} icon={<TrendingUp className="h-4 w-4" />} />
-            <FlowStatCard label="Organizer earnings" value={formatLKR(summary.totalOrganizerEarnings)} icon={<Banknote className="h-4 w-4" />} />
-            <FlowStatCard label="Paid out" value={formatLKR(summary.totalPaidOut)} />
-            <FlowStatCard label="Transactions" value={summary.transactionCount} />
-            <FlowStatCard
-              label="Failed / refunds"
-              value={`${summary.failedPayments ?? 0} / ${summary.refundRequests ?? 0}`}
-              icon={<AlertTriangle className="h-4 w-4" />}
-              accent={(summary.failedPayments ?? 0) > 0 ? '#f87171' : undefined}
-            />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: 'Organizer earnings', value: formatLKR(summary.totalOrganizerEarnings), icon: <Banknote className="h-3.5 w-3.5" /> },
+              { label: 'Paid out', value: formatLKR(summary.totalPaidOut), icon: <Wallet className="h-3.5 w-3.5" /> },
+              { label: 'Failed payments', value: summary.failedPayments ?? 0, icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+              { label: 'Refund requests', value: summary.refundRequests ?? 0, icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between rounded-xl border px-4 py-3"
+                style={cardMutedStyleFor(ui)}
+              >
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: ui.textMuted }}>
+                    {item.label}
+                  </p>
+                  <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: ui.text }}>
+                    {item.value}
+                  </p>
+                </div>
+                <span style={{ color: ui.textSubtle }}>{item.icon}</span>
+              </div>
+            ))}
           </div>
 
           <AdminDashboardCharts summary={summary} />
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <FlowCard>
-              <h2 className="mb-3 text-lg font-semibold" style={{ color: ui.text }}>
-                Operations snapshot
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  ['Pending payout requests', summary.pendingPayoutCount],
-                  ['Refund requests', summary.refundRequests ?? 0],
-                  ['Failed payments', summary.failedPayments ?? 0],
-                  ['Paid transactions', summary.transactionCount - (summary.failedPayments ?? 0)],
-                ].map(([label, value]) => (
-                  <div
-                    key={String(label)}
-                    className="rounded-xl border px-4 py-3"
-                    style={cardMutedStyleFor(ui)}
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textMuted }}>
-                      {label}
-                    </p>
-                    <p className="mt-1 text-2xl font-bold tabular-nums" style={{ color: ui.text }}>
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </FlowCard>
-
-            <FlowCard>
-              <h2 className="mb-3 text-lg font-semibold" style={{ color: ui.text }}>
-                Quick leaderboard
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: ui.textMuted }}>
-                    Top event
-                  </p>
-                  {(summary.topEvents ?? []).slice(0, 3).map((event, index) => (
-                    <div
-                      key={event.id}
-                      className="mb-2 flex items-center justify-between rounded-xl border px-3 py-2 text-sm"
-                      style={cardMutedStyleFor(ui)}
-                    >
-                      <span style={{ color: ui.textMuted }}>{index + 1}.</span>
-                      <span className="flex-1 px-2 font-medium" style={{ color: ui.text }}>
-                        {event.title}
-                      </span>
-                      <span className="font-semibold" style={{ color: ui.accent }}>
-                        {formatLKR(event.revenue)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: ui.textMuted }}>
-                    Top organizer
-                  </p>
-                  {(summary.topOrganizers ?? []).slice(0, 3).map((org, index) => (
-                    <div
-                      key={org.id}
-                      className="mb-2 flex items-center justify-between rounded-xl border px-3 py-2 text-sm"
-                      style={cardMutedStyleFor(ui)}
-                    >
-                      <span style={{ color: ui.textMuted }}>{index + 1}.</span>
-                      <span className="flex-1 px-2 font-medium" style={{ color: ui.text }}>
-                        {org.name}
-                      </span>
-                      <span className="font-semibold" style={{ color: ui.accent }}>
-                        {formatLKR(org.earnings)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </FlowCard>
-          </div>
-        </>
+        </div>
       )}
     </AdminShell>
   );
