@@ -23,6 +23,7 @@ import {
   ticketRemaining,
   useCountdown,
 } from './LandingShared';
+import { VenueMapEmbed } from './VenueMapEmbed';
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
 
@@ -159,8 +160,9 @@ function SpotlightAbout({ event }: { event: Event }) {
 
 function SpotlightLocation({ event }: { event: Event }) {
   const location = event.location?.trim() || 'Venue to be announced';
-  const mapsUrl = event.location?.trim()
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
+  const hasLocation = Boolean(event.location?.trim());
+  const mapsUrl = hasLocation
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location!.trim())}`
     : null;
 
   return (
@@ -174,14 +176,17 @@ function SpotlightLocation({ event }: { event: Event }) {
         ) : null}
       </div>
       <div className="sp-map">
-        <div className="sp-map-art" aria-hidden>
-          <div className="sp-map-pin">
-            <MapPin className="h-5 w-5" />
-          </div>
-        </div>
+        <VenueMapEmbed
+          query={hasLocation ? event.location : null}
+          title={`${event.title} venue map`}
+          emptyLabel="Venue to be announced"
+          className="sp-map-embed"
+        />
         <div className="sp-map-caption">
           <p className="sp-map-name">{location}</p>
-          <p className="sp-map-hint">Directions open in Google Maps</p>
+          <p className="sp-map-hint">
+            {hasLocation ? 'Interactive map · open Google Maps for directions' : 'Add a venue address to show the map'}
+          </p>
         </div>
       </div>
     </section>
