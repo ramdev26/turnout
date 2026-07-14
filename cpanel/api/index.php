@@ -855,6 +855,27 @@ run_boot_schema_guard('ensure_organizer_workspace_tables', static fn () => ensur
 run_boot_schema_guard('ensure_organizer_payment_tables', static fn () => ensure_organizer_payment_tables(db()));
 enforce_write_request_integrity($path, $method);
 
+if ($path === '/health' && $method === 'GET') {
+  $payload = [
+    'ok' => true,
+    'service' => 'turnout-api',
+    'db' => false,
+  ];
+  try {
+    $pdo = db();
+    $pdo->query('SELECT 1');
+    $payload['db'] = true;
+    $payload['driver'] = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    json_response(200, $payload);
+  } catch (Throwable $e) {
+    $payload['ok'] = false;
+    $payload['error'] = 'db_unavailable';
+    $payload['message'] = $e->getMessage();
+    json_response(503, $payload);
+  }
+}
+
+
 function load_event_row_or_404(PDO $pdo, int $eventId): array {
   $stmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
