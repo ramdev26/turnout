@@ -414,6 +414,16 @@ export const EventSettings: React.FC = () => {
       setEvent(res.event);
       setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
+      setDesign((prev) => ({
+        ...prev,
+        templateId: resolveLayoutTemplateId(res.event.templateId),
+        eventCategory: (res.event.customization?.eventCategory as string) || prev.eventCategory,
+        primaryColor: res.event.customization?.primaryColor || prev.primaryColor,
+        secondaryColor: res.event.customization?.secondaryColor || prev.secondaryColor,
+        fontFamily: resolveLandingFontKey(res.event.customization?.fontFamily) || prev.fontFamily,
+        displayMode: (res.event.customization?.displayMode as LandingDesignValue['displayMode']) || prev.displayMode,
+        landingStyle: (res.event.customization?.landingStyle as LandingDesignValue['landingStyle']) || prev.landingStyle,
+      }));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to save changes');
