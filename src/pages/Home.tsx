@@ -7,7 +7,7 @@ import { EventCard } from '../components/ui/EventCard';
 import { Event } from '../types';
 import { api } from '../api/client';
 import { EVENT_THEMES } from '../themes/eventThemes';
-import { cardStyleFor } from '../themes/flowUi';
+import { accentButtonStyleFor, cardStyleFor } from '../themes/flowUi';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -70,8 +70,8 @@ export const Home: React.FC = () => {
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
                 to={user ? '/events/new' : '/signup'}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
-                style={{ backgroundColor: ui.accent }}
+                className="turnout-btn-accent inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition hover:brightness-105"
+                style={accentButtonStyleFor(ui)}
               >
                 {user ? 'Open Dashboard' : 'Create Event'}
                 <ArrowRight className="h-4 w-4" />
@@ -192,8 +192,8 @@ export const Home: React.FC = () => {
         </p>
         <Link
           to={user ? '/events/new' : '/signup'}
-          className="mt-7 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:brightness-105"
-          style={{ backgroundColor: ui.accent }}
+          className="turnout-btn-accent mt-7 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:brightness-105"
+          style={accentButtonStyleFor(ui)}
         >
           {user ? 'Create event now' : 'Get started free'}
           <ArrowRight className="h-4 w-4" />

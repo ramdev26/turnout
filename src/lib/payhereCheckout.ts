@@ -27,7 +27,8 @@ export type PayHereCheckoutPayment = {
 };
 
 export type PayHereInitiateResponse = {
-  orderId: string;
+  orderId?: string;
+  setupOrderId?: string;
   accessToken?: string;
   actionUrl?: string;
   sandbox?: boolean;
@@ -92,7 +93,7 @@ export function buildPayHerePaymentFromInitiate(res: PayHereInitiateResponse): P
     return_url: returnUrl,
     cancel_url: cancelUrl,
     notify_url: pick('notify_url'),
-    order_id: pick('order_id') || str(res.orderId),
+    order_id: pick('order_id') || str(res.setupOrderId) || str(res.orderId),
     items: pick('items'),
     amount,
     currency: pick('currency') || 'LKR',
@@ -458,6 +459,62 @@ export async function startPayHereCheckout(
       error ||
         'Could not open the payment window. Refresh the page and try again.'
     );
+  };
+
+  payhere.startPayment(payment as unknown as Record<string, unknown>);
+}
+
+/** PayHere card preapproval for organizer billing (tokenizes card for platform fee collection). */
+export async function startPayHerePreapprove(
+  res: PayHereInitiateResponse,
+  handlers: PayHereCheckoutHandlers = {}
+): Promise<void> {
+  const payment = {
+    ...buildPayHerePaymentFromInitiate(res),
+    preapprove: true,
+  };
+  const useSameTabFallback = handlers.allowSameTabFallback === true;
+
+  try {
+    await loadPayHereScript(payment.sandbox);
+  } catch (err) {
+    handlers.onError?.(
+      err instanceof Error ? err.message : 'Billing card setup could not load. Check your connection and try again.'
+    );
+    return;
+  }
+
+  const payhere = window.payhere;
+  if (!payhere?.startPayment) {
+    handlers.onError?.('Secure card setup is unavailable. Refresh the page and try again.');
+    return;
+  }
+
+  payhere.onCompleted = (orderId: string) => {
+    const resolvedOrderId = orderId || payment.order_id;
+    if (handlers.onCompleted) {
+      void Promise.resolve(handlers.onCompleted(resolvedOrderId)).catch((err: unknown) => {
+        handlers.onError?.(formatApiError(err, 'Could not confirm billing card setup.'));
+      });
+      return;
+    }
+    if (payment.return_url) {
+      const url = new URL(payment.return_url);
+      if (resolvedOrderId) url.searchParams.set('setup_order_id', resolvedOrderId);
+      window.location.assign(url.toString());
+    }
+  };
+
+  payhere.onDismissed = () => {
+    handlers.onDismissed?.();
+  };
+
+  payhere.onError = (error: string) => {
+    if (useSameTabFallback && res.actionUrl) {
+      submitPayHereCheckoutForm(res.actionUrl, payment as unknown as Record<string, unknown>);
+      return;
+    }
+    handlers.onError?.(error || 'Could not open card setup. Refresh the page and try again.');
   };
 
   payhere.startPayment(payment as unknown as Record<string, unknown>);

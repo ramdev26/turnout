@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { XCircle } from 'lucide-react';
 import { notifyPayHereOpener } from '../lib/payhereCheckout';
 import { EVENT_THEMES } from '../themes/eventThemes';
-import { cardStyleFor } from '../themes/flowUi';
+import { accentButtonStyleFor, cardStyleFor } from '../themes/flowUi';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -44,8 +44,8 @@ export const PayHereCancel: React.FC = () => {
           <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Link
               to="/"
-              className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
-              style={{ backgroundColor: ui.accent }}
+              className="turnout-btn-accent rounded-xl px-5 py-2.5 text-sm font-semibold"
+              style={accentButtonStyleFor(ui)}
             >
               Back to home
             </Link>

@@ -72,11 +72,162 @@ select {
   box-shadow: 0 0 0 2px var(--ring);
 }
 
+/* Lime / primary buttons: dark ink labels (never white on #c0ff72) */
+.turnout-btn-accent,
+.landing-btn-primary {
+  color: var(--primary-on);
+}
+
+.turnout-btn-accent.text-white,
+.landing-btn-primary.text-white,
+.bg-\[var\(--primary\)\].text-white {
+  color: var(--primary-on) !important;
+}
+
 /* Google Places Autocomplete dropdown */
 .pac-container {
   z-index: 10050 !important;
   border-radius: 12px;
   margin-top: 4px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border);
+  background: rgba(5, 46, 48, 0.98);
+  color: var(--text);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   font-family: inherit;
+}
+
+.pac-item {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(192, 255, 114, 0.1);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+  background: rgba(192, 255, 114, 0.12);
+}
+
+.pac-item-query {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.pac-matched {
+  color: var(--primary);
+}
+
+.pac-icon {
+  filter: brightness(1.4);
+}
+
+/*
+ * Global UI unification layer:
+ * Map legacy neutral/slate/gray/zinc utilities to the platform palette so
+ * older screens stay visually consistent with the current organizer UI.
+ */
+@layer utilities {
+  /* Text colors */
+  .text-gray-900,
+  .text-gray-800,
+  .text-neutral-900,
+  .text-neutral-800,
+  .text-slate-900,
+  .text-slate-800,
+  .text-zinc-900,
+  .text-zinc-800 {
+    color: var(--text) !important;
+  }
+
+  .text-gray-700,
+  .text-gray-600,
+  .text-neutral-700,
+  .text-neutral-600,
+  .text-slate-700,
+  .text-slate-600,
+  .text-zinc-700,
+  .text-zinc-600 {
+    color: var(--text-muted) !important;
+  }
+
+  .text-gray-500,
+  .text-gray-400,
+  .text-neutral-500,
+  .text-neutral-400,
+  .text-slate-500,
+  .text-slate-400,
+  .text-zinc-500,
+  .text-zinc-400,
+  .text-gray-300,
+  .text-neutral-300,
+  .text-slate-300,
+  .text-zinc-300 {
+    color: var(--text-subtle) !important;
+  }
+
+  /* Background colors */
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-neutral-50,
+  .bg-neutral-100,
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-zinc-50,
+  .bg-zinc-100 {
+    background-color: color-mix(in srgb, var(--app-surface-muted) 60%, transparent) !important;
+  }
+
+  .bg-gray-200,
+  .bg-gray-300,
+  .bg-neutral-200,
+  .bg-neutral-300,
+  .bg-slate-200,
+  .bg-slate-300,
+  .bg-zinc-200,
+  .bg-zinc-300 {
+    background-color: color-mix(in srgb, var(--app-surface) 70%, transparent) !important;
+  }
+
+  .bg-gray-700,
+  .bg-gray-800,
+  .bg-gray-900,
+  .bg-neutral-700,
+  .bg-neutral-800,
+  .bg-neutral-900,
+  .bg-slate-700,
+  .bg-slate-800,
+  .bg-slate-900,
+  .bg-zinc-700,
+  .bg-zinc-800,
+  .bg-zinc-900 {
+    background-color: color-mix(in srgb, var(--bg-soft) 88%, #000 12%) !important;
+  }
+
+  /* Border colors */
+  .border-gray-50,
+  .border-gray-100,
+  .border-gray-200,
+  .border-gray-300,
+  .border-gray-400,
+  .border-gray-500,
+  .border-neutral-50,
+  .border-neutral-100,
+  .border-neutral-200,
+  .border-neutral-300,
+  .border-neutral-400,
+  .border-neutral-500,
+  .border-slate-50,
+  .border-slate-100,
+  .border-slate-200,
+  .border-slate-300,
+  .border-slate-400,
+  .border-slate-500,
+  .border-zinc-50,
+  .border-zinc-100,
+  .border-zinc-200,
+  .border-zinc-300,
+  .border-zinc-400,
+  .border-zinc-500 {
+    border-color: var(--border) !important;
+  }
 }

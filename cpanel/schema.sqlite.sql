@@ -223,9 +223,43 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   logo_url TEXT NULL,
   website TEXT NULL,
   phone TEXT NULL,
+  business_address TEXT NULL,
+  business_registration_no TEXT NULL,
+  bank_account_holder_name TEXT NULL,
+  bank_name TEXT NULL,
+  bank_branch TEXT NULL,
+  bank_account_number TEXT NULL,
+  business_registration_doc_url TEXT NULL,
+  bank_statement_doc_url TEXT NULL,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS organizer_payment_settings (
+  user_id INTEGER PRIMARY KEY,
+  gateway_mode TEXT NOT NULL DEFAULT 'turnout',
+  payhere_merchant_id TEXT NULL,
+  payhere_merchant_secret_enc TEXT NULL,
+  billing_customer_token TEXT NULL,
+  billing_card_last4 TEXT NULL,
+  billing_card_brand TEXT NULL,
+  billing_setup_status TEXT NOT NULL DEFAULT 'none',
+  billing_setup_at TEXT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS organizer_billing_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  setup_order_id TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'pending',
+  raw_notify_json TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS organizer_team_members (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

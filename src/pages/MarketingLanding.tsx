@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react';
 
 /**
- * Marketing home is served as static HTML (`public/turnout-landing.html`).
- * - Production (Vercel): `/` rewrites to that file (see vercel.json).
- * - Dev: Vite middleware serves it at `/`.
- * - In-app navigation to `/` triggers a full reload so we never rely on an iframe.
+ * Marketing page is served as static HTML (`public/turnout-landing.html`).
+ * - Production (Vercel): `/landing` rewrites to that file (see vercel.json).
+ * - Dev: Vite middleware serves it at `/landing`.
  */
 export const MarketingLanding: React.FC = () => {
   useEffect(() => {
-    const target = import.meta.env.DEV ? '/turnout-landing.html' : '/';
+    const target = import.meta.env.DEV ? '/turnout-landing.html' : '/landing';
     window.location.replace(target);
   }, []);
 

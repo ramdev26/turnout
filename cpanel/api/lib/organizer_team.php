@@ -20,6 +20,15 @@ function normalize_organizer_team_role(string $role): string {
 function ensure_organizer_workspace_tables(PDO $pdo): void {
   static $checked = false;
   if ($checked) return;
+  try {
+    ensure_organizer_workspace_tables_inner($pdo);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] ensure_organizer_workspace_tables: %s', $e->getMessage()));
+  }
+  $checked = true;
+}
+
+function ensure_organizer_workspace_tables_inner(PDO $pdo): void {
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 
   if ($driver === 'sqlite') {
@@ -30,6 +39,14 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         logo_url TEXT NULL,
         website TEXT NULL,
         phone TEXT NULL,
+        business_address TEXT NULL,
+        business_registration_no TEXT NULL,
+        bank_account_holder_name TEXT NULL,
+        bank_name TEXT NULL,
+        bank_branch TEXT NULL,
+        bank_account_number TEXT NULL,
+        business_registration_doc_url TEXT NULL,
+        bank_statement_doc_url TEXT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -58,7 +75,6 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
     );
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_team_member ON organizer_team_members(member_user_id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_invites_owner ON organizer_invites(owner_user_id, status)');
-    $checked = true;
     return;
   }
 
@@ -70,6 +86,14 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         logo_url TEXT NULL,
         website VARCHAR(255) NULL,
         phone VARCHAR(60) NULL,
+        business_address TEXT NULL,
+        business_registration_no VARCHAR(128) NULL,
+        bank_account_holder_name VARCHAR(255) NULL,
+        bank_name VARCHAR(255) NULL,
+        bank_branch VARCHAR(255) NULL,
+        bank_account_number VARCHAR(64) NULL,
+        business_registration_doc_url TEXT NULL,
+        bank_statement_doc_url TEXT NULL,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
@@ -96,7 +120,6 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
-    $checked = true;
     return;
   }
 
@@ -107,6 +130,14 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
       logo_url TEXT NULL,
       website VARCHAR(255) NULL,
       phone VARCHAR(60) NULL,
+      business_address TEXT NULL,
+      business_registration_no VARCHAR(128) NULL,
+      bank_account_holder_name VARCHAR(255) NULL,
+      bank_name VARCHAR(255) NULL,
+      bank_branch VARCHAR(255) NULL,
+      bank_account_number VARCHAR(64) NULL,
+      business_registration_doc_url TEXT NULL,
+      bank_statement_doc_url TEXT NULL,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id),
       CONSTRAINT fk_org_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -143,7 +174,6 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
       CONSTRAINT fk_invite_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
   );
-  $checked = true;
 }
 
 /** @return list<int> */
@@ -224,6 +254,14 @@ function load_organizer_profile_row(PDO $pdo, int $ownerUserId): array {
       'logo_url' => null,
       'website' => null,
       'phone' => null,
+      'business_address' => null,
+      'business_registration_no' => null,
+      'bank_account_holder_name' => null,
+      'bank_name' => null,
+      'bank_branch' => null,
+      'bank_account_number' => null,
+      'business_registration_doc_url' => null,
+      'bank_statement_doc_url' => null,
     ];
   }
   return $row;
@@ -231,6 +269,7 @@ function load_organizer_profile_row(PDO $pdo, int $ownerUserId): array {
 
 function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
   $user = load_user_profile($ownerUserId);
+  ensure_organizer_profile_paid_event_columns($pdo);
   $row = load_organizer_profile_row($pdo, $ownerUserId);
   return [
     'ownerUserId' => (string)$ownerUserId,
@@ -240,6 +279,19 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
     'logoUrl' => $row['logo_url'] ?? null,
     'website' => $row['website'] ?? null,
     'phone' => $row['phone'] ?? null,
+    'businessAddress' => trim((string)($row['business_address'] ?? '')) ?: null,
+    'businessRegistrationNo' => trim((string)($row['business_registration_no'] ?? '')) ?: null,
+    'businessRegistrationDocUrl' => trim((string)($row['business_registration_doc_url'] ?? '')) ?: null,
+    'businessRegistrationDocUploaded' => trim((string)($row['business_registration_doc_url'] ?? '')) !== '',
+    'bankAccountHolderName' => trim((string)($row['bank_account_holder_name'] ?? '')) ?: null,
+    'bankName' => trim((string)($row['bank_name'] ?? '')) ?: null,
+    'bankBranch' => trim((string)($row['bank_branch'] ?? '')) ?: null,
+    'bankAccountNumberLast4' => trim((string)($row['bank_account_number'] ?? '')) !== ''
+      ? substr(trim((string)$row['bank_account_number']), -4)
+      : null,
+    'bankAccountConfigured' => trim((string)($row['bank_account_number'] ?? '')) !== '',
+    'bankStatementDocUrl' => trim((string)($row['bank_statement_doc_url'] ?? '')) ?: null,
+    'bankStatementDocUploaded' => trim((string)($row['bank_statement_doc_url'] ?? '')) !== '',
   ];
 }
 

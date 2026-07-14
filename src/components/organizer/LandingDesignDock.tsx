@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Contrast, Palette } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, Check, Contrast, Palette, Sparkles, Type as TypeIcon, RotateCcw, X } from 'lucide-react';
 import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
 import { companionSecondaryColor } from '../../themes/organizerLiveDesign';
@@ -7,18 +7,106 @@ import {
   COLOR_PRESETS,
   STYLE_OPTIONS,
   DISPLAY_OPTIONS,
+  LANDING_LAYOUT_TEMPLATES,
   type LandingDesignValue,
 } from './LandingCustomizer';
+import { LayoutTemplate } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
-type DockControl = 'colour' | 'style' | 'font' | 'display' | null;
+type DockControl = 'template' | 'colour' | 'style' | 'font' | 'display' | null;
 
-const DOCK_BG = 'rgba(28, 25, 23, 0.94)';
-const DOCK_BORDER = 'rgba(255, 255, 255, 0.10)';
-const SEG_BG = 'rgba(255, 255, 255, 0.06)';
-const SEG_BORDER = 'rgba(255, 255, 255, 0.10)';
-const TEXT = '#f5f5f4';
-const TEXT_MUTED = 'rgba(245, 245, 244, 0.55)';
+const DOCK_BG = 'rgba(21, 22, 26, 0.96)';
+const DOCK_BORDER = 'rgba(255, 255, 255, 0.14)';
+const SEG_BG = 'rgba(255, 255, 255, 0.07)';
+const SEG_BORDER = 'rgba(255, 255, 255, 0.14)';
+const TEXT = '#ffffff';
+const TEXT_MUTED = 'rgba(255, 255, 255, 0.62)';
+const TEXT_SUBTLE = 'rgba(255, 255, 255, 0.45)';
+const DEFAULT_CATEGORY_ID = 'default';
+const GLOW = '0 0 0 1px rgba(16,185,129,0.35), 0 10px 28px rgba(16,185,129,0.18)';
+
+const TemplateThumb: React.FC<{
+  id: LandingDesignValue['templateId'];
+  name: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ id, name, active, onClick }) => {
+  const wireframe = {
+    'template-2': (
+      <div className="grid h-full grid-cols-[1fr_0.55fr] gap-1 p-1.5">
+        <div className="flex flex-col gap-1">
+          <div className="h-1.5 rounded-sm bg-white/20" />
+          <div className="h-4 rounded-sm bg-white/35" />
+          <div className="flex-1 rounded-sm bg-white/15" />
+        </div>
+        <div className="rounded-sm bg-white/28" />
+      </div>
+    ),
+    'template-6': (
+      <div className="grid h-full grid-cols-[1.15fr_0.85fr] gap-1 p-1.5">
+        <div className="flex flex-col gap-1">
+          <div className="flex-1 rounded-sm bg-white/80" />
+          <div className="flex justify-center gap-0.5">
+            <div className="h-2 w-2 rounded-[2px] bg-white/55" />
+            <div className="h-2 w-2 rounded-[2px] bg-white/35" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="h-2 rounded-sm bg-white/45" />
+          <div className="h-3 rounded-sm bg-white/70" />
+          <div className="flex-1 rounded-sm border border-white/20 bg-white/25" />
+        </div>
+      </div>
+    ),
+    'template-7': (
+      <div className="flex h-full flex-col gap-1 p-1.5">
+        <div className="h-4 rounded-sm bg-white/80" />
+        <div className="grid flex-1 grid-cols-[1.35fr_0.65fr] gap-1">
+          <div className="flex flex-col gap-1">
+            <div className="h-2 w-4/5 rounded-sm bg-white/50" />
+            <div className="h-2 w-3/5 rounded-sm bg-white/30" />
+            <div className="mt-auto h-3 rounded-sm border border-white/20 bg-white/20" />
+          </div>
+          <div className="rounded-sm bg-white/35 shadow-inner" />
+        </div>
+      </div>
+    ),
+    'template-5': (
+      <div className="flex h-full flex-col items-center gap-1 p-1.5">
+        <div className="h-3 w-3/4 rounded-sm bg-white/35" />
+        <div className="h-1.5 w-1/2 rounded-sm bg-white/20" />
+        <div className="w-2/3 flex-1 rounded-sm bg-white/15" />
+      </div>
+    ),
+  }[id];
+
+  return (
+    <button type="button" onClick={onClick} className="group flex shrink-0 flex-col items-center gap-1.5" title={name}>
+      <span
+        className={cn(
+          'relative h-14 w-[4.5rem] overflow-hidden rounded-xl border transition',
+          active ? 'ring-2 ring-offset-2' : 'opacity-85 hover:opacity-100',
+        )}
+        style={{
+          background: 'linear-gradient(160deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 100%)',
+          borderColor: active ? 'rgba(192,255,114,0.55)' : 'rgba(255,255,255,0.14)',
+          ['--tw-ring-color' as string]: '#c0ff72',
+          ['--tw-ring-offset-color' as string]: DOCK_BG,
+        }}
+      >
+        {wireframe}
+        {active ? (
+          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-black/40">
+            <Check className="h-2.5 w-2.5 text-white" />
+          </span>
+        ) : null}
+      </span>
+      <span className="max-w-[4.5rem] truncate text-[11px] font-medium" style={{ color: active ? TEXT : TEXT_MUTED }}>
+        {name}
+      </span>
+    </button>
+  );
+};
 
 const CategoryThumb: React.FC<{
   category: (typeof EVENT_CATEGORIES)[number];
@@ -75,7 +163,7 @@ function Segment({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-[44px] w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition"
+      className="flex min-h-[46px] w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:brightness-110"
       style={{
         background: active ? 'rgba(255,255,255,0.12)' : SEG_BG,
         border: `1px solid ${SEG_BORDER}`,
@@ -95,15 +183,33 @@ function Segment({
   );
 }
 
-function Popover({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'center' }) {
+function Popover({
+  children,
+  title,
+  align = 'left',
+  onClose,
+}: {
+  children: React.ReactNode;
+  title: string;
+  align?: 'left' | 'center';
+  onClose: () => void;
+}) {
   return (
     <div
       className={cn(
-        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(52vh,320px)] w-[min(92vw,360px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
+        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(55vh,360px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
         align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0'
       )}
       style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
     >
+      <div className="mb-2 flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.10)' }}>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: TEXT_MUTED }}>
+          {title}
+        </p>
+        <button type="button" onClick={onClose} className="rounded p-1" aria-label={`Close ${title}`}>
+          <X className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />
+        </button>
+      </div>
       {children}
     </div>
   );
@@ -116,6 +222,7 @@ export function LandingDesignDock({
   design: LandingDesignValue;
   onDesignChange: (next: LandingDesignValue) => void;
 }) {
+  const defaultCategory = resolveEventCategory(DEFAULT_CATEGORY_ID);
   const [open, setOpen] = useState<DockControl>(null);
   const [expanded, setExpanded] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -141,7 +248,55 @@ export function LandingDesignDock({
     onDesignChange({ ...design, fontFamily: key });
   };
 
-  const activeCategory = design.eventCategory || 'default';
+  const activeCategory = design.eventCategory || DEFAULT_CATEGORY_ID;
+
+  const resetToDefault = () => {
+    loadLandingFont(defaultCategory.fontFamily);
+    onDesignChange({
+      ...design,
+      templateId: 'template-2',
+      eventCategory: defaultCategory.id,
+      fontFamily: defaultCategory.fontFamily,
+      primaryColor: defaultCategory.primaryColor,
+      secondaryColor: defaultCategory.secondaryColor,
+      landingStyle: defaultCategory.landingStyle,
+      displayMode: 'auto',
+    });
+    setOpen(null);
+  };
+
+  const applyTechPreset = (preset: 'signal' | 'midnight' | 'neon') => {
+    if (preset === 'signal') {
+      onDesignChange({
+        ...design,
+        eventCategory: 'tech',
+        primaryColor: '#10b981',
+        secondaryColor: '#22d3ee',
+        landingStyle: 'glass',
+        displayMode: 'auto',
+      });
+      return;
+    }
+    if (preset === 'midnight') {
+      onDesignChange({
+        ...design,
+        eventCategory: 'nightlife',
+        primaryColor: '#6366f1',
+        secondaryColor: '#8b5cf6',
+        landingStyle: 'bold',
+        displayMode: 'dark',
+      });
+      return;
+    }
+    onDesignChange({
+      ...design,
+      eventCategory: 'arts',
+      primaryColor: '#22c55e',
+      secondaryColor: '#06b6d4',
+      landingStyle: 'minimal',
+      displayMode: 'light',
+    });
+  };
 
   useEffect(() => {
     loadLandingFont(design.fontFamily);
@@ -181,6 +336,11 @@ export function LandingDesignDock({
   const fontKey = resolveLandingFontKey(design.fontFamily);
   const fontValue = LANDING_FONTS[fontKey].name;
   const displayValue = DISPLAY_OPTIONS.find((d) => d.id === design.displayMode)?.name ?? 'Auto';
+  const templateValue = LANDING_LAYOUT_TEMPLATES.find((t) => t.id === design.templateId)?.name ?? 'Showcase';
+  const summary = useMemo(
+    () => `${templateValue} · ${styleValue} · ${fontValue} · ${displayValue}`,
+    [templateValue, styleValue, fontValue, displayValue]
+  );
 
   if (!expanded) {
     return (
@@ -206,8 +366,13 @@ export function LandingDesignDock({
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4"
     >
       <div
-        className="landing-fade-in pointer-events-auto w-full max-w-3xl rounded-2xl px-3 pb-3 pt-2 shadow-2xl sm:px-4 sm:pb-4"
-        style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
+        className="landing-fade-in pointer-events-auto w-full max-w-4xl rounded-2xl px-3 pb-3 pt-2 shadow-2xl sm:px-4 sm:pb-4"
+        style={{
+          background: DOCK_BG,
+          border: `1px solid ${DOCK_BORDER}`,
+          backdropFilter: 'blur(20px)',
+          boxShadow: GLOW,
+        }}
       >
         <button
           type="button"
@@ -222,9 +387,76 @@ export function LandingDesignDock({
           <span className="h-1 w-9 rounded-full transition group-hover:w-12" style={{ background: 'rgba(255,255,255,0.25)' }} />
         </button>
 
-        <p className="mb-2 text-center text-[11px] font-medium" style={{ color: TEXT_MUTED }}>
-          Changes apply live on this page
-        </p>
+        <div className="mb-3 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: TEXT_SUBTLE }}>
+                System design console
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: TEXT_MUTED }}>
+                Customize design
+              </p>
+              <p className="text-[11px]" style={{ color: TEXT_SUBTLE }}>
+                {summary}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => applyTechPreset('signal')}
+                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={{ borderColor: 'rgba(16,185,129,0.45)', color: '#6ee7b7', background: 'rgba(16,185,129,0.10)' }}
+              >
+                Signal
+              </button>
+              <button
+                type="button"
+                onClick={() => applyTechPreset('midnight')}
+                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={{ borderColor: 'rgba(99,102,241,0.45)', color: '#c4b5fd', background: 'rgba(99,102,241,0.12)' }}
+              >
+                Midnight
+              </button>
+              <button
+                type="button"
+                onClick={() => applyTechPreset('neon')}
+                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                style={{ borderColor: 'rgba(6,182,212,0.45)', color: '#67e8f9', background: 'rgba(6,182,212,0.12)' }}
+              >
+                Neon
+              </button>
+            </div>
+          </div>
+
+          <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0) 0%, rgba(16,185,129,0.45) 50%, rgba(16,185,129,0) 100%)' }} />
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-medium" style={{ color: TEXT_MUTED }}>
+              Changes apply live on this page
+            </p>
+            <button
+              type="button"
+              onClick={resetToDefault}
+              className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
+              style={{ color: TEXT_MUTED, borderColor: 'rgba(255,255,255,0.16)', background: 'rgba(255,255,255,0.04)' }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-2 flex items-start gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {LANDING_LAYOUT_TEMPLATES.map((tpl) => (
+            <TemplateThumb
+              key={tpl.id}
+              id={tpl.id}
+              name={tpl.name}
+              active={design.templateId === tpl.id}
+              onClick={() => update({ templateId: tpl.id })}
+            />
+          ))}
+        </div>
 
         <div className="flex items-start gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {EVENT_CATEGORIES.map((cat) => (
@@ -237,7 +469,44 @@ export function LandingDesignDock({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="relative col-span-1">
+            <Segment
+              icon={<LayoutTemplate className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
+              label="Layout"
+              value={templateValue}
+              active={open === 'template'}
+              onClick={() => toggle('template')}
+            />
+            {open === 'template' && (
+              <Popover title="Landing layout" align="center" onClose={() => setOpen(null)}>
+                <div className="flex flex-col gap-1">
+                  {LANDING_LAYOUT_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        update({ templateId: tpl.id });
+                        setOpen(null);
+                      }}
+                      className="flex min-h-[44px] items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/10"
+                    >
+                      <span>
+                        <span className="block text-sm font-medium" style={{ color: TEXT }}>
+                          {tpl.name}
+                        </span>
+                        <span className="block text-xs" style={{ color: TEXT_MUTED }}>
+                          {tpl.description}
+                        </span>
+                      </span>
+                      {design.templateId === tpl.id && <Check className="h-4 w-4" style={{ color: design.primaryColor }} />}
+                    </button>
+                  ))}
+                </div>
+              </Popover>
+            )}
+          </div>
+
           <div className="relative col-span-1">
             <Segment
               icon={
@@ -252,10 +521,7 @@ export function LandingDesignDock({
               onClick={() => toggle('colour')}
             />
             {open === 'colour' && (
-              <Popover>
-                <p className="mb-2 text-xs font-medium" style={{ color: TEXT_MUTED }}>
-                  Presets
-                </p>
+              <Popover title="Colour presets" onClose={() => setOpen(null)}>
                 <div className="flex flex-wrap items-center gap-2">
                   {COLOR_PRESETS.map((preset) => {
                     const isActive = activePreset?.id === preset.id;
@@ -310,7 +576,7 @@ export function LandingDesignDock({
               onClick={() => toggle('style')}
             />
             {open === 'style' && (
-              <Popover align="center">
+              <Popover title="Choose style" align="center" onClose={() => setOpen(null)}>
                 <div className="flex flex-col gap-1">
                   {STYLE_OPTIONS.map((opt) => (
                     <button
@@ -351,7 +617,7 @@ export function LandingDesignDock({
               onClick={() => toggle('font')}
             />
             {open === 'font' && (
-              <Popover align="center">
+              <Popover title="Choose font" align="center" onClose={() => setOpen(null)}>
                 <div className="flex flex-col gap-1">
                   {LANDING_FONT_KEYS.map((key) => {
                     const font = LANDING_FONTS[key];
@@ -393,7 +659,7 @@ export function LandingDesignDock({
               onClick={() => toggle('display')}
             />
             {open === 'display' && (
-              <Popover>
+              <Popover title="Display mode" onClose={() => setOpen(null)}>
                 <div className="grid grid-cols-3 gap-1">
                   {DISPLAY_OPTIONS.map((opt) => (
                     <button

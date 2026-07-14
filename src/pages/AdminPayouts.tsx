@@ -78,7 +78,15 @@ export const AdminPayouts: React.FC = () => {
         <div className="space-y-2">
           {payouts.map((p) => (
             <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5" style={cardMutedStyleFor(ui)}>
-              <div className="text-sm font-medium" style={{ color: ui.text }}>#{p.id} · {formatLKR(p.totalAmount)} · {p.status}</div>
+              <div>
+                <div className="text-sm font-medium" style={{ color: ui.text }}>
+                  #{p.id} · {p.organizerName || `Organizer ${p.organizerId}`}
+                </div>
+                <div className="text-xs" style={{ color: ui.textMuted }}>
+                  {formatLKR(p.totalAmount)} · {p.status}
+                  {p.reference ? ` · ${p.reference}` : ''} · {new Date(p.createdAt).toLocaleString()}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <FlowButton variant="secondary" onClick={async () => { await api.post(`/api/admin/payouts/${p.id}/status`, { status: 'processing', note: 'Processing transfer' }); await load(); }}>
                   Processing
