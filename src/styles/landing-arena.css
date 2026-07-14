@@ -38,7 +38,7 @@
 @media (min-width: 1024px) {
   .landing-arena-header-inner {
     justify-content: center;
-    max-width: 72rem;
+    max-width: 80rem;
     padding: 0.85rem 2rem;
     min-height: 3.5rem;
   }
@@ -77,10 +77,22 @@
 }
 
 .landing-arena-header-label {
-  font-size: 0.9375rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #fff;
+  max-width: min(70vw, 28rem);
+}
+
+@media (min-width: 1024px) {
+  .landing-arena-header-label {
+    font-size: 0.9375rem;
+    max-width: min(48vw, 36rem);
+  }
 }
 
 .landing-arena-shell {
@@ -115,14 +127,18 @@
 
 @media (min-width: 1024px) {
   .landing-arena-shell {
-    max-width: 72rem;
+    max-width: 80rem;
     padding: 0 2rem 4rem;
+  }
+
+  .landing-arena-header-inner {
+    max-width: 80rem;
   }
 
   .landing-arena-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: clamp(2rem, 4vw, 3.5rem);
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+    gap: clamp(1.75rem, 3.5vw, 3rem);
     align-items: start;
     padding-top: 2rem;
   }
@@ -144,7 +160,7 @@
 
 .landing-arena-carousel {
   position: relative;
-  background: #0a0a0a;
+  background: transparent;
   max-width: 42rem;
   margin-inline: auto;
 }
@@ -153,7 +169,6 @@
   .landing-arena-gallery-col .landing-arena-carousel {
     max-width: none;
     margin-inline: 0;
-    background: transparent;
   }
 }
 
@@ -166,6 +181,8 @@
   max-height: min(72vh, 560px);
   padding: 0.75rem clamp(0.75rem, 4vw, 1.25rem);
   overflow: hidden;
+  background: var(--arena-surface);
+  border-bottom: 1px solid var(--arena-border);
 }
 
 .landing-arena-carousel-img {
@@ -176,41 +193,49 @@
   max-height: min(56vh, 400px);
   object-fit: contain;
   object-position: center;
-  border-radius: 0.35rem;
+  border-radius: 0.5rem;
 }
 
 @media (min-width: 640px) {
   .landing-arena-carousel-stage {
-    min-height: min(52vh, 460px);
-    max-height: min(68vh, 600px);
+    min-height: min(52vh, 480px);
+    max-height: min(68vh, 620px);
   }
 
   .landing-arena-carousel-img {
-    max-height: min(60vh, 480px);
+    max-height: min(60vh, 520px);
   }
 }
 
 @media (min-width: 1024px) {
   .landing-arena-carousel-stage {
-    min-height: 420px;
-    max-height: min(72vh, 640px);
-    padding: 0;
-    background: #0a0a0a;
-    border-radius: 0.875rem;
+    aspect-ratio: 4 / 5;
+    width: 100%;
+    min-height: 560px;
+    max-height: min(82vh, 780px);
+    padding: 1rem;
+    background: var(--arena-surface);
+    border: 1px solid var(--arena-border);
+    border-radius: 1rem;
   }
 
   .landing-arena-carousel-img {
-    max-height: min(68vh, 600px);
-    border-radius: 0.5rem;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: contain;
+    border-radius: 0.65rem;
   }
 }
 
 .landing-arena-carousel-placeholder {
   width: 100%;
   height: 100%;
+  min-height: 12rem;
+  border-radius: 0.65rem;
   background:
-    radial-gradient(ellipse 70% 50% at 50% 45%, color-mix(in srgb, var(--showcase-accent) 35%, #1a1a1a) 0%, #111 70%),
-    linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+    radial-gradient(ellipse 70% 55% at 50% 45%, color-mix(in srgb, var(--showcase-accent) 18%, #f0f0f0) 0%, #ececec 65%),
+    linear-gradient(180deg, #f7f7f7 0%, #ececec 100%);
 }
 
 .landing-arena-carousel-nav {
@@ -219,18 +244,20 @@
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  backdrop-filter: blur(6px);
-  transition: background 0.2s;
+  border: 1px solid var(--arena-border);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--arena-text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  transition: background 0.2s, transform 0.2s;
 }
 
 .landing-arena-carousel-nav:hover {
-  background: rgba(0, 0, 0, 0.65);
+  background: #fff;
+  transform: translateY(-50%) scale(1.04);
 }
 
 .landing-arena-carousel-nav--prev {
@@ -241,76 +268,99 @@
   right: 0.75rem;
 }
 
+@media (min-width: 1024px) {
+  .landing-arena-carousel-nav {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .landing-arena-carousel-nav--prev {
+    left: 1rem;
+  }
+
+  .landing-arena-carousel-nav--next {
+    right: 1rem;
+  }
+}
+
 .landing-arena-carousel-dots {
   position: absolute;
-  bottom: 0.65rem;
+  bottom: 0.85rem;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .landing-arena-carousel-dot {
   width: 0.4rem;
   height: 0.4rem;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(17, 17, 17, 0.25);
   border: none;
   padding: 0;
 }
 
 .landing-arena-carousel-dot.is-active {
-  background: #fff;
+  background: var(--arena-text);
   width: 1.1rem;
 }
 
 .landing-arena-carousel-thumbs {
   display: flex;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.65rem 1rem 0.85rem;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem 1rem;
   max-width: 42rem;
   margin-inline: auto;
   overflow-x: auto;
-  background: #0a0a0a;
+  background: transparent;
 }
 
 @media (min-width: 1024px) {
   .landing-arena-carousel-thumbs {
     max-width: none;
     margin-inline: 0;
-    padding: 0.75rem 0 0;
-    background: transparent;
+    padding: 0.9rem 0 0;
     overflow-x: visible;
     justify-content: center;
+    gap: 0.65rem;
   }
 }
 
 .landing-arena-carousel-thumb {
-  width: 3.25rem;
-  height: 3.25rem;
-  border-radius: 0.35rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.5rem;
   overflow: hidden;
-  border: 2px solid transparent;
+  border: 2px solid var(--arena-border);
   padding: 0;
-  opacity: 0.65;
+  opacity: 0.72;
   flex-shrink: 0;
-  transition: opacity 0.2s, border-color 0.2s;
+  background: #fff;
+  transition: opacity 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.landing-arena-carousel-thumb:hover {
+  opacity: 1;
 }
 
 @media (min-width: 1024px) {
   .landing-arena-carousel-thumb {
-    width: 4.5rem;
-    height: 4.5rem;
-    border-radius: 0.5rem;
-    border-color: var(--arena-border);
-    background: #fff;
+    width: 5rem;
+    height: 5rem;
+    border-radius: 0.65rem;
   }
 }
 
 .landing-arena-carousel-thumb.is-active {
   opacity: 1;
   border-color: var(--showcase-accent);
+  transform: translateY(-1px);
 }
 
 .landing-arena-carousel-thumb img {
@@ -772,7 +822,7 @@
 }
 
 .event-settings-mobile-preview .landing-arena-carousel {
-  background: #0a0a0a !important;
+  background: transparent !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-stage {
@@ -780,6 +830,7 @@
   max-height: 260px !important;
   padding: 0.5rem !important;
   border-radius: 0 !important;
+  background: var(--arena-surface) !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-img {
@@ -787,6 +838,6 @@
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-thumbs {
-  background: #0a0a0a !important;
+  background: transparent !important;
   padding: 0.5rem 0.75rem !important;
 }
