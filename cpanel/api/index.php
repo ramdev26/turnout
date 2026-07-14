@@ -288,6 +288,15 @@ function ensure_payhere_tables(PDO $pdo): void {
 function ensure_finance_tables(PDO $pdo): void {
   static $checked = false;
   if ($checked) return;
+  try {
+    ensure_finance_tables_inner($pdo);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] ensure_finance_tables: %s', $e->getMessage()));
+  }
+  $checked = true;
+}
+
+function ensure_finance_tables_inner(PDO $pdo): void {
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
   if ($driver === 'sqlite') {
     $pdo->exec(
@@ -368,7 +377,6 @@ function ensure_finance_tables(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested INTEGER NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
-    $checked = true;
     return;
   }
   if ($driver === 'pgsql') {
@@ -450,7 +458,6 @@ function ensure_finance_tables(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged SMALLINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested SMALLINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
-    $checked = true;
     return;
   }
 
@@ -549,7 +556,6 @@ function ensure_finance_tables(PDO $pdo): void {
   try { $pdo->exec("ALTER TABLE transactions ADD COLUMN is_flagged TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE transactions ADD COLUMN admin_note TEXT NULL"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE transactions ADD COLUMN refund_requested TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
-  $checked = true;
 }
 
 function boolish(mixed $value): bool {
@@ -828,13 +834,25 @@ function payhere_cfg(): array {
   ];
 }
 
-ensure_users_role_support(db());
-ensure_default_super_admin(db());
-ensure_finance_tables(db());
-ensure_events_custom_domain_column(db());
-ensure_attendees_custom_fields_column(db());
-ensure_organizer_workspace_tables(db());
-ensure_organizer_payment_tables(db());
+/**
+ * Bootstrapping migrations must never take down the API (login, health, etc.).
+ * Log and continue so optional schema work cannot cause site-wide 500s.
+ */
+function run_boot_schema_guard(string $label, callable $fn): void {
+  try {
+    $fn();
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout][%s] boot schema %s failed: %s in %s:%d', request_id(), $label, $e->getMessage(), $e->getFile(), $e->getLine()));
+  }
+}
+
+run_boot_schema_guard('ensure_users_role_support', static fn () => ensure_users_role_support(db()));
+run_boot_schema_guard('ensure_default_super_admin', static fn () => ensure_default_super_admin(db()));
+run_boot_schema_guard('ensure_finance_tables', static fn () => ensure_finance_tables(db()));
+run_boot_schema_guard('ensure_events_custom_domain_column', static fn () => ensure_events_custom_domain_column(db()));
+run_boot_schema_guard('ensure_attendees_custom_fields_column', static fn () => ensure_attendees_custom_fields_column(db()));
+run_boot_schema_guard('ensure_organizer_workspace_tables', static fn () => ensure_organizer_workspace_tables(db()));
+run_boot_schema_guard('ensure_organizer_payment_tables', static fn () => ensure_organizer_payment_tables(db()));
 enforce_write_request_integrity($path, $method);
 
 function load_event_row_or_404(PDO $pdo, int $eventId): array {
