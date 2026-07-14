@@ -7,7 +7,6 @@ import {
   Crown,
   MapPin,
   Navigation,
-  ShieldCheck,
   Ticket,
   Users,
 } from 'lucide-react';
@@ -343,32 +342,6 @@ function ArenaSummary({
   );
 }
 
-function ArenaTrust() {
-  return (
-    <section className="landing-arena-trust">
-      <div className="landing-arena-payment-row">
-        <span>VISA</span>
-        <span>MASTERCARD</span>
-        <span>AMEX</span>
-        <span>PAYHERE</span>
-      </div>
-      <p className="landing-arena-trust-msg">
-        <ShieldCheck className="h-4 w-4" />
-        Secure payment, encrypted &amp; processed by PayHere.
-      </p>
-      <p className="landing-arena-trust-note">
-        Your QR code will be available in your confirmation email after checkout.
-      </p>
-      <div className="landing-arena-help-links">
-        <a href="#landing-tickets">Already bought? View my tickets</a>
-        <a href="https://wa.me/" target="_blank" rel="noopener noreferrer">
-          Need support? Text us on WhatsApp
-        </a>
-      </div>
-    </section>
-  );
-}
-
 export function LandingArenaPage({
   event,
   tickets,
@@ -431,10 +404,6 @@ export function LandingArenaPage({
               isPurchasing={isPurchasing}
             />
           </main>
-        </div>
-
-        <div className="landing-arena-bottom">
-          <ArenaTrust />
         </div>
       </div>
 

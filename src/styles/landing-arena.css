@@ -100,24 +100,16 @@
 
 .landing-arena-content-col {
   min-width: 0;
-  padding: 1.25rem 1rem 0;
+  padding: 1.25rem 1rem 2.5rem;
 }
 
 .landing-arena-intro {
   margin-bottom: 1rem;
 }
 
-.landing-arena-bottom {
-  padding: 0 1rem;
-}
-
 @media (min-width: 640px) {
   .landing-arena-content-col {
-    padding: 1.5rem 1.25rem 0;
-  }
-
-  .landing-arena-bottom {
-    padding: 0 1.25rem;
+    padding: 1.5rem 1.25rem 3rem;
   }
 }
 
@@ -142,17 +134,11 @@
   }
 
   .landing-arena-content-col {
-    padding: 0;
+    padding: 0 0 1rem;
   }
 
   .landing-arena-intro {
     margin-bottom: 1.25rem;
-  }
-
-  .landing-arena-bottom {
-    max-width: 42rem;
-    margin: 2.5rem auto 0;
-    padding: 0;
   }
 }
 
@@ -765,61 +751,6 @@
   opacity: 0.4;
 }
 
-.landing-arena-trust {
-  margin-top: 1.75rem;
-  text-align: center;
-}
-
-@media (min-width: 1024px) {
-  .landing-arena-trust {
-    margin-top: 0;
-  }
-}
-
-.landing-arena-payment-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem 1rem;
-  font-size: 0.6875rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: var(--arena-muted);
-}
-
-.landing-arena-trust-msg {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  margin-top: 0.85rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #059669;
-}
-
-.landing-arena-trust-note {
-  margin-top: 0.85rem;
-  font-size: 0.75rem;
-  line-height: 1.55;
-  color: var(--arena-muted);
-}
-
-.landing-arena-help-links {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.8125rem;
-}
-
-.landing-arena-help-links a {
-  color: var(--arena-text);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 .event-settings-mobile-preview .landing-arena-shell {
   max-width: 100% !important;
   padding-inline: 0 !important;
@@ -837,12 +768,7 @@
 }
 
 .event-settings-mobile-preview .landing-arena-content-col {
-  padding: 1rem 0.75rem 0 !important;
-}
-
-.event-settings-mobile-preview .landing-arena-bottom {
-  padding: 0 0.75rem !important;
-  max-width: none !important;
+  padding: 1rem 0.75rem 1.5rem !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel {
