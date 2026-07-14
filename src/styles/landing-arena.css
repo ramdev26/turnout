@@ -8,6 +8,8 @@
   --arena-muted: #666666;
   --arena-popular: #e11d48;
   --arena-surface: #f7f7f7;
+  container-type: inline-size;
+  container-name: arena;
   background: var(--arena-bg);
   color: var(--arena-text);
 }
@@ -35,7 +37,7 @@
   min-height: 3.25rem;
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-header-inner {
     justify-content: center;
     max-width: 80rem;
@@ -88,7 +90,7 @@
   max-width: min(70vw, 28rem);
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-header-label {
     font-size: 0.9375rem;
     max-width: min(48vw, 36rem);
@@ -119,13 +121,13 @@
   margin-bottom: 1rem;
 }
 
-@media (min-width: 640px) {
+@container arena (min-width: 640px) {
   .landing-arena-content-col {
     padding: 1.5rem 1.25rem 3rem;
   }
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-shell {
     max-width: 80rem;
     padding: 0 2rem 4rem;
@@ -165,7 +167,7 @@
   margin-inline: auto;
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-gallery-col .landing-arena-carousel {
     max-width: none;
     margin-inline: 0;
@@ -196,7 +198,23 @@
   border-radius: 0.5rem;
 }
 
-@media (min-width: 640px) {
+/* Phone / narrow frames — avoid viewport `vh` leaking into the live preview */
+@container arena (max-width: 639px) {
+  .landing-arena-header-label {
+    max-width: 14rem;
+  }
+
+  .landing-arena-carousel-stage {
+    min-height: 240px;
+    max-height: 300px;
+  }
+
+  .landing-arena-carousel-img {
+    max-height: 260px;
+  }
+}
+
+@container arena (min-width: 640px) {
   .landing-arena-carousel-stage {
     min-height: min(52vh, 480px);
     max-height: min(68vh, 620px);
@@ -207,7 +225,7 @@
   }
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-carousel-stage {
     aspect-ratio: 4 / 5;
     width: 100%;
@@ -268,7 +286,7 @@
   right: 0.75rem;
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-carousel-nav {
     width: 2.75rem;
     height: 2.75rem;
@@ -321,7 +339,7 @@
   background: transparent;
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-carousel-thumbs {
     max-width: none;
     margin-inline: 0;
@@ -349,7 +367,7 @@
   opacity: 1;
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-carousel-thumb {
     width: 5rem;
     height: 5rem;
@@ -396,7 +414,7 @@
   color: var(--arena-text);
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-title {
     font-size: clamp(1.75rem, 2.4vw, 2.25rem);
     line-height: 1.05;
@@ -444,7 +462,7 @@
   overflow: hidden;
 }
 
-@media (min-width: 640px) {
+@container arena (min-width: 640px) {
   .landing-arena-about-text.is-clamped {
     -webkit-line-clamp: unset;
     display: block;
@@ -598,7 +616,7 @@
   color: var(--arena-text);
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-countdown-unit {
     padding: 0.75rem 0.4rem;
   }
@@ -624,7 +642,7 @@
   margin: 1.75rem 0 1rem;
 }
 
-@media (min-width: 1024px) {
+@container arena (min-width: 1024px) {
   .landing-arena-section-head {
     margin-top: 2rem;
   }
@@ -866,11 +884,3 @@
   height: 3.25rem !important;
 }
 
-.event-settings-desktop-preview .landing-arena-header {
-  position: sticky;
-  top: 0;
-}
-
-.event-settings-desktop-preview .landing-arena-gallery-col {
-  top: 3.5rem;
-}
