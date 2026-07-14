@@ -884,3 +884,12 @@
   height: 3.25rem !important;
 }
 
+.event-settings-desktop-preview .landing-arena-header {
+  position: sticky;
+  top: 0;
+}
+
+.event-settings-desktop-preview .landing-arena-gallery-col {
+  top: 3.5rem;
+}
+

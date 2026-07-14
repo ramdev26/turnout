@@ -593,7 +593,7 @@ export const CreateEvent: React.FC = () => {
               style={showLivePreview ? accentButtonStyleFor(ui) : { ...cardStyle, color: ui.text }}
             >
               <Eye className="h-4 w-4" />
-              {showLivePreview ? 'Hide preview' : 'Mobile preview'}
+              {showLivePreview ? 'Hide preview' : 'Live preview'}
             </button>
             <span
               className="hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium sm:inline-flex"
