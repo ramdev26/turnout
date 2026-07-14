@@ -1,60 +1,73 @@
-/* Spotlight — concert / featured event layout (banner + sticky booking card) */
+/* Spotlight — concert / featured event layout */
 
 .landing-spotlight {
   --spotlight-surface: var(--landing-surface, #fff);
-  --spotlight-muted: var(--landing-surface-muted, #f5f5f7);
-  --spotlight-border: var(--landing-border, #e8e8ea);
+  --spotlight-muted: var(--landing-surface-muted, #f4f5f7);
+  --spotlight-border: var(--landing-border, #e6e8ec);
   --spotlight-text: var(--landing-text, #111);
-  --spotlight-text-muted: var(--landing-text-muted, #666);
+  --spotlight-text-muted: var(--landing-text-muted, #667085);
   --spotlight-accent: var(--showcase-accent, var(--primary));
   --spotlight-cta: var(--showcase-accent, var(--primary));
+  --spotlight-radius: 1rem;
   container-type: inline-size;
   container-name: spotlight;
   color: var(--spotlight-text);
+  background: var(--spotlight-surface);
 }
 
 .landing-spotlight-banner {
   width: 100%;
-  background: var(--spotlight-muted);
 }
 
 .landing-spotlight-banner-inner {
   max-width: 80rem;
   margin-inline: auto;
-  padding: 0.75rem 1rem 0;
+  padding: 0.85rem 1rem 0;
 }
 
 @container spotlight (min-width: 1024px) {
   .landing-spotlight-banner-inner {
-    padding: 1.25rem 2rem 0;
+    padding: 1.35rem 2rem 0;
   }
 }
 
-.landing-spotlight-banner-img {
+.landing-spotlight-banner-img,
+.landing-spotlight-banner-placeholder {
   display: block;
   width: 100%;
-  max-height: min(42vh, 280px);
+  max-height: min(38vh, 260px);
   object-fit: cover;
   object-position: center;
-  border-radius: 0.85rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--spotlight-border);
+  background: var(--spotlight-muted);
+}
+
+.landing-spotlight-banner-placeholder {
+  min-height: 180px;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 40%, color-mix(in srgb, var(--spotlight-accent) 22%, #fff) 0%, transparent 70%),
+    linear-gradient(160deg, var(--spotlight-muted), color-mix(in srgb, var(--spotlight-accent) 8%, #fff));
 }
 
 @container spotlight (min-width: 1024px) {
-  .landing-spotlight-banner-img {
-    max-height: min(48vh, 420px);
-    border-radius: 1rem;
+  .landing-spotlight-banner-img,
+  .landing-spotlight-banner-placeholder {
+    max-height: min(46vh, 400px);
+    border-radius: 1.1rem;
+    min-height: 280px;
   }
 }
 
 .landing-spotlight-shell {
   max-width: 80rem;
   margin-inline: auto;
-  padding: 1.25rem 1rem 2rem;
+  padding: 1.35rem 1rem 2.25rem;
 }
 
 @container spotlight (min-width: 1024px) {
   .landing-spotlight-shell {
-    padding: 1.75rem 2rem 3.5rem;
+    padding: 1.75rem 2rem 4rem;
   }
 }
 
@@ -67,8 +80,8 @@
 @container spotlight (min-width: 1024px) {
   .landing-spotlight-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
-    gap: clamp(1.75rem, 3vw, 2.75rem);
+    grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.72fr);
+    gap: clamp(2rem, 3.5vw, 3rem);
     align-items: start;
   }
 }
@@ -77,20 +90,25 @@
   min-width: 0;
 }
 
+.landing-spotlight-title-block {
+  padding-bottom: 0.25rem;
+}
+
 .landing-spotlight-title {
   font-family: var(--landing-font-display);
-  font-size: clamp(1.65rem, 5vw, 2.35rem);
+  font-size: clamp(1.7rem, 4.8vw, 2.5rem);
   font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
   text-transform: uppercase;
   color: var(--spotlight-text);
 }
 
 .landing-spotlight-lead {
-  margin-top: 0.65rem;
-  font-size: 0.9375rem;
-  line-height: 1.55;
+  margin-top: 0.7rem;
+  max-width: 40rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
   color: var(--spotlight-text-muted);
 }
 
@@ -101,15 +119,36 @@
   text-underline-offset: 2px;
 }
 
+.landing-spotlight-stack {
+  margin-top: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@container spotlight (min-width: 1024px) {
+  .landing-spotlight-stack {
+    margin-top: 1.75rem;
+    gap: 1.15rem;
+  }
+}
+
+.landing-spotlight-panel {
+  border: 1px solid var(--spotlight-border);
+  border-radius: var(--spotlight-radius);
+  background: var(--spotlight-surface);
+  padding: 1.05rem 1.1rem 1.15rem;
+}
+
 .landing-spotlight-section-title {
-  font-size: 1.125rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--spotlight-text);
 }
 
 .landing-spotlight-organizer-mobile {
-  margin-top: 1.25rem;
+  display: block;
 }
 
 @container spotlight (min-width: 1024px) {
@@ -124,8 +163,8 @@
 
 .landing-spotlight-booking-organizer {
   display: none;
-  margin-top: 1.15rem;
-  padding-top: 1.15rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 1px solid var(--spotlight-border);
 }
 
@@ -137,15 +176,26 @@
   color: var(--spotlight-text-muted);
 }
 
+.landing-spotlight-organizer.is-compact .landing-spotlight-organizer-label {
+  margin-bottom: 0.1rem;
+}
+
 .landing-spotlight-organizer-card {
-  margin-top: 0.55rem;
+  margin-top: 0.5rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
   border: 1px solid var(--spotlight-border);
   border-radius: 0.85rem;
-  background: var(--spotlight-surface);
-  padding: 0.85rem 1rem;
+  background: var(--spotlight-muted);
+  padding: 0.8rem 0.95rem;
+}
+
+.landing-spotlight-organizer.is-compact .landing-spotlight-organizer-card {
+  margin-top: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
 }
 
 .landing-spotlight-organizer-logo {
@@ -153,6 +203,7 @@
   height: 2.5rem;
   border-radius: 9999px;
   object-fit: cover;
+  border: 1px solid var(--spotlight-border);
 }
 
 .landing-spotlight-organizer-mark {
@@ -162,7 +213,7 @@
   height: 2.5rem;
   border-radius: 9999px;
   background: var(--spotlight-accent);
-  color: var(--landing-on-primary, #fff);
+  color: var(--landing-on-primary, #0a2426);
   font-size: 0.875rem;
   font-weight: 800;
 }
@@ -173,19 +224,6 @@
   color: var(--spotlight-text);
 }
 
-.landing-spotlight-organizer-sub {
-  margin-top: 0.1rem;
-  font-size: 0.75rem;
-  color: var(--spotlight-text-muted);
-}
-
-.landing-spotlight-about,
-.landing-spotlight-policies,
-.landing-spotlight-location,
-.landing-spotlight-tickets {
-  margin-top: 1.5rem;
-}
-
 .landing-spotlight-about-text {
   margin-top: 0.65rem;
   white-space: pre-wrap;
@@ -194,31 +232,36 @@
   color: var(--spotlight-text-muted);
 }
 
+.landing-spotlight-policies {
+  padding: 0;
+  overflow: hidden;
+}
+
 .landing-spotlight-accordion-btn {
   display: flex;
   width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  border: 1px solid var(--spotlight-border);
-  border-radius: 0.75rem;
-  background: var(--spotlight-surface);
-  padding: 0.9rem 1rem;
-  font-size: 0.9375rem;
+  border: none;
+  background: transparent;
+  padding: 1rem 1.1rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: var(--spotlight-text);
 }
 
 .landing-spotlight-policy-list {
-  margin-top: 0.65rem;
-  padding: 0.25rem 0.25rem 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0 1.1rem 1.05rem 1.85rem;
+  border-top: 1px solid var(--spotlight-border);
   font-size: 0.8125rem;
   line-height: 1.55;
   color: var(--spotlight-text-muted);
 }
 
-.landing-spotlight-policy-list li + li {
-  margin-top: 0.45rem;
+.landing-spotlight-policy-list li {
+  padding-top: 0.65rem;
 }
 
 .landing-spotlight-location-head {
@@ -238,25 +281,28 @@
 }
 
 .landing-spotlight-map-card {
-  margin-top: 0.75rem;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  margin-top: 0.85rem;
+  overflow: hidden;
   border: 1px solid var(--spotlight-border);
   border-radius: 0.85rem;
   background: var(--spotlight-muted);
-  padding: 1rem;
 }
 
-.landing-spotlight-map-pin {
+.landing-spotlight-map-visual {
   display: grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  shrink: 0;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--spotlight-accent) 16%, #fff);
+  min-height: 7.5rem;
   color: var(--spotlight-accent);
+  background:
+    radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--spotlight-accent) 18%, transparent), transparent 55%),
+    radial-gradient(circle at 70% 60%, color-mix(in srgb, var(--spotlight-accent) 10%, transparent), transparent 50%),
+    linear-gradient(180deg, color-mix(in srgb, var(--spotlight-accent) 6%, #fff), var(--spotlight-muted));
+}
+
+.landing-spotlight-map-body {
+  padding: 0.85rem 1rem 1rem;
+  border-top: 1px solid var(--spotlight-border);
+  background: var(--spotlight-surface);
 }
 
 .landing-spotlight-map-name {
@@ -270,10 +316,19 @@
   color: var(--spotlight-text-muted);
 }
 
+.landing-spotlight-tickets-head {
+  margin-bottom: 0.85rem;
+}
+
 .landing-spotlight-tickets-sub {
-  margin-top: 0.35rem;
+  margin-top: 0.3rem;
   font-size: 0.8125rem;
   color: var(--spotlight-text-muted);
+}
+
+.landing-spotlight-tickets-body .landing-showcase-ticket,
+.landing-spotlight-tickets-body .landing-card-premium {
+  border-radius: 0.85rem;
 }
 
 .landing-spotlight-empty {
@@ -300,15 +355,24 @@
     position: sticky;
     top: 5.5rem;
     align-self: start;
+    z-index: 20;
   }
 }
 
 .landing-spotlight-booking-card {
   border: 1px solid var(--spotlight-border);
-  border-radius: 1rem;
+  border-radius: 1.15rem;
   background: var(--spotlight-surface);
-  padding: 1.15rem 1.2rem 1.25rem;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  padding: 1.15rem 1.15rem 1.2rem;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.landing-spotlight-booking-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .landing-spotlight-featured {
@@ -316,125 +380,146 @@
   align-items: center;
   gap: 0.3rem;
   border-radius: 9999px;
-  background: color-mix(in srgb, #16a34a 14%, #fff);
-  padding: 0.25rem 0.65rem;
+  background: color-mix(in srgb, #16a34a 12%, #fff);
+  padding: 0.28rem 0.7rem;
   font-size: 0.6875rem;
   font-weight: 800;
   color: #15803d;
 }
 
 .landing-spotlight-countdown {
-  margin-top: 0.9rem;
+  margin-top: 0.95rem;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.4rem;
+  gap: 0.45rem;
 }
 
 .landing-spotlight-countdown-unit {
   text-align: center;
   border: 1px solid var(--spotlight-border);
-  border-radius: 0.55rem;
+  border-radius: 0.65rem;
   background: var(--spotlight-muted);
-  padding: 0.55rem 0.25rem;
+  padding: 0.6rem 0.2rem;
 }
 
 .landing-spotlight-countdown-unit .num {
   display: block;
-  font-size: 1.05rem;
+  font-size: 1.125rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .landing-spotlight-countdown-unit .lbl {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: 0.28rem;
   font-size: 0.5625rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--spotlight-text-muted);
 }
 
 .landing-spotlight-countdown-live {
-  margin-top: 0.85rem;
+  margin-top: 0.9rem;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--spotlight-text-muted);
 }
 
-.landing-spotlight-meta {
+.landing-spotlight-meta-row {
   margin-top: 1rem;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.landing-spotlight-meta-item {
-  display: flex;
-  align-items: center;
   gap: 0.45rem;
-  color: var(--spotlight-accent);
 }
 
-.landing-spotlight-meta-item .value {
-  font-size: 0.9375rem;
-  font-weight: 800;
-  color: var(--spotlight-text);
-  line-height: 1.15;
-}
-
-.landing-spotlight-meta-item .sub {
+.landing-spotlight-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid var(--spotlight-border);
+  background: var(--spotlight-surface);
+  padding: 0.35rem 0.7rem;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--spotlight-text-muted);
+  font-weight: 700;
+  color: var(--spotlight-text);
+}
+
+.landing-spotlight-meta-pill svg {
+  color: var(--spotlight-accent);
 }
 
 .landing-spotlight-category {
   border-radius: 9999px;
   background: color-mix(in srgb, var(--spotlight-accent) 14%, #fff);
-  padding: 0.3rem 0.7rem;
+  padding: 0.35rem 0.7rem;
   font-size: 0.6875rem;
   font-weight: 800;
   color: var(--spotlight-accent);
 }
 
+.landing-spotlight-price-block {
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--spotlight-border);
+}
+
+.landing-spotlight-price-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--spotlight-text-muted);
+}
+
 .landing-spotlight-price {
-  margin-top: 1rem;
-  font-size: 1.25rem;
+  margin-top: 0.25rem;
+  font-size: 1.35rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   color: var(--spotlight-text);
 }
 
 .landing-spotlight-cta {
-  margin-top: 0.85rem;
+  margin-top: 0.9rem;
   display: inline-flex;
   width: 100%;
-  min-height: 3rem;
+  min-height: 3.1rem;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
   border: none;
   border-radius: 9999px;
   background: var(--spotlight-cta);
-  padding: 0.7rem 1.25rem;
-  font-size: 0.875rem;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.9rem;
   font-weight: 800;
   color: var(--landing-on-primary, #0a2426);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--spotlight-cta) 28%, transparent);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.landing-spotlight-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
 }
 
 .landing-spotlight-cta:disabled {
   opacity: 0.45;
+  box-shadow: none;
 }
 
 .landing-spotlight-cta--compact {
   margin-top: 0;
   width: auto;
-  min-height: 2.75rem;
-  padding-inline: 1.25rem;
+  min-width: 8.5rem;
+  min-height: 2.85rem;
+  padding-inline: 1.2rem;
   flex-shrink: 0;
+  box-shadow: none;
 }
 
 .landing-spotlight-secondary-actions {
@@ -449,7 +534,7 @@
   gap: 0.35rem;
   border: none;
   background: none;
-  padding: 0.25rem;
+  padding: 0.3rem;
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--spotlight-text-muted);
@@ -462,7 +547,7 @@
   z-index: 55;
   border-top: 1px solid var(--spotlight-border);
   background: var(--spotlight-surface);
-  box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.1);
 }
 
 @container spotlight (min-width: 1024px) {
@@ -475,40 +560,61 @@
 .landing-spotlight-mobile-bar-countdown {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  background: color-mix(in srgb, var(--spotlight-accent) 88%, #111);
-  padding: 0.4rem 0.75rem;
-  font-size: 0.6875rem;
+  gap: 0.45rem;
+  background: color-mix(in srgb, var(--spotlight-accent) 90%, #0b1220);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: var(--landing-on-primary, #fff);
+}
+
+.landing-spotlight-mobile-share {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
 }
 
 .landing-spotlight-mobile-bar-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 1rem max(0.65rem, env(safe-area-inset-bottom));
+  gap: 0.85rem;
+  padding: 0.7rem 1rem max(0.7rem, env(safe-area-inset-bottom));
+}
+
+.landing-spotlight-mobile-price-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--spotlight-text-muted);
 }
 
 .landing-spotlight-mobile-price {
-  font-size: 0.9375rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: var(--spotlight-text);
+  line-height: 1.2;
 }
 
 .landing-spotlight-mobile-spacer {
-  height: calc(5.75rem + env(safe-area-inset-bottom));
+  height: calc(6.1rem + env(safe-area-inset-bottom));
 }
 
-/* Live preview phone/desktop frames */
-.event-settings-mobile-preview .landing-spotlight-banner-img {
-  max-height: 160px !important;
+.event-settings-mobile-preview .landing-spotlight-banner-img,
+.event-settings-mobile-preview .landing-spotlight-banner-placeholder {
+  max-height: 150px !important;
+  min-height: 120px !important;
 }
 
 .event-settings-mobile-preview .landing-spotlight-shell {
-  padding: 1rem 0.75rem 1.5rem !important;
+  padding: 1rem 0.75rem 1.25rem !important;
 }
 
 .event-settings-mobile-preview .landing-spotlight-mobile-bar {
@@ -517,9 +623,9 @@
 }
 
 .event-settings-mobile-preview .landing-spotlight-mobile-spacer {
-  height: 1rem !important;
+  height: 0.75rem !important;
 }
 
 .event-settings-desktop-preview .landing-spotlight-booking {
-  top: 4.5rem;
+  top: 4.25rem;
 }
