@@ -8,6 +8,9 @@ $env = static function (string $key, string $default = ''): string {
 };
 
 $dbUrl =
+  $env('TURNOUT_DATABASE_URL') ?:
+  $env('TURNOUT_POSTGRES_URL') ?:
+  $env('TURNOUT_PRISMA_DATABASE_URL') ?:
   $env('DATABASE_URL') ?:
   $env('POSTGRES_URL') ?:
   $env('POSTGRES_PRISMA_URL') ?:
