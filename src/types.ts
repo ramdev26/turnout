@@ -27,6 +27,13 @@ export type AdminSummary = {
   activeEvents?: number;
   topEvents?: { id: string; title: string; revenue: number }[];
   topOrganizers?: { id: string; name: string; earnings: number }[];
+  charts?: {
+    days: number;
+    revenueByDay: { date: string; revenue: number; transactions: number }[];
+    signupsByDay: { date: string; signups: number }[];
+    transactionsByStatus: { status: string; count: number; amount: number }[];
+    usersByRole: { role: string; count: number }[];
+  };
 };
 
 export type PlatformTransaction = {
@@ -52,6 +59,7 @@ export type OrganizerPayout = {
   method: 'bank_transfer';
   reference?: string | null;
   notes?: string | null;
+  organizerName?: string | null;
   createdAt: string;
   completedAt?: string | null;
 };
@@ -66,6 +74,47 @@ export type OrganizerProfile = {
   logoUrl?: string | null;
   website?: string | null;
   phone?: string | null;
+  businessAddress?: string | null;
+  businessRegistrationNo?: string | null;
+  businessRegistrationDocUrl?: string | null;
+  businessRegistrationDocUploaded?: boolean;
+  bankAccountHolderName?: string | null;
+  bankName?: string | null;
+  bankBranch?: string | null;
+  bankAccountNumberLast4?: string | null;
+  bankAccountConfigured?: boolean;
+  bankStatementDocUrl?: string | null;
+  bankStatementDocUploaded?: boolean;
+};
+
+export type OrganizerPaidEventRequirements = {
+  needsBusinessDetails: boolean;
+  needsBankDetails: boolean;
+  needsOwnPayhereCredentials: boolean;
+  needsBillingCard: boolean;
+};
+
+export type OrganizerPaidEventReadiness = {
+  isReady: boolean;
+  gatewayMode: OrganizerGatewayMode;
+  requirements: OrganizerPaidEventRequirements;
+  missing: string[];
+  setupUrl: string;
+  business: {
+    businessAddress: string | null;
+    businessRegistrationNo: string | null;
+    businessRegistrationDocUrl: string | null;
+    businessRegistrationDocUploaded: boolean;
+  };
+  bank: {
+    bankAccountHolderName: string | null;
+    bankName: string | null;
+    bankBranch: string | null;
+    bankAccountNumberLast4: string | null;
+    bankAccountConfigured: boolean;
+    bankStatementDocUrl: string | null;
+    bankStatementDocUploaded: boolean;
+  };
 };
 
 export type OrganizerTeamMember = {
@@ -93,6 +142,37 @@ export type OrganizerWorkspace = {
   isOwner: boolean;
   canManageTeam: boolean;
   canEditEvents: boolean;
+};
+
+export type OrganizerGatewayMode = 'turnout' | 'own_payhere';
+
+export type OrganizerBillingStatus = 'none' | 'pending' | 'active' | 'failed';
+
+export type OrganizerPaymentSettings = {
+  gatewayMode: OrganizerGatewayMode;
+  ownPayhereMerchantId: string;
+  ownPayhereSecretConfigured: boolean;
+  billing: {
+    status: OrganizerBillingStatus;
+    cardLast4: string | null;
+    cardBrand: string | null;
+    setupAt: string | null;
+  };
+  commissionPct: number;
+  isReady: boolean;
+  requirements: {
+    needsBillingCard: boolean;
+    needsOwnPayhereCredentials: boolean;
+  };
+};
+
+export type OrganizerBillingPreapproveResponse = {
+  setupOrderId: string;
+  actionUrl: string;
+  sandbox: boolean;
+  hash: string;
+  fields: Record<string, unknown>;
+  sdkPayment: Record<string, unknown>;
 };
 
 export type AttendeeProfile = {
@@ -149,6 +229,8 @@ export interface EventCustomization {
   ticketPdfFooterNote?: string;
   /** Extra questions asked for each ticket holder during checkout */
   checkoutFields?: CheckoutFieldDefinition[];
+  /** Extra carousel slides for Arena template (banner is always slide 1). */
+  arenaGalleryImages?: string[];
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }

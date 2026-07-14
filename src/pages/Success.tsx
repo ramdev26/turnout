@@ -150,8 +150,8 @@ export const Success: React.FC = () => {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="mt-6 rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
-          style={{ backgroundColor: 'var(--primary)' }}
+          className="turnout-btn-accent mt-6 rounded-xl px-5 py-2.5 text-sm font-semibold"
+          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-on)' }}
         >
           Refresh
         </button>

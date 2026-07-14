@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
@@ -15,12 +15,10 @@ import { ResetPassword } from './pages/ResetPassword';
 import { Signup } from './pages/Signup';
 import { api } from './api/client';
 import { parseAuthPayload } from './api/authResponse';
-import { clearAuthToken } from './api/authToken';
+import { clearAuthToken, getAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
-import { AgendaManager } from './pages/AgendaManager';
 import { CheckInManager } from './pages/CheckInManager';
 import { StaffCheckInScanner } from './pages/StaffCheckInScanner';
-import { RunbookManager } from './pages/RunbookManager';
 import { AttendeeLogin } from './pages/AttendeeLogin';
 import { AttendeeSignup } from './pages/AttendeeSignup';
 import { AttendeeDashboard } from './pages/AttendeeDashboard';
@@ -30,6 +28,7 @@ import { PayHereCancel } from './pages/PayHereCancel';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { OrganizerEarnings } from './pages/OrganizerEarnings';
 import { OrganizerAccount } from './pages/OrganizerAccount';
+import { OrganizerBillingCancel, OrganizerBillingReturn } from './pages/OrganizerBillingReturn';
 import { AcceptInvite } from './pages/AcceptInvite';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminEvents } from './pages/AdminEvents';
@@ -37,6 +36,8 @@ import { AdminTransactions } from './pages/AdminTransactions';
 import { AdminPayouts } from './pages/AdminPayouts';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminLogs } from './pages/AdminLogs';
+import { AdminOrganizers } from './pages/AdminOrganizers';
+import { BASADMIN_BASE } from './utils/adminNav';
 
 function FullPageLoader() {
   return (
@@ -44,6 +45,69 @@ function FullPageLoader() {
       <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-[var(--primary)]" />
     </div>
   );
+}
+
+function HostAwareRoot({
+  user,
+}: {
+  user: ReturnType<typeof useAuthStore>['user'];
+}) {
+  const [resolving, setResolving] = useState(true);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const host = window.location.hostname.toLowerCase();
+        const cfg = await api.get<{ platformHosts?: string[] }>('/api/domain/config');
+        const platformHosts = (cfg.platformHosts || []).map((h) => h.toLowerCase());
+        const isPlatformHost =
+          platformHosts.includes(host) ||
+          host.endsWith('.vercel.app') ||
+          host === 'localhost' ||
+          host === '127.0.0.1';
+
+        if (!isPlatformHost) {
+          const mapped = await api.get<{ path: string }>(`/api/events/by-host/${encodeURIComponent(host)}`);
+          if (!cancelled && mapped.path) {
+            setRedirectPath(mapped.path);
+            return;
+          }
+        }
+      } catch {
+        // Not a mapped event host; fall through to standard root behavior.
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (redirectPath) {
+    return <Navigate to={redirectPath} replace />;
+  }
+  if (resolving) {
+    return <FullPageLoader />;
+  }
+
+  if (user) {
+    return (
+      <Navigate
+        to={
+          user.role === 'super_admin'
+            ? BASADMIN_BASE
+            : user.role === 'attendee'
+              ? '/attendee/dashboard'
+              : '/dashboard'
+        }
+        replace
+      />
+    );
+  }
+  return <Signup />;
 }
 
 function RequireOrganizer({ children }: { children: React.ReactNode }) {
@@ -62,12 +126,103 @@ function RequireAttendee({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function basadminLoginPath(returnTo: string) {
+  return `${BASADMIN_BASE}/login?next=${encodeURIComponent(returnTo)}`;
+}
+
 function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuthStore();
-  if (loading) return <FullPageLoader />;
-  if (!user) return <Navigate to="/login" replace />;
+  const { user, loading, setUser } = useAuthStore();
+  const location = useLocation();
+  const [hydrating, setHydrating] = useState(false);
+
+  useEffect(() => {
+    if (loading || user || !getAuthToken()) return;
+
+    let cancelled = false;
+    setHydrating(true);
+    (async () => {
+      try {
+        const raw = await api.get<unknown>('/api/auth/me');
+        if (!cancelled) setUser(parseAuthPayload(raw).user);
+      } catch {
+        if (!cancelled) clearAuthToken();
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, setUser]);
+
+  if (loading || hydrating) return <FullPageLoader />;
+  if (!user) {
+    const returnTo = `${location.pathname}${location.search}`;
+    return <Navigate to={basadminLoginPath(returnTo)} replace />;
+  }
   if (user.role !== 'super_admin') return <Navigate to="/" replace />;
   return <>{children}</>;
+}
+
+function loginRedirectForUser(
+  user: NonNullable<ReturnType<typeof useAuthStore>['user']>,
+  next: string | null,
+) {
+  if (user.role === 'super_admin') {
+    return next && next.startsWith(BASADMIN_BASE) ? next : `${BASADMIN_BASE}/dashboard`;
+  }
+  if (user.role === 'attendee') return '/attendee/dashboard';
+  return next && next.startsWith('/') && !next.startsWith(BASADMIN_BASE) ? next : '/dashboard';
+}
+
+function LoginRoute() {
+  const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  if (user) {
+    return <Navigate to={loginRedirectForUser(user, searchParams.get('next'))} replace />;
+  }
+  return <Login />;
+}
+
+function BasAdminLoginRoute() {
+  const { user, loading, setUser } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const [hydrating, setHydrating] = useState(false);
+  const next = searchParams.get('next');
+  const destination =
+    next && next.startsWith(BASADMIN_BASE) ? next : `${BASADMIN_BASE}/dashboard`;
+
+  useEffect(() => {
+    if (loading || user || !getAuthToken()) return;
+
+    let cancelled = false;
+    setHydrating(true);
+    (async () => {
+      try {
+        const raw = await api.get<unknown>('/api/auth/me');
+        if (!cancelled) setUser(parseAuthPayload(raw).user);
+      } catch {
+        if (!cancelled) clearAuthToken();
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, setUser]);
+
+  if (loading || hydrating) return <FullPageLoader />;
+
+  if (user?.role === 'super_admin') {
+    return <Navigate to={destination} replace />;
+  }
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+  return <Login basadmin />;
 }
 
 export default function App() {
@@ -80,7 +235,7 @@ export default function App() {
         const raw = await api.get<unknown>('/api/auth/me');
         if (!cancelled) setUser(parseAuthPayload(raw).user);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !useAuthStore.getState().user) {
           clearAuthToken();
           setUser(null);
         }
@@ -97,15 +252,32 @@ export default function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<MarketingLanding />} />
-          <Route path="/discover" element={<Home />} />
           <Route
-            path="/login"
+            path="/"
+            element={<HostAwareRoot user={user} />}
+          />
+          <Route path="/landing" element={<MarketingLanding />} />
+          <Route path="/discover" element={<Home />} />
+          <Route path="/login" element={<LoginRoute />} />
+          <Route
+            path="/signup"
             element={
-              user ? <Navigate to={user.role === 'super_admin' ? '/admin' : user.role === 'attendee' ? '/attendee/dashboard' : '/dashboard'} replace /> : <Login />
+              user ? (
+                <Navigate
+                  to={
+                    user.role === 'super_admin'
+                      ? BASADMIN_BASE
+                      : user.role === 'attendee'
+                        ? '/attendee/dashboard'
+                        : '/dashboard'
+                  }
+                  replace
+                />
+              ) : (
+                <Navigate to="/" replace />
+              )
             }
           />
-          <Route path="/signup" element={user ? <Navigate to="/dashboard" replace /> : <Signup />} />
           <Route
             path="/forgot-password"
             element={
@@ -113,7 +285,7 @@ export default function App() {
                 <Navigate
                   to={
                     user.role === 'super_admin'
-                      ? '/admin/dashboard'
+                      ? `${BASADMIN_BASE}/dashboard`
                       : user.role === 'attendee'
                         ? '/attendee/dashboard'
                         : '/dashboard'
@@ -132,7 +304,7 @@ export default function App() {
                 <Navigate
                   to={
                     user.role === 'super_admin'
-                      ? '/admin/dashboard'
+                      ? `${BASADMIN_BASE}/dashboard`
                       : user.role === 'attendee'
                         ? '/attendee/dashboard'
                         : '/dashboard'
@@ -192,15 +364,41 @@ export default function App() {
               </RequireOrganizer>
             }
           />
+          <Route
+            path="/organizer/billing/return"
+            element={
+              <RequireOrganizer>
+                <OrganizerBillingReturn />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/organizer/billing/cancel"
+            element={
+              <RequireOrganizer>
+                <OrganizerBillingCancel />
+              </RequireOrganizer>
+            }
+          />
           <Route path="/invite/accept" element={<AcceptInvite />} />
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/admin/dashboard" element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
-          <Route path="/admin/users" element={<RequireSuperAdmin><AdminUsers /></RequireSuperAdmin>} />
-          <Route path="/admin/events" element={<RequireSuperAdmin><AdminEvents /></RequireSuperAdmin>} />
-          <Route path="/admin/transactions" element={<RequireSuperAdmin><AdminTransactions /></RequireSuperAdmin>} />
-          <Route path="/admin/payouts" element={<RequireSuperAdmin><AdminPayouts /></RequireSuperAdmin>} />
-          <Route path="/admin/settings" element={<RequireSuperAdmin><AdminSettings /></RequireSuperAdmin>} />
-          <Route path="/admin/logs" element={<RequireSuperAdmin><AdminLogs /></RequireSuperAdmin>} />
+          <Route path="/admin" element={<Navigate to={`${BASADMIN_BASE}/dashboard`} replace />} />
+          <Route path="/admin/dashboard" element={<Navigate to={`${BASADMIN_BASE}/dashboard`} replace />} />
+          <Route path="/admin/users" element={<Navigate to={`${BASADMIN_BASE}/users`} replace />} />
+          <Route path="/admin/events" element={<Navigate to={`${BASADMIN_BASE}/events`} replace />} />
+          <Route path="/admin/transactions" element={<Navigate to={`${BASADMIN_BASE}/transactions`} replace />} />
+          <Route path="/admin/payouts" element={<Navigate to={`${BASADMIN_BASE}/payouts`} replace />} />
+          <Route path="/admin/settings" element={<Navigate to={`${BASADMIN_BASE}/settings`} replace />} />
+          <Route path="/admin/logs" element={<Navigate to={`${BASADMIN_BASE}/logs`} replace />} />
+          <Route path="/basadmin" element={<Navigate to={`${BASADMIN_BASE}/dashboard`} replace />} />
+          <Route path={`${BASADMIN_BASE}/login`} element={<BasAdminLoginRoute />} />
+          <Route path={`${BASADMIN_BASE}/dashboard`} element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/organizers`} element={<RequireSuperAdmin><AdminOrganizers /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/users`} element={<RequireSuperAdmin><AdminUsers /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/events`} element={<RequireSuperAdmin><AdminEvents /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/transactions`} element={<RequireSuperAdmin><AdminTransactions /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/payouts`} element={<RequireSuperAdmin><AdminPayouts /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/settings`} element={<RequireSuperAdmin><AdminSettings /></RequireSuperAdmin>} />
+          <Route path={`${BASADMIN_BASE}/logs`} element={<RequireSuperAdmin><AdminLogs /></RequireSuperAdmin>} />
           <Route
             path="/events/themes"
             element={
@@ -225,14 +423,7 @@ export default function App() {
               </RequireOrganizer>
             }
           />
-          <Route
-            path="/dashboard/events/:eventId/agenda"
-            element={
-              <RequireOrganizer>
-                <AgendaManager />
-              </RequireOrganizer>
-            }
-          />
+          <Route path="/dashboard/events/:eventId/agenda" element={<Navigate to="/dashboard" replace />} />
           <Route
             path="/dashboard/events/:eventId/checkin"
             element={
@@ -241,14 +432,7 @@ export default function App() {
               </RequireOrganizer>
             }
           />
-          <Route
-            path="/dashboard/events/:eventId/runbook"
-            element={
-              <RequireOrganizer>
-                <RunbookManager />
-              </RequireOrganizer>
-            }
-          />
+          <Route path="/dashboard/events/:eventId/runbook" element={<Navigate to="/dashboard" replace />} />
           <Route path="/staff/checkin/:eventId" element={<StaffCheckInScanner />} />
           <Route path="/events/:eventId" element={<EventLanding />} />
           <Route path="/e/:slug" element={<EventLanding />} />

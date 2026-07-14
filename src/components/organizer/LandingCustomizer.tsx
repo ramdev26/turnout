@@ -10,10 +10,13 @@ import {
   type LandingFontKey,
 } from '../../themes/landingFonts';
 import type { LandingDisplayMode, LandingStyle } from '../../types';
+import type { LayoutTemplateId } from '../../templates/templates';
 import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { cn } from '../../utils/cn';
+import { accentSegmentStyleFor } from '../../themes/flowUi';
 
 export type LandingDesignValue = {
+  templateId: LayoutTemplateId;
   eventCategory: string;
   primaryColor: string;
   secondaryColor: string;
@@ -21,6 +24,8 @@ export type LandingDesignValue = {
   displayMode: LandingDisplayMode;
   landingStyle: LandingStyle;
 };
+
+export { LANDING_LAYOUT_TEMPLATES } from '../../templates/templates';
 
 type ColorPreset = {
   id: string;
@@ -250,7 +255,7 @@ export function LandingCustomizer({
                 type="button"
                 onClick={() => update({ displayMode: opt.id })}
                 className={segmentBase}
-                style={active ? { background: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                style={accentSegmentStyleFor(ui, active)}
               >
                 {opt.name}
               </button>
@@ -328,7 +333,7 @@ export function LandingDesignPreview({
         </div>
         <button
           type="button"
-          className="landing-btn-primary w-full rounded-xl py-2.5 text-sm font-bold text-white"
+          className="landing-btn-primary w-full rounded-xl py-2.5 text-sm font-bold"
         >
           Reserve your spot
         </button>

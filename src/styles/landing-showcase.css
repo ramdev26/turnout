@@ -8,17 +8,6 @@
   --showcase-border: var(--landing-border);
 }
 
-.landing-showcase[data-landing-tone='dark']::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 90% 55% at 50% -15%, color-mix(in srgb, var(--showcase-accent) 16%, transparent) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 40% at 100% 0%, color-mix(in srgb, var(--secondary) 10%, transparent) 0%, transparent 50%);
-}
-
 .landing-showcase > *:not(.landing-showcase-header) {
   position: relative;
   z-index: 1;
@@ -119,7 +108,55 @@
   max-width: 56rem;
   margin-inline: auto;
   text-align: center;
-  padding-top: 2rem;
+  padding-top: 1.25rem;
+}
+
+.landing-showcase-hero-banner {
+  margin-bottom: 0.5rem;
+}
+
+/* Showcase poster — centered frame, balanced height on desktop */
+.landing-poster-frame--showcase {
+  border-color: var(--showcase-border);
+  background: var(--showcase-card-muted);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 20px 48px rgba(5, 46, 48, 0.32);
+}
+
+.landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+  width: fit-content;
+  max-width: min(100%, 22rem);
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+    max-width: min(100%, 28rem);
+  }
+
+  .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+    max-height: min(50vh, 480px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+    max-width: min(100%, 34rem);
+  }
+
+  .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+    max-height: min(54vh, 560px);
+  }
+}
+
+@media (min-width: 1280px) {
+  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+    max-width: min(100%, 38rem);
+  }
+
+  .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+    max-height: min(58vh, 620px);
+  }
 }
 
 .landing-showcase-hero-badge {
@@ -210,7 +247,6 @@
 .landing-showcase-grid {
   max-width: 80rem;
   margin-inline: auto;
-  padding: 2.5rem 1rem 3rem;
 }
 
 @media (min-width: 1024px) {
@@ -462,3 +498,53 @@
 .landing-showcase-footer-links a:hover {
   color: var(--showcase-accent);
 }
+
+/* Event settings phone frame — force mobile layout regardless of desktop viewport */
+.event-settings-mobile-preview .landing-showcase-nav {
+  display: none !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-grid {
+  display: block !important;
+  max-width: none;
+  padding: 1.5rem 0.875rem 2rem;
+}
+
+.event-settings-mobile-preview .landing-showcase-sidebar {
+  position: static !important;
+  top: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin-top: 1.5rem;
+}
+
+.event-settings-mobile-preview .landing-showcase-info-grid {
+  grid-template-columns: 1fr !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-footer-inner {
+  flex-direction: column !important;
+  text-align: center !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+  max-height: min(38vh, 280px) !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero {
+  padding-top: 1.25rem;
+  padding-inline: 0.875rem;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero-accent {
+  font-size: 1.75rem !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero-title {
+  font-size: 1.875rem !important;
+}
+
+.event-settings-mobile-preview .landing-showcase-header-inner {
+  padding-inline: 0.875rem;
+}
+

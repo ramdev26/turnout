@@ -416,7 +416,7 @@ export const SectionsDesigner: React.FC<Props> = ({ value, onChange, eventPrevie
                   />
                 </Field>
                 <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
-                  This block shows speakers you add in <span className="font-bold">Agenda & Speakers</span>.
+                  This block shows speaker data configured for this event.
                 </div>
               </>
             )}
@@ -438,7 +438,7 @@ export const SectionsDesigner: React.FC<Props> = ({ value, onChange, eventPrevie
                   />
                 </Field>
                 <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
-                  This block shows sessions you add in <span className="font-bold">Agenda & Speakers</span>.
+                  This block shows session data configured for this event.
                 </div>
               </>
             )}

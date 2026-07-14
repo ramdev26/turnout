@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { EVENT_THEMES } from '../../themes/eventThemes';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
+import { accentButtonStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
 import { cn } from '../../utils/cn';
 
 export const APP_FLOW_UI = EVENT_THEMES.minimal.ui;
@@ -103,8 +103,8 @@ export function FlowButton({
     return (
       <button
         type="button"
-        className={cn(base, 'text-white hover:brightness-105', className)}
-        style={{ backgroundColor: ui.accent }}
+        className={cn(base, 'turnout-btn-accent hover:brightness-105', className)}
+        style={accentButtonStyleFor(ui)}
         {...props}
       >
         {children}
@@ -152,10 +152,10 @@ export function FlowLinkButton({
       to={to}
       className={cn(
         'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition',
-        primary ? 'text-white hover:brightness-105' : 'border',
+        primary ? 'turnout-btn-accent hover:brightness-105' : 'border',
         className
       )}
-      style={primary ? { backgroundColor: ui.accent } : { ...cardStyleFor(ui), color: ui.text }}
+      style={primary ? accentButtonStyleFor(ui) : { ...cardStyleFor(ui), color: ui.text }}
     >
       {children}
     </Link>
