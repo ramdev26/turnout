@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { isGoogleMapsConfigured, loadGoogleMaps } from '../../lib/loadGoogleMaps';
+import { checkGoogleMapsConfigured, loadGoogleMaps } from '../../lib/loadGoogleMaps';
 
 export type LocationAutocompleteProps = {
   value: string;
@@ -61,11 +61,25 @@ export function LocationAutocomplete({
 }: LocationAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
+  const [configured, setConfigured] = useState<boolean | null>(null);
   const [placesReady, setPlacesReady] = useState(false);
-  const [placesError, setPlacesError] = useState(false);
-  const configured = isGoogleMapsConfigured();
+  const [placesError, setPlacesError] = useState<string | null>(null);
 
   onChangeRef.current = onChange;
+
+  useEffect(() => {
+    let cancelled = false;
+    checkGoogleMapsConfigured()
+      .then((ok) => {
+        if (!cancelled) setConfigured(ok);
+      })
+      .catch(() => {
+        if (!cancelled) setConfigured(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!configured || disabled) return;
@@ -79,7 +93,6 @@ export function LocationAutocomplete({
         if (cancelled || !inputRef.current) return;
         autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
           fields: ['name', 'formatted_address', 'vicinity', 'place_id', 'address_components', 'types'],
-          types: ['establishment'],
         });
         listener = autocomplete.addListener('place_changed', () => {
           const place = autocomplete?.getPlace();
@@ -88,10 +101,12 @@ export function LocationAutocomplete({
           if (label) onChangeRef.current(label);
         });
         setPlacesReady(true);
-        setPlacesError(false);
+        setPlacesError(null);
       })
-      .catch(() => {
-        if (!cancelled) setPlacesError(true);
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setPlacesError(err instanceof Error ? err.message : 'Place search unavailable');
+        }
       });
 
     return () => {
@@ -101,12 +116,14 @@ export function LocationAutocomplete({
   }, [configured, disabled]);
 
   let hintText: string | null = null;
-  if (!configured) {
-    hintText = 'Add VITE_GOOGLE_MAPS_API_KEY to enable place search.';
+  if (configured === false) {
+    hintText = 'Add VITE_GOOGLE_MAPS_API_KEY (or GOOGLE_MAPS_API_KEY) in deployment env, then redeploy.';
   } else if (placesError) {
-    hintText = 'Place search unavailable — type the venue name manually.';
+    hintText = placesError;
   } else if (placesReady) {
     hintText = 'Search venues and places (e.g. hall, stadium, hotel)';
+  } else if (configured) {
+    hintText = 'Loading place search…';
   }
 
   return (
@@ -130,4 +147,4 @@ export function LocationAutocomplete({
       ) : null}
     </div>
   );
-};
+}

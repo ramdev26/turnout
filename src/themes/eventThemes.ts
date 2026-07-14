@@ -18,6 +18,7 @@ export type CreateThemeUI = {
   pillBg: string;
   accent: string;
   accentHover: string;
+  accentOn: string;
   accentSoft: string;
   text: string;
   textMuted: string;
@@ -68,6 +69,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255, 255, 255, 0.07)',
       accent: TURNOUT_BRAND.lime500,
       accentHover: TURNOUT_BRAND.lime400,
+      accentOn: TURNOUT_BRAND.ink,
       accentSoft: TURNOUT_BRAND.limeSoft,
       text: TURNOUT_BRAND.text,
       textMuted: TURNOUT_BRAND.textMuted,
@@ -106,6 +108,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255,255,255,0.9)',
       accent: '#059669',
       accentHover: '#047857',
+      accentOn: '#ffffff',
       accentSoft: 'rgba(5,150,105,0.15)',
       text: '#064e3b',
       textMuted: '#047857',
@@ -132,7 +135,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
     name: 'Midnight',
     primary: '#818cf8',
     secondary: '#a78bfa',
-    templateId: 'template-4',
+    templateId: 'template-2',
     ui: {
       pageBg: 'linear-gradient(160deg, #0f172a 0%, #1e1b4b 48%, #4c1d95 100%)',
       headerBg: 'rgba(15,23,42,0.75)',
@@ -144,6 +147,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255,255,255,0.08)',
       accent: '#818cf8',
       accentHover: '#6366f1',
+      accentOn: '#ffffff',
       accentSoft: 'rgba(129,140,248,0.22)',
       text: '#f8fafc',
       textMuted: '#c7d2fe',
@@ -170,7 +174,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
     name: 'Sunset',
     primary: '#f97316',
     secondary: '#ec4899',
-    templateId: 'template-1',
+    templateId: 'template-2',
     ui: {
       pageBg: 'linear-gradient(165deg, #fff7ed 0%, #ffedd5 38%, #fce7f3 78%, #fdf2f8 100%)',
       headerBg: 'rgba(255,255,255,0.85)',
@@ -182,6 +186,7 @@ export const EVENT_THEMES: Record<EventThemeId, EventThemeDefinition> = {
       pillBg: 'rgba(255,255,255,0.9)',
       accent: '#ea580c',
       accentHover: '#c2410c',
+      accentOn: '#ffffff',
       accentSoft: 'rgba(234,88,12,0.14)',
       text: '#7c2d12',
       textMuted: '#c2410c',
@@ -354,9 +359,15 @@ export function resolveEventTheme(_customization?: LandingCustomizationInput): E
   return EVENT_THEMES.minimal;
 }
 
-/** Editorial template (template-2) is the default; canvas layouts are preserved. */
+/** Respect stored layout template; canvas layouts are preserved. Legacy templates map to Showcase. */
 export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customization'>): TemplateId {
   if (event.templateId === 'template-canvas') return 'template-canvas';
+  if (event.templateId === 'template-2' || event.templateId === 'template-5' || event.templateId === 'template-6' || event.templateId === 'template-7') {
+    return event.templateId;
+  }
+  if (event.templateId === 'template-1' || event.templateId === 'template-3' || event.templateId === 'template-4') {
+    return 'template-2';
+  }
   return 'template-2';
 }
 

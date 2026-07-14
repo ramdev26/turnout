@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { resolveLayoutTemplateId } from '../templates/templates';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -7,6 +8,7 @@ import {
   ArrowLeft,
   CalendarDays,
   ChevronDown,
+  Eye,
   FileText,
   Globe,
   MapPin,
@@ -16,16 +18,20 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { EventCustomization } from '../types';
+import { Event, EventCustomization, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
+import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
+import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
 import { EVENT_CATEGORIES } from '../themes/eventCategories';
-import { useOrganizerLiveDesign } from '../themes/organizerLiveDesign';
+import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
+import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -241,11 +247,15 @@ export const CreateEvent: React.FC = () => {
   const [hasSchedule, setHasSchedule] = useState(false);
   // End time is optional — most events only need a start.
   const [hasEnd, setHasEnd] = useState(false);
+  const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
+  const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
+  const [showLivePreview, setShowLivePreview] = useState(false);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
     const cat = EVENT_CATEGORIES[0];
     return {
+      templateId: 'template-2' as const,
       eventCategory: cat.id,
       primaryColor: cat.primaryColor,
       secondaryColor: cat.secondaryColor,
@@ -286,6 +296,8 @@ export const CreateEvent: React.FC = () => {
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'tickets' });
 
   const title = watch('title');
+  const description = watch('description');
+  const shortDescription = watch('shortDescription');
   const date = watch('date');
   const endDate = watch('endDate');
   const location = watch('location');
@@ -294,15 +306,11 @@ export const CreateEvent: React.FC = () => {
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
 
-  const { ui, landingVars, titleFont, bodyFont, panelClass, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(
-    design,
-    themeId
-  );
+  const ui = APP_FLOW_UI;
+  const cardStyle = cardStyleFor(ui);
+  const cardMutedStyle = cardMutedStyleFor(ui);
   const fieldClass = fieldClassFor(ui);
-  const panelCn = cn(
-    'rounded-2xl border transition-[background,border-color,box-shadow] duration-700',
-    panelClass
-  );
+  const panelCn = cn('rounded-2xl border transition-[background,border-color,box-shadow] duration-300');
 
   useEffect(() => {
     if (hasEnd && !endDate && date) {
@@ -312,6 +320,18 @@ export const CreateEvent: React.FC = () => {
       setValue('endDate', '', { shouldValidate: true });
     }
   }, [date, endDate, hasEnd, setValue]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const res = await api.get<{ readiness: OrganizerPaidEventReadiness }>('/api/organizer/paid-event-readiness');
+        setPaidEventReadiness(res.readiness);
+      } catch {
+        setPaidEventReadiness(null);
+      }
+    })();
+  }, [user]);
 
   const totalSeats = useMemo(
     () => tickets.reduce((sum, t) => sum + (Number.isFinite(t.quantity) ? t.quantity : 0), 0),
@@ -336,6 +356,11 @@ export const CreateEvent: React.FC = () => {
   };
 
   const switchToPaidMode = () => {
+    if (paidEventReadiness && !paidEventReadiness.isReady) {
+      setShowPaidSetupGate(true);
+      return;
+    }
+    setShowPaidSetupGate(false);
     setTicketMode('paid');
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
@@ -383,6 +408,11 @@ export const CreateEvent: React.FC = () => {
       const hasPaidTier = data.tickets.some((t) => t.price > 0);
       if (!hasPaidTier) {
         setSubmitError('Add at least one paid ticket tier with a price greater than 0.');
+        return;
+      }
+      if (paidEventReadiness && !paidEventReadiness.isReady) {
+        setShowPaidSetupGate(true);
+        setSubmitError('Complete business and payment setup in Organization settings before publishing a paid event.');
         return;
       }
     }
@@ -433,7 +463,7 @@ export const CreateEvent: React.FC = () => {
         date: data.date,
         location: data.location,
         bannerUrl: data.bannerUrl || `https://picsum.photos/seed/${Date.now()}/1200/600`,
-        templateId: selectedTheme.templateId,
+        templateId: design.templateId,
         customization,
         tickets: payloadTickets,
       });
@@ -441,6 +471,12 @@ export const CreateEvent: React.FC = () => {
       window.open(`/e/${created.slug}`, '_blank', 'noopener,noreferrer');
       navigate('/dashboard');
     } catch (error: any) {
+      if (error?.error === 'paid_event_setup_required') {
+        setPaidEventReadiness(error.readiness || paidEventReadiness);
+        setShowPaidSetupGate(true);
+        setSubmitError(error?.message || 'Complete Organization setup before selling paid tickets.');
+        return;
+      }
       setSubmitError(error?.message || error?.error || 'Failed to create event. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -449,18 +485,90 @@ export const CreateEvent: React.FC = () => {
 
   const canSubmit = title.length >= 3 && !!date && !!location?.trim();
 
+  const previewEvent = useMemo((): Event => {
+    const scheduleTba = !hasSchedule;
+    const baseCustomization = landingCustomizationFromDesign(design, themeId);
+    const customization: EventCustomization = {
+      ...baseCustomization,
+      scheduleTba,
+      heroSubtext: (shortDescription || '').trim(),
+      heroText: title.trim() || 'Your event title',
+      layout: 'standard',
+      primaryColor: design.primaryColor,
+      secondaryColor: design.secondaryColor,
+      fontFamily: design.fontFamily,
+    };
+    return {
+      id: 'preview',
+      slug: 'preview-event',
+      organizerId: user?.uid || 'preview',
+      organizerName: user?.displayName || 'Your organization',
+      title: title.trim() || 'Your event title',
+      description:
+        (description || '').trim() ||
+        `Join us for ${title.trim() || 'an unforgettable live experience'}. Reserve your passes online.`,
+      date: hasSchedule && date ? new Date(date).toISOString() : new Date().toISOString(),
+      location: location.trim() || 'Venue to be announced',
+      bannerUrl: bannerUrl
+        ? normalizeBannerUrl(bannerUrl)
+        : 'https://picsum.photos/seed/turnout-create-preview/1200/600',
+      templateId: design.templateId,
+      customization,
+      status: 'published',
+      createdAt: new Date().toISOString(),
+    };
+  }, [
+    bannerUrl,
+    date,
+    description,
+    design,
+    hasSchedule,
+    location,
+    shortDescription,
+    themeId,
+    title,
+    user?.displayName,
+    user?.uid,
+  ]);
+
+  const previewTickets = useMemo((): EventTicket[] => {
+    const tiers = Array.isArray(tickets) ? tickets : [];
+    if (tiers.length === 0) {
+      return [
+        {
+          id: 'preview-tier',
+          eventId: 'preview',
+          name: 'General Admission',
+          price: ticketMode === 'paid' ? 2500 : 0,
+          quantity: 100,
+          sold: 0,
+          description: 'Add ticket tiers to preview pricing.',
+        },
+      ];
+    }
+    return tiers.map((tier, index) => ({
+      id: `preview-tier-${index}`,
+      eventId: 'preview',
+      name: tier.name?.trim() || 'General Admission',
+      price: tier.price,
+      quantity: tier.quantity,
+      sold: 0,
+      description: requireApproval ? 'Requires organizer approval' : undefined,
+    }));
+  }, [requireApproval, ticketMode, tickets]);
+
   const fieldStyle = { backgroundColor: ui.fieldBg, borderColor: ui.borderColor, color: ui.text };
 
   return (
     <div
-      className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background,color] duration-500 ease-in-out"
-      style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
+      className="flex min-h-[calc(100vh-3.5rem)] flex-col transition-[background,color] duration-500 ease-in-out"
+      style={{ background: ui.pageBg, color: ui.text }}
     >
       <header
         className="shrink-0 border-b px-4 py-4 backdrop-blur-md transition-[background,border-color] duration-700 sm:px-8"
         style={{ background: ui.headerBg, borderColor: ui.borderColor }}
       >
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between">
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <Link
               to="/dashboard"
@@ -470,13 +578,25 @@ export const CreateEvent: React.FC = () => {
               <ArrowLeft className="h-4 w-4" />
               Back
             </Link>
-            <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text, fontFamily: titleFont }}>
+            <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text }}>
               Create Event
             </h1>
           </div>
-          <div className="hidden items-center gap-2 sm:flex">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLivePreview((v) => !v)}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition',
+                showLivePreview && 'turnout-btn-accent'
+              )}
+              style={showLivePreview ? accentButtonStyleFor(ui) : { ...cardStyle, color: ui.text }}
+            >
+              <Eye className="h-4 w-4" />
+              {showLivePreview ? 'Hide preview' : 'Live preview'}
+            </button>
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
+              className="hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium sm:inline-flex"
               style={{ ...cardStyle, color: ui.text }}
             >
               <CalendarDays className="h-3.5 w-3.5" style={{ color: ui.textSubtle }} />
@@ -497,7 +617,14 @@ export const CreateEvent: React.FC = () => {
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:grid-cols-[360px_1fr] lg:gap-10 lg:py-8 lg:pb-72">
+          <div
+            className={cn(
+              'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:gap-10 lg:py-8 lg:pb-72',
+              showLivePreview
+                ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,460px)]'
+                : 'lg:grid-cols-[360px_1fr]'
+            )}
+          >
             {/* Left column */}
             <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
               <BannerUploadSquare
@@ -519,7 +646,7 @@ export const CreateEvent: React.FC = () => {
               </div>
 
               <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
-                Use Customize design below — colour, font, and style update live on this page.
+                Use Customize design below — colour, font, and style update live in mobile preview.
               </p>
             </div>
 
@@ -554,7 +681,7 @@ export const CreateEvent: React.FC = () => {
                 {...register('title')}
                 placeholder="Event Name"
                 className="mb-6 w-full border-0 bg-transparent p-0 text-3xl font-semibold tracking-tight focus:outline-none focus:ring-0 sm:text-4xl"
-                style={{ color: ui.text, fontFamily: titleFont }}
+                style={{ color: ui.text }}
               />
               {errors.title && <p className="-mt-4 mb-4 text-xs text-rose-600">{errors.title.message}</p>}
 
@@ -564,12 +691,12 @@ export const CreateEvent: React.FC = () => {
                   <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                     When
                   </p>
-                  <div className={cn('inline-flex rounded-xl border p-1', panelClass)} style={cardStyle}>
+                  <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
                     <button
                       type="button"
                       onClick={() => setHasSchedule(false)}
                       className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                      style={!hasSchedule ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                      style={accentSegmentStyleFor(ui, !hasSchedule)}
                     >
                       To be announced
                     </button>
@@ -577,7 +704,7 @@ export const CreateEvent: React.FC = () => {
                       type="button"
                       onClick={() => setHasSchedule(true)}
                       className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                      style={hasSchedule ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                      style={accentSegmentStyleFor(ui, hasSchedule)}
                     >
                       Set date &amp; time
                     </button>
@@ -768,7 +895,7 @@ export const CreateEvent: React.FC = () => {
                       className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
                       style={
                         ticketMode === 'free'
-                          ? { backgroundColor: ui.accent, color: '#fff' }
+                          ? accentButtonStyleFor(ui)
                           : { color: ui.textMuted }
                       }
                     >
@@ -780,7 +907,7 @@ export const CreateEvent: React.FC = () => {
                       className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
                       style={
                         ticketMode === 'paid'
-                          ? { backgroundColor: ui.accent, color: '#fff' }
+                          ? accentButtonStyleFor(ui)
                           : { color: ui.textMuted }
                       }
                     >
@@ -788,6 +915,18 @@ export const CreateEvent: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {ticketMode === 'paid' && showPaidSetupGate ? (
+                  <div className="mb-4">
+                    <PaidEventSetupGate
+                      readiness={paidEventReadiness}
+                      onDismiss={() => {
+                        setShowPaidSetupGate(false);
+                        switchToFreeMode();
+                      }}
+                    />
+                  </div>
+                ) : null}
 
                 {ticketMode === 'free' ? (
                   <div className="space-y-3 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardMutedStyle}>
@@ -821,10 +960,10 @@ export const CreateEvent: React.FC = () => {
                             setFreeUnlimited(true);
                             setValue('tickets.0.quantity', 500, { shouldDirty: true });
                           }}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold text-white"
+                          className="turnout-btn-accent rounded-lg px-3 py-1 text-xs font-semibold"
                           style={{
                             backgroundColor: freeUnlimited ? ui.accent : ui.accentSoft,
-                            color: freeUnlimited ? '#fff' : ui.textMuted,
+                            color: freeUnlimited ? ui.accentOn : ui.textMuted,
                           }}
                         >
                           Unlimited
@@ -838,7 +977,7 @@ export const CreateEvent: React.FC = () => {
                           className="rounded-lg px-3 py-1 text-xs font-semibold"
                           style={{
                             backgroundColor: !freeUnlimited ? ui.accent : ui.accentSoft,
-                            color: !freeUnlimited ? '#fff' : ui.textMuted,
+                            color: !freeUnlimited ? ui.accentOn : ui.textMuted,
                           }}
                         >
                           Limited
@@ -1043,8 +1182,8 @@ export const CreateEvent: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting || !canSubmit}
-                className="mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ backgroundColor: ui.accent }}
+                className="turnout-btn-accent mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
+                style={accentButtonStyleFor(ui)}
                 onMouseEnter={(e) => {
                   if (!isSubmitting && canSubmit) e.currentTarget.style.backgroundColor = ui.accentHover;
                 }}
@@ -1060,6 +1199,24 @@ export const CreateEvent: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {showLivePreview && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+                  aria-hidden
+                  onClick={() => setShowLivePreview(false)}
+                />
+                <aside className="fixed inset-0 z-50 flex flex-col p-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:static lg:z-auto lg:col-start-3 lg:row-start-1 lg:min-h-[calc(100vh-8rem)] lg:p-0 lg:pt-0">
+                  <EventLandingLivePreview
+                    event={previewEvent}
+                    tickets={previewTickets}
+                    onClose={() => setShowLivePreview(false)}
+                    className="h-full min-h-0 shadow-2xl lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]"
+                  />
+                </aside>
+              </>
+            )}
           </div>
         </div>
 

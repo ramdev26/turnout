@@ -1,17 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { resolveLayoutTemplateId, LANDING_LAYOUT_TEMPLATES } from '../templates/templates';
 import {
   ArrowLeft,
   ChevronDown,
   Copy,
   ExternalLink,
+  Eye,
   MapPin,
   Plus,
   Ticket as TicketIcon,
   Trash2,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee, CheckoutFieldDefinition, Event, Session, Speaker, Ticket as EventTicket } from '../types';
+import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
 import { normalizeCheckoutFields } from '../utils/checkoutFields';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
@@ -20,12 +22,18 @@ import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
+import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
+import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
+import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
+import { normalizeArenaGalleryImages } from '../components/landing/arenaGallery';
 import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
+import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { resolveLandingFontKey } from '../themes/landingFonts';
-import { useOrganizerLiveDesign } from '../themes/organizerLiveDesign';
-import { fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { absoluteAppUrl } from '../lib/publicAppUrl';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -120,11 +128,10 @@ export const EventSettings: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<EventTicket[]>([]);
-  const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [themeId, setThemeId] = useState<EventThemeId>('minimal');
   const [design, setDesign] = useState<LandingDesignValue>({
+    templateId: 'template-2',
     eventCategory: 'default',
     primaryColor: '#059669',
     secondaryColor: '#10b981',
@@ -139,6 +146,8 @@ export const EventSettings: React.FC = () => {
   const [date, setDate] = useState('');
   const [scheduleTba, setScheduleTba] = useState(false);
   const [bannerUrl, setBannerUrl] = useState('');
+  const [arenaGalleryImages, setArenaGalleryImages] = useState<string[]>([]);
+  const [isUploadingArenaGallery, setIsUploadingArenaGallery] = useState(false);
   const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingBranding, setSavingBranding] = useState(false);
@@ -149,8 +158,17 @@ export const EventSettings: React.FC = () => {
   const [savingTicket, setSavingTicket] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [savingTicketDesign, setSavingTicketDesign] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    details: true,
+    schedule: true,
+    location: true,
+    publicUrl: false,
+    tickets: true,
+    checkout: false,
+    advanced: false,
+  });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
+  const [showLivePreview, setShowLivePreview] = useState(false);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -165,13 +183,12 @@ export const EventSettings: React.FC = () => {
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
 
-  const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
-  const { ui, landingVars, titleFont, bodyFont, panelClass, cardStyle, cardMutedStyle } = useOrganizerLiveDesign(
-    design,
-    themeId
-  );
-  const panelCn = cn('rounded-2xl border transition-[background,border-color,box-shadow] duration-700', panelClass);
+  const ui = APP_FLOW_UI;
+  const cardStyle = cardStyleFor(ui);
+  const cardMutedStyle = cardMutedStyleFor(ui);
+  const panelCn = cn('rounded-2xl border transition-[background,border-color,box-shadow] duration-300');
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
 
@@ -190,11 +207,13 @@ export const EventSettings: React.FC = () => {
       setDate(toDatetimeLocalValue(new Date(ev.date)));
       setScheduleTba(!!ev.customization?.scheduleTba);
       setBannerUrl(ev.bannerUrl || '');
+      setArenaGalleryImages(normalizeArenaGalleryImages(ev.customization?.arenaGalleryImages));
       setSlug(ev.slug);
       const landing = normalizeLandingCustomization(ev.customization);
       const minimal = EVENT_THEMES.minimal;
       setThemeId('minimal');
       setDesign({
+        templateId: resolveLayoutTemplateId(ev.templateId),
         eventCategory: landing.eventCategory || 'default',
         primaryColor: landing.primaryColor || minimal.primary,
         secondaryColor: landing.secondaryColor || minimal.secondary,
@@ -211,17 +230,13 @@ export const EventSettings: React.FC = () => {
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
       setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
 
-      const [ticketsRes, speakersRes, sessionsRes, attendeesRes] = await Promise.all([
+      const [ticketsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
-        api.get<{ speakers: Speaker[] }>(`/api/events/${eventId}/speakers`),
-        api.get<{ sessions: Session[] }>(`/api/events/${eventId}/sessions`),
         api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number; pending: number } }>(
           `/api/events/${eventId}/attendees?limit=1`
         ),
       ]);
       setTickets(ticketsRes.tickets);
-      setSpeakers(speakersRes.speakers);
-      setSessions(sessionsRes.sessions);
       setAttendees(attendeesRes.attendees);
       setAttendeeStats(attendeesRes.stats ?? { total: attendeesRes.attendees.length, checkedIn: 0, pending: 0 });
     } catch (e: any) {
@@ -235,8 +250,22 @@ export const EventSettings: React.FC = () => {
     void loadAll();
   }, [eventId]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get<{ readiness: OrganizerPaidEventReadiness }>('/api/organizer/paid-event-readiness');
+        setPaidEventReadiness(res.readiness);
+      } catch {
+        setPaidEventReadiness(null);
+      }
+    })();
+  }, []);
+
   const publicUrl = useMemo(() => (slug ? `/e/${slug}` : ''), [slug]);
-  const staffCheckInUrl = useMemo(() => `/staff/checkin/${eventId}`, [eventId]);
+  const staffCheckInUrl = useMemo(
+    () => (eventId ? absoluteAppUrl(`/staff/checkin/${eventId}`) : ''),
+    [eventId]
+  );
   const soldTickets = useMemo(() => tickets.reduce((sum, t) => sum + t.sold, 0), [tickets]);
   const totalRevenue = useMemo(() => tickets.reduce((sum, t) => sum + t.sold * t.price, 0), [tickets]);
   const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
@@ -246,39 +275,114 @@ export const EventSettings: React.FC = () => {
     let score = 0;
     if (slug.length >= 3) score += 20;
     if (tickets.length > 0) score += 20;
-    if (speakers.length > 0) score += 20;
-    if (sessions.length > 0) score += 20;
+    if (location.trim().length > 2) score += 20;
+    if (scheduleTba || !!date) score += 20;
     if (event?.status === 'published') score += 20;
     return score;
-  }, [event?.status, sessions.length, slug, speakers.length, tickets.length]);
+  }, [date, event?.status, location, scheduleTba, slug, tickets.length]);
+
+  const previewEvent = useMemo((): Event | null => {
+    if (!event) return null;
+    const baseCustomization = landingCustomizationFromDesign(design, themeId);
+    return {
+      ...event,
+      title: title.trim() || 'Your event title',
+      description:
+        description.trim() || event.description || 'Join us for an unforgettable live experience. Reserve your passes online.',
+      location: location.trim() || 'Venue to be announced',
+      date: !scheduleTba && date ? new Date(date).toISOString() : event.date,
+      bannerUrl: bannerUrl ? normalizeBannerUrl(bannerUrl) : event.bannerUrl,
+      slug: slug || event.slug,
+      templateId: design.templateId,
+      status: 'published',
+      customization: {
+        ...event.customization,
+        ...baseCustomization,
+        scheduleTba,
+        heroSubtext: shortDescription.trim(),
+        heroText: title.trim() || event.title,
+        layout: event.customization?.layout || 'standard',
+        arenaGalleryImages,
+      },
+    };
+  }, [
+    arenaGalleryImages,
+    bannerUrl,
+    date,
+    description,
+    design,
+    event,
+    location,
+    scheduleTba,
+    shortDescription,
+    slug,
+    themeId,
+    title,
+  ]);
+
+  const previewTickets = useMemo((): EventTicket[] => {
+    if (tickets.length > 0) return tickets;
+    if (!eventId) return [];
+    return [
+      {
+        id: 'preview-tier',
+        eventId,
+        name: 'General Admission',
+        price: 2500,
+        quantity: 100,
+        sold: 0,
+        description: 'Add ticket tiers in settings to preview real pricing.',
+      },
+    ];
+  }, [eventId, tickets]);
 
   const uploadBannerFile = async (file: File) => {
     setIsUploadingBanner(true);
     setBannerUploadError(null);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(toApiUrl('/api/uploads/banner'), {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-      const text = await res.text();
-      let data: { bannerUrl?: string; message?: string } | null = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = null;
-      }
-      if (res.ok && data?.bannerUrl) {
-        setBannerUrl(normalizeBannerUrl(data.bannerUrl));
-        return;
-      }
-      setBannerUploadError(data?.message || 'Upload failed');
+      const url = await uploadImageFile(file);
+      if (url) setBannerUrl(url);
+      else setBannerUploadError('Upload failed');
     } catch {
       setBannerUploadError('Upload failed. Check your connection.');
     } finally {
       setIsUploadingBanner(false);
+    }
+  };
+
+  const uploadImageFile = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(toApiUrl('/api/uploads/banner'), {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const text = await res.text();
+    let data: { bannerUrl?: string; message?: string } | null = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (res.ok && data?.bannerUrl) return normalizeBannerUrl(data.bannerUrl);
+    return null;
+  };
+
+  const uploadArenaGalleryFile = async (file: File) => {
+    setIsUploadingArenaGallery(true);
+    setBannerUploadError(null);
+    try {
+      const url = await uploadImageFile(file);
+      if (!url) {
+        setBannerUploadError('Gallery upload failed');
+        return;
+      }
+      setArenaGalleryImages((prev) => normalizeArenaGalleryImages([...prev, url]));
+    } catch {
+      setBannerUploadError('Gallery upload failed. Check your connection.');
+    } finally {
+      setIsUploadingArenaGallery(false);
     }
   };
 
@@ -303,10 +407,23 @@ export const EventSettings: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
+        arenaGalleryImages,
       });
       setEvent(res.event);
+      setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
+      setDesign((prev) => ({
+        ...prev,
+        templateId: resolveLayoutTemplateId(res.event.templateId),
+        eventCategory: (res.event.customization?.eventCategory as string) || prev.eventCategory,
+        primaryColor: res.event.customization?.primaryColor || prev.primaryColor,
+        secondaryColor: res.event.customization?.secondaryColor || prev.secondaryColor,
+        fontFamily: resolveLandingFontKey(res.event.customization?.fontFamily) || prev.fontFamily,
+        displayMode: (res.event.customization?.displayMode as LandingDesignValue['displayMode']) || prev.displayMode,
+        landingStyle: (res.event.customization?.landingStyle as LandingDesignValue['landingStyle']) || prev.landingStyle,
+      }));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to save changes');
@@ -354,6 +471,10 @@ export const EventSettings: React.FC = () => {
       setError('Ticket name is required');
       return;
     }
+    if (ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
+      setError('Complete business and payment setup in Organization settings before adding paid tickets.');
+      return;
+    }
     setSavingTicket(true);
     setError(null);
     try {
@@ -367,6 +488,11 @@ export const EventSettings: React.FC = () => {
       setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
       setFeedback('Tickets updated.');
     } catch (e: any) {
+      if (e?.error === 'paid_event_setup_required') {
+        setPaidEventReadiness(e.readiness || paidEventReadiness);
+        setError(e?.message || 'Complete Organization setup before selling paid tickets.');
+        return;
+      }
       setError(e?.message || e?.error || 'Failed to save ticket');
     } finally {
       setSavingTicket(false);
@@ -409,7 +535,7 @@ export const EventSettings: React.FC = () => {
 
   const copyStaffLink = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${staffCheckInUrl}`);
+      await navigator.clipboard.writeText(staffCheckInUrl);
       setCopyMsg('Staff link copied');
       window.setTimeout(() => setCopyMsg(null), 2500);
     } catch {
@@ -417,24 +543,10 @@ export const EventSettings: React.FC = () => {
     }
   };
 
-  const navPill = (to: string, label: string, active: boolean) => (
-    <Link
-      to={to}
-      className="rounded-full border px-3 py-1.5 text-xs font-medium transition"
-      style={
-        active
-          ? { background: ui.accentSoft, borderColor: ui.accent, color: ui.accent }
-          : { ...cardStyle, color: ui.textMuted }
-      }
-    >
-      {label}
-    </Link>
-  );
-
   if (loading) {
     return (
       <div
-        className="flex min-h-[calc(100vh-4rem)] items-center justify-center"
+        className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center"
         style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)' }}
       >
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: ui.accent }} />
@@ -456,8 +568,8 @@ export const EventSettings: React.FC = () => {
 
   return (
     <div
-      className="flex min-h-[calc(100vh-4rem)] flex-col transition-[background] duration-700 ease-in-out"
-      style={{ ...landingVars, background: ui.pageBg, color: ui.text, fontFamily: bodyFont }}
+      className="flex min-h-[calc(100vh-3.5rem)] flex-col transition-[background] duration-700 ease-in-out"
+      style={{ background: ui.pageBg, color: ui.text }}
     >
       <header
         className="shrink-0 border-b px-4 py-4 backdrop-blur-md sm:px-8"
@@ -474,15 +586,44 @@ export const EventSettings: React.FC = () => {
               Back
             </Link>
             <div>
-              <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text, fontFamily: titleFont }}>
+              <h1 className="text-lg font-semibold sm:text-xl" style={{ color: ui.text }}>
                 Event settings
               </h1>
-              <p className="text-sm" style={{ color: ui.textMuted, fontFamily: titleFont }}>
+              <p className="text-sm" style={{ color: ui.textMuted }}>
                 {event.title}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLivePreview((v) => !v)}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition',
+                showLivePreview && 'turnout-btn-accent'
+              )}
+              style={showLivePreview ? accentButtonStyleFor(ui) : { ...cardStyle, color: ui.text }}
+            >
+              <Eye className="h-4 w-4" />
+              {showLivePreview ? 'Hide preview' : 'Live preview'}
+            </button>
+            <button
+              type="button"
+              onClick={saveBranding}
+              disabled={savingBranding}
+              className="turnout-btn-accent rounded-xl px-4 py-2 text-sm font-semibold transition hover:brightness-105 disabled:opacity-40"
+              style={accentButtonStyleFor(ui)}
+            >
+              {savingBranding ? 'Saving…' : 'Save changes'}
+            </button>
+            <button
+              type="button"
+              onClick={() => updateEventStatus(event.status === 'published' ? 'draft' : 'published')}
+              className="rounded-xl border px-4 py-2 text-sm font-semibold"
+              style={{ ...cardStyle, color: ui.text }}
+            >
+              {event.status === 'published' ? 'Unpublish' : 'Publish'}
+            </button>
             <span
               className="inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold"
               style={{
@@ -492,16 +633,19 @@ export const EventSettings: React.FC = () => {
             >
               {statusLabel[event.status]}
             </span>
-            {navPill(`/dashboard/events/${eventId}/settings`, 'Settings', true)}
-            {navPill(`/dashboard/events/${eventId}/agenda`, 'Agenda', false)}
-            {navPill(`/dashboard/events/${eventId}/checkin`, 'Check-in', false)}
-            {navPill(`/dashboard/events/${eventId}/runbook`, 'Runbook', false)}
           </div>
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:grid-cols-[360px_1fr] lg:gap-10 lg:py-8 lg:pb-72">
+        <div
+          className={cn(
+            'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-44 sm:px-8 lg:gap-10 lg:py-8 lg:pb-44',
+            showLivePreview
+              ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,460px)]'
+              : 'lg:grid-cols-[360px_1fr]'
+          )}
+        >
           {/* Left */}
           <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
             <BannerUploadSquare
@@ -513,17 +657,34 @@ export const EventSettings: React.FC = () => {
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
+            {design.templateId === 'template-6' ? (
+              <ArenaGalleryEditor
+                images={arenaGalleryImages}
+                disabled={savingBranding}
+                uploading={isUploadingArenaGallery}
+                onUpload={uploadArenaGalleryFile}
+                onRemove={(index) => setArenaGalleryImages((prev) => prev.filter((_, i) => i !== index))}
+                ui={{
+                  borderColor: ui.borderColor,
+                  text: ui.text,
+                  textMuted: ui.textMuted,
+                  textSubtle: ui.textSubtle,
+                  cardBg: ui.cardMutedBg,
+                }}
+              />
+            ) : null}
+
             <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                Theme
+                Layout template
               </p>
               <p className="mt-0.5 text-sm font-medium" style={{ color: ui.text }}>
-                Minimal
+                {LANDING_LAYOUT_TEMPLATES.find((t) => t.id === design.templateId)?.name ?? 'Showcase'}
               </p>
             </div>
 
             <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
-              Customize design below — changes apply live. Tap Save changes when you are done.
+              Customize design below — changes apply live in preview. Tap Save changes when you are done.
             </p>
 
             <div className="rounded-2xl border p-4" style={cardMutedStyle}>
@@ -593,7 +754,7 @@ export const EventSettings: React.FC = () => {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Event name"
                 className="mb-4 w-full border-0 bg-transparent p-0 text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl"
-                style={{ color: ui.text, fontFamily: titleFont }}
+                style={{ color: ui.text }}
               />
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                 Short description
@@ -640,7 +801,7 @@ export const EventSettings: React.FC = () => {
                     type="button"
                     onClick={() => setScheduleTba(true)}
                     className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                    style={scheduleTba ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                    style={accentSegmentStyleFor(ui, scheduleTba)}
                   >
                     To be announced
                   </button>
@@ -648,7 +809,7 @@ export const EventSettings: React.FC = () => {
                     type="button"
                     onClick={() => setScheduleTba(false)}
                     className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-                    style={!scheduleTba ? { backgroundColor: ui.accent, color: '#fff' } : { color: ui.textMuted }}
+                    style={accentSegmentStyleFor(ui, !scheduleTba)}
                   >
                     Set date &amp; time
                   </button>
@@ -718,8 +879,8 @@ export const EventSettings: React.FC = () => {
                   type="button"
                   onClick={saveSlug}
                   disabled={savingSlug}
-                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ backgroundColor: ui.accent }}
+                  className="turnout-btn-accent rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                  style={accentButtonStyleFor(ui)}
                 >
                   {savingSlug ? 'Saving…' : 'Save URL'}
                 </button>
@@ -813,6 +974,12 @@ export const EventSettings: React.FC = () => {
                 ))}
               </div>
 
+              {ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady ? (
+                <div className="mt-4">
+                  <PaidEventSetupGate readiness={paidEventReadiness} title="Paid ticket setup required" />
+                </div>
+              ) : null}
+
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <input
                   placeholder="Tier name"
@@ -852,8 +1019,8 @@ export const EventSettings: React.FC = () => {
                 type="button"
                 onClick={saveTicket}
                 disabled={savingTicket}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: ui.accent }}
+                className="turnout-btn-accent mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                style={accentButtonStyleFor(ui)}
               >
                 <Plus className="h-4 w-4" />
                 {savingTicket ? 'Saving…' : editingTicketId ? 'Update tier' : 'Add tier'}
@@ -936,8 +1103,8 @@ export const EventSettings: React.FC = () => {
                         type="button"
                         onClick={saveTicketDesign}
                         disabled={savingTicketDesign}
-                        className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                        style={{ backgroundColor: ui.accent }}
+                        className="turnout-btn-accent rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                        style={accentButtonStyleFor(ui)}
                       >
                         {savingTicketDesign ? 'Saving…' : 'Save PDF design'}
                       </button>
@@ -984,28 +1151,28 @@ export const EventSettings: React.FC = () => {
               </div>
             </SettingsCollapsibleSection>
           </div>
+
+          {showLivePreview && previewEvent && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+                aria-hidden
+                onClick={() => setShowLivePreview(false)}
+              />
+              <aside className="fixed inset-0 z-50 flex flex-col p-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:static lg:z-auto lg:col-start-3 lg:row-start-1 lg:min-h-[calc(100vh-8rem)] lg:p-0 lg:pt-0">
+                <EventLandingLivePreview
+                  event={previewEvent}
+                  tickets={previewTickets}
+                  publicUrl={publicUrl || undefined}
+                  onClose={() => setShowLivePreview(false)}
+                  className="h-full min-h-0 shadow-2xl lg:sticky lg:top-6 lg:h-[calc(100vh-7rem)]"
+                />
+              </aside>
+            </>
+          )}
         </div>
       </div>
 
-      <footer
-        className="shrink-0 border-t px-4 py-4 backdrop-blur-md sm:px-8"
-        style={{ background: ui.footerBg, borderColor: ui.borderColor }}
-      >
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm" style={{ color: ui.textSubtle }}>
-            Save changes to publish design, details, and schedule to your public landing page.
-          </p>
-          <button
-            type="button"
-            onClick={saveBranding}
-            disabled={savingBranding}
-            className="w-full rounded-xl px-8 py-3.5 text-base font-semibold text-white transition hover:brightness-105 disabled:opacity-40 sm:w-auto"
-            style={{ backgroundColor: ui.accent }}
-          >
-            {savingBranding ? 'Saving…' : 'Save changes'}
-          </button>
-        </div>
-      </footer>
       <LandingDesignDock design={design} onDesignChange={setDesign} />
     </div>
   );

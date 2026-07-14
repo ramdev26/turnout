@@ -5,7 +5,7 @@ import { AttendeeProfile } from '../types';
 import { useAuthStore } from '../store/useAuthStore';
 import { AttendeeShell } from '../components/attendee/AttendeeShell';
 import { FlowCard, FlowAlert, FlowButton, FlowInput, FlowTextarea, FlowLabel, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardMutedStyleFor } from '../themes/flowUi';
+import { accentButtonStyleFor, cardMutedStyleFor } from '../themes/flowUi';
 
 export const AttendeeAccount: React.FC = () => {
   const { setUser } = useAuthStore();
@@ -138,8 +138,8 @@ export const AttendeeAccount: React.FC = () => {
                   />
                 ) : (
                   <div
-                    className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold text-white"
-                    style={{ backgroundColor: ui.accent }}
+                    className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold"
+                    style={accentButtonStyleFor(ui)}
                   >
                     {(profile.displayName || profile.email || 'A').charAt(0).toUpperCase()}
                   </div>
