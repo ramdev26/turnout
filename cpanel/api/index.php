@@ -2572,13 +2572,15 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   }
 
   $templateId = trim((string)($body['templateId'] ?? ''));
-  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-canvas'];
+  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-7', 'template-canvas'];
   $legacyTemplates = ['template-1', 'template-3', 'template-4'];
   if ($templateId !== '' && in_array($templateId, $allowedTemplates, true)) {
     $row['template_id'] = $templateId;
   } elseif ($templateId !== '' && in_array($templateId, $legacyTemplates, true)) {
     $row['template_id'] = 'template-2';
-  } elseif ($themeId !== '' && is_event_theme_id($themeId)) {
+  } elseif ($templateId === '' && $themeId !== '' && is_event_theme_id($themeId)) {
+    // Only apply theme-catalog template when the client did not send a layout template.
+    // Otherwise unknown/new layout IDs were silently overwritten to Showcase (template-2).
     $row['template_id'] = event_theme_catalog()[$themeId]['templateId'];
   }
 
