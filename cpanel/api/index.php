@@ -1106,10 +1106,19 @@ if ($path === '/auth/login' && $method === 'POST') {
 
   if ($email === '' || $password === '') json_response(400, ['error' => 'missing_credentials']);
 
-  $pdo = db();
-  $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
-  $stmt->execute([$email]);
-  $row = $stmt->fetch();
+  try {
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
+    $stmt->execute([$email]);
+    $row = $stmt->fetch();
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout][%s] auth/login db: %s', request_id(), $e->getMessage()));
+    json_response(503, [
+      'error' => 'db_unavailable',
+      'requestId' => request_id(),
+      'message' => 'Sign-in is temporarily unavailable because the database is unreachable. Please try again shortly.',
+    ]);
+  }
   if (!$row) json_response(401, ['error' => 'invalid_credentials', 'message' => 'Invalid email or password.']);
   $passwordHash = (string)($row['password_hash'] ?? '');
   if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
