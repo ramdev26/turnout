@@ -15,6 +15,7 @@ import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import { landingCssVars, landingToneIsDark } from '../../themes/eventThemes';
 import {
+  LandingFooter,
   landingShellStyle,
   pad2,
   resolveLandingOrganizerBrand,
@@ -368,27 +369,6 @@ function ArenaTrust() {
   );
 }
 
-function ArenaFooter({ event }: { event: Event }) {
-  const brand = resolveLandingOrganizerBrand(event);
-  const year = new Date().getFullYear();
-
-  return (
-    <footer className="landing-arena-footer">
-      <p className="landing-arena-footer-brand">Powered by {brand.name}</p>
-      <p className="landing-arena-footer-copy">
-        © {year} {brand.name}. All rights reserved.
-      </p>
-      <p className="landing-arena-footer-links">
-        <a href="/terms">Terms &amp; Conditions</a>
-        {' · '}
-        <a href="/privacy">Privacy Policy</a>
-        {' · '}
-        <a href="/refunds">Refund Policy</a>
-      </p>
-    </footer>
-  );
-}
-
 export function LandingArenaPage({
   event,
   tickets,
@@ -455,9 +435,10 @@ export function LandingArenaPage({
 
         <div className="landing-arena-bottom">
           <ArenaTrust />
-          <ArenaFooter event={event} />
         </div>
       </div>
+
+      <LandingFooter event={event} />
     </div>
   );
 }

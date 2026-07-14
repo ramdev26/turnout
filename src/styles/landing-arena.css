@@ -820,38 +820,6 @@
   text-underline-offset: 2px;
 }
 
-.landing-arena-footer {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--arena-border);
-  text-align: center;
-}
-
-.landing-arena-footer-brand {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--arena-muted);
-}
-
-.landing-arena-footer-copy {
-  margin-top: 0.5rem;
-  font-size: 0.6875rem;
-  color: var(--arena-muted);
-}
-
-.landing-arena-footer-links {
-  margin-top: 0.65rem;
-  font-size: 0.6875rem;
-  color: var(--arena-muted);
-}
-
-.landing-arena-footer-links a {
-  color: var(--arena-muted);
-  text-decoration: underline;
-}
-
 .event-settings-mobile-preview .landing-arena-shell {
   max-width: 100% !important;
   padding-inline: 0 !important;
