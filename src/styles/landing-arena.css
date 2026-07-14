@@ -803,7 +803,13 @@
 
 .event-settings-mobile-preview .landing-arena-shell {
   max-width: 100% !important;
-  padding-inline: 0 !important;
+  padding: 0 0 2rem !important;
+}
+
+.event-settings-mobile-preview .landing-arena-header-inner {
+  max-width: 100% !important;
+  justify-content: flex-start !important;
+  padding: 0.75rem 1rem !important;
 }
 
 .event-settings-mobile-preview .landing-arena-layout {
@@ -811,10 +817,12 @@
   flex-direction: column !important;
   gap: 0 !important;
   padding-top: 0 !important;
+  grid-template-columns: none !important;
 }
 
 .event-settings-mobile-preview .landing-arena-gallery-col {
   position: static !important;
+  top: auto !important;
 }
 
 .event-settings-mobile-preview .landing-arena-content-col {
@@ -822,22 +830,47 @@
 }
 
 .event-settings-mobile-preview .landing-arena-carousel {
+  max-width: 100% !important;
+  margin-inline: 0 !important;
   background: transparent !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-stage {
+  aspect-ratio: auto !important;
+  width: 100% !important;
   min-height: 220px !important;
   max-height: 260px !important;
   padding: 0.5rem !important;
   border-radius: 0 !important;
+  border: none !important;
+  border-bottom: 1px solid var(--arena-border) !important;
   background: var(--arena-surface) !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-img {
-  max-height: min(42vh, 220px) !important;
+  width: auto !important;
+  height: auto !important;
+  max-height: 220px !important;
 }
 
 .event-settings-mobile-preview .landing-arena-carousel-thumbs {
+  max-width: 100% !important;
+  margin-inline: 0 !important;
   background: transparent !important;
   padding: 0.5rem 0.75rem !important;
+  overflow-x: auto !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel-thumb {
+  width: 3.25rem !important;
+  height: 3.25rem !important;
+}
+
+.event-settings-desktop-preview .landing-arena-header {
+  position: sticky;
+  top: 0;
+}
+
+.event-settings-desktop-preview .landing-arena-gallery-col {
+  top: 3.5rem;
 }
