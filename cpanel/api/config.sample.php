@@ -9,10 +9,15 @@ $env = static function (string $key, string $default = ''): string {
 };
 
 $dbUrl =
+  $env('TURN_POSTGRES_URL_NON_POOLING') ?:
+  $env('TURN_DATABASE_URL') ?:
+  $env('TURN_POSTGRES_URL') ?:
+  $env('TURN_POSTGRES_PRISMA_URL') ?:
   $env('TURNOUT_DATABASE_URL') ?:
   $env('TURNOUT_POSTGRES_URL') ?:
   $env('TURNOUT_PRISMA_DATABASE_URL') ?:
   $env('DATABASE_URL') ?:
+  $env('POSTGRES_URL_NON_POOLING') ?:
   $env('POSTGRES_URL') ?:
   $env('POSTGRES_PRISMA_URL') ?:
   $env('PRISMA_DATABASE_URL');
