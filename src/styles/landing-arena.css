@@ -521,32 +521,36 @@
 .landing-arena-countdown-label {
   font-size: 0.625rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--arena-muted);
 }
 
-.landing-arena-countdown-grid {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0;
+.landing-arena-countdown-live {
   margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--arena-text);
+}
+
+.landing-arena-countdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.55rem;
 }
 
 .landing-arena-countdown-unit {
   display: flex;
-  align-items: baseline;
-  gap: 0.2rem;
-  padding: 0 0.65rem;
-}
-
-.landing-arena-countdown-unit:first-child {
-  padding-left: 0;
-}
-
-.landing-arena-countdown-unit:not(:last-child) {
-  border-right: 1px solid var(--arena-border);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.65rem 0.35rem;
+  border: 1px solid var(--arena-border);
+  border-radius: 0.5rem;
+  background: var(--arena-surface);
+  text-align: center;
 }
 
 .landing-arena-countdown-unit .num {
@@ -554,18 +558,24 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--arena-text);
 }
 
 @media (min-width: 1024px) {
+  .landing-arena-countdown-unit {
+    padding: 0.75rem 0.4rem;
+  }
+
   .landing-arena-countdown-unit .num {
-    font-size: 1.25rem;
+    font-size: 1.35rem;
   }
 }
 
 .landing-arena-countdown-unit .lbl {
-  font-size: 0.625rem;
+  font-size: 0.5625rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--arena-muted);
 }

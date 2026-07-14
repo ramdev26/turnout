@@ -219,22 +219,26 @@ function ArenaEventDetailsCard({ event }: { event: Event }) {
         </div>
       ) : null}
 
-      {!tba && !done ? (
+      {!tba ? (
         <div className="landing-arena-countdown">
-          <p className="landing-arena-countdown-label">Doors in</p>
-          <div className="landing-arena-countdown-grid">
-            {[
-              { lbl: 'Days', val: days },
-              { lbl: 'Hrs', val: hours },
-              { lbl: 'Min', val: mins },
-              { lbl: 'Sec', val: secs },
-            ].map((u) => (
-              <div key={u.lbl} className="landing-arena-countdown-unit">
-                <span className="num">{pad2(u.val)}</span>
-                <span className="lbl">{u.lbl}</span>
-              </div>
-            ))}
-          </div>
+          <p className="landing-arena-countdown-label">{done ? 'Doors open' : 'Doors open in'}</p>
+          {done ? (
+            <p className="landing-arena-countdown-live">The event is live — reserve your seats below.</p>
+          ) : (
+            <div className="landing-arena-countdown-grid" aria-live="polite">
+              {[
+                { lbl: 'Days', val: days },
+                { lbl: 'Hrs', val: hours },
+                { lbl: 'Min', val: mins },
+                { lbl: 'Sec', val: secs },
+              ].map((u) => (
+                <div key={u.lbl} className="landing-arena-countdown-unit">
+                  <span className="num">{pad2(u.val)}</span>
+                  <span className="lbl">{u.lbl}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
     </div>
