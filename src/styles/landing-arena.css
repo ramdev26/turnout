@@ -1,0 +1,895 @@
+/* Arena — mobile-first venue / fight-night ticket layout */
+
+.landing-arena {
+  --arena-bg: #ffffff;
+  --arena-header-bg: #0a0a0a;
+  --arena-border: #eeeeee;
+  --arena-text: #111111;
+  --arena-muted: #666666;
+  --arena-popular: #e11d48;
+  --arena-surface: #f7f7f7;
+  container-type: inline-size;
+  container-name: arena;
+  background: var(--arena-bg);
+  color: var(--arena-text);
+}
+
+.landing-arena::before {
+  display: none;
+}
+
+.landing-arena-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--arena-header-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.landing-arena-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  max-width: 42rem;
+  margin-inline: auto;
+  padding: 0.75rem 1rem;
+  min-height: 3.25rem;
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-header-inner {
+    justify-content: center;
+    max-width: 80rem;
+    padding: 0.85rem 2rem;
+    min-height: 3.5rem;
+  }
+}
+
+.landing-arena-header-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.landing-arena-header-logo {
+  height: 1.75rem;
+  width: auto;
+  max-width: 5.5rem;
+  object-fit: contain;
+}
+
+.landing-arena-header-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.35rem;
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #0a0a0a;
+}
+
+.landing-arena-header-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.landing-arena-header-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  max-width: min(70vw, 28rem);
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-header-label {
+    font-size: 0.9375rem;
+    max-width: min(48vw, 36rem);
+  }
+}
+
+.landing-arena-shell {
+  max-width: 42rem;
+  margin-inline: auto;
+  padding: 0 0 5rem;
+}
+
+.landing-arena-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-arena-gallery-col {
+  min-width: 0;
+}
+
+.landing-arena-content-col {
+  min-width: 0;
+  padding: 1.25rem 1rem 2.5rem;
+}
+
+.landing-arena-intro {
+  margin-bottom: 1rem;
+}
+
+@container arena (min-width: 640px) {
+  .landing-arena-content-col {
+    padding: 1.5rem 1.25rem 3rem;
+  }
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-shell {
+    max-width: 80rem;
+    padding: 0 2rem 4rem;
+  }
+
+  .landing-arena-header-inner {
+    max-width: 80rem;
+  }
+
+  .landing-arena-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+    gap: clamp(1.75rem, 3.5vw, 3rem);
+    align-items: start;
+    padding-top: 2rem;
+  }
+
+  .landing-arena-gallery-col {
+    position: sticky;
+    top: 4.25rem;
+    align-self: start;
+  }
+
+  .landing-arena-content-col {
+    padding: 0 0 1rem;
+  }
+
+  .landing-arena-intro {
+    margin-bottom: 1.25rem;
+  }
+}
+
+.landing-arena-carousel {
+  position: relative;
+  background: transparent;
+  max-width: 42rem;
+  margin-inline: auto;
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-gallery-col .landing-arena-carousel {
+    max-width: none;
+    margin-inline: 0;
+  }
+}
+
+.landing-arena-carousel-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: min(58vh, 420px);
+  max-height: min(72vh, 560px);
+  padding: 0.75rem clamp(0.75rem, 4vw, 1.25rem);
+  overflow: hidden;
+  background: var(--arena-surface);
+  border-bottom: 1px solid var(--arena-border);
+}
+
+.landing-arena-carousel-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(56vh, 400px);
+  object-fit: contain;
+  object-position: center;
+  border-radius: 0.5rem;
+}
+
+/* Phone / narrow frames — avoid viewport `vh` leaking into the live preview */
+@container arena (max-width: 639px) {
+  .landing-arena-header-label {
+    max-width: 14rem;
+  }
+
+  .landing-arena-carousel-stage {
+    min-height: 240px;
+    max-height: 300px;
+  }
+
+  .landing-arena-carousel-img {
+    max-height: 260px;
+  }
+}
+
+@container arena (min-width: 640px) {
+  .landing-arena-carousel-stage {
+    min-height: min(52vh, 480px);
+    max-height: min(68vh, 620px);
+  }
+
+  .landing-arena-carousel-img {
+    max-height: min(60vh, 520px);
+  }
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-carousel-stage {
+    aspect-ratio: 4 / 5;
+    width: 100%;
+    min-height: 560px;
+    max-height: min(82vh, 780px);
+    padding: 1rem;
+    background: var(--arena-surface);
+    border: 1px solid var(--arena-border);
+    border-radius: 1rem;
+  }
+
+  .landing-arena-carousel-img {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: contain;
+    border-radius: 0.65rem;
+  }
+}
+
+.landing-arena-carousel-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 12rem;
+  border-radius: 0.65rem;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 45%, color-mix(in srgb, var(--showcase-accent) 18%, #f0f0f0) 0%, #ececec 65%),
+    linear-gradient(180deg, #f7f7f7 0%, #ececec 100%);
+}
+
+.landing-arena-carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--arena-border);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--arena-text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  transition: background 0.2s, transform 0.2s;
+}
+
+.landing-arena-carousel-nav:hover {
+  background: #fff;
+  transform: translateY(-50%) scale(1.04);
+}
+
+.landing-arena-carousel-nav--prev {
+  left: 0.75rem;
+}
+
+.landing-arena-carousel-nav--next {
+  right: 0.75rem;
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-carousel-nav {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .landing-arena-carousel-nav--prev {
+    left: 1rem;
+  }
+
+  .landing-arena-carousel-nav--next {
+    right: 1rem;
+  }
+}
+
+.landing-arena-carousel-dots {
+  position: absolute;
+  bottom: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.landing-arena-carousel-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: rgba(17, 17, 17, 0.25);
+  border: none;
+  padding: 0;
+}
+
+.landing-arena-carousel-dot.is-active {
+  background: var(--arena-text);
+  width: 1.1rem;
+}
+
+.landing-arena-carousel-thumbs {
+  display: flex;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem 1rem;
+  max-width: 42rem;
+  margin-inline: auto;
+  overflow-x: auto;
+  background: transparent;
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-carousel-thumbs {
+    max-width: none;
+    margin-inline: 0;
+    padding: 0.9rem 0 0;
+    overflow-x: visible;
+    justify-content: center;
+    gap: 0.65rem;
+  }
+}
+
+.landing-arena-carousel-thumb {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 2px solid var(--arena-border);
+  padding: 0;
+  opacity: 0.72;
+  flex-shrink: 0;
+  background: #fff;
+  transition: opacity 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.landing-arena-carousel-thumb:hover {
+  opacity: 1;
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-carousel-thumb {
+    width: 5rem;
+    height: 5rem;
+    border-radius: 0.65rem;
+  }
+}
+
+.landing-arena-carousel-thumb.is-active {
+  opacity: 1;
+  border-color: var(--showcase-accent);
+  transform: translateY(-1px);
+}
+
+.landing-arena-carousel-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.landing-arena-event-card {
+  border: 1px solid var(--arena-border);
+  border-radius: 0.875rem;
+  background: #fff;
+  padding: 1.25rem 1.15rem 1.35rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.landing-arena-organizer {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+
+.landing-arena-title {
+  margin-top: 0.35rem;
+  font-family: var(--landing-font-display);
+  font-size: clamp(1.5rem, 5vw, 1.875rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--arena-text);
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-title {
+    font-size: clamp(1.75rem, 2.4vw, 2.25rem);
+    line-height: 1.05;
+  }
+}
+
+.landing-arena-lead {
+  margin-top: 0.65rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--arena-muted);
+}
+
+.landing-arena-about {
+  margin-top: 1.25rem;
+}
+
+.landing-arena-about-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+
+.landing-arena-about-card {
+  margin-top: 0.65rem;
+  border: 1px solid var(--arena-border);
+  border-radius: 0.875rem;
+  background: #fff;
+  padding: 1rem 1.1rem;
+}
+
+.landing-arena-about-text {
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--arena-muted);
+}
+
+.landing-arena-about-text.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+@container arena (min-width: 640px) {
+  .landing-arena-about-text.is-clamped {
+    -webkit-line-clamp: unset;
+    display: block;
+    overflow: visible;
+  }
+
+  .landing-arena-about-toggle {
+    display: none;
+  }
+}
+
+.landing-arena-about-toggle {
+  margin-top: 0.65rem;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--arena-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.landing-arena-date-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.landing-arena-date-block {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  line-height: 1;
+}
+
+.landing-arena-date-day {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.landing-arena-date-month {
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.landing-arena-date-sub {
+  margin-top: 0.35rem;
+  font-size: 0.875rem;
+  color: var(--arena-muted);
+}
+
+.landing-arena-location-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1.15rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--arena-border);
+}
+
+.landing-arena-location-text {
+  display: flex;
+  min-width: 0;
+  gap: 0.4rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.landing-arena-navigate-btn {
+  display: inline-flex;
+  shrink: 0;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 9999px;
+  border: 1px solid var(--arena-border);
+  background: #fff;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--arena-text);
+}
+
+.landing-arena-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.landing-arena-tag {
+  border-radius: 9999px;
+  background: var(--arena-surface);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--arena-muted);
+}
+
+.landing-arena-countdown {
+  margin-top: 1.15rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--arena-border);
+}
+
+.landing-arena-countdown-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+
+.landing-arena-countdown-live {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--arena-text);
+}
+
+.landing-arena-countdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.landing-arena-countdown-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.65rem 0.35rem;
+  border: 1px solid var(--arena-border);
+  border-radius: 0.5rem;
+  background: var(--arena-surface);
+  text-align: center;
+}
+
+.landing-arena-countdown-unit .num {
+  font-size: 1.125rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--arena-text);
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-countdown-unit {
+    padding: 0.75rem 0.4rem;
+  }
+
+  .landing-arena-countdown-unit .num {
+    font-size: 1.35rem;
+  }
+}
+
+.landing-arena-countdown-unit .lbl {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+
+.landing-arena-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 1.75rem 0 1rem;
+}
+
+@container arena (min-width: 1024px) {
+  .landing-arena-section-head {
+    margin-top: 2rem;
+  }
+}
+
+.landing-arena-section-title {
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.landing-arena-currency {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+
+.landing-arena-ticket {
+  position: relative;
+  border: 1px solid var(--arena-border);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.landing-arena-ticket.is-popular {
+  border-color: color-mix(in srgb, var(--arena-popular) 35%, var(--arena-border));
+}
+
+.landing-arena-popular-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  border-radius: 9999px;
+  background: var(--arena-popular);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.landing-arena-ticket-top {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.landing-arena-ticket-icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  shrink: 0;
+  border-radius: 0.5rem;
+  border: 1px solid var(--arena-border);
+  background: var(--arena-surface);
+  color: var(--arena-muted);
+}
+
+.landing-arena-ticket-body {
+  min-width: 0;
+  flex: 1;
+  padding-right: 4.5rem;
+}
+
+.landing-arena-ticket.is-popular .landing-arena-ticket-body {
+  padding-right: 6.5rem;
+}
+
+.landing-arena-ticket-name {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.landing-arena-ticket-desc {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--arena-muted);
+}
+
+.landing-arena-ticket-price {
+  margin-top: 0.45rem;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.landing-arena-ticket-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  border-radius: 0.5rem;
+  background: var(--arena-surface);
+  padding: 0.35rem 0.4rem 0.35rem 0.5rem;
+}
+
+.landing-arena-qty-btn {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--arena-border);
+  background: #fff;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--arena-text);
+  transition: opacity 0.2s;
+}
+
+.landing-arena-qty-btn:disabled {
+  opacity: 0.35;
+}
+
+.landing-arena-qty-value {
+  min-width: 1.5rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.landing-arena-add-btn {
+  margin-left: auto;
+  border-radius: 0.4rem;
+  border: none;
+  background: var(--arena-text);
+  padding: 0.45rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.landing-arena-add-btn:disabled {
+  opacity: 0.35;
+}
+
+.landing-arena-summary {
+  margin-top: 1.25rem;
+  border: 1px solid var(--arena-border);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1rem 1.1rem;
+}
+
+.landing-arena-checkout-btn {
+  margin-top: 0.85rem;
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--arena-text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.landing-arena-checkout-btn:disabled {
+  opacity: 0.4;
+}
+
+.event-settings-mobile-preview .landing-arena-shell {
+  max-width: 100% !important;
+  padding: 0 0 2rem !important;
+}
+
+.event-settings-mobile-preview .landing-arena-header-inner {
+  max-width: 100% !important;
+  justify-content: flex-start !important;
+  padding: 0.75rem 1rem !important;
+}
+
+.event-settings-mobile-preview .landing-arena-layout {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  padding-top: 0 !important;
+  grid-template-columns: none !important;
+}
+
+.event-settings-mobile-preview .landing-arena-gallery-col {
+  position: static !important;
+  top: auto !important;
+}
+
+.event-settings-mobile-preview .landing-arena-content-col {
+  padding: 1rem 0.75rem 1.5rem !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel {
+  max-width: 100% !important;
+  margin-inline: 0 !important;
+  background: transparent !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel-stage {
+  aspect-ratio: auto !important;
+  width: 100% !important;
+  min-height: 220px !important;
+  max-height: 260px !important;
+  padding: 0.5rem !important;
+  border-radius: 0 !important;
+  border: none !important;
+  border-bottom: 1px solid var(--arena-border) !important;
+  background: var(--arena-surface) !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel-img {
+  width: auto !important;
+  height: auto !important;
+  max-height: 220px !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel-thumbs {
+  max-width: 100% !important;
+  margin-inline: 0 !important;
+  background: transparent !important;
+  padding: 0.5rem 0.75rem !important;
+  overflow-x: auto !important;
+}
+
+.event-settings-mobile-preview .landing-arena-carousel-thumb {
+  width: 3.25rem !important;
+  height: 3.25rem !important;
+}
+
+.event-settings-desktop-preview .landing-arena-header {
+  position: sticky;
+  top: 0;
+}
+
+.event-settings-desktop-preview .landing-arena-gallery-col {
+  top: 3.5rem;
+}
+

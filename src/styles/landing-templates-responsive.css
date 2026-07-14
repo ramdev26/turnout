@@ -1,0 +1,141 @@
+/* Responsive layout fixes for Showcase and Classic templates */
+
+.landing-page {
+  overflow-x: clip;
+  width: 100%;
+}
+
+/* ── Classic single column ── */
+.landing-classic-main {
+  width: 100%;
+  padding-bottom: max(4rem, calc(1rem + env(safe-area-inset-bottom)));
+}
+
+@media (min-width: 1024px) {
+  .landing-classic-main {
+    padding-bottom: max(5rem, calc(1.5rem + env(safe-area-inset-bottom)));
+  }
+}
+
+.landing-classic-meta {
+  width: 100%;
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+/* ── Shared content grid (custom canvas sections) ── */
+.landing-content-grid {
+  width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .landing-content-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    padding-bottom: max(5rem, calc(2rem + env(safe-area-inset-bottom)));
+  }
+
+  .landing-content-aside {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    order: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-content-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    align-items: start;
+    gap: clamp(2rem, 3vw, 3.5rem);
+  }
+}
+
+/* ── Showcase template mobile/desktop ── */
+.landing-showcase-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 2rem clamp(1rem, 4vw, 1.5rem) max(5rem, calc(2rem + env(safe-area-inset-bottom)));
+}
+
+@media (min-width: 1024px) {
+  .landing-showcase-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: clamp(1.5rem, 2.5vw, 2.5rem);
+    padding: 3rem clamp(1.5rem, 4vw, 2rem) 4rem;
+    align-items: start;
+  }
+}
+
+.landing-showcase-hero {
+  width: 100%;
+  padding-inline: clamp(1rem, 4vw, 1.5rem);
+}
+
+.landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+    width: fit-content;
+    max-width: min(100%, 28rem);
+    margin-inline: auto;
+  }
+}
+
+.landing-showcase-header-inner {
+  padding-inline: clamp(0.75rem, 3vw, 1.5rem) !important;
+}
+
+.landing-showcase-header-inner .truncate {
+  max-width: min(38vw, 11rem);
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-header-inner .truncate {
+    max-width: 14rem;
+  }
+}
+
+.landing-showcase-btn-cta {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.625rem;
+}
+
+@media (min-width: 640px) {
+  .landing-showcase-btn-cta {
+    padding: 0.55rem 1.15rem;
+    font-size: 0.6875rem;
+  }
+}
+
+.landing-showcase-info-card .value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Organizer mobile preview frame */
+.event-settings-mobile-preview .landing-showcase-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  padding-bottom: 2rem !important;
+}
+
+.event-settings-mobile-preview .landing-content-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  padding-bottom: 2rem !important;
+}
+
+.event-settings-mobile-preview .landing-classic-main {
+  padding-inline: 0.875rem !important;
+}

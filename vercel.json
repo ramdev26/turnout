@@ -15,7 +15,7 @@
       "dest": "/api/index.php"
     },
     {
-      "src": "^/$",
+      "src": "^/landing$",
       "dest": "/turnout-landing.html"
     },
     {

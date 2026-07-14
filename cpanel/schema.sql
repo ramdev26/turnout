@@ -264,9 +264,45 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   logo_url TEXT NULL,
   website VARCHAR(255) NULL,
   phone VARCHAR(60) NULL,
+  business_address TEXT NULL,
+  business_registration_no VARCHAR(128) NULL,
+  bank_account_holder_name VARCHAR(255) NULL,
+  bank_name VARCHAR(255) NULL,
+  bank_branch VARCHAR(255) NULL,
+  bank_account_number VARCHAR(64) NULL,
+  business_registration_doc_url TEXT NULL,
+  bank_statement_doc_url TEXT NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id),
   CONSTRAINT fk_org_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS organizer_payment_settings (
+  user_id BIGINT UNSIGNED NOT NULL,
+  gateway_mode ENUM('turnout','own_payhere') NOT NULL DEFAULT 'turnout',
+  payhere_merchant_id VARCHAR(64) NULL,
+  payhere_merchant_secret_enc TEXT NULL,
+  billing_customer_token TEXT NULL,
+  billing_card_last4 VARCHAR(8) NULL,
+  billing_card_brand VARCHAR(32) NULL,
+  billing_setup_status ENUM('none','pending','active','failed') NOT NULL DEFAULT 'none',
+  billing_setup_at DATETIME NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_org_payment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS organizer_billing_sessions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  setup_order_id VARCHAR(64) NOT NULL,
+  status ENUM('pending','completed','failed') NOT NULL DEFAULT 'pending',
+  raw_notify_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_billing_setup_order (setup_order_id),
+  KEY idx_billing_sessions_user (user_id, created_at),
+  CONSTRAINT fk_billing_session_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS organizer_team_members (

@@ -139,9 +139,12 @@ Verify your sending domain in Plunk before going live. After deploy, complete a 
 
 ### Google Places (event location autocomplete)
 
-Set in Vercel and local `.env.local`:
+Set in Vercel and local `.env`:
 
-- `VITE_GOOGLE_MAPS_API_KEY` — browser API key with **Maps JavaScript API** and **Places API** enabled
+- `VITE_GOOGLE_MAPS_API_KEY` — embedded at frontend build time
+- `GOOGLE_MAPS_API_KEY` — same value; served at runtime via `GET /api/public/config` if the Vite var was missing at build
+
+Both should use a browser API key with **Maps JavaScript API** and **Places API** (legacy) enabled.
 
 In [Google Cloud Console](https://console.cloud.google.com/google/maps-apis), create a key, enable those APIs, and restrict it to your site hostnames (HTTP referrer), for example `https://your-app.vercel.app/*` and `http://localhost:*`. Redeploy after adding the variable.
 

@@ -4,7 +4,17 @@ import { AdminShell } from '../components/admin/AdminShell';
 import { FlowCard, FlowAlert, FlowButton, FlowInput, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cardMutedStyleFor } from '../themes/flowUi';
 
-type LogRow = { id: string; action: string; actorRole?: string; targetType?: string; targetId?: string; createdAt: string };
+type LogRow = {
+  id: string;
+  action: string;
+  actorRole?: string;
+  actorUserId?: string | null;
+  targetType?: string;
+  targetId?: string;
+  details?: string | Record<string, unknown> | null;
+  ipAddress?: string | null;
+  createdAt: string;
+};
 
 export const AdminLogs: React.FC = () => {
   const [rows, setRows] = useState<LogRow[]>([]);
@@ -43,8 +53,15 @@ export const AdminLogs: React.FC = () => {
             <div key={log.id} className="rounded-xl border px-3 py-2.5 text-sm" style={cardMutedStyleFor(ui)}>
               <div className="font-semibold" style={{ color: ui.text }}>{log.action}</div>
               <div className="text-xs" style={{ color: ui.textMuted }}>
-                {log.actorRole ?? 'system'} · {log.targetType ?? 'n/a'}:{log.targetId ?? '-'} · {new Date(log.createdAt).toLocaleString()}
+                {log.actorRole ?? 'system'}
+                {log.actorUserId ? ` · user #${log.actorUserId}` : ''} · {log.targetType ?? 'n/a'}:{log.targetId ?? '-'}
+                {log.ipAddress ? ` · ${log.ipAddress}` : ''} · {new Date(log.createdAt).toLocaleString()}
               </div>
+              {log.details ? (
+                <p className="mt-1 text-xs" style={{ color: ui.textSubtle }}>
+                  {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>

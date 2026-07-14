@@ -2,15 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CanvasElement, CanvasDesign, Event, SectionBlock, SectionDesign, Ticket } from '../types';
 import { api } from '../api/client';
 import type { Speaker, Session } from '../types';
-import { landingCssVars, resolveTemplateId } from '../themes/eventThemes';
+import { resolveTemplateId } from '../themes/eventThemes';
 import { LandingShowcasePage } from '../components/landing/LandingShowcase';
+import { LandingClassicPage } from '../components/landing/LandingClassic';
+import { LandingArenaPage } from '../components/landing/LandingArena';
+import { LandingSpotlightPage } from '../components/landing/LandingSpotlight';
 import {
   AboutBlock,
   CheckoutPanel,
   CountdownDisplay,
   EventBanner,
-  EventMeta,
-  HeroCTA,
   HeroSubtitle,
   HeroTitle,
   LandingContentGrid,
@@ -20,10 +21,31 @@ import {
   SectionHeading,
   TicketsList,
   TicketsSection,
-  themeDisplayName,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-1' | 'template-2' | 'template-3' | 'template-4' | 'template-canvas';
+export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-canvas';
+
+/** Layout templates organizers can pick in the design console (excludes custom canvas). */
+export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
+
+export const LANDING_LAYOUT_TEMPLATES: {
+  id: LayoutTemplateId;
+  name: string;
+  description: string;
+}[] = [
+  { id: 'template-2', name: 'Showcase', description: 'Editorial hero with sidebar checkout' },
+  { id: 'template-6', name: 'Arena', description: 'Venue carousel with seating picker' },
+  { id: 'template-7', name: 'Spotlight', description: 'Featured banner with sticky booking card' },
+  { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
+];
+
+const LEGACY_TEMPLATE_IDS = new Set(['template-1', 'template-3', 'template-4']);
+
+export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
+  if (id === 'template-2' || id === 'template-5' || id === 'template-6' || id === 'template-7') return id;
+  if (id && LEGACY_TEMPLATE_IDS.has(id)) return 'template-2';
+  return 'template-2';
+}
 
 export type LandingTemplate = {
   id: TemplateId;
@@ -55,15 +77,13 @@ function checkoutAside(props: LandingTemplateProps) {
   );
 }
 
-function ticketsMain(props: LandingTemplateProps, variant: 'default' | 'dark' = 'default') {
+function ticketsMain(props: LandingTemplateProps) {
   return (
     <TicketsSection>
       <TicketsList
         tickets={props.tickets}
         selectedTickets={props.selectedTickets}
         onTicketChange={props.onTicketChange}
-        accent={variant === 'dark' ? 'var(--secondary)' : 'var(--landing-accent-readable, var(--primary))'}
-        variant={variant}
       />
     </TicketsSection>
   );
@@ -133,12 +153,12 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     if (b.type === 'hero') {
       return (
         <div className="text-center sm:text-left">
+          <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto mb-8">
+            <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
+          </div>
           <PremiumBadge>{b.props?.eyebrow || 'Featured event'}</PremiumBadge>
           <HeroTitle className="mt-6">{b.props?.title || event.title}</HeroTitle>
           {landingHeroSubtitle(event, b.props?.subtitle) ? <HeroSubtitle>{landingHeroSubtitle(event, b.props?.subtitle)}</HeroSubtitle> : null}
-          <div className="landing-poster-frame landing-poster-frame--hero mx-auto mt-8">
-            <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
-          </div>
         </div>
       );
     }
@@ -150,7 +170,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     }
     if (b.type === 'button') {
       return (
-        <button type="button" onClick={props.onCheckout} className="landing-btn-primary w-full rounded-2xl py-4 text-sm font-bold text-white">
+        <button type="button" onClick={props.onCheckout} className="landing-showcase-btn-cta w-full min-h-[48px]">
           {b.props?.text || 'Get tickets'}
         </button>
       );
@@ -161,7 +181,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
           <SectionHeading>{b.props?.title || 'Speakers'}</SectionHeading>
           <div className="grid gap-4 sm:grid-cols-2">
             {speakers.map((s) => (
-              <div key={s.id} className="landing-card-premium rounded-2xl p-5">
+              <div key={s.id} className="landing-showcase-card p-5">
                 <p className="font-bold">{s.name}</p>
                 <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                   {[s.title, s.company].filter(Boolean).join(' · ')}
@@ -178,7 +198,7 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
           <SectionHeading>{b.props?.title || 'Schedule'}</SectionHeading>
           <div className="space-y-3">
             {sessions.map((s) => (
-              <div key={s.id} className="landing-card-premium rounded-2xl p-5">
+              <div key={s.id} className="landing-showcase-card p-5">
                 <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
                   {new Date(s.startsAt).toLocaleString()}
                 </p>
@@ -199,13 +219,13 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
     }
     if (b.type === 'image' && b.props?.imageUrl) {
       return (
-        <div className="overflow-hidden rounded-3xl border" style={{ borderColor: 'var(--landing-border)' }}>
+        <div className="landing-showcase-card overflow-hidden">
           <img
             src={b.props.imageUrl}
             alt=""
             referrerPolicy="no-referrer"
             className="block h-auto max-h-[min(70vh,560px)] w-full object-contain object-center"
-            style={{ background: 'var(--landing-surface-muted)' }}
+            style={{ background: 'var(--showcase-card-muted)' }}
           />
         </div>
       );
@@ -226,54 +246,18 @@ function SectionsRenderer(props: LandingTemplateProps & { design: SectionDesign 
 
 function CanvasRenderer(props: LandingTemplateProps) {
   const design = safeCanvas(props.event.customization?.canvas);
-  if (!design) return Template1.render(props);
+  if (!design) return TemplateShowcase.render(props);
   return (
     <LandingPageShell event={props.event}>
       <LandingTopBar event={props.event} />
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-10">
-        <div className="landing-card-premium overflow-hidden rounded-3xl" style={{ width: design.canvas.width, height: design.canvas.height, background: design.canvas.background }} />
+        <div className="landing-showcase-card overflow-hidden" style={{ width: design.canvas.width, height: design.canvas.height, background: design.canvas.background }} />
       </div>
     </LandingPageShell>
   );
 }
 
-const Template1: LandingTemplate = {
-  id: 'template-1',
-  name: 'Cinematic',
-  description: 'Full-bleed cinematic hero with editorial story.',
-  previewSeed: 'cinematic-hero',
-  render: (props) => (
-    <LandingPageShell event={props.event}>
-      <LandingTopBar event={props.event} />
-      <div className="relative z-10">
-        <div className="relative">
-          <EventBanner event={props.event} overlay="cinematic" fullWidth />
-          <div className="absolute inset-x-0 bottom-0 px-4 pb-14 pt-32 sm:px-8 lg:px-12 lg:pb-20">
-            <PremiumBadge tone="hero">{themeDisplayName(props.event)}</PremiumBadge>
-            <HeroTitle light className="mt-5 text-white">
-              {props.event.customization?.heroText || props.event.title}
-            </HeroTitle>
-            {landingHeroSubtitle(props.event) ? <HeroSubtitle light>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-            <EventMeta event={props.event} tone="dark" />
-            <HeroCTA onGetTickets={props.onCheckout} light />
-          </div>
-        </div>
-        <LandingContentGrid
-          main={
-            <div className="space-y-14">
-              <CountdownDisplay targetIso={props.event.date} tba={!!props.event.customization?.scheduleTba} />
-              <AboutBlock event={props.event} />
-              {ticketsMain(props)}
-            </div>
-          }
-          aside={checkoutAside(props)}
-        />
-      </div>
-    </LandingPageShell>
-  ),
-};
-
-const Template2: LandingTemplate = {
+const TemplateShowcase: LandingTemplate = {
   id: 'template-2',
   name: 'Showcase',
   description: 'Premium two-column layout with hero, passes, and live order summary.',
@@ -281,83 +265,40 @@ const Template2: LandingTemplate = {
   render: (props) => <LandingShowcasePage {...props} />,
 };
 
-const Template3: LandingTemplate = {
-  id: 'template-3',
-  name: 'Avant',
-  description: 'Split layout with luminous gradient panel.',
-  previewSeed: 'split-gradient',
-  render: (props) => (
-    <LandingPageShell event={props.event}>
-      <LandingTopBar event={props.event} />
-      <div className="relative z-10 lg:grid lg:min-h-[calc(100vh-5rem)] lg:grid-cols-2">
-        <div className="flex flex-col justify-center px-6 py-14 lg:px-14 lg:py-20">
-          <PremiumBadge>{themeDisplayName(props.event)}</PremiumBadge>
-          <HeroTitle className="mt-5">{props.event.customization?.heroText || props.event.title}</HeroTitle>
-          {landingHeroSubtitle(props.event) ? <HeroSubtitle>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-          <div
-            className="mt-10 w-fit max-w-full overflow-hidden rounded-3xl border"
-            style={{ borderColor: 'var(--landing-border)', boxShadow: 'var(--landing-shadow)' }}
-          >
-            <EventBanner event={props.event} maxHeightClass="max-h-[min(48vh,440px)]" overlay="light" />
-          </div>
-          <EventMeta event={props.event} tone="light" />
-          <div className="mt-10">
-            <CountdownDisplay targetIso={props.event.date} compact tba={!!props.event.customization?.scheduleTba} />
-          </div>
-        </div>
-        <div
-          className="border-t px-6 py-14 lg:border-l lg:border-t-0 lg:px-14 lg:py-20"
-          style={{ borderColor: 'var(--landing-border)', background: 'color-mix(in srgb, var(--landing-surface) 92%, transparent)' }}
-        >
-          <AboutBlock event={props.event} />
-          <div className="mt-12">{ticketsMain(props)}</div>
-          <div className="mt-10 hidden lg:block">{checkoutAside(props)}</div>
-        </div>
-      </div>
-    </LandingPageShell>
-  ),
+const TemplateClassic: LandingTemplate = {
+  id: 'template-5',
+  name: 'Classic',
+  description: 'Clean centered single-column layout for any screen size.',
+  previewSeed: 'classic-stack',
+  render: (props) => <LandingClassicPage {...props} />,
 };
 
-const Template4: LandingTemplate = {
-  id: 'template-4',
-  name: 'Noir',
-  description: 'Moody high-contrast for launches and nightlife.',
-  previewSeed: 'dark-poster',
-  render: (props) => (
-    <LandingPageShell event={props.event}>
-      <LandingTopBar event={props.event} />
-      <div className="relative z-10">
-        <div className="relative">
-          <EventBanner event={props.event} maxHeightClass="max-h-[min(65vh,560px)]" overlay="cinematic" fullWidth />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--landing-page-bg)] via-black/80 to-transparent px-4 pb-12 pt-28 sm:px-8 lg:px-12">
-            <span className="landing-eyebrow text-white/70">{themeDisplayName(props.event)}</span>
-            <HeroTitle light className="mt-3">
-              {props.event.customization?.heroText || props.event.title}
-            </HeroTitle>
-            {landingHeroSubtitle(props.event) ? <HeroSubtitle light>{landingHeroSubtitle(props.event)}</HeroSubtitle> : null}
-            <EventMeta event={props.event} tone="dark" />
-            <HeroCTA onGetTickets={props.onCheckout} light />
-          </div>
-        </div>
-        <LandingContentGrid
-          main={
-            <div className="space-y-14">
-              <CountdownDisplay targetIso={props.event.date} tba={!!props.event.customization?.scheduleTba} />
-              <AboutBlock event={props.event} />
-              {ticketsMain(props, 'dark')}
-            </div>
-          }
-          aside={checkoutAside(props)}
-        />
-      </div>
-    </LandingPageShell>
-  ),
+const TemplateArena: LandingTemplate = {
+  id: 'template-6',
+  name: 'Arena',
+  description: 'Mobile-first venue layout with carousel, seating cards, and inline checkout.',
+  previewSeed: 'arena-venue',
+  render: (props) => <LandingArenaPage {...props} />,
 };
 
-export const landingTemplates: LandingTemplate[] = [Template1, Template2, Template3, Template4];
+const TemplateSpotlight: LandingTemplate = {
+  id: 'template-7',
+  name: 'Spotlight',
+  description: 'Featured banner layout with sticky booking card and mobile checkout bar.',
+  previewSeed: 'spotlight-concert',
+  render: (props) => <LandingSpotlightPage {...props} />,
+};
+
+export const landingTemplates: LandingTemplate[] = [
+  TemplateShowcase,
+  TemplateArena,
+  TemplateSpotlight,
+  TemplateClassic,
+];
 
 export function getLandingTemplate(id: string | undefined): LandingTemplate {
-  return landingTemplates.find((t) => t.id === id) || Template1;
+  const resolved = resolveLayoutTemplateId(id);
+  return landingTemplates.find((t) => t.id === resolved) || TemplateShowcase;
 }
 
 const CanvasTemplate: LandingTemplate = {
@@ -375,7 +316,8 @@ const CanvasTemplate: LandingTemplate = {
 export const landingTemplatesAll: LandingTemplate[] = [...landingTemplates, CanvasTemplate];
 
 export function getLandingTemplateAll(id: string | undefined): LandingTemplate {
-  return landingTemplatesAll.find((t) => t.id === id) || Template1;
+  if (id === 'template-canvas') return CanvasTemplate;
+  return getLandingTemplate(id);
 }
 
 export function getLandingTemplateForEvent(event: Event): LandingTemplate {

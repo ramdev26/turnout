@@ -13,7 +13,7 @@ export const AuthFlowLayout: React.FC<{ children: React.ReactNode; title?: strin
 }) => {
   return (
     <div
-      className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-10 sm:px-6"
+      className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center px-4 py-10 sm:px-6"
       style={{ background: ui.pageBg, color: ui.text }}
     >
       <Link

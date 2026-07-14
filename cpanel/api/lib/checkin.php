@@ -209,6 +209,138 @@ function normalize_qr_token_lookup(string $raw): string {
   return strlen($hex) === 32 ? $hex : '';
 }
 
+function staff_checkin_public_url(int $eventId): string {
+  $path = '/staff/checkin/' . $eventId;
+  $base = canonical_public_app_origin(app_base_url());
+  return $base . $path;
+}
+
+function normalize_volunteer_session_id(string $raw): string {
+  $id = strtolower(trim($raw));
+  if ($id === '') return '';
+  if (!preg_match('/^[a-f0-9-]{8,64}$/', $id)) return '';
+  return $id;
+}
+
+function ensure_checkin_scans_table(PDO $pdo): void {
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS checkin_scans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        volunteer_session_id TEXT NOT NULL,
+        attendee_id INTEGER NULL,
+        full_name TEXT NOT NULL DEFAULT "",
+        ticket_name TEXT NOT NULL DEFAULT "",
+        email TEXT NOT NULL DEFAULT "",
+        outcome TEXT NOT NULL DEFAULT "success",
+        scanned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE INDEX IF NOT EXISTS idx_checkin_scans_volunteer ON checkin_scans(event_id, volunteer_session_id, scanned_at DESC)'
+    );
+    return;
+  }
+
+  if ($driver === 'pgsql') {
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS checkin_scans (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL,
+        volunteer_session_id VARCHAR(64) NOT NULL,
+        attendee_id BIGINT NULL,
+        full_name VARCHAR(255) NOT NULL DEFAULT \'\',
+        ticket_name VARCHAR(255) NOT NULL DEFAULT \'\',
+        email VARCHAR(255) NOT NULL DEFAULT \'\',
+        outcome VARCHAR(32) NOT NULL DEFAULT \'success\',
+        scanned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )'
+    );
+    $pdo->exec(
+      'CREATE INDEX IF NOT EXISTS idx_checkin_scans_volunteer ON checkin_scans(event_id, volunteer_session_id, scanned_at DESC)'
+    );
+    return;
+  }
+
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS checkin_scans (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      event_id BIGINT UNSIGNED NOT NULL,
+      volunteer_session_id VARCHAR(64) NOT NULL,
+      attendee_id BIGINT UNSIGNED NULL,
+      full_name VARCHAR(255) NOT NULL DEFAULT '',
+      ticket_name VARCHAR(255) NOT NULL DEFAULT '',
+      email VARCHAR(255) NOT NULL DEFAULT '',
+      outcome ENUM('success','already_checked_in') NOT NULL DEFAULT 'success',
+      scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_checkin_scans_volunteer (event_id, volunteer_session_id, scanned_at),
+      CONSTRAINT fk_checkin_scans_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+}
+
+function log_volunteer_checkin_scan(
+  PDO $pdo,
+  int $eventId,
+  string $volunteerSessionId,
+  array $attendee,
+  string $outcome
+): void {
+  $sessionId = normalize_volunteer_session_id($volunteerSessionId);
+  if ($sessionId === '') return;
+
+  ensure_checkin_scans_table($pdo);
+  $outcome = $outcome === 'already_checked_in' ? 'already_checked_in' : 'success';
+  $stmt = $pdo->prepare(
+    'INSERT INTO checkin_scans (event_id, volunteer_session_id, attendee_id, full_name, ticket_name, email, outcome, scanned_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  );
+  $stmt->execute([
+    $eventId,
+    $sessionId,
+    (int)($attendee['id'] ?? 0) ?: null,
+    (string)($attendee['fullName'] ?? ''),
+    (string)($attendee['ticketName'] ?? ''),
+    (string)($attendee['email'] ?? ''),
+    $outcome,
+    date('Y-m-d H:i:s'),
+  ]);
+}
+
+function fetch_volunteer_checkin_scans(PDO $pdo, int $eventId, string $volunteerSessionId, int $limit = 100): array {
+  $sessionId = normalize_volunteer_session_id($volunteerSessionId);
+  if ($sessionId === '') return [];
+
+  ensure_checkin_scans_table($pdo);
+  if ($limit < 1) $limit = 1;
+  if ($limit > 200) $limit = 200;
+
+  $stmt = $pdo->prepare(
+    'SELECT id, attendee_id, full_name, ticket_name, email, outcome, scanned_at
+     FROM checkin_scans
+     WHERE event_id = ? AND volunteer_session_id = ?
+     ORDER BY scanned_at DESC
+     LIMIT ' . (int)$limit
+  );
+  $stmt->execute([$eventId, $sessionId]);
+  $rows = [];
+  while ($r = $stmt->fetch()) {
+    $rows[] = [
+      'id' => (string)$r['id'],
+      'attendeeId' => $r['attendee_id'] !== null ? (string)$r['attendee_id'] : null,
+      'fullName' => (string)$r['full_name'],
+      'ticketName' => (string)$r['ticket_name'],
+      'email' => (string)$r['email'],
+      'outcome' => (string)$r['outcome'],
+      'scannedAt' => !empty($r['scanned_at']) ? gmdate('c', strtotime($r['scanned_at'])) : null,
+    ];
+  }
+  return $rows;
+}
+
 function fetch_attendee_stats(PDO $pdo, int $eventId): array {
   $stmt = $pdo->prepare(
     'SELECT
