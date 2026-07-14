@@ -38,6 +38,15 @@ function decrypt_payment_secret(string $encoded): string {
 function ensure_organizer_payment_tables(PDO $pdo): void {
   static $checked = false;
   if ($checked) return;
+  try {
+    ensure_organizer_payment_tables_inner($pdo);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] ensure_organizer_payment_tables: %s', $e->getMessage()));
+  }
+  $checked = true;
+}
+
+function ensure_organizer_payment_tables_inner(PDO $pdo): void {
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 
   if ($driver === 'sqlite') {
@@ -70,7 +79,6 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
     try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode TEXT NOT NULL DEFAULT "percentage"'); } catch (Throwable $e) {}
     try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN commission_value REAL NULL'); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
-    $checked = true;
     return;
   }
 
@@ -104,7 +112,6 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode VARCHAR(32) NOT NULL DEFAULT 'percentage'"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_value NUMERIC(12,2) NULL"); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
-    $checked = true;
     return;
   }
 
@@ -142,7 +149,6 @@ function ensure_organizer_payment_tables(PDO $pdo): void {
   );
   try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode ENUM('percentage','flat_per_ticket') NOT NULL DEFAULT 'percentage'"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_value DECIMAL(12,2) NULL"); } catch (Throwable $e) {}
-  $checked = true;
 }
 
 function normalize_organizer_gateway_mode(string $mode): string {

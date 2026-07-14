@@ -20,6 +20,15 @@ function normalize_organizer_team_role(string $role): string {
 function ensure_organizer_workspace_tables(PDO $pdo): void {
   static $checked = false;
   if ($checked) return;
+  try {
+    ensure_organizer_workspace_tables_inner($pdo);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] ensure_organizer_workspace_tables: %s', $e->getMessage()));
+  }
+  $checked = true;
+}
+
+function ensure_organizer_workspace_tables_inner(PDO $pdo): void {
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 
   if ($driver === 'sqlite') {
@@ -66,7 +75,6 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
     );
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_team_member ON organizer_team_members(member_user_id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_invites_owner ON organizer_invites(owner_user_id, status)');
-    $checked = true;
     return;
   }
 
@@ -112,7 +120,6 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )'
     );
-    $checked = true;
     return;
   }
 
@@ -167,7 +174,6 @@ function ensure_organizer_workspace_tables(PDO $pdo): void {
       CONSTRAINT fk_invite_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
   );
-  $checked = true;
 }
 
 /** @return list<int> */
