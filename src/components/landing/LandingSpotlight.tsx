@@ -9,6 +9,7 @@ import {
   Navigation,
   Share2,
   Star,
+  Ticket,
 } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
@@ -17,7 +18,6 @@ import {
   LandingFooter,
   LandingPageShell,
   LandingTopBar,
-  TicketsList,
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
@@ -28,9 +28,9 @@ import { resolveEventCategory } from '../../themes/eventCategories';
 
 const DEFAULT_POLICIES = [
   'Tickets are non-refundable once purchased, unless the event is cancelled by the organizer.',
-  'Only buy tickets from this official event page to avoid fraudulent listings.',
-  'Keep your ticket QR code safe — lost tickets may not be reissued.',
-  'Re-entry may not be permitted after you leave the venue.',
+  'Purchase only from this official page to avoid fraudulent listings.',
+  'Keep your QR code secure — lost tickets may not be reissued.',
+  'Re-entry may not be permitted after leaving the venue.',
   'The organizer may refuse entry for safety or policy reasons.',
 ];
 
@@ -42,8 +42,8 @@ function lowestAvailablePrice(tickets: EventTicket[]): number | null {
 
 function formatFromPrice(tickets: EventTicket[]): string {
   const fromPrice = lowestAvailablePrice(tickets);
-  if (fromPrice == null) return 'Registration opens soon';
-  if (fromPrice <= 0) return 'Free entry';
+  if (fromPrice == null) return 'Sold out';
+  if (fromPrice <= 0) return 'Free';
   return `${formatLKRWhole(fromPrice)} Upwards`;
 }
 
@@ -57,100 +57,88 @@ async function shareEvent(event: Event) {
     if (navigator.share) await navigator.share({ title: event.title, url });
     else if (navigator.clipboard) await navigator.clipboard.writeText(url);
   } catch {
-    /* ignore cancel */
+    /* ignore */
   }
 }
 
-function SpotlightBanner({ event }: { event: Event }) {
-  if (!event.bannerUrl?.trim()) {
-    return (
-      <section className="landing-spotlight-banner" aria-hidden>
-        <div className="landing-spotlight-banner-inner">
-          <div className="landing-spotlight-banner-placeholder" />
-        </div>
-      </section>
-    );
-  }
+function SpotlightHeroBanner({ event }: { event: Event }) {
   return (
-    <section className="landing-spotlight-banner" aria-label="Event banner">
-      <div className="landing-spotlight-banner-inner">
-        <EventBanner event={event} overlay="none" imageClassName="landing-spotlight-banner-img" />
-      </div>
+    <section className="sp-hero" aria-label="Event banner">
+      {event.bannerUrl?.trim() ? (
+        <EventBanner event={event} overlay="none" imageClassName="sp-hero-img" />
+      ) : (
+        <div className="sp-hero-fallback" />
+      )}
     </section>
   );
 }
 
-function SpotlightTitleBlock({ event }: { event: Event }) {
-  const title = event.customization?.heroText?.trim() || event.title;
-  const lead = (event.customization?.heroSubtext || '').trim();
-  const desc = event.description?.trim() || '';
-  const preview = lead || (desc ? desc.slice(0, 160) : '');
-  const canSeeMore = !lead && desc.length > 160;
+function SpotlightQuickFacts({ event }: { event: Event }) {
+  const tba = !!event.customization?.scheduleTba;
+  const eventDate = new Date(event.date);
+  const category = resolveEventCategory(event.customization?.eventCategory);
 
   return (
-    <div className="landing-spotlight-title-block">
-      <h1 className="landing-spotlight-title">{title}</h1>
-      {preview ? (
-        <p className="landing-spotlight-lead">
-          {preview}
-          {canSeeMore ? (
-            <>
-              {' '}
-              <a
-                href="#landing-about"
-                className="landing-spotlight-see-more"
-                onClick={(e) => {
-                  e.preventDefault();
-                  scrollTo('landing-about');
-                }}
-              >
-                See more…
-              </a>
-            </>
-          ) : null}
-        </p>
+    <div className="sp-quickfacts">
+      <div className="sp-quickfact">
+        <Calendar className="h-4 w-4" />
+        <div>
+          <p className="sp-quickfact-label">Date</p>
+          <p className="sp-quickfact-value">{tba ? 'To be announced' : format(eventDate, 'EEE, d MMM yyyy')}</p>
+        </div>
+      </div>
+      <div className="sp-quickfact">
+        <Clock3 className="h-4 w-4" />
+        <div>
+          <p className="sp-quickfact-label">Time</p>
+          <p className="sp-quickfact-value">{tba ? 'TBA' : `${format(eventDate, 'h:mm a')} onwards`}</p>
+        </div>
+      </div>
+      <div className="sp-quickfact">
+        <MapPin className="h-4 w-4" />
+        <div>
+          <p className="sp-quickfact-label">Venue</p>
+          <p className="sp-quickfact-value">{event.location?.trim() || 'Venue TBA'}</p>
+        </div>
+      </div>
+      {category.name ? (
+        <div className="sp-quickfact sp-quickfact--tag">
+          <span className="sp-category-chip">{category.name}</span>
+        </div>
       ) : null}
     </div>
   );
 }
 
-function SpotlightOrganizer({ event, compact = false }: { event: Event; compact?: boolean }) {
+function SpotlightOrganizer({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
   return (
-    <section className={`landing-spotlight-organizer${compact ? ' is-compact' : ''}`} aria-label="Organizer">
-      {!compact ? <p className="landing-spotlight-organizer-label">Organized by</p> : null}
-      <div className="landing-spotlight-organizer-card">
+    <div className="sp-org">
+      <p className="sp-org-label">Organized by</p>
+      <div className="sp-org-row">
         {brand.logoUrl ? (
-          <img src={brand.logoUrl} alt="" className="landing-spotlight-organizer-logo" referrerPolicy="no-referrer" />
+          <img src={brand.logoUrl} alt="" className="sp-org-logo" referrerPolicy="no-referrer" />
         ) : (
-          <span className="landing-spotlight-organizer-mark">{brand.name.charAt(0).toUpperCase()}</span>
+          <span className="sp-org-mark">{brand.name.charAt(0).toUpperCase()}</span>
         )}
-        <div className="min-w-0">
-          {compact ? <p className="landing-spotlight-organizer-label">Organized by</p> : null}
-          <p className="landing-spotlight-organizer-name">{brand.name}</p>
-        </div>
+        <p className="sp-org-name">{brand.name}</p>
       </div>
-    </section>
+    </div>
   );
 }
 
 function SpotlightPolicies() {
   const [open, setOpen] = useState(false);
   return (
-    <section className="landing-spotlight-panel landing-spotlight-policies">
-      <button
-        type="button"
-        className="landing-spotlight-accordion-btn"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
+    <section className="sp-block">
+      <button type="button" className="sp-accordion" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <span>Event policies</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open ? (
-        <ul className="landing-spotlight-policy-list">
-          {DEFAULT_POLICIES.map((item) => (
-            <li key={item}>{item}</li>
+        <ul className="sp-policy-list">
+          {DEFAULT_POLICIES.map((line) => (
+            <li key={line}>{line}</li>
           ))}
         </ul>
       ) : null}
@@ -162,9 +150,9 @@ function SpotlightAbout({ event }: { event: Event }) {
   const desc = event.description?.trim();
   if (!desc) return null;
   return (
-    <section id="landing-about" className="landing-spotlight-panel landing-spotlight-about scroll-mt-28">
-      <h2 className="landing-spotlight-section-title">About this event</h2>
-      <p className="landing-spotlight-about-text">{desc}</p>
+    <section id="landing-about" className="sp-block scroll-mt-28">
+      <h2 className="sp-h2">About this event</h2>
+      <p className="sp-body">{desc}</p>
     </section>
   );
 }
@@ -176,30 +164,88 @@ function SpotlightLocation({ event }: { event: Event }) {
     : null;
 
   return (
-    <section id="landing-venue" className="landing-spotlight-panel landing-spotlight-location scroll-mt-28">
-      <div className="landing-spotlight-location-head">
-        <h2 className="landing-spotlight-section-title">Location</h2>
+    <section id="landing-venue" className="sp-block scroll-mt-28">
+      <div className="sp-location-head">
+        <h2 className="sp-h2">Location</h2>
         {mapsUrl ? (
-          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="landing-spotlight-navigate">
-            Navigate
-            <Navigation className="h-3.5 w-3.5" />
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="sp-nav-link">
+            Navigate <Navigation className="h-3.5 w-3.5" />
           </a>
         ) : null}
       </div>
-      <div className="landing-spotlight-map-card">
-        <div className="landing-spotlight-map-visual" aria-hidden>
-          <MapPin className="h-6 w-6" />
+      <div className="sp-map">
+        <div className="sp-map-art" aria-hidden>
+          <div className="sp-map-pin">
+            <MapPin className="h-5 w-5" />
+          </div>
         </div>
-        <div className="landing-spotlight-map-body">
-          <p className="landing-spotlight-map-name">{location}</p>
-          <p className="landing-spotlight-map-hint">Open in Google Maps for directions</p>
+        <div className="sp-map-caption">
+          <p className="sp-map-name">{location}</p>
+          <p className="sp-map-hint">Directions open in Google Maps</p>
         </div>
       </div>
     </section>
   );
 }
 
-function SpotlightBookingCard({
+function SpotlightTicketRow({
+  ticket,
+  qty,
+  onChange,
+}: {
+  ticket: EventTicket;
+  qty: number;
+  onChange: (qty: number) => void;
+}) {
+  const remaining = ticketRemaining(ticket);
+  const soldOut = remaining <= 0;
+  const desc = (ticket.description || 'Full event access').split('\n')[0]?.trim() || 'Full event access';
+
+  return (
+    <div className={`sp-ticket${qty > 0 ? ' is-active' : ''}${soldOut ? ' is-soldout' : ''}`}>
+      <div className="sp-ticket-main">
+        <div className="sp-ticket-icon">
+          <Ticket className="h-4 w-4" />
+        </div>
+        <div className="sp-ticket-copy">
+          <div className="sp-ticket-title-row">
+            <h3 className="sp-ticket-name">{ticket.name}</h3>
+            {soldOut ? <span className="sp-badge-sold">Sold out</span> : null}
+            {!soldOut && remaining <= 12 ? <span className="sp-badge-low">{remaining} left</span> : null}
+          </div>
+          <p className="sp-ticket-desc">{desc}</p>
+        </div>
+        <p className="sp-ticket-price">{ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}</p>
+      </div>
+      <div className="sp-ticket-action">
+        <div className="sp-stepper">
+          <button type="button" disabled={soldOut || qty <= 0} onClick={() => onChange(qty - 1)} aria-label="Decrease">
+            −
+          </button>
+          <span>{qty}</span>
+          <button
+            type="button"
+            disabled={soldOut || qty >= remaining}
+            onClick={() => onChange(qty + 1)}
+            aria-label="Increase"
+          >
+            +
+          </button>
+        </div>
+        <button
+          type="button"
+          className="sp-ticket-add"
+          disabled={soldOut || qty >= remaining}
+          onClick={() => onChange(Math.min(remaining, qty + 1))}
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SpotlightBookingRail({
   event,
   tickets,
   onGetTickets,
@@ -214,66 +260,56 @@ function SpotlightBookingCard({
   const category = resolveEventCategory(event.customization?.eventCategory);
 
   return (
-    <aside className="landing-spotlight-booking" aria-label="Book tickets">
-      <div className="landing-spotlight-booking-card">
-        <div className="landing-spotlight-booking-top">
-          <span className="landing-spotlight-featured">
+    <aside className="sp-rail" aria-label="Booking">
+      <div className="sp-rail-card">
+        <div className="sp-rail-head">
+          <span className="sp-featured">
             <Star className="h-3 w-3 fill-current" />
             Featured
           </span>
+          <button type="button" className="sp-icon-btn" onClick={() => void shareEvent(event)} aria-label="Share">
+            <Share2 className="h-4 w-4" />
+          </button>
         </div>
 
         {!tba && !done ? (
-          <div className="landing-spotlight-countdown" aria-live="polite">
+          <div className="sp-rail-countdown" aria-live="polite">
             {[
               { lbl: 'Days', val: days },
               { lbl: 'Hrs', val: hours },
               { lbl: 'Min', val: mins },
               { lbl: 'Sec', val: secs },
             ].map((u) => (
-              <div key={u.lbl} className="landing-spotlight-countdown-unit">
-                <span className="num">{pad2(u.val)}</span>
-                <span className="lbl">{u.lbl}</span>
+              <div key={u.lbl} className="sp-rail-count">
+                <strong>{pad2(u.val)}</strong>
+                <span>{u.lbl}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="landing-spotlight-countdown-live">
-            {tba ? 'Date to be announced' : 'Doors are open — reserve below.'}
-          </p>
+          <p className="sp-rail-live">{tba ? 'Schedule to be announced' : 'Event is live now'}</p>
         )}
 
-        <div className="landing-spotlight-meta-row">
-          <div className="landing-spotlight-meta-pill">
-            <Calendar className="h-3.5 w-3.5" />
-            <span>{tba ? 'TBA' : format(eventDate, 'd MMM')}</span>
+        <div className="sp-rail-when">
+          <div>
+            <p className="sp-rail-day">{tba ? 'TBA' : format(eventDate, 'd MMM')}</p>
+            <p className="sp-rail-time">{tba ? 'Time TBA' : format(eventDate, 'h:mm a')}</p>
           </div>
-          <div className="landing-spotlight-meta-pill">
-            <Clock3 className="h-3.5 w-3.5" />
-            <span>{tba ? 'Time TBA' : format(eventDate, 'h:mm a')}</span>
-          </div>
-          {category.name ? <span className="landing-spotlight-category">{category.name}</span> : null}
+          {category.name ? <span className="sp-category-chip">{category.name}</span> : null}
         </div>
 
-        <div className="landing-spotlight-price-block">
-          <p className="landing-spotlight-price-label">Tickets from</p>
-          <p className="landing-spotlight-price">{formatFromPrice(tickets)}</p>
+        <div className="sp-rail-price">
+          <span>From</span>
+          <strong>{formatFromPrice(tickets)}</strong>
         </div>
 
-        <button type="button" className="landing-spotlight-cta" onClick={onGetTickets}>
+        <button type="button" className="sp-cta" onClick={onGetTickets}>
           Get Tickets
           <ArrowRight className="h-4 w-4" />
         </button>
 
-        <div className="landing-spotlight-secondary-actions">
-          <button type="button" onClick={() => void shareEvent(event)} className="landing-spotlight-link-btn">
-            <Share2 className="h-3.5 w-3.5" />
-            Share event
-          </button>
-        </div>
-
-        <div className="landing-spotlight-booking-organizer">
-          <SpotlightOrganizer event={event} compact />
+        <div className="sp-rail-org">
+          <SpotlightOrganizer event={event} />
         </div>
       </div>
     </aside>
@@ -291,33 +327,27 @@ function SpotlightMobileBar({
 }) {
   const tba = !!event.customization?.scheduleTba;
   const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
-
-  const countdownLabel = tba
-    ? 'Date to be announced'
+  const label = tba
+    ? 'Date TBA'
     : done
-      ? 'Event is live'
+      ? 'Event live'
       : `Starts in ${days}d ${pad2(hours)}h ${pad2(mins)}m ${pad2(secs)}s`;
 
   return (
-    <div className="landing-spotlight-mobile-bar">
-      <div className="landing-spotlight-mobile-bar-countdown">
+    <div className="sp-mobilebar">
+      <div className="sp-mobilebar-top">
         <Calendar className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{countdownLabel}</span>
-        <button
-          type="button"
-          className="landing-spotlight-mobile-share"
-          onClick={() => void shareEvent(event)}
-          aria-label="Share event"
-        >
+        <span className="truncate">{label}</span>
+        <button type="button" className="sp-mobilebar-share" onClick={() => void shareEvent(event)} aria-label="Share">
           <Share2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="landing-spotlight-mobile-bar-row">
-        <div className="min-w-0">
-          <p className="landing-spotlight-mobile-price-label">From</p>
-          <p className="landing-spotlight-mobile-price">{formatFromPrice(tickets)}</p>
+      <div className="sp-mobilebar-bottom">
+        <div>
+          <p className="sp-mobilebar-label">From</p>
+          <p className="sp-mobilebar-price">{formatFromPrice(tickets)}</p>
         </div>
-        <button type="button" className="landing-spotlight-cta landing-spotlight-cta--compact" onClick={onGetTickets}>
+        <button type="button" className="sp-cta sp-cta--sm" onClick={onGetTickets}>
           Get Tickets
         </button>
       </div>
@@ -334,7 +364,12 @@ export function LandingSpotlightPage({
   onCheckout,
   isPurchasing,
 }: LandingTemplateProps) {
-  const scrollTickets = () => scrollTo('landing-tickets');
+  const title = event.customization?.heroText?.trim() || event.title;
+  const lead = (event.customization?.heroSubtext || '').trim();
+  const desc = event.description?.trim() || '';
+  const teaser = lead || (desc ? desc.slice(0, 140) : '');
+  const category = resolveEventCategory(event.customization?.eventCategory);
+
   const hasSelection = useMemo(
     () => tickets.some((t) => (selectedTickets[t.id] || 0) > 0),
     [tickets, selectedTickets]
@@ -342,7 +377,7 @@ export function LandingSpotlightPage({
 
   const handleGetTickets = () => {
     if (hasSelection) onCheckout();
-    else scrollTickets();
+    else scrollTo('landing-tickets');
   };
 
   return (
@@ -350,63 +385,93 @@ export function LandingSpotlightPage({
       <LandingTopBar event={event} onGetTickets={handleGetTickets} />
 
       <div className="landing-spotlight">
-        <SpotlightBanner event={event} />
+        <SpotlightHeroBanner event={event} />
 
-        <div className="landing-spotlight-shell">
-          <div className="landing-spotlight-layout">
-            <main className="landing-spotlight-main">
-              <SpotlightTitleBlock event={event} />
+        <div className="sp-shell">
+          <div className="sp-grid">
+            <main className="sp-main">
+              {category.name ? (
+                <p className="sp-breadcrumb">
+                  Events <span>/</span> {category.name}
+                </p>
+              ) : null}
 
-              <div className="landing-spotlight-stack">
-                <div className="landing-spotlight-organizer-mobile">
-                  <SpotlightOrganizer event={event} />
-                </div>
+              <h1 className="sp-title">{title}</h1>
+              {teaser ? (
+                <p className="sp-teaser">
+                  {teaser}
+                  {!lead && desc.length > 140 ? (
+                    <>
+                      {' '}
+                      <button type="button" className="sp-inline-link" onClick={() => scrollTo('landing-about')}>
+                        See more…
+                      </button>
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
 
+              <SpotlightQuickFacts event={event} />
+
+              <div className="sp-org-mobile">
+                <SpotlightOrganizer event={event} />
+              </div>
+
+              <div className="sp-sections">
                 <SpotlightAbout event={event} />
                 <SpotlightPolicies />
                 <SpotlightLocation event={event} />
 
-                <section id="landing-tickets" className="landing-spotlight-panel landing-spotlight-tickets scroll-mt-28">
-                  <div className="landing-spotlight-tickets-head">
-                    <h2 className="landing-spotlight-section-title">Select tickets</h2>
-                    <p className="landing-spotlight-tickets-sub">Choose your pass. Secure checkout with PayHere.</p>
+                <section id="landing-tickets" className="sp-block scroll-mt-28">
+                  <div className="sp-tickets-head">
+                    <h2 className="sp-h2">Choose your tickets</h2>
+                    <p className="sp-muted">Select seats, then continue to secure checkout.</p>
                   </div>
-                  <div className="landing-spotlight-tickets-body">
-                    {tickets.length === 0 ? (
-                      <div className="landing-spotlight-empty">Registration opens soon.</div>
-                    ) : (
-                      <TicketsList
-                        tickets={tickets}
-                        selectedTickets={selectedTickets}
-                        onTicketChange={onTicketChange}
-                      />
-                    )}
-                  </div>
+
+                  {tickets.length === 0 ? (
+                    <div className="sp-empty">Tickets will appear here when registration opens.</div>
+                  ) : (
+                    <div className="sp-ticket-list">
+                      {tickets.map((ticket) => (
+                        <SpotlightTicketRow
+                          key={ticket.id}
+                          ticket={ticket}
+                          qty={selectedTickets[ticket.id] || 0}
+                          onChange={(q) => onTicketChange(ticket.id, q)}
+                        />
+                      ))}
+                    </div>
+                  )}
+
                   {hasSelection ? (
-                    <button
-                      type="button"
-                      className="landing-spotlight-cta mt-4"
-                      onClick={onCheckout}
-                      disabled={isPurchasing}
-                    >
-                      {isPurchasing
-                        ? 'Processing…'
-                        : totalAmount <= 0
-                          ? 'Complete registration'
-                          : `Pay ${formatLKRWhole(totalAmount)}`}
-                      {!isPurchasing ? <ArrowRight className="h-4 w-4" /> : null}
-                    </button>
+                    <div className="sp-checkout-strip">
+                      <div>
+                        <p className="sp-muted">Order total</p>
+                        <p className="sp-checkout-total">
+                          {totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="sp-cta sp-cta--sm"
+                        onClick={onCheckout}
+                        disabled={isPurchasing}
+                      >
+                        {isPurchasing ? 'Processing…' : 'Continue'}
+                        {!isPurchasing ? <ArrowRight className="h-4 w-4" /> : null}
+                      </button>
+                    </div>
                   ) : null}
                 </section>
               </div>
             </main>
 
-            <SpotlightBookingCard event={event} tickets={tickets} onGetTickets={handleGetTickets} />
+            <SpotlightBookingRail event={event} tickets={tickets} onGetTickets={handleGetTickets} />
           </div>
         </div>
 
         <SpotlightMobileBar event={event} tickets={tickets} onGetTickets={handleGetTickets} />
-        <div className="landing-spotlight-mobile-spacer" aria-hidden />
+        <div className="sp-mobilebar-spacer" aria-hidden />
       </div>
 
       <LandingFooter event={event} />
