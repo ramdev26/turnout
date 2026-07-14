@@ -335,3 +335,33 @@
     transform: translateY(0);
   }
 }
+
+/* Checkout dialog — full-width mobile sheet; compact centered panel on desktop */
+.landing-checkout-modal {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .landing-checkout-modal {
+    width: min(100%, 26.5rem);
+    max-width: 26.5rem;
+  }
+
+  .landing-checkout-modal--wide {
+    width: min(100%, 34rem);
+    max-width: 34rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-checkout-modal {
+    width: min(100%, 28rem);
+    max-width: 28rem;
+  }
+
+  .landing-checkout-modal--wide {
+    width: min(100%, 36rem);
+    max-width: 36rem;
+  }
+}
