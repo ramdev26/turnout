@@ -6,6 +6,7 @@ import { resolveTemplateId } from '../themes/eventThemes';
 import { LandingShowcasePage } from '../components/landing/LandingShowcase';
 import { LandingClassicPage } from '../components/landing/LandingClassic';
 import { LandingArenaPage } from '../components/landing/LandingArena';
+import { LandingSpotlightPage } from '../components/landing/LandingSpotlight';
 import {
   AboutBlock,
   CheckoutPanel,
@@ -22,7 +23,7 @@ import {
   TicketsSection,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-canvas';
+export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-canvas';
 
 /** Layout templates organizers can pick in the design console (excludes custom canvas). */
 export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
@@ -34,13 +35,14 @@ export const LANDING_LAYOUT_TEMPLATES: {
 }[] = [
   { id: 'template-2', name: 'Showcase', description: 'Editorial hero with sidebar checkout' },
   { id: 'template-6', name: 'Arena', description: 'Venue carousel with seating picker' },
+  { id: 'template-7', name: 'Spotlight', description: 'Featured banner with sticky booking card' },
   { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
 ];
 
 const LEGACY_TEMPLATE_IDS = new Set(['template-1', 'template-3', 'template-4']);
 
 export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
-  if (id === 'template-2' || id === 'template-5' || id === 'template-6') return id;
+  if (id === 'template-2' || id === 'template-5' || id === 'template-6' || id === 'template-7') return id;
   if (id && LEGACY_TEMPLATE_IDS.has(id)) return 'template-2';
   return 'template-2';
 }
@@ -279,7 +281,20 @@ const TemplateArena: LandingTemplate = {
   render: (props) => <LandingArenaPage {...props} />,
 };
 
-export const landingTemplates: LandingTemplate[] = [TemplateShowcase, TemplateArena, TemplateClassic];
+const TemplateSpotlight: LandingTemplate = {
+  id: 'template-7',
+  name: 'Spotlight',
+  description: 'Featured banner layout with sticky booking card and mobile checkout bar.',
+  previewSeed: 'spotlight-concert',
+  render: (props) => <LandingSpotlightPage {...props} />,
+};
+
+export const landingTemplates: LandingTemplate[] = [
+  TemplateShowcase,
+  TemplateArena,
+  TemplateSpotlight,
+  TemplateClassic,
+];
 
 export function getLandingTemplate(id: string | undefined): LandingTemplate {
   const resolved = resolveLayoutTemplateId(id);
