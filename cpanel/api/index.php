@@ -16,6 +16,7 @@ require __DIR__ . '/lib/organizer_paid_event.php';
 require __DIR__ . '/lib/user_migrations.php';
 require __DIR__ . '/lib/super_admin.php';
 require __DIR__ . '/lib/admin_analytics.php';
+require __DIR__ . '/lib/core_schema.php';
 
 set_cors_headers_for_same_domain();
 
@@ -846,6 +847,7 @@ function run_boot_schema_guard(string $label, callable $fn): void {
   }
 }
 
+run_boot_schema_guard('ensure_core_schema', static fn () => ensure_core_schema(db()));
 run_boot_schema_guard('ensure_users_role_support', static fn () => ensure_users_role_support(db()));
 run_boot_schema_guard('ensure_default_super_admin', static fn () => ensure_default_super_admin(db()));
 run_boot_schema_guard('ensure_finance_tables', static fn () => ensure_finance_tables(db()));
