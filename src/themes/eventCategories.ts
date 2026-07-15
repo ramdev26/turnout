@@ -9,8 +9,6 @@ import {
   Moon,
   Cpu,
 } from 'lucide-react';
-import type { LandingFontKey } from './landingFonts';
-import type { LandingStyle } from '../types';
 
 export type EventCategoryId =
   | 'default'
@@ -26,27 +24,25 @@ export type EventCategory = {
   id: EventCategoryId;
   name: string;
   icon: LucideIcon;
-  /** Curated landing font for this category */
-  fontFamily: LandingFontKey;
-  primaryColor: string;
-  secondaryColor: string;
-  landingStyle: LandingStyle;
+  /** Decorative picker swatch only — never applied to landing design */
+  swatchPrimary: string;
+  swatchSecondary: string;
 };
 
 /**
- * All categories live under the single Minimal theme. Picking one swaps the
- * landing typography (and a matching accent/style) so the page feels tuned to
- * the event type, while "General" keeps the clean editorial baseline.
+ * Categories label the event type on the public page (breadcrumb, chips).
+ * They do not change colours, fonts, or style — those come from the template
+ * defaults and the Customize design widget.
  */
 export const EVENT_CATEGORIES: EventCategory[] = [
-  { id: 'default', name: 'General', icon: Sparkles, fontFamily: 'fraunces', primaryColor: '#C0FF72', secondaryColor: '#0D585B', landingStyle: 'glass' },
-  { id: 'music', name: 'Music', icon: Music, fontFamily: 'space-grotesk', primaryColor: '#7c3aed', secondaryColor: '#c084fc', landingStyle: 'bold' },
-  { id: 'sports', name: 'Sports', icon: Trophy, fontFamily: 'sora', primaryColor: '#2563eb', secondaryColor: '#38bdf8', landingStyle: 'bold' },
-  { id: 'business', name: 'Business', icon: Briefcase, fontFamily: 'manrope', primaryColor: '#0f766e', secondaryColor: '#64748b', landingStyle: 'minimal' },
-  { id: 'arts', name: 'Arts', icon: Palette, fontFamily: 'playfair', primaryColor: '#e11d48', secondaryColor: '#fb7185', landingStyle: 'glass' },
-  { id: 'wellness', name: 'Wellness', icon: Leaf, fontFamily: 'dm-serif', primaryColor: '#0d9488', secondaryColor: '#2dd4bf', landingStyle: 'glass' },
-  { id: 'nightlife', name: 'Nightlife', icon: Moon, fontFamily: 'sora', primaryColor: '#a78bfa', secondaryColor: '#7c3aed', landingStyle: 'bold' },
-  { id: 'tech', name: 'Tech', icon: Cpu, fontFamily: 'space-grotesk', primaryColor: '#2563eb', secondaryColor: '#6366f1', landingStyle: 'minimal' },
+  { id: 'default', name: 'General', icon: Sparkles, swatchPrimary: '#C0FF72', swatchSecondary: '#0D585B' },
+  { id: 'music', name: 'Music', icon: Music, swatchPrimary: '#7c3aed', swatchSecondary: '#c084fc' },
+  { id: 'sports', name: 'Sports', icon: Trophy, swatchPrimary: '#2563eb', swatchSecondary: '#38bdf8' },
+  { id: 'business', name: 'Business', icon: Briefcase, swatchPrimary: '#0f766e', swatchSecondary: '#64748b' },
+  { id: 'arts', name: 'Arts', icon: Palette, swatchPrimary: '#e11d48', swatchSecondary: '#fb7185' },
+  { id: 'wellness', name: 'Wellness', icon: Leaf, swatchPrimary: '#0d9488', swatchSecondary: '#2dd4bf' },
+  { id: 'nightlife', name: 'Nightlife', icon: Moon, swatchPrimary: '#a78bfa', swatchSecondary: '#7c3aed' },
+  { id: 'tech', name: 'Tech', icon: Cpu, swatchPrimary: '#2563eb', swatchSecondary: '#6366f1' },
 ];
 
 export const EVENT_CATEGORY_IDS = EVENT_CATEGORIES.map((c) => c.id);

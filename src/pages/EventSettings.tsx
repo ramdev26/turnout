@@ -29,7 +29,8 @@ import { EventCategoryPicker } from '../components/organizer/EventCategoryPicker
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
 import { normalizeArenaGalleryImages } from '../components/landing/arenaGallery';
-import { EVENT_THEMES, normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
+import { normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
+import { resolveTemplateDesignDefaults } from '../themes/templateDefaults';
 import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { resolveLandingFontKey } from '../themes/landingFonts';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
@@ -131,14 +132,17 @@ export const EventSettings: React.FC = () => {
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [themeId, setThemeId] = useState<EventThemeId>('minimal');
-  const [design, setDesign] = useState<LandingDesignValue>({
-    templateId: 'template-2',
-    eventCategory: 'default',
-    primaryColor: '#059669',
-    secondaryColor: '#10b981',
-    fontFamily: 'fraunces',
-    displayMode: 'auto',
-    landingStyle: 'glass',
+  const [design, setDesign] = useState<LandingDesignValue>(() => {
+    const defaults = resolveTemplateDesignDefaults('template-2');
+    return {
+      templateId: defaults.templateId,
+      eventCategory: 'default',
+      primaryColor: defaults.primaryColor,
+      secondaryColor: defaults.secondaryColor,
+      fontFamily: defaults.fontFamily,
+      displayMode: defaults.displayMode,
+      landingStyle: defaults.landingStyle,
+    };
   });
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -210,23 +214,31 @@ export const EventSettings: React.FC = () => {
       setBannerUrl(ev.bannerUrl || '');
       setArenaGalleryImages(normalizeArenaGalleryImages(ev.customization?.arenaGalleryImages));
       setSlug(ev.slug);
-      const landing = normalizeLandingCustomization(ev.customization);
-      const minimal = EVENT_THEMES.minimal;
+      const landing = normalizeLandingCustomization(ev.customization, resolveLayoutTemplateId(ev.templateId));
+      const templateDefaults = resolveTemplateDesignDefaults(ev.templateId);
       setThemeId('minimal');
       setDesign({
         templateId: resolveLayoutTemplateId(ev.templateId),
         eventCategory: landing.eventCategory || 'default',
-        primaryColor: landing.primaryColor || minimal.primary,
-        secondaryColor: landing.secondaryColor || minimal.secondary,
+        primaryColor: landing.primaryColor || templateDefaults.primaryColor,
+        secondaryColor: landing.secondaryColor || templateDefaults.secondaryColor,
         fontFamily: resolveLandingFontKey(landing.fontFamily),
         displayMode:
-          landing.displayMode === 'light' || landing.displayMode === 'dark' ? landing.displayMode : 'auto',
+          landing.displayMode === 'light' || landing.displayMode === 'dark' || landing.displayMode === 'auto'
+            ? landing.displayMode
+            : templateDefaults.displayMode,
         landingStyle:
-          landing.landingStyle === 'minimal' || landing.landingStyle === 'bold' ? landing.landingStyle : 'glass',
+          landing.landingStyle === 'minimal' || landing.landingStyle === 'bold' || landing.landingStyle === 'glass'
+            ? landing.landingStyle
+            : templateDefaults.landingStyle,
       });
       setTicketPdfTemplateId((ev.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
-      setTicketPdfPrimaryColor(ev.customization?.ticketPdfPrimaryColor || landing.primaryColor || minimal.primary);
-      setTicketPdfAccentColor(ev.customization?.ticketPdfAccentColor || landing.secondaryColor || minimal.secondary);
+      setTicketPdfPrimaryColor(
+        ev.customization?.ticketPdfPrimaryColor || landing.primaryColor || templateDefaults.primaryColor
+      );
+      setTicketPdfAccentColor(
+        ev.customization?.ticketPdfAccentColor || landing.secondaryColor || templateDefaults.secondaryColor
+      );
       setTicketPdfBadgeText(ev.customization?.ticketPdfBadgeText || 'VIP ACCESS');
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
       setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));

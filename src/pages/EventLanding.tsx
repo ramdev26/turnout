@@ -182,7 +182,7 @@ export const EventLanding: React.FC = () => {
   useEffect(() => {
     if (!event) return;
     document.title = event.title;
-    loadLandingFont(normalizeLandingCustomization(event.customization).fontFamily);
+    loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
   }, [event]);
 
   useEffect(() => {
@@ -424,7 +424,9 @@ export const EventLanding: React.FC = () => {
     }
   };
 
-  const themeVars = event ? landingCssVars(event.customization) : landingCssVars(undefined);
+  const themeVars = event
+    ? landingCssVars(event.customization, event.templateId)
+    : landingCssVars(undefined);
 
   if (loading) {
     return (
@@ -467,7 +469,7 @@ export const EventLanding: React.FC = () => {
 
   if (event.status !== 'published') {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4" style={{ ...landingCssVars(event.customization), background: 'var(--landing-page-bg)' }}>
+      <div className="flex min-h-screen items-center justify-center px-4" style={{ ...landingCssVars(event.customization, event.templateId), background: 'var(--landing-page-bg)' }}>
         <div
           className="w-full max-w-md rounded-3xl border p-8 text-center"
           style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)', color: 'var(--landing-text)' }}
@@ -484,7 +486,7 @@ export const EventLanding: React.FC = () => {
   const template = getLandingTemplateForEvent(event);
 
   return (
-    <div style={landingCssVars(event.customization)} className="min-h-dvh transition-[background] duration-700">
+    <div style={landingCssVars(event.customization, event.templateId)} className="min-h-dvh transition-[background] duration-700">
       {template.render({
         event,
         tickets,

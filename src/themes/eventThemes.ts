@@ -3,6 +3,7 @@ import type { Event, LandingDisplayMode, LandingStyle } from '../types';
 import type { TemplateId } from '../templates/templates';
 import { isEventCategoryId, resolveEventCategory } from './eventCategories';
 import { resolveLandingFont, resolveLandingFontKey } from './landingFonts';
+import { resolveTemplateDesignDefaults } from './templateDefaults';
 import { TURNOUT_APP_PAGE_BG, TURNOUT_BRAND } from './brandColors';
 
 export type EventThemeId = 'minimal' | 'neo-green' | 'midnight' | 'sunset';
@@ -310,14 +311,17 @@ export function resolveLegacyEventTheme(customization: LandingCustomizationInput
 
 /**
  * Maps stored customization to what the public landing should render.
- * Legacy events only receive category defaults for fields that were never saved.
+ * Missing design fields fall back to the selected template's defaults —
+ * never to event-category swatches.
  */
 export function normalizeLandingCustomization(
-  customization: LandingCustomizationInput
+  customization: LandingCustomizationInput,
+  templateId?: string | null
 ): NonNullable<LandingCustomizationInput> {
   const category = resolveEventCategory(
     isEventCategoryId(customization?.eventCategory) ? customization.eventCategory : 'default'
   );
+  const defaults = resolveTemplateDesignDefaults(templateId);
   const legacy = isLegacyLandingCustomization(customization);
 
   if (legacy) {
@@ -326,15 +330,21 @@ export function normalizeLandingCustomization(
       ...(customization ?? {}),
       themeId: isEventThemeId(customization?.themeId) ? customization.themeId : 'minimal',
       eventCategory: 'default',
-      primaryColor: storedHexColor(customization?.primaryColor) ?? category.primaryColor,
-      secondaryColor: storedHexColor(customization?.secondaryColor) ?? category.secondaryColor,
+      primaryColor: storedHexColor(customization?.primaryColor) ?? defaults.primaryColor,
+      secondaryColor: storedHexColor(customization?.secondaryColor) ?? defaults.secondaryColor,
       fontFamily: customization?.fontFamily?.trim()
         ? resolveLandingFontKey(customization.fontFamily)
-        : category.fontFamily,
+        : defaults.fontFamily,
       landingStyle:
         landingStyle === 'minimal' || landingStyle === 'bold' || landingStyle === 'glass'
           ? landingStyle
-          : category.landingStyle,
+          : defaults.landingStyle,
+      displayMode:
+        customization?.displayMode === 'light' ||
+        customization?.displayMode === 'dark' ||
+        customization?.displayMode === 'auto'
+          ? customization.displayMode
+          : defaults.displayMode,
     };
   }
 
@@ -342,15 +352,21 @@ export function normalizeLandingCustomization(
     ...(customization ?? {}),
     themeId: 'minimal',
     eventCategory: category.id,
-    primaryColor: customization?.primaryColor ?? category.primaryColor,
-    secondaryColor: customization?.secondaryColor ?? category.secondaryColor,
-    fontFamily: customization?.fontFamily ?? category.fontFamily,
+    primaryColor: customization?.primaryColor ?? defaults.primaryColor,
+    secondaryColor: customization?.secondaryColor ?? defaults.secondaryColor,
+    fontFamily: customization?.fontFamily ?? defaults.fontFamily,
     landingStyle:
       customization?.landingStyle === 'minimal' ||
       customization?.landingStyle === 'bold' ||
       customization?.landingStyle === 'glass'
         ? customization.landingStyle
-        : category.landingStyle,
+        : defaults.landingStyle,
+    displayMode:
+      customization?.displayMode === 'light' ||
+      customization?.displayMode === 'dark' ||
+      customization?.displayMode === 'auto'
+        ? customization.displayMode
+        : defaults.displayMode,
   };
 }
 
@@ -522,8 +538,11 @@ function applyStyleOverrides(style: LandingStyle, surfaces: LandingSurfaces, pri
   return surfaces;
 }
 
-export function landingCssVars(customization: LandingCustomizationInput): CSSProperties {
-  const c = normalizeLandingCustomization(customization);
+export function landingCssVars(
+  customization: LandingCustomizationInput,
+  templateId?: string | null
+): CSSProperties {
+  const c = normalizeLandingCustomization(customization, templateId);
   const theme = resolveEventTheme(c);
   const primary = c.primaryColor || theme.primary;
   const secondary = c.secondaryColor || theme.secondary;

@@ -86,10 +86,6 @@ export function LandingCustomizer({
     onChange({
       ...value,
       eventCategory: cat.id,
-      fontFamily: cat.fontFamily,
-      primaryColor: cat.primaryColor,
-      secondaryColor: cat.secondaryColor,
-      landingStyle: cat.landingStyle,
     });
   };
 
@@ -106,6 +102,9 @@ export function LandingCustomizer({
       {/* Event category */}
       <div className="space-y-3">
         <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Event type</SectionLabel>
+        <p className="text-xs" style={{ color: ui.textMuted }}>
+          Label only — colours and fonts stay with your template / Customize design.
+        </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {EVENT_CATEGORIES.map((cat) => {
             const Icon = cat.icon;

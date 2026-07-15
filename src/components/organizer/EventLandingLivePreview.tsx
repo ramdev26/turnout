@@ -68,13 +68,15 @@ export const EventLandingLivePreview: React.FC<EventLandingLivePreviewProps> = (
 
   const template = useMemo(() => getLandingTemplateForEvent(event), [event]);
   const landingVars = useMemo(
-    () => landingCssVars(normalizeLandingCustomization(event.customization)),
-    [event.customization]
+    () => landingCssVars(event.customization, event.templateId),
+    [event.customization, event.templateId]
   );
 
   useEffect(() => {
-    loadLandingFont(event.customization?.fontFamily || 'fraunces');
-  }, [event.customization?.fontFamily]);
+    loadLandingFont(
+      normalizeLandingCustomization(event.customization, event.templateId).fontFamily || 'fraunces'
+    );
+  }, [event.customization, event.templateId]);
 
   useEffect(() => {
     if (mode !== 'desktop') return;

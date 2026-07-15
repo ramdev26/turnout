@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Contrast, Palette, Sparkles, Type as TypeIcon, RotateCcw, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, Contrast, Palette, Type as TypeIcon, RotateCcw, X } from 'lucide-react';
 import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
 import { companionSecondaryColor } from '../../themes/organizerLiveDesign';
+import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
 import {
   COLOR_PRESETS,
   STYLE_OPTIONS,
@@ -24,6 +25,20 @@ const TEXT_MUTED = 'rgba(255, 255, 255, 0.62)';
 const TEXT_SUBTLE = 'rgba(255, 255, 255, 0.45)';
 const DEFAULT_CATEGORY_ID = 'default';
 const GLOW = '0 0 0 1px rgba(16,185,129,0.35), 0 10px 28px rgba(16,185,129,0.18)';
+
+const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValue['templateId']): LandingDesignValue => {
+  const next = withTemplateDesignDefaults(design, templateId);
+  return {
+    ...design,
+    templateId: next.templateId,
+    primaryColor: next.primaryColor,
+    secondaryColor: next.secondaryColor,
+    fontFamily: next.fontFamily,
+    landingStyle: next.landingStyle,
+    displayMode: next.displayMode,
+    eventCategory: design.eventCategory,
+  };
+};
 
 const TemplateThumb: React.FC<{
   id: LandingDesignValue['templateId'];
@@ -127,8 +142,8 @@ const CategoryThumb: React.FC<{
           active ? 'ring-2 ring-offset-2' : 'opacity-80 hover:opacity-100'
         )}
         style={{
-          background: `linear-gradient(135deg, ${category.primaryColor}, ${category.secondaryColor})`,
-          ['--tw-ring-color' as string]: category.primaryColor,
+          background: `linear-gradient(135deg, ${category.swatchPrimary}, ${category.swatchSecondary})`,
+          ['--tw-ring-color' as string]: category.swatchPrimary,
           ['--tw-ring-offset-color' as string]: DOCK_BG,
         }}
       >
@@ -222,7 +237,6 @@ export function LandingDesignDock({
   design: LandingDesignValue;
   onDesignChange: (next: LandingDesignValue) => void;
 }) {
-  const defaultCategory = resolveEventCategory(DEFAULT_CATEGORY_ID);
   const [open, setOpen] = useState<DockControl>(null);
   const [expanded, setExpanded] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -232,15 +246,17 @@ export function LandingDesignDock({
 
   const applyCategory = (id: string) => {
     const cat = resolveEventCategory(id);
-    loadLandingFont(cat.fontFamily);
     onDesignChange({
       ...design,
       eventCategory: cat.id,
-      fontFamily: cat.fontFamily,
-      primaryColor: cat.primaryColor,
-      secondaryColor: cat.secondaryColor,
-      landingStyle: cat.landingStyle,
     });
+  };
+
+  const selectTemplate = (templateId: LandingDesignValue['templateId']) => {
+    const next = applyTemplate(design, templateId);
+    loadLandingFont(next.fontFamily);
+    onDesignChange(next);
+    setOpen(null);
   };
 
   const previewFont = (key: (typeof LANDING_FONT_KEYS)[number]) => {
@@ -251,17 +267,9 @@ export function LandingDesignDock({
   const activeCategory = design.eventCategory || DEFAULT_CATEGORY_ID;
 
   const resetToDefault = () => {
-    loadLandingFont(defaultCategory.fontFamily);
-    onDesignChange({
-      ...design,
-      templateId: 'template-2',
-      eventCategory: defaultCategory.id,
-      fontFamily: defaultCategory.fontFamily,
-      primaryColor: defaultCategory.primaryColor,
-      secondaryColor: defaultCategory.secondaryColor,
-      landingStyle: defaultCategory.landingStyle,
-      displayMode: 'auto',
-    });
+    const next = applyTemplate(design, design.templateId);
+    loadLandingFont(next.fontFamily);
+    onDesignChange(next);
     setOpen(null);
   };
 
@@ -269,7 +277,6 @@ export function LandingDesignDock({
     if (preset === 'signal') {
       onDesignChange({
         ...design,
-        eventCategory: 'tech',
         primaryColor: '#10b981',
         secondaryColor: '#22d3ee',
         landingStyle: 'glass',
@@ -280,7 +287,6 @@ export function LandingDesignDock({
     if (preset === 'midnight') {
       onDesignChange({
         ...design,
-        eventCategory: 'nightlife',
         primaryColor: '#6366f1',
         secondaryColor: '#8b5cf6',
         landingStyle: 'bold',
@@ -290,7 +296,6 @@ export function LandingDesignDock({
     }
     onDesignChange({
       ...design,
-      eventCategory: 'arts',
       primaryColor: '#22c55e',
       secondaryColor: '#06b6d4',
       landingStyle: 'minimal',
@@ -453,7 +458,7 @@ export function LandingDesignDock({
               id={tpl.id}
               name={tpl.name}
               active={design.templateId === tpl.id}
-              onClick={() => update({ templateId: tpl.id })}
+              onClick={() => selectTemplate(tpl.id)}
             />
           ))}
         </div>
@@ -485,10 +490,7 @@ export function LandingDesignDock({
                     <button
                       key={tpl.id}
                       type="button"
-                      onClick={() => {
-                        update({ templateId: tpl.id });
-                        setOpen(null);
-                      }}
+                      onClick={() => selectTemplate(tpl.id)}
                       className="flex min-h-[44px] items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/10"
                     >
                       <span>

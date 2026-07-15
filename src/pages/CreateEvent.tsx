@@ -31,6 +31,7 @@ import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
 import { EVENT_CATEGORIES } from '../themes/eventCategories';
+import { resolveTemplateDesignDefaults } from '../themes/templateDefaults';
 import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 
@@ -254,15 +255,15 @@ export const CreateEvent: React.FC = () => {
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
-    const cat = EVENT_CATEGORIES[0];
+    const defaults = resolveTemplateDesignDefaults('template-2');
     return {
-      templateId: 'template-2' as const,
-      eventCategory: cat.id,
-      primaryColor: cat.primaryColor,
-      secondaryColor: cat.secondaryColor,
-      fontFamily: cat.fontFamily,
-      displayMode: 'auto',
-      landingStyle: cat.landingStyle,
+      templateId: defaults.templateId,
+      eventCategory: EVENT_CATEGORIES[0].id,
+      primaryColor: defaults.primaryColor,
+      secondaryColor: defaults.secondaryColor,
+      fontFamily: defaults.fontFamily,
+      displayMode: defaults.displayMode,
+      landingStyle: defaults.landingStyle,
     };
   });
 

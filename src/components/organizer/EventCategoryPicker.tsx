@@ -18,25 +18,20 @@ type EventCategoryPickerProps = {
   className?: string;
 };
 
-/** Apply a category preset onto the current landing design. */
+/** Set category label only — never touches colour / font / style. */
 export function designWithEventCategory(
   design: LandingDesignValue,
   categoryId: string
 ): LandingDesignValue {
-  const cat = resolveEventCategory(categoryId);
   return {
     ...design,
-    eventCategory: cat.id,
-    fontFamily: cat.fontFamily,
-    primaryColor: cat.primaryColor,
-    secondaryColor: cat.secondaryColor,
-    landingStyle: cat.landingStyle,
+    eventCategory: resolveEventCategory(categoryId).id,
   };
 }
 
 /**
  * Visible create/settings control for event category (Music, Sports, etc.).
- * Replaces vague “Default” labels on landing themes like Spotlight.
+ * Labels only — landing colours stay with the template / design dock.
  */
 export const EventCategoryPicker: React.FC<EventCategoryPickerProps> = ({
   value,
@@ -56,7 +51,8 @@ export const EventCategoryPicker: React.FC<EventCategoryPickerProps> = ({
         Event category
       </p>
       <p className="mt-0.5 text-xs leading-relaxed" style={{ color: ui.textMuted }}>
-        Shown on your event page (breadcrumb, chips). Picking one also tunes colours and font.
+        Shown on your event page (breadcrumb, chips). Does not change colours or fonts — use Customize
+        design for that.
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2">
         {EVENT_CATEGORIES.map((cat) => {
@@ -85,7 +81,7 @@ export const EventCategoryPicker: React.FC<EventCategoryPickerProps> = ({
               <span
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-md"
                 style={{
-                  background: `linear-gradient(135deg, ${cat.primaryColor}, ${cat.secondaryColor})`,
+                  background: `linear-gradient(135deg, ${cat.swatchPrimary}, ${cat.swatchSecondary})`,
                 }}
               >
                 <Icon className="h-3.5 w-3.5 text-white drop-shadow" />
