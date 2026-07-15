@@ -430,32 +430,6 @@ export function LandingDesignDock({
                 {summary}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => applyTechPreset('signal')}
-                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
-                style={{ borderColor: 'rgba(16,185,129,0.45)', color: '#6ee7b7', background: 'rgba(16,185,129,0.10)' }}
-              >
-                Signal
-              </button>
-              <button
-                type="button"
-                onClick={() => applyTechPreset('midnight')}
-                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
-                style={{ borderColor: 'rgba(99,102,241,0.45)', color: '#c4b5fd', background: 'rgba(99,102,241,0.12)' }}
-              >
-                Midnight
-              </button>
-              <button
-                type="button"
-                onClick={() => applyTechPreset('neon')}
-                className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
-                style={{ borderColor: 'rgba(6,182,212,0.45)', color: '#67e8f9', background: 'rgba(6,182,212,0.12)' }}
-              >
-                Neon
-              </button>
-            </div>
           </div>
 
           <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0) 0%, rgba(16,185,129,0.45) 50%, rgba(16,185,129,0) 100%)' }} />
