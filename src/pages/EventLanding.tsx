@@ -578,7 +578,11 @@ export const EventLanding: React.FC = () => {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7 sm:py-6">
+            <form
+              onSubmit={handleSubmit(submitCheckout)}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-7 sm:py-6">
             <div className="landing-card-premium rounded-2xl p-4 sm:p-5">
               {orderLines.map((line) => (
                 <div key={line.name} className="flex justify-between py-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
@@ -596,7 +600,7 @@ export const EventLanding: React.FC = () => {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit(submitCheckout)} className="mt-5 flex flex-col gap-3.5 sm:mt-6 sm:gap-4">
+            <div className="mt-5 flex flex-col gap-3.5 sm:mt-6 sm:gap-4">
               {user?.role === 'attendee' && (
                 <div
                   className="rounded-xl border p-3 text-xs font-medium"
@@ -914,22 +918,36 @@ export const EventLanding: React.FC = () => {
                   ) : null}
                 </>
               )}
-              <button
-                type="submit"
-                disabled={isPurchasing || !prefillReady}
-                className="landing-btn-primary mt-2 h-12 w-full rounded-2xl text-base font-bold disabled:opacity-50"
+              </div>
+              </div>
+
+              <div
+                className="landing-checkout-footer shrink-0 border-t px-5 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-5"
+                style={{
+                  borderColor: 'var(--landing-border)',
+                  background: 'var(--landing-surface)',
+                }}
               >
-                {isPurchasing
-                  ? 'Processing…'
-                  : totalAmount <= 0
-                    ? 'Confirm registration'
-                    : `Pay ${formatLKRWhole(totalAmount)}`}
-              </button>
-              {payError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">{payError}</div>
-              )}
+                {payError && (
+                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+                    {payError}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={isPurchasing || !prefillReady}
+                  className="landing-btn-primary landing-checkout-confirm h-12 w-full rounded-2xl text-base font-bold disabled:opacity-50"
+                >
+                  {isPurchasing
+                    ? 'Processing…'
+                    : !prefillReady
+                      ? 'Preparing…'
+                      : totalAmount <= 0
+                        ? 'Confirm registration'
+                        : `Pay ${formatLKRWhole(totalAmount)}`}
+                </button>
+              </div>
             </form>
-            </div>
           </div>
         </div>
       )}

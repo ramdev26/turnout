@@ -365,3 +365,13 @@
     max-width: 36rem;
   }
 }
+
+.landing-checkout-footer {
+  box-shadow: 0 -10px 28px color-mix(in srgb, var(--landing-page-bg, #000) 18%, transparent);
+}
+
+.landing-checkout-confirm {
+  color: var(--landing-on-primary, var(--primary-on, #ffffff)) !important;
+  background: var(--landing-accent-readable, var(--primary)) !important;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 35%, transparent);
+}

@@ -586,5 +586,6 @@ export function landingCssVars(
     ['--landing-font-display' as string]: font.display,
     ['--landing-font-body' as string]: font.body,
     ['--landing-accent' as string]: primary,
+    ['--primary-on' as string]: onPrimary,
   };
 }
