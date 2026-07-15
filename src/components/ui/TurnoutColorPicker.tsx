@@ -247,6 +247,7 @@ export function TurnoutColorPicker({
             }}
             role="dialog"
             aria-label={ariaLabel}
+            data-turnout-picker="color"
           >
             <div
               ref={panRef}

@@ -360,7 +360,12 @@ export function LandingDesignDock({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(null);
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (rootRef.current?.contains(target)) return;
+      // Portaled colour / datetime pickers live outside the dock root.
+      if (target instanceof Element && target.closest('[data-turnout-picker]')) return;
+      setOpen(null);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(null);

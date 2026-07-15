@@ -201,6 +201,7 @@ export function TurnoutDateTimePicker({
           style={{ top: panelPos.top, left: panelPos.left, background: surface, borderColor: border, color: text }}
           role="dialog"
           aria-label={label || 'Pick date and time'}
+          data-turnout-picker="datetime"
         >
           <div className="mb-3 flex items-center justify-between gap-2">
             <button
@@ -261,40 +262,60 @@ export function TurnoutDateTimePicker({
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3" style={{ borderColor: border }}>
-            <label className="space-y-1">
+            <div className="space-y-1.5">
               <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: muted }}>
                 <Clock3 className="h-3 w-3" /> Hour
               </span>
-              <select
-                value={draft.hour}
-                onChange={(e) => setDraft((prev) => ({ ...prev, hour: Number(e.target.value) }))}
-                className="w-full rounded-xl border px-2.5 py-2 text-sm font-semibold outline-none"
-                style={{ background: soft, borderColor: border, color: text }}
+              <div
+                className="grid max-h-[7.5rem] grid-cols-4 gap-1 overflow-y-auto rounded-xl border p-1.5"
+                style={{ borderColor: border, background: isDark ? 'rgba(255,255,255,0.04)' : '#ffffff' }}
               >
-                {HOURS.map((h) => (
-                  <option key={h} value={h}>
-                    {pad(h)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1">
+                {HOURS.map((h) => {
+                  const active = draft.hour === h;
+                  return (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setDraft((prev) => ({ ...prev, hour: h }))}
+                      className="min-h-[2rem] rounded-lg text-xs font-bold tabular-nums transition"
+                      style={{
+                        background: active ? accent : isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                        color: active ? '#ffffff' : isDark ? '#f8fafc' : '#0f172a',
+                      }}
+                    >
+                      {pad(h)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-1.5">
               <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: muted }}>
                 Minute
               </span>
-              <select
-                value={Math.round(draft.minute / 5) * 5 % 60}
-                onChange={(e) => setDraft((prev) => ({ ...prev, minute: Number(e.target.value) }))}
-                className="w-full rounded-xl border px-2.5 py-2 text-sm font-semibold outline-none"
-                style={{ background: soft, borderColor: border, color: text }}
+              <div
+                className="grid max-h-[7.5rem] grid-cols-3 gap-1 overflow-y-auto rounded-xl border p-1.5"
+                style={{ borderColor: border, background: isDark ? 'rgba(255,255,255,0.04)' : '#ffffff' }}
               >
-                {MINUTES.map((m) => (
-                  <option key={m} value={m}>
-                    {pad(m)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                {MINUTES.map((m) => {
+                  const active = Math.round(draft.minute / 5) * 5 % 60 === m;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setDraft((prev) => ({ ...prev, minute: m }))}
+                      className="min-h-[2rem] rounded-lg text-xs font-bold tabular-nums transition"
+                      style={{
+                        background: active ? accent : isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                        color: active ? '#ffffff' : isDark ? '#f8fafc' : '#0f172a',
+                      }}
+                    >
+                      {pad(m)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-2">
