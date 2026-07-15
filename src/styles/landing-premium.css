@@ -375,3 +375,5 @@
   background: var(--landing-accent-readable, var(--primary)) !important;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 35%, transparent);
 }
+
+/* Checkout confirm footer shipping */
