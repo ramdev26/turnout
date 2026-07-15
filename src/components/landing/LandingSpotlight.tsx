@@ -14,7 +14,6 @@ import {
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
-  EventBanner,
   LandingFooter,
   LandingPageShell,
   LandingTopBar,
@@ -63,12 +62,18 @@ async function shareEvent(event: Event) {
 }
 
 function SpotlightHeroBanner({ event }: { event: Event }) {
+  const bannerUrl = event.bannerUrl?.trim();
   return (
     <section className="sp-hero" aria-label="Event banner">
-      {event.bannerUrl?.trim() ? (
-        <EventBanner event={event} overlay="none" fullWidth imageClassName="sp-hero-img" />
+      {bannerUrl ? (
+        <img
+          src={bannerUrl}
+          alt=""
+          className="sp-hero-img"
+          referrerPolicy="no-referrer"
+        />
       ) : (
-        <div className="sp-hero-fallback" />
+        <div className="sp-hero-fallback" aria-hidden />
       )}
     </section>
   );

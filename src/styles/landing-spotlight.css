@@ -20,29 +20,25 @@
   display: none;
 }
 
-/* ── Full-bleed hero (Showcase uses inset poster cards) ── */
+/* ── Full-bleed hero — always cover so public page matches live preview ── */
 .sp-hero {
   width: 100%;
+  max-width: 100%;
   background: #0b1220;
   line-height: 0;
   overflow: hidden;
 }
 
-/* EventBanner defaults to w-fit + object-contain — force edge-to-edge cover here */
-.sp-hero .landing-grain {
-  width: 100% !important;
-  max-width: none !important;
-  margin-inline: 0 !important;
-}
-
 .sp-hero-img,
 .sp-hero-fallback {
   display: block;
-  width: 100% !important;
-  max-width: none !important;
-  height: clamp(200px, 42vw, 340px) !important;
-  object-fit: cover !important;
+  width: 100%;
+  max-width: none;
+  /* Use container width (cqi), not viewport (vw), so desktop preview ≈ public */
+  height: clamp(200px, 42cqi, 340px);
+  object-fit: cover;
   object-position: center;
+  border: 0;
 }
 
 .sp-hero-fallback {
@@ -54,7 +50,7 @@
 @container spotlight (min-width: 1024px) {
   .sp-hero-img,
   .sp-hero-fallback {
-    height: clamp(280px, 34vw, 420px) !important;
+    height: clamp(280px, 34cqi, 420px);
   }
 }
 
