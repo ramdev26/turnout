@@ -13,6 +13,7 @@ import { Login } from './pages/Login';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Signup } from './pages/Signup';
+import { VerifyEmail } from './pages/VerifyEmail';
 import { api } from './api/client';
 import { parseAuthPayload } from './api/authResponse';
 import { clearAuthToken, getAuthToken } from './api/authToken';
@@ -297,6 +298,7 @@ export default function App() {
               )
             }
           />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route
             path="/reset-password"
             element={

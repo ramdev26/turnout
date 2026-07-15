@@ -14,6 +14,7 @@ require __DIR__ . '/lib/organizer_team.php';
 require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
 require __DIR__ . '/lib/user_migrations.php';
+require __DIR__ . '/lib/email_verification.php';
 require __DIR__ . '/lib/super_admin.php';
 require __DIR__ . '/lib/admin_analytics.php';
 require __DIR__ . '/lib/core_schema.php';
@@ -48,7 +49,7 @@ function enforce_write_request_integrity(string $path, string $method): void {
   if ($path === '/payhere/notify') return;
   if ($path === '/organizer/billing/notify') return;
   // Public auth bootstrap endpoints are intentionally available pre-session.
-  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/forgot-password' || $path === '/auth/reset-password') return;
+  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/forgot-password' || $path === '/auth/reset-password' || $path === '/auth/verify-email' || $path === '/auth/resend-verification') return;
   // CSRF protection is required only for authenticated cookie sessions.
   if (current_user_id() === null) return;
   if (!is_same_origin_request()) {
@@ -849,6 +850,7 @@ function run_boot_schema_guard(string $label, callable $fn): void {
 
 run_boot_schema_guard('ensure_core_schema', static fn () => ensure_core_schema(db()));
 run_boot_schema_guard('ensure_users_role_support', static fn () => ensure_users_role_support(db()));
+run_boot_schema_guard('ensure_email_verification_support', static fn () => ensure_email_verification_support(db()));
 run_boot_schema_guard('ensure_default_super_admin', static fn () => ensure_default_super_admin(db()));
 run_boot_schema_guard('ensure_finance_tables', static fn () => ensure_finance_tables(db()));
 run_boot_schema_guard('ensure_events_custom_domain_column', static fn () => ensure_events_custom_domain_column(db()));
@@ -1054,22 +1056,23 @@ if ($path === '/auth/register' && $method === 'POST') {
   if ($displayName === '') $displayName = 'User';
 
   $pdo = db();
+  ensure_email_verification_support($pdo);
   $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
   $stmt->execute([$email]);
-  if ($stmt->fetch()) json_response(409, ['error' => 'email_taken']);
+  if ($stmt->fetch()) json_response(409, ['error' => 'email_taken', 'message' => 'An account with this email already exists.']);
 
   $hash = password_hash($password, PASSWORD_DEFAULT);
-  $ins = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, role) VALUES (?, ?, ?, ?)');
-  $ins->execute([$email, $hash, $displayName, 'organizer']);
+  $result = register_user_pending_verification($pdo, $email, $hash, $displayName, 'organizer');
 
-  $userId = (int)$pdo->lastInsertId();
-  regenerate_app_session();
-  $_SESSION['user_id'] = $userId;
-  issue_auth_cookie($userId);
-
-  $payload = auth_success_payload($userId);
-  $payload['authToken'] = issue_auth_token($userId);
-  json_response(201, $payload);
+  json_response(201, [
+    'ok' => true,
+    'requiresEmailVerification' => true,
+    'email' => $email,
+    'emailSent' => (bool)$result['emailSent'],
+    'message' => (bool)$result['emailSent']
+      ? 'We sent a verification link to your email. Confirm it to activate your account.'
+      : 'Your account was created, but we could not send the verification email. Use Resend on the next screen.',
+  ]);
 }
 
 if ($path === '/auth/register-attendee' && $method === 'POST') {
@@ -1083,22 +1086,23 @@ if ($path === '/auth/register-attendee' && $method === 'POST') {
   if ($displayName === '') $displayName = 'Attendee';
 
   $pdo = db();
+  ensure_email_verification_support($pdo);
   $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
   $stmt->execute([$email]);
-  if ($stmt->fetch()) json_response(409, ['error' => 'email_taken']);
+  if ($stmt->fetch()) json_response(409, ['error' => 'email_taken', 'message' => 'An account with this email already exists.']);
 
   $hash = password_hash($password, PASSWORD_DEFAULT);
-  $ins = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, role) VALUES (?, ?, ?, ?)');
-  $ins->execute([$email, $hash, $displayName, 'attendee']);
+  $result = register_user_pending_verification($pdo, $email, $hash, $displayName, 'attendee');
 
-  $userId = (int)$pdo->lastInsertId();
-  regenerate_app_session();
-  $_SESSION['user_id'] = $userId;
-  issue_auth_cookie($userId);
-
-  $payload = auth_success_payload($userId);
-  $payload['authToken'] = issue_auth_token($userId);
-  json_response(201, $payload);
+  json_response(201, [
+    'ok' => true,
+    'requiresEmailVerification' => true,
+    'email' => $email,
+    'emailSent' => (bool)$result['emailSent'],
+    'message' => (bool)$result['emailSent']
+      ? 'We sent a verification link to your email. Confirm it to activate your account.'
+      : 'Your account was created, but we could not send the verification email. Use Resend on the next screen.',
+  ]);
 }
 
 if ($path === '/auth/login' && $method === 'POST') {
@@ -1128,6 +1132,23 @@ if ($path === '/auth/login' && $method === 'POST') {
   }
   if ((int)($row['is_blocked'] ?? 0) === 1) json_response(403, ['error' => 'user_blocked']);
   if (in_array((string)($row['status'] ?? 'active'), ['suspended', 'banned'], true)) json_response(403, ['error' => 'user_suspended']);
+  ensure_email_verification_support($pdo);
+  // Re-read verification column in case it was just added; fall back to the fetched row.
+  if (!array_key_exists('email_verified_at', $row)) {
+    $vStmt = $pdo->prepare('SELECT email_verified_at FROM users WHERE id = ? LIMIT 1');
+    $vStmt->execute([(int)$row['id']]);
+    $vRow = $vStmt->fetch();
+    if (is_array($vRow)) {
+      $row['email_verified_at'] = $vRow['email_verified_at'] ?? null;
+    }
+  }
+  if (!user_email_is_verified($row)) {
+    json_response(403, [
+      'error' => 'email_not_verified',
+      'email' => (string)($row['email'] ?? $email),
+      'message' => 'Please verify your email before signing in. Check your inbox for the confirmation link.',
+    ]);
+  }
 
   $userId = (int)$row['id'];
   regenerate_app_session();
@@ -1143,6 +1164,92 @@ if ($path === '/auth/login' && $method === 'POST') {
   $payload['authToken'] = $token;
   $payload['sessionToken'] = $token;
   json_response(200, $payload);
+}
+
+if ($path === '/auth/verify-email' && $method === 'POST') {
+  $body = read_json_body();
+  $token = trim((string)($body['token'] ?? ''));
+  if ($token === '') json_response(400, ['error' => 'missing_token', 'message' => 'Verification token is required.']);
+
+  $payload = email_verification_token_payload($token);
+  if ($payload === null) {
+    json_response(400, [
+      'error' => 'invalid_or_expired_token',
+      'message' => 'This verification link is invalid or has expired. Request a new one.',
+    ]);
+  }
+
+  $pdo = db();
+  ensure_email_verification_support($pdo);
+  $stmt = $pdo->prepare('SELECT id, email, email_verified_at, is_blocked, status FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$payload['uid']]);
+  $row = $stmt->fetch();
+  if (!$row || strtolower(trim((string)($row['email'] ?? ''))) !== $payload['email']) {
+    json_response(400, ['error' => 'invalid_or_expired_token', 'message' => 'This verification link is invalid or has expired.']);
+  }
+  if ((int)($row['is_blocked'] ?? 0) === 1) json_response(403, ['error' => 'user_blocked']);
+  if (in_array((string)($row['status'] ?? 'active'), ['suspended', 'banned'], true)) {
+    json_response(403, ['error' => 'user_suspended']);
+  }
+
+  if (!user_email_is_verified($row)) {
+    mark_user_email_verified($pdo, (int)$row['id']);
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'email' => $payload['email'],
+    'message' => 'Your email is verified. You can sign in now.',
+  ]);
+}
+
+if ($path === '/auth/resend-verification' && $method === 'POST') {
+  $body = read_json_body();
+  $email = strtolower(trim((string)($body['email'] ?? '')));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(400, ['error' => 'invalid_email']);
+  }
+
+  $pdo = db();
+  ensure_email_verification_support($pdo);
+  $stmt = $pdo->prepare('SELECT id, email, display_name, email_verified_at, is_blocked, status FROM users WHERE email = ? LIMIT 1');
+  $stmt->execute([$email]);
+  $row = $stmt->fetch();
+
+  // Always return a generic success to avoid account enumeration.
+  $response = [
+    'ok' => true,
+    'email' => $email,
+    'message' => 'If an unverified account exists for that email, we sent a new verification link.',
+  ];
+
+  if (is_array($row)
+    && (int)($row['is_blocked'] ?? 0) !== 1
+    && !in_array((string)($row['status'] ?? 'active'), ['suspended', 'banned'], true)
+    && !user_email_is_verified($row)
+  ) {
+    $token = issue_email_verification_token((int)$row['id'], $email);
+    if ($token !== '') {
+      try {
+        $sent = send_email_verification_email(
+          $pdo,
+          $email,
+          $token,
+          trim((string)($row['display_name'] ?? ''))
+        );
+        $response['emailSent'] = $sent;
+        if (!$sent) {
+          $response['message'] = 'We could not send the verification email right now. Please try again shortly.';
+        }
+      } catch (Throwable $e) {
+        error_log('[turnout] resend verification: ' . $e->getMessage());
+        $response['emailSent'] = false;
+        $response['message'] = 'We could not send the verification email right now. Please try again shortly.';
+      }
+    }
+  }
+
+  json_response(200, $response);
 }
 
 if ($path === '/auth/forgot-password' && $method === 'POST') {

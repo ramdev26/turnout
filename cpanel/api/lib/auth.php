@@ -496,6 +496,8 @@ function load_user_profile(int $userId): array {
 
     'forcePasswordReset' => (int)($row['force_password_reset'] ?? 0) === 1,
 
+    'emailVerified' => array_key_exists('email_verified_at', $row) ? user_email_is_verified($row) : true,
+
     'createdAt' => gmdate('c', strtotime($row['created_at'])),
 
   ];
@@ -712,6 +714,68 @@ function password_reset_token_user_id(string $token): ?int {
     return null;
   }
   return $uid;
+}
+
+/** Email verification link token (24 hours). */
+function issue_email_verification_token(int $userId, string $email): string {
+  if ($userId <= 0) {
+    return '';
+  }
+  $email = strtolower(trim($email));
+  if ($email === '') {
+    return '';
+  }
+  $payload = [
+    'uid' => $userId,
+    'email' => $email,
+    'exp' => time() + (60 * 60 * 24),
+    'ev' => 1,
+  ];
+  $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+  if (!is_string($json) || $json === '') {
+    return '';
+  }
+  $encoded = b64url_encode($json);
+  $sig = hash_hmac('sha256', $encoded, auth_signing_key());
+  return $encoded . '.' . $sig;
+}
+
+/**
+ * @return array{uid:int,email:string}|null
+ */
+function email_verification_token_payload(string $token): ?array {
+  $token = trim($token);
+  if ($token === '') {
+    return null;
+  }
+  $parts = explode('.', $token, 2);
+  if (count($parts) !== 2) {
+    return null;
+  }
+  $encoded = $parts[0];
+  $sig = strtolower($parts[1]);
+  $expectedSig = hash_hmac('sha256', $encoded, auth_signing_key());
+  if (!hash_equals($expectedSig, $sig)) {
+    return null;
+  }
+  $json = b64url_decode($encoded);
+  if ($json === null) {
+    return null;
+  }
+  $payload = json_decode($json, true);
+  if (!is_array($payload)) {
+    return null;
+  }
+  if ((int)($payload['ev'] ?? 0) !== 1) {
+    return null;
+  }
+  $uid = (int)($payload['uid'] ?? 0);
+  $email = strtolower(trim((string)($payload['email'] ?? '')));
+  $exp = (int)($payload['exp'] ?? 0);
+  if ($uid <= 0 || $email === '' || $exp <= time()) {
+    return null;
+  }
+  return ['uid' => $uid, 'email' => $email];
 }
 
 

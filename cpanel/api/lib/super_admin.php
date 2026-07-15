@@ -84,6 +84,9 @@ function ensure_default_super_admin(PDO $pdo): void {
           // Optional columns may be absent on older schemas.
         }
       }
+      try {
+        mark_user_email_verified($pdo, $id);
+      } catch (Throwable $e) {}
       return;
     }
 
@@ -105,6 +108,14 @@ function ensure_default_super_admin(PDO $pdo): void {
         error_log(sprintf('[turnout] ensure_default_super_admin insert: %s', $e2->getMessage()));
       }
     }
+    try {
+      $idStmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+      $idStmt->execute([$email]);
+      $created = $idStmt->fetch();
+      if (is_array($created)) {
+        mark_user_email_verified($pdo, (int)$created['id']);
+      }
+    } catch (Throwable $e) {}
   } catch (Throwable $e) {
     error_log(sprintf('[turnout] ensure_default_super_admin: %s', $e->getMessage()));
   }

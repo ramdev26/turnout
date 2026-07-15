@@ -22,6 +22,7 @@ export const AttendeeLogin: React.FC = () => {
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const ui = APP_FLOW_UI;
 
   const {
@@ -32,6 +33,7 @@ export const AttendeeLogin: React.FC = () => {
 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
+    setUnverifiedEmail(null);
     try {
       const res = parseAuthPayload(await api.post<unknown>('/api/auth/login', values));
       if (res.user.role !== 'attendee') {
@@ -42,7 +44,13 @@ export const AttendeeLogin: React.FC = () => {
       setUser(res.user);
       navigate('/attendee/dashboard', { replace: true });
     } catch (e: unknown) {
-      const err = e as { message?: string; error?: string };
+      const err = e as { message?: string; error?: string; email?: string };
+      if (err?.error === 'email_not_verified') {
+        const email = (err.email || values.email || '').trim().toLowerCase();
+        setUnverifiedEmail(email || null);
+        setServerError(err?.message || 'Please verify your email before signing in.');
+        return;
+      }
       setServerError(err?.message || err?.error || 'Login failed');
     }
   };
@@ -66,6 +74,17 @@ export const AttendeeLogin: React.FC = () => {
           {errors.password?.message && <span className="text-xs text-red-600">{errors.password.message}</span>}
         </label>
         {serverError && <FlowAlert variant="error">{serverError}</FlowAlert>}
+        {unverifiedEmail && (
+          <p className="text-sm" style={{ color: ui.textMuted }}>
+            <Link
+              to={`/verify-email?email=${encodeURIComponent(unverifiedEmail)}`}
+              className="font-semibold"
+              style={{ color: ui.accent }}
+            >
+              Resend verification email
+            </Link>
+          </p>
+        )}
         <FlowButton type="submit" disabled={isSubmitting} className="mt-2 h-11 w-full">
           {isSubmitting ? 'Signing in...' : 'Sign in as attendee'}
         </FlowButton>
