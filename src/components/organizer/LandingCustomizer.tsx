@@ -12,6 +12,7 @@ import {
 import type { LandingDisplayMode, LandingStyle } from '../../types';
 import type { LayoutTemplateId } from '../../templates/templates';
 import { accentSegmentStyleFor } from '../../themes/flowUi';
+import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
 
 export type LandingDesignValue = {
   templateId: LayoutTemplateId;
@@ -115,19 +116,18 @@ export function LandingCustomizer({
               ['pageBackgroundColor', 'Page background', value.pageBackgroundColor, '#ffffff', true],
             ] as const
           ).map(([key, label, current, fallback, clearable]) => (
-            <label
+            <div
               key={key}
               className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
               style={{ borderColor: ui.borderColor, background: ui.cardBg, color: ui.text }}
             >
               <span className="font-medium">{label}</span>
               <span className="flex items-center gap-2">
-                <input
-                  type="color"
+                <TurnoutColorPicker
                   value={asHex(current, fallback)}
-                  onChange={(e) => update({ [key]: e.target.value })}
-                  className="h-8 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
-                  aria-label={label}
+                  onChange={(hex) => update({ [key]: hex })}
+                  ariaLabel={label}
+                  tone={ui.isDark ? 'dark' : 'light'}
                 />
                 {clearable && current ? (
                   <button
@@ -140,7 +140,7 @@ export function LandingCustomizer({
                   </button>
                 ) : null}
               </span>
-            </label>
+            </div>
           ))}
         </div>
       </div>

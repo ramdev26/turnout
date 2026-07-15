@@ -3,6 +3,7 @@ import { Rnd } from 'react-rnd';
 import { CanvasDesign, CanvasElement, CanvasElementType, Event, Ticket } from '../types';
 import { formatLKR } from '../utils/money';
 import { Calendar, Image as ImageIcon, Ticket as TicketIcon, Timer, Type, Square, BadgeCheck } from 'lucide-react';
+import { TurnoutColorPicker } from './ui/TurnoutColorPicker';
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -455,13 +456,12 @@ export const CanvasDesigner: React.FC<Props> = ({ value, onChange, eventPreview,
                     />
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <label className="text-sm font-semibold">Color</label>
-                  <input
-                    type="color"
+                  <TurnoutColorPicker
                     value={selected.props.color || '#0a0a0a'}
-                    onChange={(e) => updateElProps(selected.id, { color: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-neutral-200 bg-white p-1"
+                    onChange={(hex) => updateElProps(selected.id, { color: hex })}
+                    ariaLabel="Text colour"
                   />
                 </div>
               </>
@@ -500,22 +500,20 @@ export const CanvasDesigner: React.FC<Props> = ({ value, onChange, eventPreview,
                   />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <label className="text-sm font-semibold">Background</label>
-                    <input
-                      type="color"
+                    <TurnoutColorPicker
                       value={selected.props.bg || '#4f46e5'}
-                      onChange={(e) => updateElProps(selected.id, { bg: e.target.value })}
-                      className="h-10 w-full rounded-lg border border-neutral-200 bg-white p-1"
+                      onChange={(hex) => updateElProps(selected.id, { bg: hex })}
+                      ariaLabel="Button background"
                     />
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <label className="text-sm font-semibold">Text color</label>
-                    <input
-                      type="color"
+                    <TurnoutColorPicker
                       value={selected.props.color || '#ffffff'}
-                      onChange={(e) => updateElProps(selected.id, { color: e.target.value })}
-                      className="h-10 w-full rounded-lg border border-neutral-200 bg-white p-1"
+                      onChange={(hex) => updateElProps(selected.id, { color: hex })}
+                      ariaLabel="Button text colour"
                     />
                   </div>
                 </div>
@@ -543,13 +541,12 @@ export const CanvasDesigner: React.FC<Props> = ({ value, onChange, eventPreview,
             )}
 
             {selected.type === 'divider' && (
-              <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <label className="text-sm font-semibold">Color</label>
-                <input
-                  type="color"
+                <TurnoutColorPicker
                   value={selected.props.color || '#e5e5e5'}
-                  onChange={(e) => updateElProps(selected.id, { color: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-neutral-200 bg-white p-1"
+                  onChange={(hex) => updateElProps(selected.id, { color: hex })}
+                  ariaLabel="Divider colour"
                 />
               </div>
             )}
@@ -564,13 +561,12 @@ export const CanvasDesigner: React.FC<Props> = ({ value, onChange, eventPreview,
                     className="rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <label className="text-sm font-semibold">Number color</label>
-                  <input
-                    type="color"
+                  <TurnoutColorPicker
                     value={selected.props.color || '#0a0a0a'}
-                    onChange={(e) => updateElProps(selected.id, { color: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-neutral-200 bg-white p-1"
+                    onChange={(hex) => updateElProps(selected.id, { color: hex })}
+                    ariaLabel="Countdown number colour"
                   />
                 </div>
               </>

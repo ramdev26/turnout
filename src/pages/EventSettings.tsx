@@ -36,24 +36,12 @@ import { resolveLandingFontKey } from '../themes/landingFonts';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { absoluteAppUrl } from '../lib/publicAppUrl';
+import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
+import { TurnoutColorPicker } from '../components/ui/TurnoutColorPicker';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function formatScheduleDay(value: string): string {
-  if (!value) return 'Select date';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'Select date';
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-function formatScheduleTime(value: string): string {
-  if (!value) return '--:--';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function normalizeBannerUrl(url: string): string {
@@ -891,7 +879,13 @@ export const EventSettings: React.FC = () => {
                         {formatScheduleTime(date)}
                       </p>
                     </div>
-                    <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} style={fieldStyle} />
+                    <TurnoutDateTimePicker
+                      value={date}
+                      onChange={setDate}
+                      fieldClassName={fieldClass}
+                      fieldStyle={fieldStyle}
+                      tone={ui.isDark ? 'dark' : 'light'}
+                    />
                   </div>
                 </div>
               )}
@@ -1148,8 +1142,28 @@ export const EventSettings: React.FC = () => {
                         ))}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <input type="color" value={ticketPdfPrimaryColor} onChange={(e) => setTicketPdfPrimaryColor(e.target.value)} className={fieldClass} style={fieldStyle} />
-                        <input type="color" value={ticketPdfAccentColor} onChange={(e) => setTicketPdfAccentColor(e.target.value)} className={fieldClass} style={fieldStyle} />
+                        <div className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={fieldStyle}>
+                          <span className="text-sm font-medium" style={{ color: ui.text }}>
+                            Primary
+                          </span>
+                          <TurnoutColorPicker
+                            value={ticketPdfPrimaryColor}
+                            onChange={setTicketPdfPrimaryColor}
+                            tone={ui.isDark ? 'dark' : 'light'}
+                            ariaLabel="Ticket PDF primary colour"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={fieldStyle}>
+                          <span className="text-sm font-medium" style={{ color: ui.text }}>
+                            Accent
+                          </span>
+                          <TurnoutColorPicker
+                            value={ticketPdfAccentColor}
+                            onChange={setTicketPdfAccentColor}
+                            tone={ui.isDark ? 'dark' : 'light'}
+                            ariaLabel="Ticket PDF accent colour"
+                          />
+                        </div>
                       </div>
                       <input value={ticketPdfBadgeText} onChange={(e) => setTicketPdfBadgeText(e.target.value)} className={fieldClass} style={fieldStyle} />
                       <input value={ticketPdfFooterNote} onChange={(e) => setTicketPdfFooterNote(e.target.value)} className={fieldClass} style={fieldStyle} />

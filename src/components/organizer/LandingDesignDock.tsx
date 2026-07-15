@@ -9,6 +9,7 @@ import {
   type LandingDesignValue,
 } from './LandingCustomizer';
 import { cn } from '../../utils/cn';
+import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
 
 type DockControl = 'template' | 'colour' | 'size' | 'font' | 'display' | null;
 
@@ -60,19 +61,14 @@ function ColorRow({
             Auto
           </button>
         ) : null}
-        <label
-          className="relative h-8 w-8 cursor-pointer overflow-hidden rounded-full ring-1 ring-white/20"
-          style={{ background: hex }}
-          title={label}
-        >
-          <input
-            type="color"
-            value={hex}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 cursor-pointer opacity-0"
-            aria-label={label}
-          />
-        </label>
+        <TurnoutColorPicker
+          value={hex}
+          onChange={onChange}
+          ariaLabel={label}
+          tone="dark"
+          align="end"
+          swatchClassName="ring-white/20"
+        />
       </div>
     </div>
   );

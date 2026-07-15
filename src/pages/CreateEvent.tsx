@@ -34,6 +34,7 @@ import { EVENT_CATEGORIES } from '../themes/eventCategories';
 import { resolveTemplateDesignDefaults } from '../themes/templateDefaults';
 import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
+import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -106,61 +107,6 @@ function fieldClassFor(ui: CreateThemeUI): string {
   );
 }
 
-function openNativePicker(el: HTMLInputElement) {
-  if (typeof el.showPicker === 'function') {
-    try {
-      el.showPicker();
-    } catch {
-      el.focus();
-    }
-  } else {
-    el.focus();
-  }
-}
-
-function ScheduleDateTimeField({
-  id,
-  label,
-  labelColor,
-  value,
-  onChange,
-  fieldClass,
-  fieldStyle,
-  isDark,
-  min,
-}: {
-  id: string;
-  label: string;
-  labelColor: string;
-  value: string;
-  onChange: (next: string) => void;
-  fieldClass: string;
-  fieldStyle: React.CSSProperties;
-  isDark: boolean;
-  min?: string;
-}) {
-  const localValue = value.includes('T') ? value.slice(0, 16) : '';
-  return (
-    <label className="space-y-1" htmlFor={id}>
-      <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: labelColor }}>
-        <CalendarDays className="h-3.5 w-3.5 opacity-70" />
-        {label}
-      </span>
-      <input
-        id={id}
-        type="datetime-local"
-        value={localValue}
-        min={min}
-        step={300}
-        onChange={(e) => onChange(e.target.value)}
-        onClick={(e) => openNativePicker(e.currentTarget)}
-        className={cn(fieldClass, 'min-h-[44px] cursor-pointer')}
-        style={{ ...fieldStyle, colorScheme: isDark ? 'dark' : 'light' }}
-      />
-    </label>
-  );
-}
-
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -183,20 +129,6 @@ function defaultEndDate(startIso: string): string {
   const end = new Date(start);
   end.setHours(end.getHours() + 1);
   return toDatetimeLocalValue(end);
-}
-
-function formatScheduleDay(value: string): string {
-  if (!value) return 'Select date';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'Select date';
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-function formatScheduleTime(value: string): string {
-  if (!value) return '--:--';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function Toggle({
@@ -776,15 +708,14 @@ export const CreateEvent: React.FC = () => {
                         {formatScheduleTime(date)}
                       </p>
                     </div>
-                    <ScheduleDateTimeField
+                    <TurnoutDateTimePicker
                       id="event-start-datetime"
                       label="Start date & time"
-                      labelColor={ui.textSubtle}
                       value={date}
                       onChange={(next) => setValue('date', next, { shouldValidate: true })}
-                      fieldClass={fieldClass}
+                      fieldClassName={fieldClass}
                       fieldStyle={fieldStyle}
-                      isDark={ui.isDark}
+                      tone={ui.isDark ? 'dark' : 'light'}
                     />
                     {errors.date && <p className="text-xs text-rose-600">{errors.date.message}</p>}
                   </div>
@@ -808,16 +739,15 @@ export const CreateEvent: React.FC = () => {
                           {formatScheduleTime(endDate || defaultEndDate(date))}
                         </p>
                       </div>
-                      <ScheduleDateTimeField
+                      <TurnoutDateTimePicker
                         id="event-end-datetime"
                         label="End date & time"
-                        labelColor={ui.textSubtle}
                         value={endDate || defaultEndDate(date)}
                         min={date}
                         onChange={(next) => setValue('endDate', next, { shouldValidate: true })}
-                        fieldClass={fieldClass}
+                        fieldClassName={fieldClass}
                         fieldStyle={fieldStyle}
-                        isDark={ui.isDark}
+                        tone={ui.isDark ? 'dark' : 'light'}
                       />
                       {errors.endDate && <p className="text-xs text-rose-600">{errors.endDate.message}</p>}
                       <button
