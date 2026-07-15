@@ -246,11 +246,7 @@
 .landing-btn-primary,
 .landing-showcase-btn-cta {
   color: var(--landing-on-button, var(--landing-on-primary, #0a2426));
-  background: linear-gradient(
-    135deg,
-    var(--landing-button, var(--showcase-accent)) 0%,
-    color-mix(in srgb, var(--secondary) 40%, var(--landing-button, var(--showcase-accent))) 100%
-  );
+  background: var(--landing-button, var(--showcase-accent));
   box-shadow: 0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent);
   transition:
     transform 0.2s ease,

@@ -587,13 +587,13 @@ export function LandingDesignDock({
           <div className="relative col-span-1">
             <Segment
               icon={<TypeIcon className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
-              label="Font size"
+              label="Size"
               value={sizeValue}
               active={open === 'size'}
               onClick={() => toggle('size')}
             />
             {open === 'size' && (
-              <Popover title="Font size" align="center" onClose={() => setOpen(null)}>
+              <Popover title="Size" align="center" onClose={() => setOpen(null)}>
                 <div className="space-y-2">
                   <FontSizeRow
                     label="Heading (H1)"

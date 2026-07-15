@@ -145,9 +145,9 @@ export function LandingCustomizer({
         </div>
       </div>
 
-      {/* Font size */}
+      {/* Size */}
       <div className="space-y-3">
-        <SectionLabel icon={<TypeIcon className="h-3.5 w-3.5" />}>Font size</SectionLabel>
+        <SectionLabel icon={<TypeIcon className="h-3.5 w-3.5" />}>Size</SectionLabel>
         <div className="space-y-3">
           {(
             [
