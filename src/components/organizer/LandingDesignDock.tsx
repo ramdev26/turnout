@@ -86,6 +86,20 @@ const TemplateThumb: React.FC<{
         </div>
       </div>
     ),
+    'template-8': (
+      <div className="grid h-full grid-cols-[0.72fr_1.28fr] gap-1 p-1.5">
+        <div className="flex flex-col gap-1">
+          <div className="aspect-square rounded-sm bg-white/75" />
+          <div className="h-1.5 w-3/4 rounded-sm bg-white/40" />
+          <div className="h-1.5 w-1/2 rounded-sm bg-white/25" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="h-3 w-4/5 rounded-sm bg-white/55" />
+          <div className="h-2 w-3/5 rounded-sm bg-white/30" />
+          <div className="mt-auto flex-1 rounded-sm border border-white/20 bg-white/20" />
+        </div>
+      </div>
+    ),
     'template-5': (
       <div className="flex h-full flex-col items-center gap-1 p-1.5">
         <div className="h-3 w-3/4 rounded-sm bg-white/35" />

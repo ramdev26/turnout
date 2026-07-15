@@ -7,6 +7,7 @@ import './styles/landing-showcase.css';
 import './styles/landing-templates-responsive.css';
 import './styles/landing-arena.css';
 import './styles/landing-spotlight.css';
+import './styles/landing-gather.css';
 
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 

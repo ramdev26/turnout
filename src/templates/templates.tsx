@@ -7,6 +7,7 @@ import { LandingShowcasePage } from '../components/landing/LandingShowcase';
 import { LandingClassicPage } from '../components/landing/LandingClassic';
 import { LandingArenaPage } from '../components/landing/LandingArena';
 import { LandingSpotlightPage } from '../components/landing/LandingSpotlight';
+import { LandingGatherPage } from '../components/landing/LandingGather';
 import {
   AboutBlock,
   CheckoutPanel,
@@ -23,7 +24,7 @@ import {
   TicketsSection,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-canvas';
+export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-8' | 'template-canvas';
 
 /** Layout templates organizers can pick in the design console (excludes custom canvas). */
 export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
@@ -34,6 +35,7 @@ export const LANDING_LAYOUT_TEMPLATES: {
   description: string;
 }[] = [
   { id: 'template-2', name: 'Showcase', description: 'Editorial hero with sidebar checkout' },
+  { id: 'template-8', name: 'Gather', description: 'Soft hosted-event card with split layout' },
   { id: 'template-6', name: 'Arena', description: 'Venue carousel with seating picker' },
   { id: 'template-7', name: 'Spotlight', description: 'Featured banner with sticky booking card' },
   { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
@@ -42,7 +44,15 @@ export const LANDING_LAYOUT_TEMPLATES: {
 const LEGACY_TEMPLATE_IDS = new Set(['template-1', 'template-3', 'template-4']);
 
 export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
-  if (id === 'template-2' || id === 'template-5' || id === 'template-6' || id === 'template-7') return id;
+  if (
+    id === 'template-2' ||
+    id === 'template-5' ||
+    id === 'template-6' ||
+    id === 'template-7' ||
+    id === 'template-8'
+  ) {
+    return id;
+  }
   if (id && LEGACY_TEMPLATE_IDS.has(id)) return 'template-2';
   return 'template-2';
 }
@@ -289,8 +299,17 @@ const TemplateSpotlight: LandingTemplate = {
   render: (props) => <LandingSpotlightPage {...props} />,
 };
 
+const TemplateGather: LandingTemplate = {
+  id: 'template-8',
+  name: 'Gather',
+  description: 'Soft hosted-event layout with rounded poster, registration card, and split sidebar.',
+  previewSeed: 'gather-hosted',
+  render: (props) => <LandingGatherPage {...props} />,
+};
+
 export const landingTemplates: LandingTemplate[] = [
   TemplateShowcase,
+  TemplateGather,
   TemplateArena,
   TemplateSpotlight,
   TemplateClassic,
