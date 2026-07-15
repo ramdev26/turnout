@@ -24,6 +24,7 @@ import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
+import { EventCategoryPicker } from '../components/organizer/EventCategoryPicker';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
@@ -635,6 +636,20 @@ export const CreateEvent: React.FC = () => {
                 placeholderClassName={ui.bannerPlaceholder}
               />
               {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
+
+              <EventCategoryPicker
+                value={design.eventCategory}
+                design={design}
+                onChange={setDesign}
+                ui={{
+                  text: ui.text,
+                  textMuted: ui.textMuted,
+                  textSubtle: ui.textSubtle,
+                  borderColor: ui.borderColor,
+                  accent: ui.accent,
+                  cardBg: ui.cardMutedBg,
+                }}
+              />
 
               <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>

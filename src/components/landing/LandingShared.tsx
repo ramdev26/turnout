@@ -202,9 +202,13 @@ export function EventBanner({
         <img
           src={event.bannerUrl}
           alt=""
-          className={`block h-auto object-contain object-center ${
-            imageClassName || `${maxHeightClass} ${fullWidth ? 'mx-auto w-full' : 'w-auto max-w-full'}`
-          }`}
+          className={
+            imageClassName
+              ? `block object-center ${imageClassName}`
+              : `block h-auto object-contain object-center ${maxHeightClass} ${
+                  fullWidth ? 'mx-auto w-full' : 'w-auto max-w-full'
+                }`
+          }
           referrerPolicy="no-referrer"
         />
       ) : (

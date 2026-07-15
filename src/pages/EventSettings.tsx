@@ -25,6 +25,7 @@ import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
+import { EventCategoryPicker } from '../components/organizer/EventCategoryPicker';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
 import { normalizeArenaGalleryImages } from '../components/landing/arenaGallery';
@@ -673,6 +674,20 @@ export const EventSettings: React.FC = () => {
                 }}
               />
             ) : null}
+
+            <EventCategoryPicker
+              value={design.eventCategory}
+              design={design}
+              onChange={setDesign}
+              ui={{
+                text: ui.text,
+                textMuted: ui.textMuted,
+                textSubtle: ui.textSubtle,
+                borderColor: ui.borderColor,
+                accent: ui.accent,
+                cardBg: ui.cardMutedBg,
+              }}
+            />
 
             <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>

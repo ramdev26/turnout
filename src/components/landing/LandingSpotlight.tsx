@@ -66,7 +66,7 @@ function SpotlightHeroBanner({ event }: { event: Event }) {
   return (
     <section className="sp-hero" aria-label="Event banner">
       {event.bannerUrl?.trim() ? (
-        <EventBanner event={event} overlay="none" imageClassName="sp-hero-img" />
+        <EventBanner event={event} overlay="none" fullWidth imageClassName="sp-hero-img" />
       ) : (
         <div className="sp-hero-fallback" />
       )}

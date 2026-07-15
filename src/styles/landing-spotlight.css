@@ -25,14 +25,23 @@
   width: 100%;
   background: #0b1220;
   line-height: 0;
+  overflow: hidden;
+}
+
+/* EventBanner defaults to w-fit + object-contain — force edge-to-edge cover here */
+.sp-hero .landing-grain {
+  width: 100% !important;
+  max-width: none !important;
+  margin-inline: 0 !important;
 }
 
 .sp-hero-img,
 .sp-hero-fallback {
   display: block;
-  width: 100%;
-  height: clamp(200px, 42vw, 340px);
-  object-fit: cover;
+  width: 100% !important;
+  max-width: none !important;
+  height: clamp(200px, 42vw, 340px) !important;
+  object-fit: cover !important;
   object-position: center;
 }
 
@@ -45,7 +54,7 @@
 @container spotlight (min-width: 1024px) {
   .sp-hero-img,
   .sp-hero-fallback {
-    height: clamp(280px, 34vw, 420px);
+    height: clamp(280px, 34vw, 420px) !important;
   }
 }
 

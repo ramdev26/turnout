@@ -36,10 +36,10 @@ export type EventCategory = {
 /**
  * All categories live under the single Minimal theme. Picking one swaps the
  * landing typography (and a matching accent/style) so the page feels tuned to
- * the event type, while "Default" keeps the clean editorial baseline.
+ * the event type, while "General" keeps the clean editorial baseline.
  */
 export const EVENT_CATEGORIES: EventCategory[] = [
-  { id: 'default', name: 'Default', icon: Sparkles, fontFamily: 'fraunces', primaryColor: '#C0FF72', secondaryColor: '#0D585B', landingStyle: 'glass' },
+  { id: 'default', name: 'General', icon: Sparkles, fontFamily: 'fraunces', primaryColor: '#C0FF72', secondaryColor: '#0D585B', landingStyle: 'glass' },
   { id: 'music', name: 'Music', icon: Music, fontFamily: 'space-grotesk', primaryColor: '#7c3aed', secondaryColor: '#c084fc', landingStyle: 'bold' },
   { id: 'sports', name: 'Sports', icon: Trophy, fontFamily: 'sora', primaryColor: '#2563eb', secondaryColor: '#38bdf8', landingStyle: 'bold' },
   { id: 'business', name: 'Business', icon: Briefcase, fontFamily: 'manrope', primaryColor: '#0f766e', secondaryColor: '#64748b', landingStyle: 'minimal' },
