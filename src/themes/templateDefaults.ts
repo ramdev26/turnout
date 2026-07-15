@@ -36,11 +36,11 @@ export const TEMPLATE_DESIGN_DEFAULTS: Record<LayoutTemplateId, TemplateDesignDe
   },
   'template-6': {
     templateId: 'template-6',
-    primaryColor: '#2563EB',
-    secondaryColor: '#38BDF8',
+    primaryColor: '#0A0A0A',
+    secondaryColor: '#666666',
     fontFamily: 'sora',
-    landingStyle: 'bold',
-    displayMode: 'dark',
+    landingStyle: 'minimal',
+    displayMode: 'light',
   },
   'template-5': {
     templateId: 'template-5',
