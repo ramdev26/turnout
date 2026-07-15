@@ -162,8 +162,8 @@ function ShowcaseHero({ event }: { event: Event }) {
     <section className="landing-showcase-hero">
       {event.bannerUrl?.trim() ? (
         <div className="landing-showcase-hero-banner">
-          <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto">
-            <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
+          <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto w-full">
+            <EventBanner event={event} overlay="none" fullWidth imageClassName="landing-poster-img" />
           </div>
         </div>
       ) : null}

@@ -76,18 +76,20 @@
 
 .landing-showcase-hero {
   width: 100%;
-  padding-inline: clamp(1rem, 4vw, 1.5rem);
+  max-width: 100%;
+  padding-inline: 0;
 }
 
 .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
   width: 100%;
   max-width: 100%;
+  margin-inline: auto;
 }
 
 @media (min-width: 640px) {
   .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
-    width: fit-content;
-    max-width: min(100%, 28rem);
+    width: 100%;
+    max-width: 100%;
     margin-inline: auto;
   }
 }

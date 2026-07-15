@@ -105,17 +105,17 @@
 }
 
 .landing-showcase-hero {
-  max-width: 56rem;
+  max-width: 100%;
   margin-inline: auto;
   text-align: center;
   padding-top: 1.25rem;
 }
 
 .landing-showcase-hero-banner {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
-/* Showcase poster — centered frame, balanced height on desktop */
+/* Showcase poster — full column width, large and responsive */
 .landing-poster-frame--showcase {
   border-color: var(--showcase-border);
   background: var(--showcase-card-muted);
@@ -125,37 +125,36 @@
 }
 
 .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
-  width: fit-content;
-  max-width: min(100%, 22rem);
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: min(58vh, 520px);
+  object-fit: contain;
+  object-position: center;
 }
 
 @media (min-width: 640px) {
-  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
-    max-width: min(100%, 28rem);
-  }
-
   .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
-    max-height: min(50vh, 480px);
+    max-height: min(60vh, 640px);
   }
 }
 
 @media (min-width: 1024px) {
-  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
-    max-width: min(100%, 34rem);
-  }
-
   .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
-    max-height: min(54vh, 560px);
+    max-height: min(64vh, 760px);
   }
 }
 
 @media (min-width: 1280px) {
-  .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
-    max-width: min(100%, 38rem);
-  }
-
   .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
-    max-height: min(58vh, 620px);
+    max-height: min(68vh, 880px);
   }
 }
 
@@ -181,6 +180,8 @@
   letter-spacing: -0.02em;
   line-height: 1.05;
   color: var(--showcase-accent);
+  max-width: 56rem;
+  margin-inline: auto;
 }
 
 .landing-showcase-hero-title {
@@ -191,6 +192,8 @@
   line-height: 1.02;
   color: var(--landing-text);
   text-wrap: balance;
+  max-width: 56rem;
+  margin-inline: auto;
 }
 
 .landing-showcase-hero-lead {
@@ -528,12 +531,18 @@
 }
 
 .event-settings-mobile-preview .landing-showcase-hero .landing-poster-frame--showcase .landing-poster-img {
-  max-height: min(38vh, 280px) !important;
+  max-height: min(48vh, 360px) !important;
+  width: 100% !important;
 }
 
 .event-settings-mobile-preview .landing-showcase-hero {
-  padding-top: 1.25rem;
-  padding-inline: 0.875rem;
+  padding-top: 1rem;
+  padding-inline: 0;
+}
+
+.event-settings-mobile-preview .landing-showcase-hero .landing-poster-frame--showcase.landing-poster-frame--hero {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 .event-settings-mobile-preview .landing-showcase-hero-accent {
