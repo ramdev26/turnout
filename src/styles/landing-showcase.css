@@ -89,13 +89,9 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--landing-on-primary, #0a2426);
-  background: linear-gradient(
-    135deg,
-    var(--showcase-accent) 0%,
-    color-mix(in srgb, var(--secondary) 55%, var(--showcase-accent)) 100%
-  );
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--showcase-accent) 35%, transparent);
+  color: var(--landing-on-button, var(--landing-on-primary, #0a2426));
+  background: var(--landing-button, var(--showcase-accent));
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent);
   transition: transform 0.2s, filter 0.2s;
 }
 
