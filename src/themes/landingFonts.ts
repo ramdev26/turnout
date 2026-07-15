@@ -1,7 +1,6 @@
 /**
- * Curated typography pairings organizers can pick for their landing page.
- * Each font key maps a display (headline) family with a body family and the
- * Google Fonts query needed to load them on demand.
+ * Curated Google Font pairings for landing pages.
+ * Each key maps display (headline) + body families with on-demand Google load URLs.
  */
 
 export type LandingFontKey =
@@ -11,7 +10,15 @@ export type LandingFontKey =
   | 'space-grotesk'
   | 'dm-serif'
   | 'poppins'
-  | 'manrope';
+  | 'manrope'
+  | 'outfit'
+  | 'figtree'
+  | 'libre-baskerville'
+  | 'archivo'
+  | 'raleway'
+  | 'rubik'
+  | 'syne'
+  | 'instrument-serif';
 
 export type LandingFontDefinition = {
   key: LandingFontKey;
@@ -43,8 +50,8 @@ export const LANDING_FONTS: Record<LandingFontKey, LandingFontDefinition> = {
     name: 'Playfair',
     vibe: 'Luxe & classic',
     display: '"Playfair Display", Georgia, serif',
-    body: '"Inter", ui-sans-serif, system-ui, sans-serif',
-    googleFamilies: ['Playfair+Display:wght@500;600;700;800', 'Inter:wght@400;500;600;700'],
+    body: '"Source Sans 3", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Playfair+Display:wght@500;600;700;800', 'Source+Sans+3:wght@400;500;600;700'],
   },
   sora: {
     key: 'sora',
@@ -59,8 +66,8 @@ export const LANDING_FONTS: Record<LandingFontKey, LandingFontDefinition> = {
     name: 'Space Grotesk',
     vibe: 'Bold & geometric',
     display: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
-    body: '"Inter", ui-sans-serif, system-ui, sans-serif',
-    googleFamilies: ['Space+Grotesk:wght@400;500;600;700', 'Inter:wght@400;500;600;700'],
+    body: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Space+Grotesk:wght@400;500;600;700', 'Plus+Jakarta+Sans:wght@400;500;600;700'],
   },
   'dm-serif': {
     key: 'dm-serif',
@@ -86,6 +93,70 @@ export const LANDING_FONTS: Record<LandingFontKey, LandingFontDefinition> = {
     body: '"Manrope", ui-sans-serif, system-ui, sans-serif',
     googleFamilies: ['Manrope:wght@400;500;600;700;800'],
   },
+  outfit: {
+    key: 'outfit',
+    name: 'Outfit',
+    vibe: 'Soft geometric',
+    display: '"Outfit", ui-sans-serif, system-ui, sans-serif',
+    body: '"Outfit", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Outfit:wght@400;500;600;700;800'],
+  },
+  figtree: {
+    key: 'figtree',
+    name: 'Figtree',
+    vibe: 'Readable modern',
+    display: '"Figtree", ui-sans-serif, system-ui, sans-serif',
+    body: '"Figtree", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Figtree:wght@400;500;600;700;800'],
+  },
+  'libre-baskerville': {
+    key: 'libre-baskerville',
+    name: 'Libre Baskerville',
+    vibe: 'Classic print',
+    display: '"Libre Baskerville", Georgia, serif',
+    body: '"Nunito Sans", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Libre+Baskerville:wght@400;700', 'Nunito+Sans:wght@400;500;600;700'],
+  },
+  archivo: {
+    key: 'archivo',
+    name: 'Archivo',
+    vibe: 'Strong sans',
+    display: '"Archivo", ui-sans-serif, system-ui, sans-serif',
+    body: '"Archivo", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Archivo:wght@400;500;600;700;800'],
+  },
+  raleway: {
+    key: 'raleway',
+    name: 'Raleway',
+    vibe: 'Elegant sans',
+    display: '"Raleway", ui-sans-serif, system-ui, sans-serif',
+    body: '"Raleway", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Raleway:wght@400;500;600;700;800'],
+  },
+  rubik: {
+    key: 'rubik',
+    name: 'Rubik',
+    vibe: 'Rounded utilitarian',
+    display: '"Rubik", ui-sans-serif, system-ui, sans-serif',
+    body: '"Rubik", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Rubik:wght@400;500;600;700;800'],
+  },
+  syne: {
+    key: 'syne',
+    name: 'Syne',
+    vibe: 'Expressive display',
+    display: '"Syne", ui-sans-serif, system-ui, sans-serif',
+    body: '"Figtree", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Syne:wght@500;600;700;800', 'Figtree:wght@400;500;600;700'],
+  },
+  'instrument-serif': {
+    key: 'instrument-serif',
+    name: 'Instrument Serif',
+    vibe: 'Contemporary serif',
+    display: '"Instrument Serif", Georgia, serif',
+    body: '"Outfit", ui-sans-serif, system-ui, sans-serif',
+    googleFamilies: ['Instrument+Serif:ital@0;1', 'Outfit:wght@400;500;600;700'],
+  },
 };
 
 export const LANDING_FONT_KEYS = Object.keys(LANDING_FONTS) as LandingFontKey[];
@@ -105,6 +176,14 @@ const LEGACY_FONT_ALIASES: Record<string, LandingFontKey> = {
   manrope: 'manrope',
   'dm serif': 'dm-serif',
   'dm serif display': 'dm-serif',
+  outfit: 'outfit',
+  figtree: 'figtree',
+  'libre baskerville': 'libre-baskerville',
+  archivo: 'archivo',
+  raleway: 'raleway',
+  rubik: 'rubik',
+  syne: 'syne',
+  'instrument serif': 'instrument-serif',
 };
 
 export function isLandingFontKey(value: string | undefined | null): value is LandingFontKey {

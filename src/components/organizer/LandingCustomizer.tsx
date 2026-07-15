@@ -11,7 +11,6 @@ import {
 } from '../../themes/landingFonts';
 import type { LandingDisplayMode, LandingStyle } from '../../types';
 import type { LayoutTemplateId } from '../../templates/templates';
-import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
 import { cn } from '../../utils/cn';
 import { accentSegmentStyleFor } from '../../themes/flowUi';
 
@@ -23,6 +22,12 @@ export type LandingDesignValue = {
   fontFamily: LandingFontKey;
   displayMode: LandingDisplayMode;
   landingStyle: LandingStyle;
+  /** Deep colour overrides (optional hex). Empty/undefined uses template-derived tones. */
+  buttonColor?: string;
+  headingColor?: string;
+  bodyTextColor?: string;
+  mutedTextColor?: string;
+  pageBackgroundColor?: string;
 };
 
 export { LANDING_LAYOUT_TEMPLATES } from '../../templates/templates';
@@ -81,14 +86,6 @@ export function LandingCustomizer({
 
   const update = (patch: Partial<LandingDesignValue>) => onChange({ ...value, ...patch });
 
-  const applyCategory = (id: string) => {
-    const cat = resolveEventCategory(id);
-    onChange({
-      ...value,
-      eventCategory: cat.id,
-    });
-  };
-
   const activePresetId = COLOR_PRESETS.find(
     (p) => p.primary.toLowerCase() === value.primaryColor.toLowerCase()
   )?.id;
@@ -99,39 +96,9 @@ export function LandingCustomizer({
 
   return (
     <div className="space-y-6">
-      {/* Event category */}
-      <div className="space-y-3">
-        <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Event type</SectionLabel>
-        <p className="text-xs" style={{ color: ui.textMuted }}>
-          Label only — colours and fonts stay with your template / Customize design.
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {EVENT_CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const active = (value.eventCategory || 'default') === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => applyCategory(cat.id)}
-                className="flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-center transition"
-                style={
-                  active
-                    ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.text }
-                    : { borderColor: ui.borderColor, background: ui.cardBg, color: ui.text }
-                }
-              >
-                <Icon className="h-4 w-4" style={{ color: active ? ui.accent : ui.textMuted }} />
-                <span className="text-xs font-semibold">{cat.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Colour */}
       <div className="space-y-3">
-        <SectionLabel icon={<Palette className="h-3.5 w-3.5" />}>Colour</SectionLabel>
+        <SectionLabel icon={<Palette className="h-3.5 w-3.5" />}>Colours</SectionLabel>
         <div className="flex flex-wrap items-center gap-2.5">
           {COLOR_PRESETS.map((preset) => {
             const active = activePresetId === preset.id;
@@ -175,6 +142,44 @@ export function LandingCustomizer({
             />
             {!activePresetId && <Check className="pointer-events-none h-4 w-4 text-white drop-shadow" />}
           </label>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              ['buttonColor', 'Button', value.buttonColor, value.primaryColor],
+              ['headingColor', 'Headings', value.headingColor, value.bodyTextColor || '#0f172a'],
+              ['bodyTextColor', 'Body text', value.bodyTextColor, '#0f172a'],
+              ['mutedTextColor', 'Muted text', value.mutedTextColor, '#64748b'],
+              ['pageBackgroundColor', 'Page background', value.pageBackgroundColor, '#ffffff'],
+            ] as const
+          ).map(([key, label, current, fallback]) => (
+            <label
+              key={key}
+              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: ui.borderColor, background: ui.cardBg, color: ui.text }}
+            >
+              <span className="font-medium">{label}</span>
+              <span className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={/^#([0-9a-f]{6})$/i.test(current || '') ? (current as string) : fallback}
+                  onChange={(e) => update({ [key]: e.target.value })}
+                  className="h-8 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
+                  aria-label={label}
+                />
+                {current ? (
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold underline-offset-2 hover:underline"
+                    style={{ color: ui.textMuted }}
+                    onClick={() => update({ [key]: undefined })}
+                  >
+                    Reset
+                  </button>
+                ) : null}
+              </span>
+            </label>
+          ))}
         </div>
       </div>
 

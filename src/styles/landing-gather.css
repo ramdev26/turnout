@@ -257,7 +257,7 @@
   font-weight: 750;
   letter-spacing: -0.03em;
   line-height: 1.15;
-  color: var(--gt-ink);
+  color: var(--landing-heading, var(--gt-ink));
   text-wrap: balance;
 }
 
@@ -428,8 +428,8 @@
   min-height: 2.85rem;
   border: 0;
   border-radius: 0.85rem;
-  background: var(--gt-accent);
-  color: var(--gt-on-accent);
+  background: var(--landing-button, var(--gt-accent));
+  color: var(--landing-on-button, var(--gt-on-accent));
   font-size: 0.95rem;
   font-weight: 750;
   transition: filter 0.15s ease, transform 0.15s ease;

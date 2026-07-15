@@ -1,11 +1,11 @@
 /* Arena — mobile-first venue / fight-night ticket layout */
 
 .landing-arena {
-  --arena-bg: #ffffff;
+  --arena-bg: var(--landing-page-bg, #ffffff);
   --arena-header-bg: #0a0a0a;
   --arena-border: #eeeeee;
-  --arena-text: #111111;
-  --arena-muted: #666666;
+  --arena-text: var(--landing-text, #111111);
+  --arena-muted: var(--landing-text-muted, #666666);
   --arena-popular: #e11d48;
   --arena-surface: #f7f7f7;
   container-type: inline-size;
@@ -411,7 +411,7 @@
   line-height: 1.08;
   letter-spacing: -0.02em;
   text-transform: uppercase;
-  color: var(--arena-text);
+  color: var(--landing-heading, var(--arena-text));
 }
 
 @container arena (min-width: 1024px) {
@@ -776,13 +776,13 @@
   margin-left: auto;
   border-radius: 0.4rem;
   border: none;
-  background: var(--arena-text);
+  background: var(--landing-button, var(--arena-text));
   padding: 0.45rem 1rem;
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--landing-on-button, #fff);
 }
 
 .landing-arena-add-btn:disabled {
@@ -807,12 +807,12 @@
   gap: 0.4rem;
   border: none;
   border-radius: 0.5rem;
-  background: var(--arena-text);
+  background: var(--landing-button, var(--arena-text));
   font-size: 0.8125rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--landing-on-button, #fff);
 }
 
 .landing-arena-checkout-btn:disabled {

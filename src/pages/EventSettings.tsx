@@ -231,6 +231,11 @@ export const EventSettings: React.FC = () => {
           landing.landingStyle === 'minimal' || landing.landingStyle === 'bold' || landing.landingStyle === 'glass'
             ? landing.landingStyle
             : templateDefaults.landingStyle,
+        buttonColor: landing.buttonColor,
+        headingColor: landing.headingColor,
+        bodyTextColor: landing.bodyTextColor,
+        mutedTextColor: landing.mutedTextColor,
+        pageBackgroundColor: landing.pageBackgroundColor,
       });
       setTicketPdfTemplateId((ev.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
       setTicketPdfPrimaryColor(
@@ -420,6 +425,11 @@ export const EventSettings: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        buttonColor: design.buttonColor || null,
+        headingColor: design.headingColor || null,
+        bodyTextColor: design.bodyTextColor || null,
+        mutedTextColor: design.mutedTextColor || null,
+        pageBackgroundColor: design.pageBackgroundColor || null,
         templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
         arenaGalleryImages,
@@ -436,6 +446,11 @@ export const EventSettings: React.FC = () => {
         fontFamily: resolveLandingFontKey(res.event.customization?.fontFamily) || prev.fontFamily,
         displayMode: (res.event.customization?.displayMode as LandingDesignValue['displayMode']) || prev.displayMode,
         landingStyle: (res.event.customization?.landingStyle as LandingDesignValue['landingStyle']) || prev.landingStyle,
+        buttonColor: res.event.customization?.buttonColor,
+        headingColor: res.event.customization?.headingColor,
+        bodyTextColor: res.event.customization?.bodyTextColor,
+        mutedTextColor: res.event.customization?.mutedTextColor,
+        pageBackgroundColor: res.event.customization?.pageBackgroundColor,
       }));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {

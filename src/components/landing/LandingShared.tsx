@@ -104,7 +104,7 @@ export function LandingPageShell({
     <div
       className={`landing-page landing-showcase relative isolate`}
       data-landing-tone={tone}
-      style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}
+      style={{ ...landingCssVars(event.customization, event.templateId), ...landingShellStyle() }}
     >
       {children}
       {!showcase ? <LandingFooter event={event} /> : null}

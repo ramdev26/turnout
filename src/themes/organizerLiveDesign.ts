@@ -35,6 +35,11 @@ export function landingCustomizationFromDesign(
     fontFamily: design.fontFamily,
     displayMode: design.displayMode,
     landingStyle: design.landingStyle,
+    buttonColor: design.buttonColor || undefined,
+    headingColor: design.headingColor || undefined,
+    bodyTextColor: design.bodyTextColor || undefined,
+    mutedTextColor: design.mutedTextColor || undefined,
+    pageBackgroundColor: design.pageBackgroundColor || undefined,
   };
 }
 

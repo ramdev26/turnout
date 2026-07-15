@@ -361,7 +361,7 @@ export function LandingArenaPage({
     <div
       className="landing-page landing-showcase landing-arena relative isolate"
       data-landing-tone={tone}
-      style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}
+      style={{ ...landingCssVars(event.customization, event.templateId), ...landingShellStyle() }}
     >
       <ArenaHeader event={event} />
 

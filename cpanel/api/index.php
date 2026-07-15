@@ -2620,7 +2620,23 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   }
   if (array_key_exists('fontFamily', $body)) {
     $fontFamily = trim((string)$body['fontFamily']);
-    $allowedFonts = ['fraunces', 'playfair', 'sora', 'space-grotesk', 'dm-serif', 'poppins', 'manrope'];
+    $allowedFonts = [
+      'fraunces',
+      'playfair',
+      'sora',
+      'space-grotesk',
+      'dm-serif',
+      'poppins',
+      'manrope',
+      'outfit',
+      'figtree',
+      'libre-baskerville',
+      'archivo',
+      'raleway',
+      'rubik',
+      'syne',
+      'instrument-serif',
+    ];
     if (in_array($fontFamily, $allowedFonts, true)) {
       $customization['fontFamily'] = $fontFamily;
     }
@@ -2635,6 +2651,20 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     $landingStyle = trim((string)$body['landingStyle']);
     if (in_array($landingStyle, ['glass', 'minimal', 'bold'], true)) {
       $customization['landingStyle'] = $landingStyle;
+    }
+  }
+  foreach (['buttonColor', 'headingColor', 'bodyTextColor', 'mutedTextColor', 'pageBackgroundColor'] as $deepColorKey) {
+    if (!array_key_exists($deepColorKey, $body)) {
+      continue;
+    }
+    $raw = $body[$deepColorKey];
+    if ($raw === null || $raw === '') {
+      unset($customization[$deepColorKey]);
+      continue;
+    }
+    $hex = strtolower(trim((string)$raw));
+    if (preg_match('/^#([0-9a-f]{6})$/', $hex)) {
+      $customization[$deepColorKey] = $hex;
     }
   }
   if (array_key_exists('eventCategory', $body)) {

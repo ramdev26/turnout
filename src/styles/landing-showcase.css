@@ -179,7 +179,7 @@
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.05;
-  color: var(--showcase-accent);
+  color: var(--landing-heading, var(--showcase-accent));
   max-width: 56rem;
   margin-inline: auto;
 }
@@ -190,7 +190,7 @@
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.02;
-  color: var(--landing-text);
+  color: var(--landing-heading, var(--landing-text));
   text-wrap: balance;
   max-width: 56rem;
   margin-inline: auto;

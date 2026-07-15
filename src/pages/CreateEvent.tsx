@@ -429,6 +429,11 @@ export const CreateEvent: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        buttonColor: design.buttonColor,
+        headingColor: design.headingColor,
+        bodyTextColor: design.bodyTextColor,
+        mutedTextColor: design.mutedTextColor,
+        pageBackgroundColor: design.pageBackgroundColor,
         scheduleTba: !hasSchedule,
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.

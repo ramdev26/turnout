@@ -204,7 +204,7 @@ export type CheckoutFieldDefinition = {
 
 export interface EventCustomization {
   themeId?: EventThemeId;
-  /** Event category preset (Music, Sports, etc.) applied under the Minimal theme */
+  /** Event category label (Music, Sports, etc.) — separate from design colours */
   eventCategory?: string;
   primaryColor: string;
   secondaryColor: string;
@@ -213,6 +213,12 @@ export interface EventCustomization {
   displayMode?: LandingDisplayMode;
   /** Landing surface style: frosted glass, clean minimal, or bold solid */
   landingStyle?: LandingStyle;
+  /** Deep colour overrides — when set, win over derived theme surfaces */
+  buttonColor?: string;
+  headingColor?: string;
+  bodyTextColor?: string;
+  mutedTextColor?: string;
+  pageBackgroundColor?: string;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
   heroText: string;

@@ -98,13 +98,13 @@
 
 .sp-title {
   margin-top: 0.55rem;
-  font-family: var(--landing-font-body), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--landing-font-display), var(--landing-font-body), ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(1.65rem, 4.5vw, 2.35rem);
   font-weight: 800;
   line-height: 1.12;
   letter-spacing: -0.03em;
   text-transform: uppercase;
-  color: var(--sp-ink);
+  color: var(--landing-heading, var(--sp-ink));
 }
 
 .sp-teaser {
@@ -726,13 +726,13 @@
   gap: 0.4rem;
   border: none;
   border-radius: 9999px;
-  background: var(--sp-cta);
+  background: var(--landing-button, var(--sp-cta));
   padding: 0.7rem 1.1rem;
   font-size: 0.9rem;
   font-weight: 800;
-  color: var(--sp-on-accent);
+  color: var(--landing-on-button, var(--sp-on-accent));
   cursor: pointer;
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--sp-cta) 32%, transparent);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--landing-button, var(--sp-cta)) 32%, transparent);
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 

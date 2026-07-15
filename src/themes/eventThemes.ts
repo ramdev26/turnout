@@ -564,16 +564,32 @@ export function landingCssVars(
   const accentReadable = pickReadableAccent(primary, secondary);
   const onPrimary = isLightHex(primary) ? TURNOUT_BRAND.ink : '#ffffff';
 
+  const buttonColor = storedHexColor(c.buttonColor);
+  const headingColor = storedHexColor(c.headingColor);
+  const bodyTextColor = storedHexColor(c.bodyTextColor);
+  const mutedTextColor = storedHexColor(c.mutedTextColor);
+  const pageBackgroundColor = storedHexColor(c.pageBackgroundColor);
+
+  const buttonFill = buttonColor || accentReadable;
+  const onButton = isLightHex(buttonFill) ? TURNOUT_BRAND.ink : '#ffffff';
+  const textColor = bodyTextColor || surfaces.text;
+  const textMuted = mutedTextColor || surfaces.textMuted;
+  const heading = headingColor || textColor;
+  const pageBg = pageBackgroundColor || surfaces.pageBg;
+
   return {
     ['--primary' as string]: primary,
     ['--secondary' as string]: secondary,
-    ['--landing-accent-readable' as string]: accentReadable,
-    ['--landing-on-primary' as string]: onPrimary,
-    ['--landing-page-bg' as string]: surfaces.pageBg,
+    ['--landing-accent-readable' as string]: buttonColor || accentReadable,
+    ['--landing-on-primary' as string]: buttonColor ? onButton : onPrimary,
+    ['--landing-button' as string]: buttonFill,
+    ['--landing-on-button' as string]: onButton,
+    ['--landing-page-bg' as string]: pageBg,
     ['--landing-surface' as string]: surfaces.surfaceBg,
     ['--landing-surface-muted' as string]: surfaces.surfaceMutedBg,
-    ['--landing-text' as string]: surfaces.text,
-    ['--landing-text-muted' as string]: surfaces.textMuted,
+    ['--landing-text' as string]: textColor,
+    ['--landing-text-muted' as string]: textMuted,
+    ['--landing-heading' as string]: heading,
     ['--landing-border' as string]: surfaces.borderColor,
     ['--landing-shadow' as string]: surfaces.cardShadow,
     ['--landing-shadow-hover' as string]: isDark
@@ -586,6 +602,6 @@ export function landingCssVars(
     ['--landing-font-display' as string]: font.display,
     ['--landing-font-body' as string]: font.body,
     ['--landing-accent' as string]: primary,
-    ['--primary-on' as string]: onPrimary,
+    ['--primary-on' as string]: buttonColor ? onButton : onPrimary,
   };
 }

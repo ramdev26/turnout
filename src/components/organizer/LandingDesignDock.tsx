@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Contrast, Palette, Type as TypeIcon, RotateCcw, X } from 'lucide-react';
-import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
+import { ChevronDown, ChevronUp, Check, Contrast, Palette, Type as TypeIcon, RotateCcw, X, LayoutTemplate } from 'lucide-react';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
 import { companionSecondaryColor } from '../../themes/organizerLiveDesign';
 import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
@@ -11,7 +10,6 @@ import {
   LANDING_LAYOUT_TEMPLATES,
   type LandingDesignValue,
 } from './LandingCustomizer';
-import { LayoutTemplate } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 type DockControl = 'template' | 'colour' | 'style' | 'font' | 'display' | null;
@@ -23,8 +21,64 @@ const SEG_BORDER = 'rgba(255, 255, 255, 0.14)';
 const TEXT = '#ffffff';
 const TEXT_MUTED = 'rgba(255, 255, 255, 0.62)';
 const TEXT_SUBTLE = 'rgba(255, 255, 255, 0.45)';
-const DEFAULT_CATEGORY_ID = 'default';
 const GLOW = '0 0 0 1px rgba(16,185,129,0.35), 0 10px 28px rgba(16,185,129,0.18)';
+
+function asHex(value: string | undefined, fallback: string): string {
+  return /^#([0-9a-f]{6})$/i.test(value || '') ? (value as string) : fallback;
+}
+
+function ColorRow({
+  label,
+  value,
+  fallback,
+  onChange,
+  onClear,
+}: {
+  label: string;
+  value: string | undefined;
+  fallback: string;
+  onChange: (hex: string) => void;
+  onClear?: () => void;
+}) {
+  const hex = asHex(value, fallback);
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border px-2.5 py-2" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold" style={{ color: TEXT }}>
+          {label}
+        </p>
+        <p className="truncate font-mono text-[10px]" style={{ color: TEXT_SUBTLE }}>
+          {value ? hex : `Auto · ${fallback}`}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {value && onClear ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded px-1.5 py-1 text-[10px] font-semibold"
+            style={{ color: TEXT_MUTED }}
+          >
+            Auto
+          </button>
+        ) : null}
+        <label
+          className="relative h-8 w-8 cursor-pointer overflow-hidden rounded-full ring-1 ring-white/20"
+          style={{ background: hex }}
+          title={label}
+        >
+          <input
+            type="color"
+            value={hex}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 cursor-pointer opacity-0"
+            aria-label={label}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
 
 const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValue['templateId']): LandingDesignValue => {
   const next = withTemplateDesignDefaults(design, templateId);
@@ -37,6 +91,11 @@ const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValu
     landingStyle: next.landingStyle,
     displayMode: next.displayMode,
     eventCategory: design.eventCategory,
+    buttonColor: undefined,
+    headingColor: undefined,
+    bodyTextColor: undefined,
+    mutedTextColor: undefined,
+    pageBackgroundColor: undefined,
   };
 };
 
@@ -137,44 +196,6 @@ const TemplateThumb: React.FC<{
   );
 };
 
-const CategoryThumb: React.FC<{
-  category: (typeof EVENT_CATEGORIES)[number];
-  active: boolean;
-  onClick: () => void;
-}> = ({ category, active, onClick }) => {
-  const Icon = category.icon;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex shrink-0 flex-col items-center gap-1.5"
-      title={category.name}
-    >
-      <span
-        className={cn(
-          'relative grid h-12 w-16 place-items-center overflow-hidden rounded-xl transition',
-          active ? 'ring-2 ring-offset-2' : 'opacity-80 hover:opacity-100'
-        )}
-        style={{
-          background: `linear-gradient(135deg, ${category.swatchPrimary}, ${category.swatchSecondary})`,
-          ['--tw-ring-color' as string]: category.swatchPrimary,
-          ['--tw-ring-offset-color' as string]: DOCK_BG,
-        }}
-      >
-        <Icon className="h-5 w-5 text-white drop-shadow" />
-        {active && (
-          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-black/40">
-            <Check className="h-2.5 w-2.5 text-white" />
-          </span>
-        )}
-      </span>
-      <span className="max-w-[4.5rem] truncate text-[11px] font-medium" style={{ color: active ? TEXT : TEXT_MUTED }}>
-        {category.name}
-      </span>
-    </button>
-  );
-};
-
 function Segment({
   icon,
   label,
@@ -258,14 +279,6 @@ export function LandingDesignDock({
   const update = (patch: Partial<LandingDesignValue>) => onDesignChange({ ...design, ...patch });
   const toggle = (control: DockControl) => setOpen((cur) => (cur === control ? null : control));
 
-  const applyCategory = (id: string) => {
-    const cat = resolveEventCategory(id);
-    onDesignChange({
-      ...design,
-      eventCategory: cat.id,
-    });
-  };
-
   const selectTemplate = (templateId: LandingDesignValue['templateId']) => {
     const next = applyTemplate(design, templateId);
     loadLandingFont(next.fontFamily);
@@ -277,8 +290,6 @@ export function LandingDesignDock({
     loadLandingFont(key);
     onDesignChange({ ...design, fontFamily: key });
   };
-
-  const activeCategory = design.eventCategory || DEFAULT_CATEGORY_ID;
 
   const resetToDefault = () => {
     const next = applyTemplate(design, design.templateId);
@@ -477,17 +488,6 @@ export function LandingDesignDock({
           ))}
         </div>
 
-        <div className="flex items-start gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {EVENT_CATEGORIES.map((cat) => (
-            <CategoryThumb
-              key={cat.id}
-              category={cat}
-              active={activeCategory === cat.id}
-              onClick={() => applyCategory(cat.id)}
-            />
-          ))}
-        </div>
-
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
           <div className="relative col-span-1">
             <Segment
@@ -531,53 +531,108 @@ export function LandingDesignDock({
                   style={{ background: design.primaryColor }}
                 />
               }
-              label="Colour"
+              label="Colours"
               value={colourValue}
               active={open === 'colour'}
               onClick={() => toggle('colour')}
             />
             {open === 'colour' && (
-              <Popover title="Colour presets" onClose={() => setOpen(null)}>
-                <div className="flex flex-wrap items-center gap-2">
-                  {COLOR_PRESETS.map((preset) => {
-                    const isActive = activePreset?.id === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        title={preset.name}
-                        onClick={() => update({ primaryColor: preset.primary, secondaryColor: preset.secondary })}
-                        className={cn(
-                          'grid h-9 w-9 place-items-center rounded-full transition hover:scale-105',
-                          isActive ? 'ring-2 ring-offset-2' : ''
-                        )}
+              <Popover title="Colours" onClose={() => setOpen(null)}>
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: TEXT_SUBTLE }}>
+                      Brand presets
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {COLOR_PRESETS.map((preset) => {
+                        const isActive = activePreset?.id === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            title={preset.name}
+                            onClick={() =>
+                              update({
+                                primaryColor: preset.primary,
+                                secondaryColor: preset.secondary,
+                              })
+                            }
+                            className={cn(
+                              'grid h-9 w-9 place-items-center rounded-full transition hover:scale-105',
+                              isActive ? 'ring-2 ring-offset-2' : ''
+                            )}
+                            style={{
+                              background: `linear-gradient(135deg, ${preset.primary}, ${preset.secondary})`,
+                              ['--tw-ring-color' as string]: preset.primary,
+                              ['--tw-ring-offset-color' as string]: DOCK_BG,
+                            }}
+                          >
+                            {isActive && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
+                          </button>
+                        );
+                      })}
+                      <label
+                        className="relative grid h-9 w-9 cursor-pointer place-items-center overflow-hidden rounded-full ring-1 ring-white/20"
+                        title="Custom brand colour"
                         style={{
-                          background: `linear-gradient(135deg, ${preset.primary}, ${preset.secondary})`,
-                          ['--tw-ring-color' as string]: preset.primary,
-                          ['--tw-ring-offset-color' as string]: DOCK_BG,
+                          background: 'conic-gradient(from 180deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)',
                         }}
                       >
-                        {isActive && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
-                      </button>
-                    );
-                  })}
-                  <label
-                    className="relative grid h-9 w-9 cursor-pointer place-items-center overflow-hidden rounded-full ring-1 ring-white/20"
-                    title="Custom colour"
-                    style={{ background: 'conic-gradient(from 180deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)' }}
-                  >
-                    <input
-                      type="color"
-                      value={/^#([0-9a-f]{6})$/i.test(design.primaryColor) ? design.primaryColor : '#059669'}
-                      onChange={(e) => {
-                        const primary = e.target.value;
-                        update({ primaryColor: primary, secondaryColor: companionSecondaryColor(primary) });
-                      }}
-                      className="absolute inset-0 cursor-pointer opacity-0"
-                      aria-label="Pick a custom colour"
+                        <input
+                          type="color"
+                          value={asHex(design.primaryColor, '#059669')}
+                          onChange={(e) => {
+                            const primary = e.target.value;
+                            update({ primaryColor: primary, secondaryColor: companionSecondaryColor(primary) });
+                          }}
+                          className="absolute inset-0 cursor-pointer opacity-0"
+                          aria-label="Pick a custom brand colour"
+                        />
+                        {!activePreset && <Check className="pointer-events-none h-3.5 w-3.5 text-white drop-shadow" />}
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: TEXT_SUBTLE }}>
+                      Deep colours
+                    </p>
+                    <ColorRow
+                      label="Button"
+                      value={design.buttonColor}
+                      fallback={design.primaryColor}
+                      onChange={(hex) => update({ buttonColor: hex })}
+                      onClear={() => update({ buttonColor: undefined })}
                     />
-                    {!activePreset && <Check className="pointer-events-none h-3.5 w-3.5 text-white drop-shadow" />}
-                  </label>
+                    <ColorRow
+                      label="Heading (H1)"
+                      value={design.headingColor}
+                      fallback={design.bodyTextColor || '#0f172a'}
+                      onChange={(hex) => update({ headingColor: hex })}
+                      onClear={() => update({ headingColor: undefined })}
+                    />
+                    <ColorRow
+                      label="Body text"
+                      value={design.bodyTextColor}
+                      fallback="#0f172a"
+                      onChange={(hex) => update({ bodyTextColor: hex })}
+                      onClear={() => update({ bodyTextColor: undefined })}
+                    />
+                    <ColorRow
+                      label="Muted text"
+                      value={design.mutedTextColor}
+                      fallback="#64748b"
+                      onChange={(hex) => update({ mutedTextColor: hex })}
+                      onClear={() => update({ mutedTextColor: undefined })}
+                    />
+                    <ColorRow
+                      label="Page background"
+                      value={design.pageBackgroundColor}
+                      fallback="#ffffff"
+                      onChange={(hex) => update({ pageBackgroundColor: hex })}
+                      onClear={() => update({ pageBackgroundColor: undefined })}
+                    />
+                  </div>
                 </div>
               </Popover>
             )}
