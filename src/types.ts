@@ -8,6 +8,7 @@ export interface UserProfile {
   isBlocked?: boolean;
   status?: 'active' | 'suspended' | 'banned';
   forcePasswordReset?: boolean;
+  emailVerified?: boolean;
   createdAt: string;
 }
 

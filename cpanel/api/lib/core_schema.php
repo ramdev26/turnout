@@ -35,6 +35,7 @@ function ensure_core_schema_pgsql(PDO $pdo): void {
       is_blocked SMALLINT NOT NULL DEFAULT 0,
       status VARCHAR(32) NOT NULL DEFAULT 'active',
       force_password_reset SMALLINT NOT NULL DEFAULT 0,
+      email_verified_at TIMESTAMP NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )"
   );

@@ -4,10 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { api } from '../api/client';
-import { parseAuthPayload } from '../api/authResponse';
-import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
-import { persistAuthTokenFromResponse } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 
@@ -21,7 +18,6 @@ type FormValues = z.infer<typeof schema>;
 
 export const Signup: React.FC = () => {
   const navigate = useNavigate();
-  const { setUser } = useAuthStore();
   const [serverError, setServerError] = useState<string | null>(null);
   const ui = APP_FLOW_UI;
 
@@ -34,10 +30,20 @@ export const Signup: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      const res = parseAuthPayload(await api.post<unknown>('/api/auth/register', values));
-      persistAuthTokenFromResponse(res);
-      setUser(res.user);
-      navigate('/dashboard', { replace: true });
+      const res = await api.post<{
+        ok?: boolean;
+        requiresEmailVerification?: boolean;
+        email?: string;
+        message?: string;
+        error?: string;
+      }>('/api/auth/register', values);
+
+      if (res.requiresEmailVerification || res.ok) {
+        const email = encodeURIComponent((res.email || values.email).trim().toLowerCase());
+        navigate(`/verify-email?email=${email}`, { replace: true });
+        return;
+      }
+      setServerError(res.message || res.error || 'Signup failed');
     } catch (e: unknown) {
       const err = e as { message?: string; error?: string };
       setServerError(err?.message || err?.error || 'Signup failed');

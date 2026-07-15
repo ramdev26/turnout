@@ -320,6 +320,37 @@ function send_password_reset_email(PDO $pdo, string $toEmail, string $token): bo
   return send_email($toEmail, $subject, mail_turnout_layout('Password reset', $inner), $pdo);
 }
 
+function mail_email_verification_url(string $token): string {
+  $base = mail_app_base_url();
+  if ($base === '' || $token === '') {
+    return '';
+  }
+  return $base . '/verify-email?token=' . rawurlencode($token);
+}
+
+function send_email_verification_email(PDO $pdo, string $toEmail, string $token, string $displayName = ''): bool {
+  $verifyUrl = mail_email_verification_url($token);
+  if ($verifyUrl === '') {
+    error_log('Turnout: email verification URL could not be built (check app_base_url)');
+    return false;
+  }
+
+  $name = trim($displayName);
+  $greeting = $name !== ''
+    ? 'Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ','
+    : 'Hi,';
+
+  $inner =
+    '<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#e9f4ee;">' . $greeting . '</p>' .
+    '<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#e9f4ee;">Thanks for signing up for Turnout. Confirm your email address to activate your account.</p>' .
+    '<p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#e9f4ee;">This link expires in <strong style="color:#ffffff;">24 hours</strong>.</p>' .
+    mail_cta_button($verifyUrl, 'Verify email') .
+    '<p style="margin:20px 0 0;font-size:13px;color:#93b5b7;line-height:1.5;">If you did not create a Turnout account, you can ignore this email.</p>';
+
+  $subject = 'Verify your Turnout email';
+  return send_email($toEmail, $subject, mail_turnout_layout('Verify your email', $inner), $pdo);
+}
+
 function send_organizer_team_invite_email(
   PDO $pdo,
   string $toEmail,
