@@ -100,7 +100,9 @@
   margin-top: 0.55rem;
   font-family: var(--landing-font-display), var(--landing-font-body), ui-sans-serif, system-ui, sans-serif;
   font-size: var(--landing-h1-size, clamp(1.65rem, 4.5vw, 2.35rem));
-  font-weight: 800;
+  font-weight: var(--landing-h1-weight, 800);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   line-height: 1.12;
   letter-spacing: -0.03em;
   text-transform: uppercase;
@@ -111,6 +113,9 @@
   margin-top: 0.65rem;
   max-width: 38rem;
   font-size: var(--landing-body-size, 0.9375rem);
+  font-weight: var(--landing-body-weight, inherit);
+  font-style: var(--landing-body-style, normal);
+  text-decoration: var(--landing-body-decoration, none);
   line-height: 1.55;
   color: var(--sp-muted);
 }

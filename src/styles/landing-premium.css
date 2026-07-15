@@ -3,6 +3,9 @@
 .landing-page {
   font-family: var(--landing-font-body);
   font-size: var(--landing-body-size, 1rem);
+  font-weight: var(--landing-body-weight, inherit);
+  font-style: var(--landing-body-style, normal);
+  text-decoration: var(--landing-body-decoration, none);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: clip;
@@ -32,7 +35,9 @@
 
 .landing-display {
   font-family: var(--landing-font-display);
-  font-weight: 500;
+  font-weight: var(--landing-h1-weight, 500);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   letter-spacing: -0.03em;
   line-height: 1.08;
   color: var(--landing-heading, var(--landing-text));
@@ -42,7 +47,9 @@
 .landing-eyebrow {
   font-family: var(--landing-font-body);
   font-size: var(--landing-small-size, 0.6875rem);
-  font-weight: 700;
+  font-weight: var(--landing-small-weight, 700);
+  font-style: var(--landing-small-style, normal);
+  text-decoration: var(--landing-small-decoration, none);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }

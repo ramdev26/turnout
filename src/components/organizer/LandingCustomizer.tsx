@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Palette, Sparkles, Type as TypeIcon } from 'lucide-react';
+import { Palette, Type as TypeIcon, Bold, Italic, Underline } from 'lucide-react';
 import type { CreateThemeUI } from '../../themes/eventThemes';
 import { landingCssVars } from '../../themes/eventThemes';
 import {
@@ -11,7 +11,6 @@ import {
 } from '../../themes/landingFonts';
 import type { LandingDisplayMode, LandingStyle } from '../../types';
 import type { LayoutTemplateId } from '../../templates/templates';
-import { accentSegmentStyleFor } from '../../themes/flowUi';
 import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
 
 export type LandingDesignValue = {
@@ -33,6 +32,19 @@ export type LandingDesignValue = {
   h2FontSize?: number;
   bodyFontSize?: number;
   smallFontSize?: number;
+  /** Per-element type emphasis. */
+  h1Bold?: boolean;
+  h1Italic?: boolean;
+  h1Underline?: boolean;
+  h2Bold?: boolean;
+  h2Italic?: boolean;
+  h2Underline?: boolean;
+  bodyBold?: boolean;
+  bodyItalic?: boolean;
+  bodyUnderline?: boolean;
+  smallBold?: boolean;
+  smallItalic?: boolean;
+  smallUnderline?: boolean;
 };
 
 export { LANDING_LAYOUT_TEMPLATES } from '../../templates/templates';
@@ -219,27 +231,53 @@ export function LandingCustomizer({
         </div>
       </div>
 
-      {/* Display */}
+      {/* Style */}
       <div className="space-y-3">
-        <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Display</SectionLabel>
-        <div
-          className="flex gap-1 rounded-xl border p-1"
-          style={{ borderColor: ui.borderColor, background: ui.cardMutedBg }}
-        >
-          {DISPLAY_OPTIONS.map((opt) => {
-            const active = value.displayMode === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => update({ displayMode: opt.id })}
-                className={segmentBase}
-                style={accentSegmentStyleFor(ui, active)}
-              >
-                {opt.name}
-              </button>
-            );
-          })}
+        <SectionLabel icon={<Bold className="h-3.5 w-3.5" />}>Style</SectionLabel>
+        <div className="space-y-2">
+          {(
+            [
+              ['Heading (H1)', 'h1Bold', 'h1Italic', 'h1Underline', value.h1Bold, value.h1Italic, value.h1Underline],
+              ['Subheading (H2)', 'h2Bold', 'h2Italic', 'h2Underline', value.h2Bold, value.h2Italic, value.h2Underline],
+              ['Paragraph', 'bodyBold', 'bodyItalic', 'bodyUnderline', value.bodyBold, value.bodyItalic, value.bodyUnderline],
+              ['Small / caption', 'smallBold', 'smallItalic', 'smallUnderline', value.smallBold, value.smallItalic, value.smallUnderline],
+            ] as const
+          ).map(([label, boldKey, italicKey, underlineKey, bold, italic, underline]) => (
+            <div
+              key={label}
+              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2"
+              style={{ borderColor: ui.borderColor, background: ui.cardBg }}
+            >
+              <span className="text-sm font-medium" style={{ color: ui.text }}>
+                {label}
+              </span>
+              <div className="flex items-center gap-1.5">
+                {(
+                  [
+                    [boldKey, bold, Bold, 'Bold'],
+                    [italicKey, italic, Italic, 'Italic'],
+                    [underlineKey, underline, Underline, 'Underline'],
+                  ] as const
+                ).map(([key, active, Icon, title]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    title={title}
+                    aria-pressed={!!active}
+                    onClick={() => update({ [key]: !active || undefined })}
+                    className="grid h-8 w-8 place-items-center rounded-lg border transition"
+                    style={
+                      active
+                        ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.accent }
+                        : { borderColor: ui.borderColor, background: ui.cardMutedBg, color: ui.textMuted }
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

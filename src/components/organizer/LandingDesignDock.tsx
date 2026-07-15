@@ -1,17 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Contrast, Palette, Type as TypeIcon, RotateCcw, X, LayoutTemplate } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, Palette, Type as TypeIcon, RotateCcw, X, LayoutTemplate, Bold, Italic, Underline } from 'lucide-react';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
 import { companionSecondaryColor } from '../../themes/organizerLiveDesign';
 import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
 import {
-  DISPLAY_OPTIONS,
   LANDING_LAYOUT_TEMPLATES,
   type LandingDesignValue,
 } from './LandingCustomizer';
 import { cn } from '../../utils/cn';
 import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
 
-type DockControl = 'template' | 'colour' | 'size' | 'font' | 'display' | null;
+type DockControl = 'template' | 'colour' | 'size' | 'font' | 'style' | null;
 
 const DOCK_BG = 'rgba(21, 22, 26, 0.96)';
 const DOCK_BORDER = 'rgba(255, 255, 255, 0.14)';
@@ -123,6 +122,78 @@ function FontSizeRow({
   );
 }
 
+function TypeStyleRow({
+  label,
+  bold,
+  italic,
+  underline,
+  onChange,
+}: {
+  label: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  onChange: (patch: { bold?: boolean; italic?: boolean; underline?: boolean }) => void;
+}) {
+  const Toggle = ({
+    active,
+    title,
+    onClick,
+    children,
+  }: {
+    active?: boolean;
+    title: string;
+    onClick: () => void;
+    children: React.ReactNode;
+  }) => (
+    <button
+      type="button"
+      title={title}
+      aria-pressed={!!active}
+      onClick={onClick}
+      className="grid h-8 w-8 place-items-center rounded-lg border text-xs font-bold transition"
+      style={{
+        borderColor: active ? 'rgba(16,185,129,0.55)' : 'rgba(255,255,255,0.14)',
+        background: active ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.06)',
+        color: active ? '#6ee7b7' : TEXT_MUTED,
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border px-2.5 py-2" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+      <p className="text-xs font-semibold" style={{ color: TEXT }}>
+        {label}
+      </p>
+      <div className="flex items-center gap-1.5">
+        <Toggle
+          active={bold}
+          title="Bold"
+          onClick={() => onChange({ bold: !bold, italic: !!italic, underline: !!underline })}
+        >
+          <Bold className="h-3.5 w-3.5" />
+        </Toggle>
+        <Toggle
+          active={italic}
+          title="Italic"
+          onClick={() => onChange({ bold: !!bold, italic: !italic, underline: !!underline })}
+        >
+          <Italic className="h-3.5 w-3.5" />
+        </Toggle>
+        <Toggle
+          active={underline}
+          title="Underline"
+          onClick={() => onChange({ bold: !!bold, italic: !!italic, underline: !underline })}
+        >
+          <Underline className="h-3.5 w-3.5" />
+        </Toggle>
+      </div>
+    </div>
+  );
+}
+
 /** Reset colours/fonts/sizes to the selected template defaults. */
 const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValue['templateId']): LandingDesignValue => {
   const next = withTemplateDesignDefaults(design, templateId);
@@ -144,6 +215,18 @@ const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValu
     h2FontSize: undefined,
     bodyFontSize: undefined,
     smallFontSize: undefined,
+    h1Bold: undefined,
+    h1Italic: undefined,
+    h1Underline: undefined,
+    h2Bold: undefined,
+    h2Italic: undefined,
+    h2Underline: undefined,
+    bodyBold: undefined,
+    bodyItalic: undefined,
+    bodyUnderline: undefined,
+    smallBold: undefined,
+    smallItalic: undefined,
+    smallUnderline: undefined,
   };
 };
 
@@ -383,13 +466,27 @@ export function LandingDesignDock({
     design.h1FontSize || design.h2FontSize || design.bodyFontSize || design.smallFontSize
       ? 'Custom'
       : 'Auto';
+  const styleValue =
+    design.h1Bold ||
+    design.h1Italic ||
+    design.h1Underline ||
+    design.h2Bold ||
+    design.h2Italic ||
+    design.h2Underline ||
+    design.bodyBold ||
+    design.bodyItalic ||
+    design.bodyUnderline ||
+    design.smallBold ||
+    design.smallItalic ||
+    design.smallUnderline
+      ? 'Custom'
+      : 'Default';
   const fontKey = resolveLandingFontKey(design.fontFamily);
   const fontValue = LANDING_FONTS[fontKey].name;
-  const displayValue = DISPLAY_OPTIONS.find((d) => d.id === design.displayMode)?.name ?? 'Auto';
   const templateValue = LANDING_LAYOUT_TEMPLATES.find((t) => t.id === design.templateId)?.name ?? 'Showcase';
   const summary = useMemo(
-    () => `${templateValue} · ${fontValue} · ${sizeValue} · ${displayValue}`,
-    [templateValue, fontValue, sizeValue, displayValue]
+    () => `${templateValue} · ${fontValue} · ${sizeValue} · ${styleValue}`,
+    [templateValue, fontValue, sizeValue, styleValue]
   );
 
   if (!expanded) {
@@ -685,29 +782,67 @@ export function LandingDesignDock({
 
           <div className="relative col-span-1">
             <Segment
-              icon={<Contrast className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
-              label="Display"
-              value={displayValue}
-              active={open === 'display'}
-              onClick={() => toggle('display')}
+              icon={<Bold className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
+              label="Style"
+              value={styleValue}
+              active={open === 'style'}
+              onClick={() => toggle('style')}
             />
-            {open === 'display' && (
-              <Popover title="Display mode" onClose={() => setOpen(null)}>
-                <div className="grid grid-cols-3 gap-1">
-                  {DISPLAY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => update({ displayMode: opt.id })}
-                      className="min-h-[40px] rounded-lg px-2 py-2 text-sm font-semibold transition hover:bg-white/10"
-                      style={{
-                        color: design.displayMode === opt.id ? '#fff' : TEXT_MUTED,
-                        background: design.displayMode === opt.id ? design.primaryColor : 'transparent',
-                      }}
-                    >
-                      {opt.name}
-                    </button>
-                  ))}
+            {open === 'style' && (
+              <Popover title="Style" onClose={() => setOpen(null)}>
+                <div className="space-y-2">
+                  <TypeStyleRow
+                    label="Heading (H1)"
+                    bold={design.h1Bold}
+                    italic={design.h1Italic}
+                    underline={design.h1Underline}
+                    onChange={(patch) =>
+                      update({
+                        h1Bold: patch.bold || undefined,
+                        h1Italic: patch.italic || undefined,
+                        h1Underline: patch.underline || undefined,
+                      })
+                    }
+                  />
+                  <TypeStyleRow
+                    label="Subheading (H2)"
+                    bold={design.h2Bold}
+                    italic={design.h2Italic}
+                    underline={design.h2Underline}
+                    onChange={(patch) =>
+                      update({
+                        h2Bold: patch.bold || undefined,
+                        h2Italic: patch.italic || undefined,
+                        h2Underline: patch.underline || undefined,
+                      })
+                    }
+                  />
+                  <TypeStyleRow
+                    label="Paragraph"
+                    bold={design.bodyBold}
+                    italic={design.bodyItalic}
+                    underline={design.bodyUnderline}
+                    onChange={(patch) =>
+                      update({
+                        bodyBold: patch.bold || undefined,
+                        bodyItalic: patch.italic || undefined,
+                        bodyUnderline: patch.underline || undefined,
+                      })
+                    }
+                  />
+                  <TypeStyleRow
+                    label="Small / caption"
+                    bold={design.smallBold}
+                    italic={design.smallItalic}
+                    underline={design.smallUnderline}
+                    onChange={(patch) =>
+                      update({
+                        smallBold: patch.bold || undefined,
+                        smallItalic: patch.italic || undefined,
+                        smallUnderline: patch.underline || undefined,
+                      })
+                    }
+                  />
                 </div>
               </Popover>
             )}

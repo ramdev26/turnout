@@ -407,7 +407,9 @@
   margin-top: 0.35rem;
   font-family: var(--landing-font-display);
   font-size: var(--landing-h1-size, clamp(1.5rem, 5vw, 1.875rem));
-  font-weight: 800;
+  font-weight: var(--landing-h1-weight, 800);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   line-height: 1.08;
   letter-spacing: -0.02em;
   text-transform: uppercase;
@@ -650,7 +652,9 @@
 
 .landing-arena-section-title {
   font-size: var(--landing-h2-size, 1.375rem);
-  font-weight: 800;
+  font-weight: var(--landing-h2-weight, 800);
+  font-style: var(--landing-h2-style, normal);
+  text-decoration: var(--landing-h2-decoration, none);
   letter-spacing: -0.02em;
 }
 

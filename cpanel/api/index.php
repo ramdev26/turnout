@@ -2689,6 +2689,30 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization[$fontSizeKey] = $px;
     }
   }
+  foreach ([
+    'h1Bold',
+    'h1Italic',
+    'h1Underline',
+    'h2Bold',
+    'h2Italic',
+    'h2Underline',
+    'bodyBold',
+    'bodyItalic',
+    'bodyUnderline',
+    'smallBold',
+    'smallItalic',
+    'smallUnderline',
+  ] as $typeStyleKey) {
+    if (!array_key_exists($typeStyleKey, $body)) {
+      continue;
+    }
+    $raw = $body[$typeStyleKey];
+    if ($raw === null || $raw === '') {
+      unset($customization[$typeStyleKey]);
+      continue;
+    }
+    $customization[$typeStyleKey] = (bool)$raw;
+  }
   if (array_key_exists('eventCategory', $body)) {
     $eventCategory = trim((string)$body['eventCategory']);
     $allowedCategories = ['default', 'music', 'sports', 'business', 'arts', 'wellness', 'nightlife', 'tech'];

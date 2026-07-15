@@ -224,6 +224,19 @@ export interface EventCustomization {
   h2FontSize?: number;
   bodyFontSize?: number;
   smallFontSize?: number;
+  /** Per-element type emphasis (bold / italic / underline). */
+  h1Bold?: boolean;
+  h1Italic?: boolean;
+  h1Underline?: boolean;
+  h2Bold?: boolean;
+  h2Italic?: boolean;
+  h2Underline?: boolean;
+  bodyBold?: boolean;
+  bodyItalic?: boolean;
+  bodyUnderline?: boolean;
+  smallBold?: boolean;
+  smallItalic?: boolean;
+  smallUnderline?: boolean;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
   heroText: string;

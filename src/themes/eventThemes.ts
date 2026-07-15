@@ -619,5 +619,17 @@ export function landingCssVars(
     ...(h2FontSize ? { ['--landing-h2-size' as string]: `${h2FontSize}px` } : {}),
     ...(bodyFontSize ? { ['--landing-body-size' as string]: `${bodyFontSize}px` } : {}),
     ...(smallFontSize ? { ['--landing-small-size' as string]: `${smallFontSize}px` } : {}),
+    ...(c.h1Bold ? { ['--landing-h1-weight' as string]: '800' } : {}),
+    ...(c.h1Italic ? { ['--landing-h1-style' as string]: 'italic' } : {}),
+    ...(c.h1Underline ? { ['--landing-h1-decoration' as string]: 'underline' } : {}),
+    ...(c.h2Bold ? { ['--landing-h2-weight' as string]: '700' } : {}),
+    ...(c.h2Italic ? { ['--landing-h2-style' as string]: 'italic' } : {}),
+    ...(c.h2Underline ? { ['--landing-h2-decoration' as string]: 'underline' } : {}),
+    ...(c.bodyBold ? { ['--landing-body-weight' as string]: '700' } : {}),
+    ...(c.bodyItalic ? { ['--landing-body-style' as string]: 'italic' } : {}),
+    ...(c.bodyUnderline ? { ['--landing-body-decoration' as string]: 'underline' } : {}),
+    ...(c.smallBold ? { ['--landing-small-weight' as string]: '700' } : {}),
+    ...(c.smallItalic ? { ['--landing-small-style' as string]: 'italic' } : {}),
+    ...(c.smallUnderline ? { ['--landing-small-decoration' as string]: 'underline' } : {}),
   };
 }

@@ -44,6 +44,18 @@ export function landingCustomizationFromDesign(
     h2FontSize: design.h2FontSize || undefined,
     bodyFontSize: design.bodyFontSize || undefined,
     smallFontSize: design.smallFontSize || undefined,
+    h1Bold: design.h1Bold || undefined,
+    h1Italic: design.h1Italic || undefined,
+    h1Underline: design.h1Underline || undefined,
+    h2Bold: design.h2Bold || undefined,
+    h2Italic: design.h2Italic || undefined,
+    h2Underline: design.h2Underline || undefined,
+    bodyBold: design.bodyBold || undefined,
+    bodyItalic: design.bodyItalic || undefined,
+    bodyUnderline: design.bodyUnderline || undefined,
+    smallBold: design.smallBold || undefined,
+    smallItalic: design.smallItalic || undefined,
+    smallUnderline: design.smallUnderline || undefined,
   };
 }
 
