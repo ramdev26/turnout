@@ -4,15 +4,13 @@ import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKe
 import { companionSecondaryColor } from '../../themes/organizerLiveDesign';
 import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
 import {
-  COLOR_PRESETS,
-  STYLE_OPTIONS,
   DISPLAY_OPTIONS,
   LANDING_LAYOUT_TEMPLATES,
   type LandingDesignValue,
 } from './LandingCustomizer';
 import { cn } from '../../utils/cn';
 
-type DockControl = 'template' | 'colour' | 'style' | 'font' | 'display' | null;
+type DockControl = 'template' | 'colour' | 'size' | 'font' | 'display' | null;
 
 const DOCK_BG = 'rgba(21, 22, 26, 0.96)';
 const DOCK_BORDER = 'rgba(255, 255, 255, 0.14)';
@@ -80,6 +78,56 @@ function ColorRow({
   );
 }
 
+function FontSizeRow({
+  label,
+  value,
+  fallback,
+  min,
+  max,
+  onChange,
+  onClear,
+}: {
+  label: string;
+  value: number | undefined;
+  fallback: number;
+  min: number;
+  max: number;
+  onChange: (px: number) => void;
+  onClear: () => void;
+}) {
+  const current = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return (
+    <div className="rounded-lg border px-2.5 py-2" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold" style={{ color: TEXT }}>
+          {label}
+        </p>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[10px]" style={{ color: TEXT_SUBTLE }}>
+            {value ? `${Math.round(value)}px` : `Auto · ${fallback}px`}
+          </span>
+          {value ? (
+            <button type="button" onClick={onClear} className="rounded px-1.5 py-1 text-[10px] font-semibold" style={{ color: TEXT_MUTED }}>
+              Auto
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={Math.min(max, Math.max(min, Math.round(current)))}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-emerald-400"
+        aria-label={label}
+      />
+    </div>
+  );
+}
+
+/** Reset colours/fonts/sizes to the selected template defaults. */
 const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValue['templateId']): LandingDesignValue => {
   const next = withTemplateDesignDefaults(design, templateId);
   return {
@@ -96,6 +144,10 @@ const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValu
     bodyTextColor: undefined,
     mutedTextColor: undefined,
     pageBackgroundColor: undefined,
+    h1FontSize: undefined,
+    h2FontSize: undefined,
+    bodyFontSize: undefined,
+    smallFontSize: undefined,
   };
 };
 
@@ -280,9 +332,8 @@ export function LandingDesignDock({
   const toggle = (control: DockControl) => setOpen((cur) => (cur === control ? null : control));
 
   const selectTemplate = (templateId: LandingDesignValue['templateId']) => {
-    const next = applyTemplate(design, templateId);
-    loadLandingFont(next.fontFamily);
-    onDesignChange(next);
+    // Keep organizer colour / font / size draft when switching layouts.
+    onDesignChange({ ...design, templateId });
     setOpen(null);
   };
 
@@ -296,36 +347,6 @@ export function LandingDesignDock({
     loadLandingFont(next.fontFamily);
     onDesignChange(next);
     setOpen(null);
-  };
-
-  const applyTechPreset = (preset: 'signal' | 'midnight' | 'neon') => {
-    if (preset === 'signal') {
-      onDesignChange({
-        ...design,
-        primaryColor: '#10b981',
-        secondaryColor: '#22d3ee',
-        landingStyle: 'glass',
-        displayMode: 'auto',
-      });
-      return;
-    }
-    if (preset === 'midnight') {
-      onDesignChange({
-        ...design,
-        primaryColor: '#6366f1',
-        secondaryColor: '#8b5cf6',
-        landingStyle: 'bold',
-        displayMode: 'dark',
-      });
-      return;
-    }
-    onDesignChange({
-      ...design,
-      primaryColor: '#22c55e',
-      secondaryColor: '#06b6d4',
-      landingStyle: 'minimal',
-      displayMode: 'light',
-    });
   };
 
   useEffect(() => {
@@ -356,20 +377,18 @@ export function LandingDesignDock({
     };
   }, [open]);
 
-  const activePreset = COLOR_PRESETS.find(
-    (p) =>
-      p.primary.toLowerCase() === design.primaryColor.toLowerCase() &&
-      p.secondary.toLowerCase() === design.secondaryColor.toLowerCase()
-  );
-  const colourValue = activePreset ? activePreset.name : 'Custom';
-  const styleValue = STYLE_OPTIONS.find((s) => s.id === design.landingStyle)?.name ?? 'Glass';
+  const colourValue = asHex(design.buttonColor || design.primaryColor, design.primaryColor);
+  const sizeValue =
+    design.h1FontSize || design.h2FontSize || design.bodyFontSize || design.smallFontSize
+      ? 'Custom'
+      : 'Auto';
   const fontKey = resolveLandingFontKey(design.fontFamily);
   const fontValue = LANDING_FONTS[fontKey].name;
   const displayValue = DISPLAY_OPTIONS.find((d) => d.id === design.displayMode)?.name ?? 'Auto';
   const templateValue = LANDING_LAYOUT_TEMPLATES.find((t) => t.id === design.templateId)?.name ?? 'Showcase';
   const summary = useMemo(
-    () => `${templateValue} · ${styleValue} · ${fontValue} · ${displayValue}`,
-    [templateValue, styleValue, fontValue, displayValue]
+    () => `${templateValue} · ${fontValue} · ${sizeValue} · ${displayValue}`,
+    [templateValue, fontValue, sizeValue, displayValue]
   );
 
   if (!expanded) {
@@ -512,101 +531,54 @@ export function LandingDesignDock({
             />
             {open === 'colour' && (
               <Popover title="Colours" onClose={() => setOpen(null)}>
-                <div className="space-y-3">
-                  <div>
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: TEXT_SUBTLE }}>
-                      Brand presets
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {COLOR_PRESETS.map((preset) => {
-                        const isActive = activePreset?.id === preset.id;
-                        return (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            title={preset.name}
-                            onClick={() =>
-                              update({
-                                primaryColor: preset.primary,
-                                secondaryColor: preset.secondary,
-                              })
-                            }
-                            className={cn(
-                              'grid h-9 w-9 place-items-center rounded-full transition hover:scale-105',
-                              isActive ? 'ring-2 ring-offset-2' : ''
-                            )}
-                            style={{
-                              background: `linear-gradient(135deg, ${preset.primary}, ${preset.secondary})`,
-                              ['--tw-ring-color' as string]: preset.primary,
-                              ['--tw-ring-offset-color' as string]: DOCK_BG,
-                            }}
-                          >
-                            {isActive && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
-                          </button>
-                        );
-                      })}
-                      <label
-                        className="relative grid h-9 w-9 cursor-pointer place-items-center overflow-hidden rounded-full ring-1 ring-white/20"
-                        title="Custom brand colour"
-                        style={{
-                          background: 'conic-gradient(from 180deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)',
-                        }}
-                      >
-                        <input
-                          type="color"
-                          value={asHex(design.primaryColor, '#059669')}
-                          onChange={(e) => {
-                            const primary = e.target.value;
-                            update({ primaryColor: primary, secondaryColor: companionSecondaryColor(primary) });
-                          }}
-                          className="absolute inset-0 cursor-pointer opacity-0"
-                          aria-label="Pick a custom brand colour"
-                        />
-                        {!activePreset && <Check className="pointer-events-none h-3.5 w-3.5 text-white drop-shadow" />}
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: TEXT_SUBTLE }}>
-                      Deep colours
-                    </p>
-                    <ColorRow
-                      label="Button"
-                      value={design.buttonColor}
-                      fallback={design.primaryColor}
-                      onChange={(hex) => update({ buttonColor: hex })}
-                      onClear={() => update({ buttonColor: undefined })}
-                    />
-                    <ColorRow
-                      label="Heading (H1)"
-                      value={design.headingColor}
-                      fallback={design.bodyTextColor || '#0f172a'}
-                      onChange={(hex) => update({ headingColor: hex })}
-                      onClear={() => update({ headingColor: undefined })}
-                    />
-                    <ColorRow
-                      label="Body text"
-                      value={design.bodyTextColor}
-                      fallback="#0f172a"
-                      onChange={(hex) => update({ bodyTextColor: hex })}
-                      onClear={() => update({ bodyTextColor: undefined })}
-                    />
-                    <ColorRow
-                      label="Muted text"
-                      value={design.mutedTextColor}
-                      fallback="#64748b"
-                      onChange={(hex) => update({ mutedTextColor: hex })}
-                      onClear={() => update({ mutedTextColor: undefined })}
-                    />
-                    <ColorRow
-                      label="Page background"
-                      value={design.pageBackgroundColor}
-                      fallback="#ffffff"
-                      onChange={(hex) => update({ pageBackgroundColor: hex })}
-                      onClear={() => update({ pageBackgroundColor: undefined })}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <ColorRow
+                    label="Brand"
+                    value={design.primaryColor}
+                    fallback="#059669"
+                    onChange={(hex) => update({ primaryColor: hex, secondaryColor: companionSecondaryColor(hex) })}
+                  />
+                  <ColorRow
+                    label="Accent"
+                    value={design.secondaryColor}
+                    fallback={companionSecondaryColor(design.primaryColor)}
+                    onChange={(hex) => update({ secondaryColor: hex })}
+                  />
+                  <ColorRow
+                    label="Button"
+                    value={design.buttonColor}
+                    fallback={design.primaryColor}
+                    onChange={(hex) => update({ buttonColor: hex })}
+                    onClear={() => update({ buttonColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Heading (H1)"
+                    value={design.headingColor}
+                    fallback={design.bodyTextColor || '#0f172a'}
+                    onChange={(hex) => update({ headingColor: hex })}
+                    onClear={() => update({ headingColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Body text"
+                    value={design.bodyTextColor}
+                    fallback="#0f172a"
+                    onChange={(hex) => update({ bodyTextColor: hex })}
+                    onClear={() => update({ bodyTextColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Muted text"
+                    value={design.mutedTextColor}
+                    fallback="#64748b"
+                    onChange={(hex) => update({ mutedTextColor: hex })}
+                    onClear={() => update({ mutedTextColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Page background"
+                    value={design.pageBackgroundColor}
+                    fallback="#ffffff"
+                    onChange={(hex) => update({ pageBackgroundColor: hex })}
+                    onClear={() => update({ pageBackgroundColor: undefined })}
+                  />
                 </div>
               </Popover>
             )}
@@ -614,36 +586,51 @@ export function LandingDesignDock({
 
           <div className="relative col-span-1">
             <Segment
-              icon={<span className="text-sm" style={{ color: TEXT_MUTED }}>✦</span>}
-              label="Style"
-              value={styleValue}
-              active={open === 'style'}
-              onClick={() => toggle('style')}
+              icon={<TypeIcon className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
+              label="Font size"
+              value={sizeValue}
+              active={open === 'size'}
+              onClick={() => toggle('size')}
             />
-            {open === 'style' && (
-              <Popover title="Choose style" align="center" onClose={() => setOpen(null)}>
-                <div className="flex flex-col gap-1">
-                  {STYLE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => {
-                        update({ landingStyle: opt.id });
-                        setOpen(null);
-                      }}
-                      className="flex min-h-[44px] items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/10"
-                    >
-                      <span>
-                        <span className="block text-sm font-medium" style={{ color: TEXT }}>
-                          {opt.name}
-                        </span>
-                        <span className="block text-xs" style={{ color: TEXT_MUTED }}>
-                          {opt.hint}
-                        </span>
-                      </span>
-                      {design.landingStyle === opt.id && <Check className="h-4 w-4" style={{ color: design.primaryColor }} />}
-                    </button>
-                  ))}
+            {open === 'size' && (
+              <Popover title="Font size" align="center" onClose={() => setOpen(null)}>
+                <div className="space-y-2">
+                  <FontSizeRow
+                    label="Heading (H1)"
+                    value={design.h1FontSize}
+                    fallback={40}
+                    min={22}
+                    max={72}
+                    onChange={(px) => update({ h1FontSize: px })}
+                    onClear={() => update({ h1FontSize: undefined })}
+                  />
+                  <FontSizeRow
+                    label="Subheading (H2)"
+                    value={design.h2FontSize}
+                    fallback={24}
+                    min={16}
+                    max={48}
+                    onChange={(px) => update({ h2FontSize: px })}
+                    onClear={() => update({ h2FontSize: undefined })}
+                  />
+                  <FontSizeRow
+                    label="Paragraph"
+                    value={design.bodyFontSize}
+                    fallback={16}
+                    min={12}
+                    max={24}
+                    onChange={(px) => update({ bodyFontSize: px })}
+                    onClear={() => update({ bodyFontSize: undefined })}
+                  />
+                  <FontSizeRow
+                    label="Small / caption"
+                    value={design.smallFontSize}
+                    fallback={13}
+                    min={10}
+                    max={18}
+                    onChange={(px) => update({ smallFontSize: px })}
+                    onClear={() => update({ smallFontSize: undefined })}
+                  />
                 </div>
               </Popover>
             )}

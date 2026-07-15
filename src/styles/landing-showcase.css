@@ -175,7 +175,7 @@
 
 .landing-showcase-hero-accent {
   font-family: var(--landing-font-display);
-  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-size: var(--landing-h1-size, clamp(2rem, 5vw, 3.25rem));
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.05;
@@ -186,7 +186,7 @@
 
 .landing-showcase-hero-title {
   font-family: var(--landing-font-display);
-  font-size: clamp(2.25rem, 6vw, 4rem);
+  font-size: var(--landing-h1-size, clamp(2.25rem, 6vw, 4rem));
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.02;
@@ -200,7 +200,7 @@
   margin-top: 1rem;
   max-width: 40rem;
   margin-inline: auto;
-  font-size: 0.9375rem;
+  font-size: var(--landing-body-size, 0.9375rem);
   line-height: 1.65;
   color: var(--landing-text-muted);
   text-wrap: pretty;
@@ -331,7 +331,7 @@
 
 .landing-showcase-section-title {
   font-family: var(--landing-font-display);
-  font-size: clamp(1.75rem, 3vw, 2.35rem);
+  font-size: var(--landing-h2-size, clamp(1.75rem, 3vw, 2.35rem));
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--showcase-accent);

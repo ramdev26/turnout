@@ -406,7 +406,7 @@
 .landing-arena-title {
   margin-top: 0.35rem;
   font-family: var(--landing-font-display);
-  font-size: clamp(1.5rem, 5vw, 1.875rem);
+  font-size: var(--landing-h1-size, clamp(1.5rem, 5vw, 1.875rem));
   font-weight: 800;
   line-height: 1.08;
   letter-spacing: -0.02em;
@@ -649,7 +649,7 @@
 }
 
 .landing-arena-section-title {
-  font-size: 1.375rem;
+  font-size: var(--landing-h2-size, 1.375rem);
   font-weight: 800;
   letter-spacing: -0.02em;
 }

@@ -225,6 +225,14 @@ function storedHexColor(value: string | undefined): string | undefined {
   return normalized && /^#[0-9a-f]{6}$/.test(normalized) ? normalized : undefined;
 }
 
+/** Clamp organizer type-scale overrides (px) into a safe range. */
+function storedFontSizePx(value: number | undefined, min: number, max: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value);
+  if (rounded < min || rounded > max) return undefined;
+  return rounded;
+}
+
 const LIGHT_LANDING_TEXT = '#0f172a';
 const LIGHT_LANDING_TEXT_MUTED = '#475569';
 
@@ -569,6 +577,10 @@ export function landingCssVars(
   const bodyTextColor = storedHexColor(c.bodyTextColor);
   const mutedTextColor = storedHexColor(c.mutedTextColor);
   const pageBackgroundColor = storedHexColor(c.pageBackgroundColor);
+  const h1FontSize = storedFontSizePx(c.h1FontSize, 20, 96);
+  const h2FontSize = storedFontSizePx(c.h2FontSize, 14, 64);
+  const bodyFontSize = storedFontSizePx(c.bodyFontSize, 12, 28);
+  const smallFontSize = storedFontSizePx(c.smallFontSize, 10, 20);
 
   const buttonFill = buttonColor || accentReadable;
   const onButton = isLightHex(buttonFill) ? TURNOUT_BRAND.ink : '#ffffff';
@@ -603,5 +615,9 @@ export function landingCssVars(
     ['--landing-font-body' as string]: font.body,
     ['--landing-accent' as string]: primary,
     ['--primary-on' as string]: buttonColor ? onButton : onPrimary,
+    ...(h1FontSize ? { ['--landing-h1-size' as string]: `${h1FontSize}px` } : {}),
+    ...(h2FontSize ? { ['--landing-h2-size' as string]: `${h2FontSize}px` } : {}),
+    ...(bodyFontSize ? { ['--landing-body-size' as string]: `${bodyFontSize}px` } : {}),
+    ...(smallFontSize ? { ['--landing-small-size' as string]: `${smallFontSize}px` } : {}),
   };
 }

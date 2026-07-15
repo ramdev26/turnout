@@ -253,7 +253,7 @@
 .gt-title {
   margin: 0;
   font-family: var(--landing-font-display), ui-sans-serif, system-ui, sans-serif;
-  font-size: clamp(1.65rem, 4.2cqi, 2.65rem);
+  font-size: var(--landing-h1-size, clamp(1.65rem, 4.2cqi, 2.65rem));
   font-weight: 750;
   letter-spacing: -0.03em;
   line-height: 1.15;

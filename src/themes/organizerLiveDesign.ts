@@ -40,6 +40,10 @@ export function landingCustomizationFromDesign(
     bodyTextColor: design.bodyTextColor || undefined,
     mutedTextColor: design.mutedTextColor || undefined,
     pageBackgroundColor: design.pageBackgroundColor || undefined,
+    h1FontSize: design.h1FontSize || undefined,
+    h2FontSize: design.h2FontSize || undefined,
+    bodyFontSize: design.bodyFontSize || undefined,
+    smallFontSize: design.smallFontSize || undefined,
   };
 }
 

@@ -236,6 +236,10 @@ export const EventSettings: React.FC = () => {
         bodyTextColor: landing.bodyTextColor,
         mutedTextColor: landing.mutedTextColor,
         pageBackgroundColor: landing.pageBackgroundColor,
+        h1FontSize: landing.h1FontSize,
+        h2FontSize: landing.h2FontSize,
+        bodyFontSize: landing.bodyFontSize,
+        smallFontSize: landing.smallFontSize,
       });
       setTicketPdfTemplateId((ev.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
       setTicketPdfPrimaryColor(
@@ -430,6 +434,10 @@ export const EventSettings: React.FC = () => {
         bodyTextColor: design.bodyTextColor || null,
         mutedTextColor: design.mutedTextColor || null,
         pageBackgroundColor: design.pageBackgroundColor || null,
+        h1FontSize: design.h1FontSize ?? null,
+        h2FontSize: design.h2FontSize ?? null,
+        bodyFontSize: design.bodyFontSize ?? null,
+        smallFontSize: design.smallFontSize ?? null,
         templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
         arenaGalleryImages,
@@ -451,6 +459,10 @@ export const EventSettings: React.FC = () => {
         bodyTextColor: res.event.customization?.bodyTextColor,
         mutedTextColor: res.event.customization?.mutedTextColor,
         pageBackgroundColor: res.event.customization?.pageBackgroundColor,
+        h1FontSize: res.event.customization?.h1FontSize,
+        h2FontSize: res.event.customization?.h2FontSize,
+        bodyFontSize: res.event.customization?.bodyFontSize,
+        smallFontSize: res.event.customization?.smallFontSize,
       }));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {

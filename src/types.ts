@@ -219,6 +219,11 @@ export interface EventCustomization {
   bodyTextColor?: string;
   mutedTextColor?: string;
   pageBackgroundColor?: string;
+  /** Deep type scale overrides (px). When unset, templates keep their default clamps. */
+  h1FontSize?: number;
+  h2FontSize?: number;
+  bodyFontSize?: number;
+  smallFontSize?: number;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
   heroText: string;
