@@ -105,9 +105,6 @@ export function LandingCustomizer({
 
   const fontKey = resolveLandingFontKey(value.fontFamily);
 
-  const segmentBase =
-    'flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition focus:outline-none';
-
   const asHex = (v: string | undefined, fallback: string) =>
     /^#([0-9a-f]{6})$/i.test(v || '') ? (v as string) : fallback;
 
