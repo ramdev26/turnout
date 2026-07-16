@@ -75,7 +75,7 @@ function BillingCardSection({
       {settings?.requirements.needsBillingCard ? (
         <div className="mt-4">
           <FlowAlert variant="info">
-            Add a billing card before selling paid tickets with your own PayHere account.
+            Billing card is optional. Add one later from the separate Billing section if you want automatic fee collection.
           </FlowAlert>
         </div>
       ) : null}
@@ -92,7 +92,6 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [addingCard, setAddingCard] = useState(false);
   const [settings, setSettings] = useState<OrganizerPaymentSettings | null>(null);
   const [gatewayMode, setGatewayMode] = useState<OrganizerGatewayMode>('turnout');
   const [merchantId, setMerchantId] = useState('');
@@ -168,37 +167,6 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     }
   };
 
-  const addBillingCard = async () => {
-    setAddingCard(true);
-    try {
-      const res = await api.post<OrganizerBillingPreapproveResponse>('/api/organizer/billing/preapprove', {});
-      await startPayHerePreapprove(res, {
-        onCompleted: async (setupOrderId) => {
-          const statusRes = await api.get<{ sessionStatus: string; settings: OrganizerPaymentSettings }>(
-            `/api/organizer/billing/status?setup_order_id=${encodeURIComponent(setupOrderId)}`
-          );
-          setSettings(statusRes.settings);
-          if (statusRes.settings.billing.status === 'active') {
-            onFeedback?.('Billing card saved. Turnout can charge platform fees to this card.');
-          } else {
-            onError?.('Card setup did not complete. Try again.');
-          }
-          setAddingCard(false);
-        },
-        onDismissed: () => {
-          setAddingCard(false);
-        },
-        onError: (message) => {
-          onError?.(message);
-          setAddingCard(false);
-        },
-      });
-    } catch (e: unknown) {
-      onError?.(formatApiError(e, 'Could not start billing card setup'));
-      setAddingCard(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="text-sm" style={{ color: ui.textMuted }}>
@@ -254,8 +222,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
             Your PayHere account
           </div>
           <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
-            Connect your PayHere merchant ID and secret. Ticket payments go directly to you — add a billing card so
-            Turnout can charge platform fees.
+            Connect your PayHere merchant ID and secret. Ticket payments go directly to you. Billing card setup is optional and available in a separate section.
           </p>
         </button>
       </div>
@@ -369,17 +336,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                 </p>
               ) : null}
             </label>
-          </div>
-
-          <BillingCardSection
-            isOwner={isOwner}
-            billingActive={billingActive}
-            settings={settings}
-            addingCard={addingCard}
-            onAddCard={addBillingCard}
-            commissionPct={commissionPct}
-          />
-        </div>
+          </div>        </div>
       )}
 
       {isOwner ? (
@@ -392,5 +349,82 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
         </p>
       )}
     </div>
+  );
+};
+
+export const OrganizerBillingCardPanel: React.FC<Props> = ({ isOwner, onFeedback, onError }) => {
+  const ui = APP_FLOW_UI;
+  const [loading, setLoading] = useState(true);
+  const [addingCard, setAddingCard] = useState(false);
+  const [settings, setSettings] = useState<OrganizerPaymentSettings | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await api.get<{ settings: OrganizerPaymentSettings; readiness: OrganizerPaidEventReadiness }>(
+      '/api/organizer/payment-settings'
+    );
+    setSettings(res.settings);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await load();
+      } catch (e: unknown) {
+        onError?.(formatApiError(e, 'Failed to load billing settings'));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [load, onError]);
+
+  const addBillingCard = async () => {
+    setAddingCard(true);
+    try {
+      const res = await api.post<OrganizerBillingPreapproveResponse>('/api/organizer/billing/preapprove', {});
+      await startPayHerePreapprove(res, {
+        onCompleted: async (setupOrderId) => {
+          const statusRes = await api.get<{ sessionStatus: string; settings: OrganizerPaymentSettings }>(
+            `/api/organizer/billing/status?setup_order_id=${encodeURIComponent(setupOrderId)}`
+          );
+          setSettings(statusRes.settings);
+          if (statusRes.settings.billing.status === 'active') {
+            onFeedback?.('Billing card saved. Automatic platform fee charging is now enabled.');
+          } else {
+            onError?.('Card setup did not complete. Try again.');
+          }
+          setAddingCard(false);
+        },
+        onDismissed: () => setAddingCard(false),
+        onError: (message) => {
+          onError?.(message);
+          setAddingCard(false);
+        },
+      });
+    } catch (e: unknown) {
+      onError?.(formatApiError(e, 'Could not start billing card setup'));
+      setAddingCard(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-sm" style={{ color: ui.textMuted }}>
+        Loading billing settings…
+      </div>
+    );
+  }
+
+  const commissionPct = settings?.commissionPct ?? 10;
+  const billingActive = settings?.billing.status === 'active';
+
+  return (
+    <BillingCardSection
+      isOwner={isOwner}
+      billingActive={billingActive}
+      settings={settings}
+      addingCard={addingCard}
+      onAddCard={addBillingCard}
+      commissionPct={commissionPct}
+    />
   );
 };

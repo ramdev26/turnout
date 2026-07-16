@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, Building2, CreditCard, Landmark, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Building2, Landmark, ShieldCheck } from 'lucide-react';
 import { OrganizerPaidEventReadiness } from '../../types';
 import { FlowAlert, FlowButton } from '../flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../flow/FlowPrimitives';
@@ -63,7 +63,6 @@ export const PaidEventSetupGate: React.FC<Props> = ({
   const businessDone = !requirements.needsBusinessDetails;
   const bankDone = !requirements.needsBankDetails;
   const payhereDone = !requirements.needsOwnPayhereCredentials;
-  const billingDone = !requirements.needsBillingCard;
 
   return (
     <div
@@ -104,12 +103,6 @@ export const PaidEventSetupGate: React.FC<Props> = ({
                   icon={<ShieldCheck className="h-4 w-4" />}
                   label="PayHere credentials"
                   detail="Your PayHere merchant ID and secret so ticket payments go to your account."
-                />
-                <RequirementRow
-                  done={billingDone}
-                  icon={<CreditCard className="h-4 w-4" />}
-                  label="Billing card"
-                  detail="A card on file so Turnout can charge platform fees after each sale."
                 />
               </>
             )}

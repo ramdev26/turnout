@@ -134,7 +134,8 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
     if (trim((string)($profileRow['bank_account_number'] ?? '')) === '') $missing[] = 'bank_account_number';
   }
 
-  $isReady = !$needsBusiness && !$needsBank && !$needsOwnPayhere && !$needsBillingCard;
+  // Billing card is optional and no longer blocks paid events.
+  $isReady = !$needsBusiness && !$needsBank && !$needsOwnPayhere;
 
   return [
     'isReady' => $isReady,
