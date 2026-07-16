@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { resolveLayoutTemplateId } from '../templates/templates';
-import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
+  AlertCircle,
   ArrowLeft,
   CalendarDays,
   ChevronDown,
@@ -48,7 +49,7 @@ const eventSchema = z
     slug: z.string().optional(),
     description: z.string().optional(),
     shortDescription: z.string().max(160, 'Keep it under 160 characters').optional(),
-    date: z.string().min(1, 'Start time is required'),
+    date: z.string().optional().or(z.literal('')),
     endDate: z.string().optional(),
     location: z.string().min(1, 'Location is required'),
     bannerUrl: z
@@ -204,6 +205,7 @@ export const CreateEvent: React.FC = () => {
     control,
     handleSubmit,
     setValue,
+    setFocus,
     watch,
     formState: { errors },
   } = useForm<EventFormValues>({
@@ -227,6 +229,7 @@ export const CreateEvent: React.FC = () => {
     },
   });
 
+  const submitErrorRef = React.useRef<HTMLDivElement>(null);
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'tickets' });
 
   const title = watch('title');
@@ -334,19 +337,91 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
+  const collectFormErrorMessages = (formErrors: FieldErrors<EventFormValues>): string[] => {
+    const messages: string[] = [];
+    const push = (message?: string) => {
+      if (message && !messages.includes(message)) messages.push(message);
+    };
+
+    push(formErrors.title?.message);
+    if (hasSchedule) {
+      if (!(date || '').trim()) push('Start date & time is required');
+      else push(formErrors.date?.message);
+      push(formErrors.endDate?.message);
+    }
+    push(formErrors.location?.message);
+    push(formErrors.shortDescription?.message);
+    push(formErrors.bannerUrl?.message);
+    push(formErrors.customDomain?.message);
+    push(formErrors.tickets?.message || formErrors.tickets?.root?.message);
+
+    const ticketErrors = formErrors.tickets;
+    if (Array.isArray(ticketErrors)) {
+      ticketErrors.forEach((tier, index) => {
+        if (!tier) return;
+        push(tier.name?.message ? `Ticket ${index + 1}: ${tier.name.message}` : undefined);
+        push(tier.price?.message ? `Ticket ${index + 1}: ${tier.price.message}` : undefined);
+        push(tier.quantity?.message ? `Ticket ${index + 1}: ${tier.quantity.message}` : undefined);
+      });
+    }
+
+    return messages;
+  };
+
+  const showValidationFeedback = (formErrors: FieldErrors<EventFormValues> = errors) => {
+    const messages = collectFormErrorMessages(formErrors);
+    setSubmitError(
+      messages.length > 0
+        ? `Please complete the required fields: ${messages.join(' · ')}`
+        : 'Please complete the required fields before creating your event.'
+    );
+    requestAnimationFrame(() => {
+      submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    const firstField =
+      formErrors.title
+        ? 'title'
+        : hasSchedule && (!(date || '').trim() || formErrors.date)
+          ? 'date'
+          : formErrors.location
+            ? 'location'
+            : formErrors.customDomain
+              ? 'customDomain'
+              : null;
+    if (firstField === 'title' || firstField === 'location' || firstField === 'customDomain') {
+      try {
+        setFocus(firstField);
+      } catch {
+        /* field may be unmounted */
+      }
+    }
+  };
+
+  const onInvalid = (formErrors: FieldErrors<EventFormValues>) => {
+    showValidationFeedback(formErrors);
+  };
+
   const onSubmit = async (data: EventFormValues) => {
     if (!user) return;
     setSubmitError(null);
+
+    if (hasSchedule && !(data.date || '').trim()) {
+      showValidationFeedback({ date: { type: 'required', message: 'Start date & time is required' } });
+      return;
+    }
 
     if (ticketMode === 'paid') {
       const hasPaidTier = data.tickets.some((t) => t.price > 0);
       if (!hasPaidTier) {
         setSubmitError('Add at least one paid ticket tier with a price greater than 0.');
+        submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
       if (paidEventReadiness && !paidEventReadiness.isReady) {
         setShowPaidSetupGate(true);
         setSubmitError('Complete business and payment setup in Organization settings before publishing a paid event.');
+        submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
     }
@@ -438,7 +513,7 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
-  const canSubmit = title.length >= 3 && !!date && !!location?.trim();
+  const canSubmit = title.trim().length >= 3 && !!location?.trim() && (!hasSchedule || !!(date || '').trim());
 
   const previewEvent = useMemo((): Event => {
     const scheduleTba = !hasSchedule;
@@ -570,7 +645,7 @@ export const CreateEvent: React.FC = () => {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={cn(
@@ -622,8 +697,13 @@ export const CreateEvent: React.FC = () => {
             {/* Right column */}
             <div className="flex flex-col">
               {submitError && (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                  {submitError}
+                <div
+                  ref={submitErrorRef}
+                  role="alert"
+                  className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{submitError}</span>
                 </div>
               )}
 
@@ -1148,11 +1228,11 @@ export const CreateEvent: React.FC = () => {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={isSubmitting || !canSubmit}
+                disabled={isSubmitting}
                 className="turnout-btn-accent mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={accentButtonStyleFor(ui)}
                 onMouseEnter={(e) => {
-                  if (!isSubmitting && canSubmit) e.currentTarget.style.backgroundColor = ui.accentHover;
+                  if (!isSubmitting) e.currentTarget.style.backgroundColor = ui.accentHover;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = ui.accent;
@@ -1160,9 +1240,10 @@ export const CreateEvent: React.FC = () => {
               >
                 {isSubmitting ? 'Creating…' : 'Create Event'}
               </button>
-              {!canSubmit && (
+              {!canSubmit && !submitError && (
                 <p className="mt-2 text-center text-xs" style={{ color: ui.textSubtle }}>
-                  Add event name, start time, and location to continue.
+                  Tip: event name and location are required
+                  {hasSchedule ? ', plus a start date & time' : ''}.
                 </p>
               )}
             </div>
