@@ -15,6 +15,7 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'bank_account_number' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
     'business_registration_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'bank_statement_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
   ];
 
   if ($driver === 'sqlite') {
@@ -338,4 +339,26 @@ function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array
   }
 
   return load_organizer_profile_row($pdo, $userId);
+}
+
+function sanitize_policy_html(string $raw): string {
+  $clean = strip_tags($raw, '<p><br><br/><strong><b><em><i><u><ul><ol><li><h3><h4><a><span>');
+  $clean = preg_replace('/\son\w+="[^"]*"/i', '', $clean) ?? $clean;
+  $clean = preg_replace("/\son\w+='[^']*'/i", '', $clean) ?? $clean;
+  $clean = preg_replace('/javascript:/i', '', $clean) ?? $clean;
+  return trim($clean);
+}
+
+function upsert_organizer_terms_html(PDO $pdo, int $userId, string $termsHtml): void {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  $clean = sanitize_policy_html($termsHtml);
+  if ($clean === '') {
+    $clean = null;
+  } else {
+    $clean = mb_substr($clean, 0, 20000);
+  }
+  // Ensure a profile row exists first.
+  upsert_organizer_profile_paid_event_fields($pdo, $userId, []);
+  $stmt = $pdo->prepare('UPDATE organizer_profiles SET terms_html = ? WHERE user_id = ?');
+  $stmt->execute([$clean, $userId]);
 }

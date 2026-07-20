@@ -32,7 +32,10 @@ export function EventPolicyViewerModal({
 
   if (!open) return null;
 
-  const content = resolveEventPolicyHtml(html);
+  const content =
+    typeof html === 'string' && html.trim()
+      ? html.trim()
+      : resolveEventPolicyHtml(html);
 
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-4">

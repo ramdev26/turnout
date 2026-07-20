@@ -1490,6 +1490,10 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     'bank_account_number' => $bankAccountNumber,
   ]);
 
+  if (array_key_exists('termsHtml', $body)) {
+    upsert_organizer_terms_html($pdo, $uid, (string)$body['termsHtml']);
+  }
+
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
 }
 
@@ -1940,9 +1944,11 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
   if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
+  require_checkout_policy_acceptance($body);
 
   $pdo = db();
   ensure_payhere_tables($pdo);
+  ensure_order_policy_acceptance_columns($pdo);
 
   $ev = require_publishable_event($pdo, $eventId);
 
@@ -1971,6 +1977,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
       'pending',
     ]);
     $orderId = (int)$pdo->lastInsertId();
+    mark_order_policy_acceptance($pdo, $orderId);
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([
@@ -2989,8 +2996,10 @@ if ($path === '/orders' && $method === 'POST') {
   if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
   if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
+  require_checkout_policy_acceptance($body);
 
   $pdo = db();
+  ensure_order_policy_acceptance_columns($pdo);
   $ev = require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $totalCents = (int)$normalized['totalCents'];
@@ -3020,6 +3029,7 @@ if ($path === '/orders' && $method === 'POST') {
       'paid',
     ]);
     $orderId = (int)$pdo->lastInsertId();
+    mark_order_policy_acceptance($pdo, $orderId);
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
     increment_ticket_sold_counts($pdo, $normalizedItems);
 

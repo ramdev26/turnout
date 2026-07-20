@@ -86,6 +86,8 @@ export type OrganizerProfile = {
   bankAccountConfigured?: boolean;
   bankStatementDocUrl?: string | null;
   bankStatementDocUploaded?: boolean;
+  /** Organization Terms & Conditions (HTML). */
+  termsHtml?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
@@ -342,6 +344,8 @@ export interface Event {
   organizerName?: string;
   /** Organizer logo URL when set in account settings */
   organizerLogoUrl?: string | null;
+  /** Organizer Terms & Conditions HTML for checkout acceptance */
+  organizerTermsHtml?: string | null;
   title: string;
   description: string;
   date: string;

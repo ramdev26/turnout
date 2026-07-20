@@ -18,6 +18,8 @@ type Props = {
   open: boolean;
   title?: string;
   value: string;
+  /** Template inserted via “Insert template” (defaults to event policy). */
+  defaultTemplate?: string;
   onClose: () => void;
   onSave: (html: string) => void;
   ui: CreateThemeUI;
@@ -36,6 +38,7 @@ export function EventPolicyEditorModal({
   open,
   title = 'Event policy',
   value,
+  defaultTemplate = DEFAULT_EVENT_POLICY_HTML,
   onClose,
   onSave,
   ui,
@@ -52,10 +55,10 @@ export function EventPolicyEditorModal({
     setHtmlDraft(value);
     setDirty(false);
     const id = window.setTimeout(() => {
-      if (editorRef.current) editorRef.current.innerHTML = value || DEFAULT_EVENT_POLICY_HTML;
+      if (editorRef.current) editorRef.current.innerHTML = value || defaultTemplate;
     }, 0);
     return () => window.clearTimeout(id);
-  }, [open, value]);
+  }, [open, value, defaultTemplate]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +86,7 @@ export function EventPolicyEditorModal({
   };
 
   const insertTemplate = () => {
-    const next = DEFAULT_EVENT_POLICY_HTML;
+    const next = defaultTemplate;
     setHtmlDraft(next);
     setDirty(true);
     if (editorRef.current && !showHtml) editorRef.current.innerHTML = next;

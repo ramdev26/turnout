@@ -18,6 +18,9 @@ import {
 } from '../lib/payhereCheckout';
 import { formatApiError } from '../utils/apiError';
 import { Users } from 'lucide-react';
+import { resolveEventPolicyHtml } from '../utils/eventPolicy';
+import { resolveOrganizerTermsHtml } from '../utils/organizerTerms';
+import { EventPolicyViewerModal } from '../components/landing/EventPolicyViewer';
 
 type TicketHolderInput = {
   key: string;
@@ -87,9 +90,21 @@ export const EventLanding: React.FC = () => {
   const [assignEachTicket, setAssignEachTicket] = useState(false);
   const [ticketHolders, setTicketHolders] = useState<TicketHolderInput[]>([]);
   const [perAttendeeCustomFields, setPerAttendeeCustomFields] = useState<Record<string, string>[]>([]);
+  const [acceptedOrganizerTerms, setAcceptedOrganizerTerms] = useState(false);
+  const [acceptedEventPolicy, setAcceptedEventPolicy] = useState(false);
+  const [policyViewer, setPolicyViewer] = useState<{ title: string; html: string } | null>(null);
   const buyerName = watch('buyerName');
   const buyerEmail = watch('buyerEmail');
   const buyerPhone = watch('buyerPhone');
+
+  const organizerTermsHtml = useMemo(
+    () => resolveOrganizerTermsHtml(event?.organizerTermsHtml),
+    [event?.organizerTermsHtml]
+  );
+  const eventPolicyHtml = useMemo(
+    () => resolveEventPolicyHtml(event?.customization?.eventPolicyHtml),
+    [event?.customization?.eventPolicyHtml]
+  );
 
   const orderItems = useMemo<OrderItem[]>(
     () =>
@@ -234,6 +249,8 @@ export const EventLanding: React.FC = () => {
 
   const handlePurchase = () => {
     if (!event || !hasSelectedTickets) return;
+    setAcceptedOrganizerTerms(false);
+    setAcceptedEventPolicy(false);
     setCheckoutOpen(true);
     setPayError(null);
     if (totalAmount > 0) {
@@ -283,6 +300,11 @@ export const EventLanding: React.FC = () => {
     setIsPurchasing(true);
     setPayError(null);
     try {
+      if (!acceptedOrganizerTerms || !acceptedEventPolicy) {
+        setPayError('Please accept the organizer Terms & Conditions and the Event policy to continue.');
+        setIsPurchasing(false);
+        return;
+      }
       let attendees: {
         ticketId: string;
         fullName: string;
@@ -364,6 +386,8 @@ export const EventLanding: React.FC = () => {
           buyerPhone: values.buyerPhone,
           tickets: orderItems,
           attendees,
+          acceptedOrganizerTerms: true,
+          acceptedEventPolicy: true,
         });
         setCheckoutOpen(false);
         const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
@@ -376,6 +400,8 @@ export const EventLanding: React.FC = () => {
           buyerPhone: values.buyerPhone,
           tickets: orderItems,
           attendees,
+          acceptedOrganizerTerms: true,
+          acceptedEventPolicy: true,
         });
 
         await preloadPayHereScript(res.sandbox !== false);
@@ -925,6 +951,58 @@ export const EventLanding: React.FC = () => {
                   background: 'var(--landing-surface)',
                 }}
               >
+                <div className="mb-3 space-y-2.5">
+                  <label className="flex items-start gap-2.5 text-sm leading-snug" style={{ color: 'var(--landing-text)' }}>
+                    <input
+                      type="checkbox"
+                      checked={acceptedOrganizerTerms}
+                      onChange={(e) => setAcceptedOrganizerTerms(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border"
+                      style={{ accentColor: 'var(--primary)' }}
+                    />
+                    <span>
+                      I agree to the organizer{' '}
+                      <button
+                        type="button"
+                        className="font-semibold underline underline-offset-2"
+                        style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
+                        onClick={() =>
+                          setPolicyViewer({
+                            title: 'Terms & Conditions',
+                            html: organizerTermsHtml,
+                          })
+                        }
+                      >
+                        Terms &amp; Conditions
+                      </button>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2.5 text-sm leading-snug" style={{ color: 'var(--landing-text)' }}>
+                    <input
+                      type="checkbox"
+                      checked={acceptedEventPolicy}
+                      onChange={(e) => setAcceptedEventPolicy(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border"
+                      style={{ accentColor: 'var(--primary)' }}
+                    />
+                    <span>
+                      I agree to this event&apos;s{' '}
+                      <button
+                        type="button"
+                        className="font-semibold underline underline-offset-2"
+                        style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
+                        onClick={() =>
+                          setPolicyViewer({
+                            title: 'Event policy',
+                            html: eventPolicyHtml,
+                          })
+                        }
+                      >
+                        Event policy
+                      </button>
+                    </span>
+                  </label>
+                </div>
                 {payError && (
                   <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
                     {payError}
@@ -932,7 +1010,7 @@ export const EventLanding: React.FC = () => {
                 )}
                 <button
                   type="submit"
-                  disabled={isPurchasing || !prefillReady}
+                  disabled={isPurchasing || !prefillReady || !acceptedOrganizerTerms || !acceptedEventPolicy}
                   className="landing-btn-primary landing-checkout-confirm h-12 w-full rounded-2xl text-base font-bold disabled:opacity-50"
                 >
                   {isPurchasing
@@ -948,6 +1026,13 @@ export const EventLanding: React.FC = () => {
           </div>
         </div>
       )}
+
+      <EventPolicyViewerModal
+        open={!!policyViewer}
+        title={policyViewer?.title}
+        html={policyViewer?.html}
+        onClose={() => setPolicyViewer(null)}
+      />
 
       {hasSelectedTickets && !checkoutOpen ? (
         <div className="h-[calc(4.5rem+env(safe-area-inset-bottom))] md:hidden" aria-hidden />

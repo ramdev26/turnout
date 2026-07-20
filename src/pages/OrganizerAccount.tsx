@@ -13,10 +13,12 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowAlert, FlowButton, FlowCard, FlowInput, FlowLabel, FlowPage } from '../components/flow/FlowPrimitives';
 import { organizerMainNav } from '../utils/organizerNav';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor, accentButtonStyleFor } from '../themes/flowUi';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { OrganizerBillingCardPanel, OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
+import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { TurnoutSelect } from '../components/ui/TurnoutSelect';
+import { DEFAULT_ORGANIZER_TERMS_HTML, resolveOrganizerTermsHtml } from '../utils/organizerTerms';
 
 const ROLE_LABELS: Record<OrganizerTeamRole, string> = {
   owner: 'Owner',
@@ -47,6 +49,9 @@ export const OrganizerAccount: React.FC = () => {
   const [uploadingBrDoc, setUploadingBrDoc] = useState(false);
   const [uploadingBankStatementDoc, setUploadingBankStatementDoc] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [termsHtml, setTermsHtml] = useState(DEFAULT_ORGANIZER_TERMS_HTML);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [savingTerms, setSavingTerms] = useState(false);
 
   const [workspace, setWorkspace] = useState<OrganizerWorkspace | null>(null);
   const [profile, setProfile] = useState<OrganizerProfile>({
@@ -97,7 +102,9 @@ export const OrganizerAccount: React.FC = () => {
           businessRegistrationDocUploaded: !!res.profile.businessRegistrationDocUploaded,
           bankStatementDocUrl: res.profile.bankStatementDocUrl || '',
           bankStatementDocUploaded: !!res.profile.bankStatementDocUploaded,
+          termsHtml: res.profile.termsHtml || null,
         });
+        setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
         if (res.workspace.canManageTeam) {
           await loadTeam();
         }
@@ -199,6 +206,38 @@ export const OrganizerAccount: React.FC = () => {
       setError(err?.message || err?.error || 'Failed to save profile');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const saveTerms = async (html: string) => {
+    if (!workspace?.isOwner) return;
+    setSavingTerms(true);
+    setError(null);
+    try {
+      const next = resolveOrganizerTermsHtml(html);
+      const res = await api.post<{ ok: boolean; profile: OrganizerProfile; user: Parameters<typeof setUser>[0] }>(
+        '/api/me/organizer-profile',
+        {
+          displayName: profile.displayName.trim(),
+          organizationName: profile.organizationName.trim(),
+          logoUrl: profile.logoUrl || undefined,
+          website: profile.website?.trim() || undefined,
+          phone: profile.phone?.trim() || undefined,
+          businessAddress: profile.businessAddress?.trim() || undefined,
+          businessRegistrationNo: profile.businessRegistrationNo?.trim() || undefined,
+          termsHtml: next,
+        }
+      );
+      setUser(res.user);
+      setProfile((p) => ({ ...p, ...res.profile }));
+      setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
+      setTermsModalOpen(false);
+      setFeedback('Terms & Conditions saved.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save Terms & Conditions');
+    } finally {
+      setSavingTerms(false);
     }
   };
 
@@ -473,6 +512,46 @@ export const OrganizerAccount: React.FC = () => {
 
         <FlowCard className="mt-6">
           <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5" style={{ color: ui.accent }} />
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Terms &amp; Conditions
+            </h2>
+          </div>
+          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+            Your organization terms apply across all events. Attendees must accept them at checkout along with each
+            event&apos;s policy.
+          </p>
+          <div className="mt-5 rounded-2xl border p-4" style={cardMutedStyle}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold" style={{ color: ui.text }}>
+                  Organization terms
+                </p>
+                <p className="mt-0.5 text-sm" style={{ color: ui.textMuted }}>
+                  Default template is ready — customize anytime.
+                </p>
+              </div>
+              {workspace?.isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => setTermsModalOpen(true)}
+                  className="shrink-0 rounded-xl px-3.5 py-2 text-sm font-semibold"
+                  style={accentButtonStyleFor(ui)}
+                >
+                  Edit terms
+                </button>
+              ) : null}
+            </div>
+            <div
+              className="event-policy-content max-h-40 overflow-hidden text-sm leading-relaxed opacity-90"
+              style={{ color: ui.textMuted }}
+              dangerouslySetInnerHTML={{ __html: termsHtml }}
+            />
+          </div>
+        </FlowCard>
+
+        <FlowCard className="mt-6">
+          <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" style={{ color: ui.accent }} />
             <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
               Payments
@@ -630,6 +709,16 @@ export const OrganizerAccount: React.FC = () => {
           </FlowCard>
         ) : null}
       </FlowPage>
+      <EventPolicyEditorModal
+        open={termsModalOpen}
+        title="Terms & Conditions"
+        value={termsHtml}
+        defaultTemplate={DEFAULT_ORGANIZER_TERMS_HTML}
+        ui={ui}
+        saving={savingTerms}
+        onClose={() => setTermsModalOpen(false)}
+        onSave={(html) => void saveTerms(html)}
+      />
     </OrganizerFlowShell>
   );
 };
