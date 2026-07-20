@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, Building2, Landmark, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Landmark, ShieldCheck } from 'lucide-react';
 import { OrganizerPaidEventReadiness } from '../../types';
 import { FlowAlert, FlowButton } from '../flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../flow/FlowPrimitives';
@@ -60,7 +60,6 @@ export const PaidEventSetupGate: React.FC<Props> = ({
   if (!readiness || readiness.isReady) return null;
 
   const { requirements, gatewayMode } = readiness;
-  const businessDone = !requirements.needsBusinessDetails;
   const bankDone = !requirements.needsBankDetails;
   const payhereDone = !requirements.needsOwnPayhereCredentials;
 
@@ -82,13 +81,6 @@ export const PaidEventSetupGate: React.FC<Props> = ({
           </p>
 
           <div className="mt-4 space-y-2">
-            <RequirementRow
-              done={businessDone}
-              icon={<Building2 className="h-4 w-4" />}
-              label="Business details"
-              detail="Organization name, business address, phone number, and BR document."
-            />
-
             {gatewayMode === 'turnout' ? (
               <RequirementRow
                 done={bankDone}

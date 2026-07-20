@@ -114,13 +114,15 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
   $paymentRow = organizer_payment_settings_row($pdo, $ownerUserId);
   $gatewayMode = normalize_organizer_gateway_mode((string)($paymentRow['gateway_mode'] ?? 'turnout'));
 
-  $needsBusiness = !organizer_business_details_complete($profileRow);
+  $businessIncomplete = !organizer_business_details_complete($profileRow);
+  // Temporarily do not block paid events on business details.
+  $needsBusiness = false;
   $needsBank = $gatewayMode === 'turnout' && !organizer_bank_details_complete($profileRow);
   $needsOwnPayhere = $gatewayMode === 'own_payhere' && !organizer_own_payhere_is_configured($paymentRow);
   $needsBillingCard = $gatewayMode === 'own_payhere' && !organizer_billing_is_active($paymentRow);
 
   $missing = [];
-  if ($needsBusiness) {
+  if ($businessIncomplete) {
     if (trim((string)($profileRow['organization_name'] ?? '')) === '') $missing[] = 'organization_name';
     if (trim((string)($profileRow['business_address'] ?? '')) === '') $missing[] = 'business_address';
     if (trim((string)($profileRow['phone'] ?? '')) === '') $missing[] = 'phone';
@@ -134,8 +136,8 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
     if (trim((string)($profileRow['bank_account_number'] ?? '')) === '') $missing[] = 'bank_account_number';
   }
 
-  // Billing card is optional and no longer blocks paid events.
-  $isReady = !$needsBusiness && !$needsBank && !$needsOwnPayhere;
+  // Business details and billing card are optional and no longer block paid events.
+  $isReady = !$needsBank && !$needsOwnPayhere;
 
   return [
     'isReady' => $isReady,
