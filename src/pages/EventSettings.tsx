@@ -626,9 +626,12 @@ export const EventSettings: React.FC = () => {
     return (
       <div
         className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center"
-        style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)' }}
+        style={{ background: ui.pageBg }}
       >
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: ui.accent }} />
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-2 border-t-transparent"
+          style={{ borderColor: ui.borderColor, borderTopColor: ui.accent }}
+        />
       </div>
     );
   }
