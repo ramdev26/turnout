@@ -16,6 +16,7 @@ import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { OrganizerBillingCardPanel, OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
+import { TurnoutSelect } from '../components/ui/TurnoutSelect';
 
 const ROLE_LABELS: Record<OrganizerTeamRole, string> = {
   owner: 'Owner',
@@ -534,16 +535,19 @@ export const OrganizerAccount: React.FC = () => {
                   style={fieldStyle}
                 />
               </div>
-              <select
+              <TurnoutSelect
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as OrganizerTeamRole)}
-                className={fieldClass}
+                onChange={(next) => setInviteRole(next as OrganizerTeamRole)}
+                ariaLabel="Invite role"
+                tone={ui.isDark ? 'dark' : 'light'}
                 style={fieldStyle}
-              >
-                <option value="admin">Admin</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
+                buttonClassName={fieldClass}
+                options={[
+                  { value: 'admin', label: 'Admin' },
+                  { value: 'editor', label: 'Editor' },
+                  { value: 'viewer', label: 'Viewer' },
+                ]}
+              />
               <FlowButton onClick={sendInvite} disabled={inviting || !inviteEmail.trim()}>
                 <UserPlus className="h-4 w-4" />
                 {inviting ? 'Sending…' : 'Invite'}

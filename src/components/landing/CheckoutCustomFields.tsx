@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CheckoutFieldDefinition } from '../../types';
 import { resolveCheckoutFieldType } from '../../utils/checkoutFields';
+import { TurnoutSelect } from '../ui/TurnoutSelect';
 
 type Props = {
   fields: CheckoutFieldDefinition[];
@@ -72,24 +73,24 @@ export function CheckoutCustomFields({ fields, values, onChange, idPrefix = 'cf'
 
         if (type === 'select') {
           return (
-            <label key={field.id} className="flex flex-col gap-1.5">
-              {label}
-              <select
+            <div key={field.id} className="flex flex-col gap-1.5">
+              <label htmlFor={inputId}>{label}</label>
+              <TurnoutSelect
                 id={inputId}
-                required={field.required}
                 value={value}
-                onChange={(e) => setValue(field.key, e.target.value)}
-                className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
+                required={field.required}
+                onChange={(next) => setValue(field.key, next)}
+                placeholder={field.placeholder || 'Select an option'}
+                ariaLabel={field.label}
+                tone="light"
                 style={inputStyle}
-              >
-                <option value="">{field.placeholder || 'Select an option'}</option>
-                {(field.options || []).map((opt) => (
-                  <option key={opt.id} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                buttonClassName="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
+                options={(field.options || []).map((opt) => ({
+                  value: opt.value,
+                  label: opt.label,
+                }))}
+              />
+            </div>
           );
         }
 
@@ -109,7 +110,10 @@ export function CheckoutCustomFields({ fields, values, onChange, idPrefix = 'cf'
                       htmlFor={radioId}
                       className="flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5"
                       style={{
-                        borderColor: value === opt.value ? 'var(--landing-accent-readable, var(--primary))' : 'var(--landing-border)',
+                        borderColor:
+                          value === opt.value
+                            ? 'var(--landing-accent-readable, var(--primary))'
+                            : 'var(--landing-border)',
                         background: 'var(--landing-surface-muted)',
                         color: 'var(--landing-text)',
                       }}

@@ -231,3 +231,12 @@ select {
     border-color: var(--border) !important;
   }
 }
+
+/* Native <select> option menus inherit light text on dark UIs and become unreadable
+   against the browser's white popup. Force readable option colors everywhere. */
+select option,
+select optgroup {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+

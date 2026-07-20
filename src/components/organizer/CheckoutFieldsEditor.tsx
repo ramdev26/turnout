@@ -3,6 +3,7 @@ import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import type { CheckoutFieldDefinition, CheckoutFieldOption, CheckoutFieldType } from '../../types';
 import { CHECKOUT_FIELD_TYPES, slugifyCheckoutFieldKey } from '../../utils/checkoutFields';
 import type { CreateThemeUI } from '../../themes/eventThemes';
+import { TurnoutSelect } from '../ui/TurnoutSelect';
 
 type Props = {
   fields: CheckoutFieldDefinition[];
@@ -138,18 +139,19 @@ export function CheckoutFieldsEditor({ fields, onChange, ui, fieldClass, fieldSt
                 <span className="text-xs font-semibold" style={{ color: ui.textSubtle }}>
                   Field type
                 </span>
-                <select
+                <TurnoutSelect
                   value={type}
-                  onChange={(e) => update(field.id, { type: e.target.value as CheckoutFieldType })}
-                  className={fieldClass}
+                  onChange={(next) => update(field.id, { type: next as CheckoutFieldType })}
+                  options={CHECKOUT_FIELD_TYPES.map((t) => ({
+                    value: t.id,
+                    label: t.label,
+                    hint: t.hint,
+                  }))}
+                  ariaLabel="Field type"
+                  tone={ui.isDark ? 'dark' : 'light'}
                   style={fieldStyle}
-                >
-                  {CHECKOUT_FIELD_TYPES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+                  buttonClassName={fieldClass}
+                />
                 <span className="text-[11px]" style={{ color: ui.textMuted }}>
                   {CHECKOUT_FIELD_TYPES.find((t) => t.id === type)?.hint}
                 </span>
