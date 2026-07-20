@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { CreateEvent } from './pages/CreateEvent';
 import { EventThemes } from './pages/EventThemes';
 import { EventLanding } from './pages/EventLanding';
+import { EventCheckout } from './pages/EventCheckout';
 import { Success } from './pages/Success';
 import { Login } from './pages/Login';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -436,6 +437,8 @@ export default function App() {
           />
           <Route path="/dashboard/events/:eventId/runbook" element={<Navigate to="/dashboard" replace />} />
           <Route path="/staff/checkin/:eventId" element={<StaffCheckInScanner />} />
+          <Route path="/events/:eventId/checkout" element={<EventCheckout />} />
+          <Route path="/e/:slug/checkout" element={<EventCheckout />} />
           <Route path="/events/:eventId" element={<EventLanding />} />
           <Route path="/e/:slug" element={<EventLanding />} />
           <Route path="/orders/:orderId/success" element={<Success />} />
