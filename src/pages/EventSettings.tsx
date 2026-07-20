@@ -165,7 +165,6 @@ export const EventSettings: React.FC = () => {
     tickets: true,
     checkout: false,
     policy: false,
-    bankTransfer: false,
     payments: false,
     advanced: false,
   });
