@@ -558,8 +558,7 @@ export const OrganizerAccount: React.FC = () => {
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Choose Turnout Pay (we handle fees and payouts) or connect your own PayHere account (requires a billing
-            card for platform fees).
+            Set up payment providers for your organization. Then enable the methods you want on each event.
           </p>
           <div className="mt-5">
             <OrganizerPaymentSettingsPanel

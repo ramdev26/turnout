@@ -252,10 +252,13 @@ export const EventLanding: React.FC = () => {
     if (!event || !hasSelectedTickets) return;
     setAcceptedOrganizerTerms(false);
     setAcceptedEventPolicy(false);
-    setPaymentMethod(event.allowBankTransfer ? 'payhere' : 'payhere');
+    const payhereOn = event.allowPayhere !== false;
+    const bankOn = !!event.allowBankTransfer;
+    if (bankOn && !payhereOn) setPaymentMethod('bank_transfer');
+    else setPaymentMethod('payhere');
     setCheckoutOpen(true);
     setPayError(null);
-    if (totalAmount > 0) {
+    if (totalAmount > 0 && payhereOn) {
       void preloadPayHereScript(true);
     }
   };
@@ -411,6 +414,10 @@ export const EventLanding: React.FC = () => {
         setCheckoutOpen(false);
         const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
         navigate(`/orders/${res.orderId}/success${tokenQs}`);
+      } else if (event.allowPayhere === false) {
+        setPayError('Online payment is not enabled for this event. Choose bank transfer or contact the organizer.');
+        setIsPurchasing(false);
+        return;
       } else {
         const res = await api.post<PayHereInitiateResponse>('/api/payhere/initiate', {
           eventId: event.id,
@@ -970,7 +977,7 @@ export const EventLanding: React.FC = () => {
                   background: 'var(--landing-surface)',
                 }}
               >
-                {totalAmount > 0 && event.allowBankTransfer ? (
+                {totalAmount > 0 && event.allowPayhere !== false && event.allowBankTransfer ? (
                   <div className="mb-3 space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
                       Payment method
@@ -1056,6 +1063,26 @@ export const EventLanding: React.FC = () => {
                         </p>
                       </div>
                     ) : null}
+                  </div>
+                ) : totalAmount > 0 && event.allowBankTransfer && event.allowPayhere === false && event.bankTransfer ? (
+                  <div
+                    className="mb-3 rounded-xl border px-3 py-2.5 text-xs leading-relaxed"
+                    style={{
+                      borderColor: 'var(--landing-border)',
+                      background: 'var(--landing-surface-muted)',
+                      color: 'var(--landing-text-muted)',
+                    }}
+                  >
+                    <p className="font-semibold" style={{ color: 'var(--landing-text)' }}>
+                      Pay by bank transfer
+                    </p>
+                    <p className="mt-1">
+                      {event.bankTransfer.accountHolderName}
+                      <br />
+                      {event.bankTransfer.bankName} · {event.bankTransfer.bankBranch}
+                      <br />
+                      A/C {event.bankTransfer.accountNumber}
+                    </p>
                   </div>
                 ) : null}
                 <div className="mb-3 space-y-2.5">

@@ -1957,6 +1957,13 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
 
   $ev = require_publishable_event($pdo, $eventId);
 
+  if (!event_allows_payhere($ev)) {
+    json_response(400, [
+      'error' => 'payhere_not_enabled',
+      'message' => 'Card / online payment is not enabled for this event. Choose another payment method.',
+    ]);
+  }
+
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $checkoutFields = checkout_fields_from_event_row($ev);
   validate_attendees_for_order($normalized['items'], $attendees, $checkoutFields);
@@ -2756,8 +2763,33 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('arenaGalleryImages', $body)) {
     $customization['arenaGalleryImages'] = normalize_arena_gallery_images($body['arenaGalleryImages']);
   }
-  if (array_key_exists('allowBankTransfer', $body)) {
-    $wantBank = (bool)$body['allowBankTransfer'];
+  if (array_key_exists('allowBankTransfer', $body) || array_key_exists('paymentMethods', $body) || array_key_exists('allowPayhere', $body)) {
+    $currentMethods = event_payment_methods_from_customization($customization);
+    $wantPayhere = $currentMethods['payhere'];
+    $wantBank = $currentMethods['bankTransfer'];
+
+    if (array_key_exists('paymentMethods', $body) && is_array($body['paymentMethods'])) {
+      if (array_key_exists('payhere', $body['paymentMethods'])) {
+        $wantPayhere = (bool)$body['paymentMethods']['payhere'];
+      }
+      if (array_key_exists('bankTransfer', $body['paymentMethods'])) {
+        $wantBank = (bool)$body['paymentMethods']['bankTransfer'];
+      }
+    }
+    if (array_key_exists('allowPayhere', $body)) {
+      $wantPayhere = (bool)$body['allowPayhere'];
+    }
+    if (array_key_exists('allowBankTransfer', $body)) {
+      $wantBank = (bool)$body['allowBankTransfer'];
+    }
+
+    if (!$wantPayhere && !$wantBank) {
+      json_response(400, [
+        'error' => 'payment_method_required',
+        'message' => 'Enable at least one payment method (PayHere or bank transfer) for paid tickets.',
+      ]);
+    }
+
     if ($wantBank) {
       $ownerId = (int)($row['organizer_user_id'] ?? 0);
       $profileRow = load_organizer_profile_row($pdo, $ownerId);
@@ -2767,10 +2799,9 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
           'message' => 'Add your bank account details in Organization settings before enabling bank transfer for this event.',
         ]);
       }
-      $customization['allowBankTransfer'] = true;
-    } else {
-      unset($customization['allowBankTransfer']);
     }
+
+    $customization = apply_event_payment_methods_to_customization($customization, $wantPayhere, $wantBank);
   }
 
   if (array_key_exists('bannerUrl', $body)) {

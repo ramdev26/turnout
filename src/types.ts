@@ -282,6 +282,13 @@ export interface EventCustomization {
   arenaGalleryImages?: string[];
   /** When true, attendees may pay via bank transfer (requires organizer bank details). */
   allowBankTransfer?: boolean;
+  /** When false, PayHere/card checkout is disabled for this event. Defaults to true. */
+  allowPayhere?: boolean;
+  /** Explicit payment method toggles for this event. */
+  paymentMethods?: {
+    payhere?: boolean;
+    bankTransfer?: boolean;
+  };
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }
@@ -350,6 +357,12 @@ export interface Event {
   organizerTermsHtml?: string | null;
   /** True when this event accepts bank transfer and organizer bank details are complete */
   allowBankTransfer?: boolean;
+  /** True when card/online PayHere checkout is enabled for this event */
+  allowPayhere?: boolean;
+  paymentMethods?: {
+    payhere?: boolean;
+    bankTransfer?: boolean;
+  };
   /** Receiving bank account shown at checkout when bank transfer is enabled */
   bankTransfer?: {
     accountHolderName: string;

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  CreditCard,
   Landmark,
   MapPin,
   Plus,
@@ -165,14 +166,16 @@ export const EventSettings: React.FC = () => {
     checkout: false,
     policy: false,
     bankTransfer: false,
+    payments: false,
     advanced: false,
   });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
+  const [allowPayhere, setAllowPayhere] = useState(true);
   const [allowBankTransfer, setAllowBankTransfer] = useState(false);
-  const [savingBankTransfer, setSavingBankTransfer] = useState(false);
+  const [savingPaymentMethods, setSavingPaymentMethods] = useState(false);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -269,7 +272,17 @@ export const EventSettings: React.FC = () => {
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
       setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
       setEventPolicyHtml(resolveEventPolicyHtml(ev.customization?.eventPolicyHtml));
-      setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer);
+      const pm = ev.customization?.paymentMethods;
+      const payhereOn =
+        typeof ev.allowPayhere === 'boolean'
+          ? ev.allowPayhere
+          : typeof pm?.payhere === 'boolean'
+            ? pm.payhere
+            : typeof ev.customization?.allowPayhere === 'boolean'
+              ? ev.customization.allowPayhere
+              : true;
+      setAllowPayhere(payhereOn);
+      setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer || !!pm?.bankTransfer);
 
       const [ticketsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
@@ -548,23 +561,36 @@ export const EventSettings: React.FC = () => {
     }
   };
 
-  const saveBankTransferSetting = async (enabled: boolean) => {
+  const savePaymentMethods = async (next: { payhere: boolean; bankTransfer: boolean }) => {
     if (!eventId) return;
-    setSavingBankTransfer(true);
+    setSavingPaymentMethods(true);
     setError(null);
     try {
       const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
-        allowBankTransfer: enabled,
+        paymentMethods: {
+          payhere: next.payhere,
+          bankTransfer: next.bankTransfer,
+        },
       });
       setEvent(res.event);
-      setAllowBankTransfer(!!res.event.customization?.allowBankTransfer || !!res.event.allowBankTransfer);
-      setFeedback(enabled ? 'Bank transfer enabled for this event.' : 'Bank transfer disabled for this event.');
+      const pm = res.event.customization?.paymentMethods;
+      setAllowPayhere(
+        typeof res.event.allowPayhere === 'boolean'
+          ? res.event.allowPayhere
+          : typeof pm?.payhere === 'boolean'
+            ? pm.payhere
+            : true
+      );
+      setAllowBankTransfer(
+        !!res.event.customization?.allowBankTransfer || !!res.event.allowBankTransfer || !!pm?.bankTransfer
+      );
+      setFeedback('Payment methods updated for this event.');
     } catch (e: unknown) {
       const err = e as { message?: string; error?: string };
-      setError(err?.message || err?.error || 'Failed to update bank transfer setting');
-      setAllowBankTransfer(!enabled);
+      setError(err?.message || err?.error || 'Failed to update payment methods');
+      await loadAll();
     } finally {
-      setSavingBankTransfer(false);
+      setSavingPaymentMethods(false);
     }
   };
 
@@ -1262,64 +1288,119 @@ export const EventSettings: React.FC = () => {
             </SettingsCollapsibleSection>
 
             <SettingsCollapsibleSection
-              title="Bank transfer"
-              subtitle={allowBankTransfer ? 'Enabled · review pending slips' : 'Optional payment method'}
-              icon={<Landmark className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
-              open={isSectionOpen('bankTransfer')}
-              onToggle={() => toggleSection('bankTransfer')}
+              title="Payment methods"
+              subtitle={
+                [allowPayhere ? 'PayHere' : null, allowBankTransfer ? 'Bank transfer' : null]
+                  .filter(Boolean)
+                  .join(' · ') || 'None enabled'
+              }
+              icon={<CreditCard className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('payments')}
+              onToggle={() => toggleSection('payments')}
               panelClassName={panelCn}
               cardStyle={cardStyle}
               ui={ui}
             >
               <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
-                Let attendees pay by transferring to your bank account, then upload a slip. Tickets are issued after you
-                confirm the payment. Set your bank details in{' '}
+                Choose which payment methods attendees can use for this event. Configure providers in{' '}
                 <Link to="/dashboard/organization" className="font-semibold underline underline-offset-2">
-                  Organization settings
+                  Organization → Payments
                 </Link>
                 .
               </p>
 
-              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
-                <label className="flex items-start gap-3">
+              <div className="overflow-hidden rounded-2xl border" style={cardMutedStyle}>
+                <label className="flex items-start gap-3 border-b px-4 py-3.5" style={{ borderColor: ui.borderColor }}>
                   <input
                     type="checkbox"
-                    checked={allowBankTransfer}
-                    disabled={savingBankTransfer}
+                    checked={allowPayhere}
+                    disabled={savingPaymentMethods}
                     onChange={(e) => {
-                      const next = e.target.checked;
-                      setAllowBankTransfer(next);
-                      void saveBankTransferSetting(next);
+                      const nextPayhere = e.target.checked;
+                      setAllowPayhere(nextPayhere);
+                      void savePaymentMethods({ payhere: nextPayhere, bankTransfer: allowBankTransfer });
                     }}
                     className="mt-1 h-4 w-4"
                     style={{ accentColor: ui.accent }}
                   />
-                  <span>
-                    <span className="font-semibold" style={{ color: ui.text }}>
-                      Accept bank transfer for this event
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold" style={{ color: ui.text }}>
+                        PayHere
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={
+                          allowPayhere
+                            ? { background: 'rgba(16, 185, 129, 0.14)', color: '#059669' }
+                            : { background: 'rgba(245, 158, 11, 0.16)', color: '#d97706' }
+                        }
+                      >
+                        {allowPayhere ? 'Active' : 'Inactive'}
+                      </span>
                     </span>
                     <span className="mt-0.5 block text-sm" style={{ color: ui.textMuted }}>
-                      Not enabled by default — turn on only for events where you want this option.
+                      Card / online checkout with instant confirmation
                     </span>
                   </span>
+                  <CreditCard className="mt-0.5 h-4 w-4 shrink-0" style={{ color: ui.textMuted }} />
                 </label>
-                {paidEventReadiness &&
-                !(
-                  paidEventReadiness.bank.bankAccountHolderName &&
-                  paidEventReadiness.bank.bankName &&
-                  paidEventReadiness.bank.bankBranch &&
-                  paidEventReadiness.bank.bankAccountConfigured
-                ) ? (
-                  <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
-                    Add account holder, bank, branch, and account number in Organization settings before enabling.
-                  </p>
-                ) : null}
+
+                <label className="flex items-start gap-3 px-4 py-3.5">
+                  <input
+                    type="checkbox"
+                    checked={allowBankTransfer}
+                    disabled={savingPaymentMethods}
+                    onChange={(e) => {
+                      const nextBank = e.target.checked;
+                      setAllowBankTransfer(nextBank);
+                      void savePaymentMethods({ payhere: allowPayhere, bankTransfer: nextBank });
+                    }}
+                    className="mt-1 h-4 w-4"
+                    style={{ accentColor: ui.accent }}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold" style={{ color: ui.text }}>
+                        Bank transfer
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={
+                          allowBankTransfer
+                            ? { background: 'rgba(16, 185, 129, 0.14)', color: '#059669' }
+                            : { background: 'rgba(245, 158, 11, 0.16)', color: '#d97706' }
+                        }
+                      >
+                        {allowBankTransfer ? 'Active' : 'Inactive'}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 block text-sm" style={{ color: ui.textMuted }}>
+                      Attendee transfers funds, uploads slip, you confirm
+                    </span>
+                  </span>
+                  <Landmark className="mt-0.5 h-4 w-4 shrink-0" style={{ color: ui.textMuted }} />
+                </label>
               </div>
+
+              {paidEventReadiness &&
+              allowBankTransfer &&
+              !(
+                paidEventReadiness.bank.bankAccountHolderName &&
+                paidEventReadiness.bank.bankName &&
+                paidEventReadiness.bank.bankBranch &&
+                paidEventReadiness.bank.bankAccountConfigured
+              ) ? (
+                <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
+                  Add account holder, bank, branch, and account number in Organization settings before bank transfer will
+                  appear at checkout.
+                </p>
+              ) : null}
 
               {allowBankTransfer && eventId ? (
                 <div className="mt-5">
                   <h3 className="mb-3 text-sm font-semibold" style={{ color: ui.text }}>
-                    Pending transfers
+                    Pending bank transfers
                   </h3>
                   <BankTransferOrdersPanel
                     eventId={eventId}

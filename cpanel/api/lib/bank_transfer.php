@@ -49,10 +49,49 @@ function organizer_receiving_bank_api_shape(array $profileRow): ?array {
   ];
 }
 
+function event_payment_methods_from_customization(?array $customization): array {
+  if (!is_array($customization)) $customization = [];
+  $pm = $customization['paymentMethods'] ?? null;
+  if (!is_array($pm)) $pm = [];
+
+  // PayHere defaults ON when unset (backward compatible).
+  $payhere = array_key_exists('payhere', $pm) ? !empty($pm['payhere']) : true;
+  if (array_key_exists('allowPayhere', $customization)) {
+    $payhere = !empty($customization['allowPayhere']);
+  }
+
+  $bank = !empty($customization['allowBankTransfer']) || !empty($pm['bankTransfer']);
+
+  return [
+    'payhere' => (bool)$payhere,
+    'bankTransfer' => (bool)$bank,
+  ];
+}
+
 function event_allows_bank_transfer(array $eventRow): bool {
   $customization = json_decode((string)($eventRow['customization_json'] ?? ''), true);
-  if (!is_array($customization)) return false;
-  return !empty($customization['allowBankTransfer']);
+  $methods = event_payment_methods_from_customization(is_array($customization) ? $customization : []);
+  return !empty($methods['bankTransfer']);
+}
+
+function event_allows_payhere(array $eventRow): bool {
+  $customization = json_decode((string)($eventRow['customization_json'] ?? ''), true);
+  $methods = event_payment_methods_from_customization(is_array($customization) ? $customization : []);
+  return !empty($methods['payhere']);
+}
+
+function apply_event_payment_methods_to_customization(array $customization, bool $payhere, bool $bankTransfer): array {
+  $customization['paymentMethods'] = [
+    'payhere' => $payhere,
+    'bankTransfer' => $bankTransfer,
+  ];
+  $customization['allowPayhere'] = $payhere;
+  if ($bankTransfer) {
+    $customization['allowBankTransfer'] = true;
+  } else {
+    unset($customization['allowBankTransfer']);
+  }
+  return $customization;
 }
 
 function bank_transfer_slips_local_upload_dir(): ?string {
@@ -193,10 +232,21 @@ function set_order_payment_method(PDO $pdo, int $orderId, string $method): void 
 }
 
 function attach_bank_transfer_to_public_event(array &$event, PDO $pdo, int $organizerUserId, array $eventRow): void {
-  $allow = event_allows_bank_transfer($eventRow);
+  $methods = event_payment_methods_from_customization(
+    json_decode((string)($eventRow['customization_json'] ?? ''), true) ?: []
+  );
+
+  $event['paymentMethods'] = [
+    'payhere' => !empty($methods['payhere']),
+    'bankTransfer' => false,
+  ];
+  $event['allowPayhere'] = !empty($methods['payhere']);
   $event['allowBankTransfer'] = false;
   $event['bankTransfer'] = null;
-  if (!$allow) return;
+
+  if (empty($methods['bankTransfer'])) {
+    return;
+  }
 
   if (function_exists('ensure_organizer_profile_paid_event_columns')) {
     ensure_organizer_profile_paid_event_columns($pdo);
@@ -208,6 +258,7 @@ function attach_bank_transfer_to_public_event(array &$event, PDO $pdo, int $orga
   if (!$profile || !organizer_receiving_bank_complete($profile)) {
     return;
   }
+  $event['paymentMethods']['bankTransfer'] = true;
   $event['allowBankTransfer'] = true;
   $event['bankTransfer'] = organizer_receiving_bank_api_shape($profile);
 }
