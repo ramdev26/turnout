@@ -22,6 +22,7 @@ import {
   ticketRemaining,
   useCountdown,
 } from './LandingShared';
+import { EventPolicyLink } from './EventPolicyViewer';
 import { formatLKRWhole } from '../../utils/money';
 
 function splitHeroTitle(title: string): { accent: string; main: string } {
@@ -623,6 +624,7 @@ function ShowcaseFooter({ event }: { event: Event }) {
           <a href="#landing-venue" onClick={(e) => { e.preventDefault(); scroll('landing-venue'); }}>
             Venue
           </a>
+          <EventPolicyLink html={event.customization?.eventPolicyHtml} />
         </nav>
       </div>
     </footer>

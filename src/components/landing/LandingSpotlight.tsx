@@ -25,14 +25,7 @@ import {
 import { VenueMapEmbed } from './VenueMapEmbed';
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
-
-const DEFAULT_POLICIES = [
-  'Tickets are non-refundable once purchased, unless the event is cancelled by the organizer.',
-  'Purchase only from this official page to avoid fraudulent listings.',
-  'Keep your QR code secure — lost tickets may not be reissued.',
-  'Re-entry may not be permitted after leaving the venue.',
-  'The organizer may refuse entry for safety or policy reasons.',
-];
+import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 
 function lowestAvailablePrice(tickets: EventTicket[]): number | null {
   const available = tickets.filter((t) => ticketRemaining(t) > 0);
@@ -133,8 +126,9 @@ function SpotlightOrganizer({ event }: { event: Event }) {
   );
 }
 
-function SpotlightPolicies() {
+function SpotlightPolicies({ event }: { event: Event }) {
   const [open, setOpen] = useState(false);
+  const html = resolveEventPolicyHtml(event.customization?.eventPolicyHtml);
   return (
     <section className="sp-block">
       <button type="button" className="sp-accordion" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -142,11 +136,10 @@ function SpotlightPolicies() {
         <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open ? (
-        <ul className="sp-policy-list">
-          {DEFAULT_POLICIES.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
+        <div
+          className="event-policy-content sp-policy-list text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
       ) : null}
     </section>
   );
@@ -429,7 +422,7 @@ export function LandingSpotlightPage({
 
               <div className="sp-sections">
                 <SpotlightAbout event={event} />
-                <SpotlightPolicies />
+                <SpotlightPolicies event={event} />
                 <SpotlightLocation event={event} />
 
                 <section id="landing-tickets" className="sp-block scroll-mt-28">

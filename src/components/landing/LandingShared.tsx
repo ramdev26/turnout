@@ -12,6 +12,7 @@ import { Event, Ticket as EventTicket } from '../../types';
 import { toApiUrl } from '../../api/client';
 import { formatLKRWhole } from '../../utils/money';
 import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
+import { EventPolicyLink } from './EventPolicyViewer';
 
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
@@ -618,6 +619,9 @@ export function LandingFooter({ event }: { event: Event }) {
           </span>{' '}
           © {year}
         </p>
+        <nav className="landing-showcase-footer-links" aria-label="Event links">
+          <EventPolicyLink html={event.customization?.eventPolicyHtml} className="text-xs font-semibold underline-offset-2 hover:underline sm:text-sm" />
+        </nav>
       </div>
     </footer>
   );

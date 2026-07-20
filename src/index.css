@@ -240,3 +240,43 @@ select optgroup {
   background-color: #ffffff;
 }
 
+/* Event policy rich content (editor + public viewer) */
+.event-policy-editor h3,
+.event-policy-content h3 {
+  margin: 0.85rem 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.event-policy-editor h4,
+.event-policy-content h4 {
+  margin: 0.7rem 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.event-policy-editor p,
+.event-policy-content p {
+  margin: 0.4rem 0;
+}
+
+.event-policy-editor ul,
+.event-policy-content ul,
+.event-policy-editor ol,
+.event-policy-content ol {
+  margin: 0.35rem 0 0.7rem;
+  padding-left: 1.25rem;
+}
+
+.event-policy-editor li,
+.event-policy-content li {
+  margin: 0.2rem 0;
+}
+
+.event-policy-editor a,
+.event-policy-content a {
+  text-decoration: underline;
+  color: var(--landing-accent-readable, var(--primary, #c0ff72));
+}
+
+

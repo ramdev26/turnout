@@ -36,6 +36,7 @@ import { resolveTemplateDesignDefaults } from '../themes/templateDefaults';
 import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
+import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -462,6 +463,7 @@ export const CreateEvent: React.FC = () => {
         smallBold: design.smallBold,
         smallItalic: design.smallItalic,
         smallUnderline: design.smallUnderline,
+        eventPolicyHtml: DEFAULT_EVENT_POLICY_HTML,
         scheduleTba: !hasSchedule,
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.

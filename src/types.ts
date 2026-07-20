@@ -257,6 +257,8 @@ export interface EventCustomization {
   smallBold?: boolean;
   smallItalic?: boolean;
   smallUnderline?: boolean;
+  /** Per-event ticket / attendance policy (HTML). Falls back to platform default when empty. */
+  eventPolicyHtml?: string;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
   heroText: string;

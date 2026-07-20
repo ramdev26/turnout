@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Eye,
+  FileText,
   MapPin,
   Plus,
   Ticket as TicketIcon,
@@ -21,6 +22,7 @@ import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
 import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
+import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
@@ -38,6 +40,7 @@ import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardSty
 import { absoluteAppUrl } from '../lib/publicAppUrl';
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 import { TurnoutColorPicker } from '../components/ui/TurnoutColorPicker';
+import { DEFAULT_EVENT_POLICY_HTML, resolveEventPolicyHtml } from '../utils/eventPolicy';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -158,10 +161,13 @@ export const EventSettings: React.FC = () => {
     publicUrl: false,
     tickets: true,
     checkout: false,
+    policy: false,
     advanced: false,
   });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
+  const [policyModalOpen, setPolicyModalOpen] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -174,6 +180,7 @@ export const EventSettings: React.FC = () => {
   const [ticketPdfFooterNote, setTicketPdfFooterNote] = useState('Please bring this ticket and a valid ID.');
   const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantity: 100, description: '' });
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
+  const [eventPolicyHtml, setEventPolicyHtml] = useState(DEFAULT_EVENT_POLICY_HTML);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
@@ -256,6 +263,7 @@ export const EventSettings: React.FC = () => {
       setTicketPdfBadgeText(ev.customization?.ticketPdfBadgeText || 'VIP ACCESS');
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
       setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
+      setEventPolicyHtml(resolveEventPolicyHtml(ev.customization?.eventPolicyHtml));
 
       const [ticketsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
@@ -462,11 +470,13 @@ export const EventSettings: React.FC = () => {
         smallUnderline: design.smallUnderline ?? null,
         templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
+        eventPolicyHtml,
         arenaGalleryImages,
       });
       setEvent(res.event);
       setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
+      setEventPolicyHtml(resolveEventPolicyHtml(res.event.customization?.eventPolicyHtml));
       setDesign((prev) => ({
         ...prev,
         templateId: resolveLayoutTemplateId(res.event.templateId),
@@ -508,6 +518,27 @@ export const EventSettings: React.FC = () => {
       setError(e?.message || e?.error || 'Failed to save changes');
     } finally {
       setSavingBranding(false);
+    }
+  };
+
+  const saveEventPolicy = async (html: string) => {
+    if (!eventId) return;
+    setSavingPolicy(true);
+    setError(null);
+    try {
+      const next = resolveEventPolicyHtml(html);
+      const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
+        eventPolicyHtml: next,
+      });
+      setEvent(res.event);
+      setEventPolicyHtml(resolveEventPolicyHtml(res.event.customization?.eventPolicyHtml));
+      setPolicyModalOpen(false);
+      setFeedback('Event policy saved.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save event policy');
+    } finally {
+      setSavingPolicy(false);
     }
   };
 
@@ -1157,6 +1188,54 @@ export const EventSettings: React.FC = () => {
             </SettingsCollapsibleSection>
 
             <SettingsCollapsibleSection
+              title="Event policy"
+              subtitle="Default template ready · edit anytime"
+              open={isSectionOpen('policy')}
+              onToggle={() => toggleSection('policy')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Every event starts with a clear ticket &amp; refund policy. Customize it for your venue, or insert the
+                default template again anytime.
+              </p>
+              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full"
+                      style={{ background: ui.accentSoft, color: ui.accent }}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-semibold" style={{ color: ui.text }}>
+                        Event policy
+                      </p>
+                      <p className="mt-0.5 text-sm" style={{ color: ui.textMuted }}>
+                        Shown on your public event page for attendees.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPolicyModalOpen(true)}
+                    className="shrink-0 rounded-xl px-3.5 py-2 text-sm font-semibold"
+                    style={accentButtonStyleFor(ui)}
+                  >
+                    Edit policy
+                  </button>
+                </div>
+                <div
+                  className="event-policy-content max-h-40 overflow-hidden text-sm leading-relaxed opacity-90"
+                  style={{ color: ui.textMuted }}
+                  dangerouslySetInnerHTML={{ __html: eventPolicyHtml }}
+                />
+              </div>
+            </SettingsCollapsibleSection>
+
+            <SettingsCollapsibleSection
               title="More options"
               subtitle="PDF tickets, check-in, publish"
               open={isSectionOpen('advanced')}
@@ -1297,6 +1376,14 @@ export const EventSettings: React.FC = () => {
       </div>
 
       <LandingDesignDock design={design} onDesignChange={setDesign} />
+      <EventPolicyEditorModal
+        open={policyModalOpen}
+        value={eventPolicyHtml}
+        ui={ui}
+        saving={savingPolicy}
+        onClose={() => setPolicyModalOpen(false)}
+        onSave={(html) => void saveEventPolicy(html)}
+      />
     </div>
   );
 };

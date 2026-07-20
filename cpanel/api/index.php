@@ -2726,6 +2726,20 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('checkoutFields', $body)) {
     $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);
   }
+  if (array_key_exists('eventPolicyHtml', $body)) {
+    $rawPolicy = (string)($body['eventPolicyHtml'] ?? '');
+    // Allow basic formatting tags only; strip scripts/events.
+    $clean = strip_tags($rawPolicy, '<p><br><br/><strong><b><em><i><u><ul><ol><li><h3><h4><a><span>');
+    $clean = preg_replace('/\son\w+="[^"]*"/i', '', $clean) ?? $clean;
+    $clean = preg_replace("/\son\w+='[^']*'/i", '', $clean) ?? $clean;
+    $clean = preg_replace('/javascript:/i', '', $clean) ?? $clean;
+    $clean = trim($clean);
+    if ($clean === '') {
+      unset($customization['eventPolicyHtml']);
+    } else {
+      $customization['eventPolicyHtml'] = mb_substr($clean, 0, 20000);
+    }
+  }
   if (array_key_exists('arenaGalleryImages', $body)) {
     $customization['arenaGalleryImages'] = normalize_arena_gallery_images($body['arenaGalleryImages']);
   }
