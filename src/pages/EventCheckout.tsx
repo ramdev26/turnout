@@ -86,12 +86,13 @@ export const EventCheckout: React.FC = () => {
 
   if (loading || (event && selectedTickets === null)) {
     return (
-      <div className="flex min-h-screen items-center justify-center" style={themeVars}>
+      <div className="flex min-h-screen items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-11 w-11 animate-spin rounded-full border-2 border-white/20 border-t-[var(--primary)]" />
-          <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-            Loading checkout…
-          </p>
+          <div
+            className="h-11 w-11 animate-spin rounded-full border-2 border-zinc-200 border-t-[var(--primary)]"
+            style={themeVars}
+          />
+          <p className="text-sm font-medium text-zinc-500">Loading checkout…</p>
         </div>
       </div>
     );
@@ -99,27 +100,11 @@ export const EventCheckout: React.FC = () => {
 
   if (!event) {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center px-4"
-        style={{ ...themeVars, background: 'var(--landing-page-bg)' }}
-      >
-        <div
-          className="w-full max-w-md rounded-3xl border p-8 text-center"
-          style={{
-            borderColor: 'var(--landing-border)',
-            background: 'var(--landing-surface)',
-            color: 'var(--landing-text)',
-          }}
-        >
+      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+        <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-8 text-center text-zinc-900">
           <h2 className="text-2xl font-semibold tracking-tight">Event not found</h2>
-          <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-            This event may have been removed or the link is incorrect.
-          </p>
-          <Link
-            to="/"
-            className="turnout-btn-accent mt-6 inline-flex rounded-xl px-6 py-3 text-sm font-semibold"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-on)' }}
-          >
+          <p className="mt-2 text-sm text-zinc-500">This event may have been removed or the link is incorrect.</p>
+          <Link to="/" className="mt-6 inline-flex text-sm font-semibold text-zinc-900 underline-offset-2 hover:underline">
             Back to home
           </Link>
         </div>
@@ -129,30 +114,11 @@ export const EventCheckout: React.FC = () => {
 
   if (event.status !== 'published') {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center px-4"
-        style={{
-          ...landingCssVars(event.customization, event.templateId),
-          background: 'var(--landing-page-bg)',
-        }}
-      >
-        <div
-          className="w-full max-w-md rounded-3xl border p-8 text-center"
-          style={{
-            borderColor: 'var(--landing-border)',
-            background: 'var(--landing-surface)',
-            color: 'var(--landing-text)',
-          }}
-        >
+      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+        <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-8 text-center text-zinc-900">
           <h2 className="text-2xl font-semibold tracking-tight">{event.title}</h2>
-          <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-            This event is not published yet. Check back when tickets go live.
-          </p>
-          <Link
-            to={backHref}
-            className="mt-6 inline-flex text-sm font-semibold underline-offset-2 hover:underline"
-            style={{ color: 'var(--primary)' }}
-          >
+          <p className="mt-2 text-sm text-zinc-500">This event is not published yet. Check back when tickets go live.</p>
+          <Link to={backHref} className="mt-6 inline-flex text-sm font-semibold underline-offset-2 hover:underline" style={{ color: 'var(--primary)', ...landingCssVars(event.customization, event.templateId) }}>
             Back to event
           </Link>
         </div>
@@ -165,7 +131,7 @@ export const EventCheckout: React.FC = () => {
   }
 
   return (
-    <div style={landingCssVars(event.customization, event.templateId)}>
+    <div className="min-h-dvh bg-white" style={landingCssVars(event.customization, event.templateId)}>
       <EventCheckoutForm
         event={event}
         orderItems={orderItems}

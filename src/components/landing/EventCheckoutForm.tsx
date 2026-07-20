@@ -955,17 +955,24 @@ export const EventCheckoutForm: React.FC<Props> = ({
   );
 
   if (layout === 'page') {
+    const pageSurfaceStyle: React.CSSProperties = {
+      background: '#ffffff',
+      color: '#18181b',
+      // Keep event accent (--primary) from parent; force a clean white checkout canvas.
+      ['--landing-page-bg' as string]: '#ffffff',
+      ['--landing-surface' as string]: '#ffffff',
+      ['--landing-surface-muted' as string]: '#f4f4f5',
+      ['--landing-text' as string]: '#18181b',
+      ['--landing-text-muted' as string]: '#71717a',
+      ['--landing-border' as string]: '#e4e4e7',
+      ['--landing-shadow-hover' as string]: '0 10px 30px rgba(24, 24, 27, 0.08)',
+    };
+
     return (
       <>
         {payhereOverlay}
-        <div
-          className="min-h-dvh"
-          style={{
-            background: 'var(--landing-page-bg)',
-            color: 'var(--landing-text)',
-          }}
-        >
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <div className="min-h-dvh w-full" style={pageSurfaceStyle}>
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
             {backHref ? (
               <Link
                 to={backHref}
@@ -989,7 +996,9 @@ export const EventCheckoutForm: React.FC<Props> = ({
               <p className="landing-eyebrow" style={{ color: 'var(--primary)' }}>
                 Checkout
               </p>
-              <h1 className="landing-display mt-1 text-2xl sm:text-3xl">Your tickets</h1>
+              <h1 className="landing-display mt-1 text-2xl sm:text-3xl" style={{ color: 'var(--landing-text)' }}>
+                Your tickets
+              </h1>
               <p className="mt-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                 {event.title}
               </p>
@@ -1013,10 +1022,10 @@ export const EventCheckoutForm: React.FC<Props> = ({
 
               <aside className="hidden lg:block">
                 <div
-                  className="sticky top-8 space-y-4 rounded-3xl border p-5"
+                  className="sticky top-6 space-y-4 rounded-2xl border p-5"
                   style={{
                     borderColor: 'var(--landing-border)',
-                    background: 'var(--landing-surface)',
+                    background: '#ffffff',
                     boxShadow: 'var(--landing-shadow-hover)',
                   }}
                 >
