@@ -192,6 +192,16 @@ export type LandingDisplayMode = 'auto' | 'light' | 'dark';
 /** Landing surface treatment (Apple-style "Style" control) */
 export type LandingStyle = 'glass' | 'minimal' | 'bold';
 
+/** Input control for an organizer-defined checkout question. */
+export type CheckoutFieldType = 'text' | 'textarea' | 'number' | 'select' | 'radio';
+
+export type CheckoutFieldOption = {
+  id: string;
+  label: string;
+  /** Value stored on the attendee answer */
+  value: string;
+};
+
 /** Organizer-defined fields collected per ticket holder at checkout (e.g. NIC). */
 export type CheckoutFieldDefinition = {
   id: string;
@@ -199,7 +209,11 @@ export type CheckoutFieldDefinition = {
   /** Stable key stored on each attendee, e.g. `nic` */
   key: string;
   required: boolean;
+  /** Defaults to short text when omitted (back-compat). */
+  type?: CheckoutFieldType;
   placeholder?: string;
+  /** Choices for select / radio fields. */
+  options?: CheckoutFieldOption[];
 };
 
 export interface EventCustomization {

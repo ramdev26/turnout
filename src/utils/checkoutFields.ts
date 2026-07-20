@@ -1,4 +1,14 @@
-import type { CheckoutFieldDefinition } from '../types';
+import type { CheckoutFieldDefinition, CheckoutFieldOption, CheckoutFieldType } from '../types';
+
+export const CHECKOUT_FIELD_TYPES: { id: CheckoutFieldType; label: string; hint: string }[] = [
+  { id: 'text', label: 'Short text', hint: 'Single-line answer' },
+  { id: 'textarea', label: 'Long text', hint: 'Multi-line answer' },
+  { id: 'number', label: 'Number', hint: 'Numeric value' },
+  { id: 'select', label: 'Dropdown', hint: 'Pick one from a list' },
+  { id: 'radio', label: 'Radio buttons', hint: 'Pick one option' },
+];
+
+const ALLOWED_TYPES = new Set<CheckoutFieldType>(['text', 'textarea', 'number', 'select', 'radio']);
 
 export function slugifyCheckoutFieldKey(label: string): string {
   const base = label
@@ -9,6 +19,34 @@ export function slugifyCheckoutFieldKey(label: string): string {
     .slice(0, 32);
   if (!base) return 'field';
   return /^[a-z]/.test(base) ? base : `f_${base}`;
+}
+
+export function resolveCheckoutFieldType(raw: unknown): CheckoutFieldType {
+  const t = String(raw ?? 'text').trim().toLowerCase();
+  return ALLOWED_TYPES.has(t as CheckoutFieldType) ? (t as CheckoutFieldType) : 'text';
+}
+
+function normalizeCheckoutFieldOptions(raw: unknown): CheckoutFieldOption[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const seen = new Set<string>();
+  const out: CheckoutFieldOption[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Partial<CheckoutFieldOption>;
+    const label = String(row.label ?? '').trim().slice(0, 80);
+    let value = String(row.value ?? '').trim().slice(0, 80);
+    if (!label) continue;
+    if (!value) value = slugifyCheckoutFieldKey(label);
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push({
+      id: String(row.id ?? `opt_${value}`).slice(0, 64),
+      label,
+      value,
+    });
+    if (out.length >= 24) break;
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 export function normalizeCheckoutFields(raw: unknown): CheckoutFieldDefinition[] {
@@ -24,13 +62,22 @@ export function normalizeCheckoutFields(raw: unknown): CheckoutFieldDefinition[]
     if (!label || !/^[a-z][a-z0-9_]{0,31}$/.test(key)) continue;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({
+    const type = resolveCheckoutFieldType(row.type);
+    const needsOptions = type === 'select' || type === 'radio';
+    const options = needsOptions ? normalizeCheckoutFieldOptions(row.options) : undefined;
+    if (needsOptions && (!options || options.length < 1)) continue;
+    const def: CheckoutFieldDefinition = {
       id: String(row.id ?? `cf_${key}`),
       label: label.slice(0, 80),
       key,
       required: !!row.required,
-      placeholder: row.placeholder ? String(row.placeholder).slice(0, 120) : undefined,
-    });
+      type,
+    };
+    if (type === 'text' || type === 'textarea' || type === 'number') {
+      if (row.placeholder) def.placeholder = String(row.placeholder).slice(0, 120);
+    }
+    if (options) def.options = options;
+    out.push(def);
     if (out.length >= 12) break;
   }
   return out;
@@ -42,14 +89,29 @@ export function validateCustomFieldValues(
   contextLabel?: string
 ): string | null {
   for (const field of fields) {
+    const type = resolveCheckoutFieldType(field.type);
     const val = (values[field.key] ?? '').trim();
     if (field.required && !val) {
       return contextLabel
         ? `${field.label} is required for ${contextLabel}.`
         : `${field.label} is required.`;
     }
-    if (val.length > 200) {
-      return `${field.label} must be 200 characters or fewer.`;
+    if (!val) continue;
+
+    const maxLen = type === 'textarea' ? 2000 : 200;
+    if (val.length > maxLen) {
+      return `${field.label} must be ${maxLen} characters or fewer.`;
+    }
+
+    if (type === 'number' && !/^-?\d+(\.\d+)?$/.test(val)) {
+      return `${field.label} must be a valid number.`;
+    }
+
+    if ((type === 'select' || type === 'radio') && field.options?.length) {
+      const allowed = new Set(field.options.map((o) => o.value));
+      if (!allowed.has(val)) {
+        return `Please choose a valid option for ${field.label}.`;
+      }
     }
   }
   return null;
