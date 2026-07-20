@@ -2653,7 +2653,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization['landingStyle'] = $landingStyle;
     }
   }
-  foreach (['buttonColor', 'headingColor', 'bodyTextColor', 'mutedTextColor', 'pageBackgroundColor'] as $deepColorKey) {
+  foreach (['buttonColor', 'headingColor', 'bodyTextColor', 'mutedTextColor', 'pageBackgroundColor', 'surfaceColor', 'surfaceMutedColor', 'borderColor', 'headerBgColor', 'footerBgColor'] as $deepColorKey) {
     if (!array_key_exists($deepColorKey, $body)) {
       continue;
     }

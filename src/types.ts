@@ -219,6 +219,12 @@ export interface EventCustomization {
   bodyTextColor?: string;
   mutedTextColor?: string;
   pageBackgroundColor?: string;
+  /** Section / chrome colours for full landing customization */
+  surfaceColor?: string;
+  surfaceMutedColor?: string;
+  borderColor?: string;
+  headerBgColor?: string;
+  footerBgColor?: string;
   /** Deep type scale overrides (px). When unset, templates keep their default clamps. */
   h1FontSize?: number;
   h2FontSize?: number;

@@ -2,12 +2,12 @@
 
 .landing-arena {
   --arena-bg: var(--landing-page-bg, #ffffff);
-  --arena-header-bg: #0a0a0a;
-  --arena-border: #eeeeee;
+  --arena-header-bg: var(--landing-header-bg, #0a0a0a);
+  --arena-border: var(--landing-border, #eeeeee);
   --arena-text: var(--landing-text, #111111);
   --arena-muted: var(--landing-text-muted, #666666);
   --arena-popular: #e11d48;
-  --arena-surface: #f7f7f7;
+  --arena-surface: var(--landing-surface-muted, #f7f7f7);
   container-type: inline-size;
   container-name: arena;
   background: var(--arena-bg);

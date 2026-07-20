@@ -28,7 +28,7 @@
 
 .landing-showcase .landing-showcase-header {
   border-bottom: 1px solid var(--showcase-border);
-  background: color-mix(in srgb, var(--showcase-card) 72%, transparent);
+  background: var(--landing-header-bg, color-mix(in srgb, var(--showcase-card) 72%, transparent));
   backdrop-filter: blur(14px);
 }
 
@@ -468,7 +468,7 @@
 
 .landing-showcase-footer {
   border-top: 1px solid var(--showcase-border);
-  background: color-mix(in srgb, var(--showcase-card) 55%, transparent);
+  background: var(--landing-footer-bg, color-mix(in srgb, var(--showcase-card) 55%, transparent));
 }
 
 .landing-showcase-footer-inner {

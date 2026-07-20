@@ -577,6 +577,11 @@ export function landingCssVars(
   const bodyTextColor = storedHexColor(c.bodyTextColor);
   const mutedTextColor = storedHexColor(c.mutedTextColor);
   const pageBackgroundColor = storedHexColor(c.pageBackgroundColor);
+  const surfaceColor = storedHexColor(c.surfaceColor);
+  const surfaceMutedColor = storedHexColor(c.surfaceMutedColor);
+  const borderColor = storedHexColor(c.borderColor);
+  const headerBgColor = storedHexColor(c.headerBgColor);
+  const footerBgColor = storedHexColor(c.footerBgColor);
   const h1FontSize = storedFontSizePx(c.h1FontSize, 20, 96);
   const h2FontSize = storedFontSizePx(c.h2FontSize, 14, 64);
   const bodyFontSize = storedFontSizePx(c.bodyFontSize, 12, 28);
@@ -588,6 +593,11 @@ export function landingCssVars(
   const textMuted = mutedTextColor || surfaces.textMuted;
   const heading = headingColor || textColor;
   const pageBg = pageBackgroundColor || surfaces.pageBg;
+  const surfaceBg = surfaceColor || surfaces.surfaceBg;
+  const surfaceMutedBg = surfaceMutedColor || surfaces.surfaceMutedBg;
+  const border = borderColor || surfaces.borderColor;
+  const headerBg = headerBgColor || surfaceBg;
+  const footerBg = footerBgColor || `color-mix(in srgb, ${surfaceBg} 55%, transparent)`;
 
   return {
     ['--primary' as string]: primary,
@@ -597,12 +607,14 @@ export function landingCssVars(
     ['--landing-button' as string]: buttonFill,
     ['--landing-on-button' as string]: onButton,
     ['--landing-page-bg' as string]: pageBg,
-    ['--landing-surface' as string]: surfaces.surfaceBg,
-    ['--landing-surface-muted' as string]: surfaces.surfaceMutedBg,
+    ['--landing-surface' as string]: surfaceBg,
+    ['--landing-surface-muted' as string]: surfaceMutedBg,
     ['--landing-text' as string]: textColor,
     ['--landing-text-muted' as string]: textMuted,
     ['--landing-heading' as string]: heading,
-    ['--landing-border' as string]: surfaces.borderColor,
+    ['--landing-border' as string]: border,
+    ['--landing-header-bg' as string]: headerBg,
+    ['--landing-footer-bg' as string]: footerBg,
     ['--landing-shadow' as string]: surfaces.cardShadow,
     ['--landing-shadow-hover' as string]: isDark
       ? '0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.06)'

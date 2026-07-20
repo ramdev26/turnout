@@ -27,6 +27,11 @@ export type LandingDesignValue = {
   bodyTextColor?: string;
   mutedTextColor?: string;
   pageBackgroundColor?: string;
+  surfaceColor?: string;
+  surfaceMutedColor?: string;
+  borderColor?: string;
+  headerBgColor?: string;
+  footerBgColor?: string;
   /** Type scale overrides in px. */
   h1FontSize?: number;
   h2FontSize?: number;
@@ -116,13 +121,18 @@ export function LandingCustomizer({
         <div className="grid gap-2 sm:grid-cols-2">
           {(
             [
-              ['primaryColor', 'Brand', value.primaryColor, '#059669', false],
-              ['secondaryColor', 'Accent', value.secondaryColor, '#10b981', false],
+              ['primaryColor', 'Accent', value.primaryColor, '#059669', false],
+              ['secondaryColor', 'Secondary', value.secondaryColor, '#10b981', false],
               ['buttonColor', 'Button', value.buttonColor, value.primaryColor, true],
               ['headingColor', 'Headings', value.headingColor, value.bodyTextColor || '#0f172a', true],
               ['bodyTextColor', 'Body text', value.bodyTextColor, '#0f172a', true],
               ['mutedTextColor', 'Muted text', value.mutedTextColor, '#64748b', true],
               ['pageBackgroundColor', 'Page background', value.pageBackgroundColor, '#ffffff', true],
+              ['surfaceColor', 'Cards / sections', value.surfaceColor, '#ffffff', true],
+              ['surfaceMutedColor', 'Muted surfaces', value.surfaceMutedColor, '#f4f6fa', true],
+              ['borderColor', 'Borders', value.borderColor, '#d8e0ec', true],
+              ['headerBgColor', 'Header', value.headerBgColor, '#ffffff', true],
+              ['footerBgColor', 'Footer', value.footerBgColor, '#ffffff', true],
             ] as const
           ).map(([key, label, current, fallback, clearable]) => (
             <div

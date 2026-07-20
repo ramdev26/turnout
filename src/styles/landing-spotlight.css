@@ -1,11 +1,11 @@
 /* Spotlight — marketplace event-detail layout (distinct from Showcase editorial) */
 
 .landing-spotlight {
-  --sp-bg: #ffffff;
-  --sp-ink: #0f172a;
-  --sp-muted: #64748b;
-  --sp-line: #e2e8f0;
-  --sp-soft: #f8fafc;
+  --sp-bg: var(--landing-page-bg, #ffffff);
+  --sp-ink: var(--landing-text, #0f172a);
+  --sp-muted: var(--landing-text-muted, #64748b);
+  --sp-line: var(--landing-border, #e2e8f0);
+  --sp-soft: var(--landing-surface-muted, #f8fafc);
   --sp-accent: var(--landing-accent-readable, var(--primary));
   --sp-on-accent: var(--landing-on-primary, #0a2426);
   --sp-cta: color-mix(in srgb, var(--sp-accent) 88%, #ea580c 12%);
@@ -598,7 +598,7 @@
 .sp-rail-card {
   border: 1px solid var(--sp-line);
   border-radius: 1rem;
-  background: #fff;
+  background: var(--landing-surface, #fff);
   padding: 1rem;
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.04),

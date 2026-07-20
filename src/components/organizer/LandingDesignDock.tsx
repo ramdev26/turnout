@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Palette, Type as TypeIcon, RotateCcw, X, LayoutTemplate, Bold, Italic, Underline } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, Palette, Type as TypeIcon, RotateCcw, X, Bold, Italic, Underline } from 'lucide-react';
 import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey } from '../../themes/landingFonts';
-import { companionSecondaryColor } from '../../themes/organizerLiveDesign';
 import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
 import {
   LANDING_LAYOUT_TEMPLATES,
@@ -10,7 +9,7 @@ import {
 import { cn } from '../../utils/cn';
 import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
 
-type DockControl = 'template' | 'colour' | 'size' | 'font' | 'style' | null;
+type DockControl = 'colour' | 'size' | 'font' | 'style' | null;
 
 const DOCK_BG = 'rgba(21, 22, 26, 0.96)';
 const DOCK_BORDER = 'rgba(255, 255, 255, 0.14)';
@@ -211,6 +210,11 @@ const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValu
     bodyTextColor: undefined,
     mutedTextColor: undefined,
     pageBackgroundColor: undefined,
+    surfaceColor: undefined,
+    surfaceMutedColor: undefined,
+    borderColor: undefined,
+    headerBgColor: undefined,
+    footerBgColor: undefined,
     h1FontSize: undefined,
     h2FontSize: undefined,
     bodyFontSize: undefined,
@@ -378,7 +382,7 @@ function Popover({
   return (
     <div
       className={cn(
-        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(55vh,360px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
+        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(70vh,480px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
         align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0'
       )}
       style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
@@ -579,41 +583,7 @@ export function LandingDesignDock({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <div className="relative col-span-1">
-            <Segment
-              icon={<LayoutTemplate className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
-              label="Layout"
-              value={templateValue}
-              active={open === 'template'}
-              onClick={() => toggle('template')}
-            />
-            {open === 'template' && (
-              <Popover title="Landing layout" align="center" onClose={() => setOpen(null)}>
-                <div className="flex flex-col gap-1">
-                  {LANDING_LAYOUT_TEMPLATES.map((tpl) => (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => selectTemplate(tpl.id)}
-                      className="flex min-h-[44px] items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-white/10"
-                    >
-                      <span>
-                        <span className="block text-sm font-medium" style={{ color: TEXT }}>
-                          {tpl.name}
-                        </span>
-                        <span className="block text-xs" style={{ color: TEXT_MUTED }}>
-                          {tpl.description}
-                        </span>
-                      </span>
-                      {design.templateId === tpl.id && <Check className="h-4 w-4" style={{ color: design.primaryColor }} />}
-                    </button>
-                  ))}
-                </div>
-              </Popover>
-            )}
-          </div>
-
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="relative col-span-1">
             <Segment
               icon={
@@ -631,15 +601,15 @@ export function LandingDesignDock({
               <Popover title="Colours" onClose={() => setOpen(null)}>
                 <div className="space-y-2">
                   <ColorRow
-                    label="Brand"
+                    label="Accent"
                     value={design.primaryColor}
                     fallback="#059669"
-                    onChange={(hex) => update({ primaryColor: hex, secondaryColor: companionSecondaryColor(hex) })}
+                    onChange={(hex) => update({ primaryColor: hex })}
                   />
                   <ColorRow
-                    label="Accent"
+                    label="Secondary"
                     value={design.secondaryColor}
-                    fallback={companionSecondaryColor(design.primaryColor)}
+                    fallback="#10b981"
                     onChange={(hex) => update({ secondaryColor: hex })}
                   />
                   <ColorRow
@@ -676,6 +646,41 @@ export function LandingDesignDock({
                     fallback="#ffffff"
                     onChange={(hex) => update({ pageBackgroundColor: hex })}
                     onClear={() => update({ pageBackgroundColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Cards / sections"
+                    value={design.surfaceColor}
+                    fallback="#ffffff"
+                    onChange={(hex) => update({ surfaceColor: hex })}
+                    onClear={() => update({ surfaceColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Muted surfaces"
+                    value={design.surfaceMutedColor}
+                    fallback="#f4f6fa"
+                    onChange={(hex) => update({ surfaceMutedColor: hex })}
+                    onClear={() => update({ surfaceMutedColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Borders"
+                    value={design.borderColor}
+                    fallback="#d8e0ec"
+                    onChange={(hex) => update({ borderColor: hex })}
+                    onClear={() => update({ borderColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Header"
+                    value={design.headerBgColor}
+                    fallback="#ffffff"
+                    onChange={(hex) => update({ headerBgColor: hex })}
+                    onClear={() => update({ headerBgColor: undefined })}
+                  />
+                  <ColorRow
+                    label="Footer"
+                    value={design.footerBgColor}
+                    fallback="#ffffff"
+                    onChange={(hex) => update({ footerBgColor: hex })}
+                    onClear={() => update({ footerBgColor: undefined })}
                   />
                 </div>
               </Popover>

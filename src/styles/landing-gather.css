@@ -1,20 +1,22 @@
 /* Gather — soft Luma-style hosted-event layout (mobile stack + desktop split) */
 
 .landing-gather {
-  --gt-ink: #1e1b4b;
-  --gt-muted: #6b7280;
-  --gt-line: color-mix(in srgb, var(--primary) 18%, #e5e7eb);
-  --gt-soft: color-mix(in srgb, var(--primary) 10%, #ffffff);
-  --gt-card: color-mix(in srgb, var(--primary) 8%, rgba(255, 255, 255, 0.72));
+  --gt-ink: var(--landing-text, #1e1b4b);
+  --gt-muted: var(--landing-text-muted, #6b7280);
+  --gt-line: var(--landing-border, color-mix(in srgb, var(--primary) 18%, #e5e7eb));
+  --gt-soft: var(--landing-surface-muted, color-mix(in srgb, var(--primary) 10%, #ffffff));
+  --gt-card: var(--landing-surface, color-mix(in srgb, var(--primary) 8%, rgba(255, 255, 255, 0.72)));
   --gt-accent: var(--landing-accent-readable, var(--primary));
   --gt-on-accent: var(--landing-on-primary, #ffffff);
   container-type: inline-size;
   container-name: gather;
   color: var(--gt-ink);
-  background:
+  background: var(
+    --landing-page-bg,
     radial-gradient(ellipse 90% 55% at 12% -8%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 58%),
     radial-gradient(ellipse 80% 50% at 92% 8%, color-mix(in srgb, var(--secondary) 28%, transparent), transparent 55%),
-    linear-gradient(135deg, color-mix(in srgb, var(--primary) 6%, #f8f7ff) 0%, color-mix(in srgb, var(--secondary) 8%, #fff7fb) 55%, #f7f8fc 100%);
+    linear-gradient(135deg, color-mix(in srgb, var(--primary) 6%, #f8f7ff) 0%, color-mix(in srgb, var(--secondary) 8%, #fff7fb) 55%, #f7f8fc 100%)
+  );
   min-height: 60vh;
 }
 
