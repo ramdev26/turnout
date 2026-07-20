@@ -965,133 +965,90 @@ export const EventLanding: React.FC = () => {
                       ))}
                     </div>
                   ) : null}
+
+                  {totalAmount > 0 && (event.allowPayhere !== false || event.allowBankTransfer) ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                        How will you pay?
+                      </p>
+                      {event.allowPayhere !== false && event.allowBankTransfer ? (
+                        <div
+                          className="grid grid-cols-2 gap-1 rounded-xl border p-1"
+                          style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)' }}
+                          role="radiogroup"
+                          aria-label="Payment method"
+                        >
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={paymentMethod === 'payhere'}
+                            onClick={() => setPaymentMethod('payhere')}
+                            className="rounded-lg px-3 py-2.5 text-center text-sm font-semibold transition"
+                            style={
+                              paymentMethod === 'payhere'
+                                ? {
+                                    background: 'var(--landing-surface)',
+                                    color: 'var(--landing-text)',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                                  }
+                                : { color: 'var(--landing-text-muted)' }
+                            }
+                          >
+                            Card / online
+                          </button>
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={paymentMethod === 'bank_transfer'}
+                            onClick={() => setPaymentMethod('bank_transfer')}
+                            className="rounded-lg px-3 py-2.5 text-center text-sm font-semibold transition"
+                            style={
+                              paymentMethod === 'bank_transfer'
+                                ? {
+                                    background: 'var(--landing-surface)',
+                                    color: 'var(--landing-text)',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                                  }
+                                : { color: 'var(--landing-text-muted)' }
+                            }
+                          >
+                            Bank transfer
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                          {event.allowBankTransfer && event.allowPayhere === false
+                            ? 'Paying by bank transfer'
+                            : 'Paying by card / online'}
+                        </p>
+                      )}
+                      {paymentMethod === 'bank_transfer' && event.allowBankTransfer ? (
+                        <p className="text-xs leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+                          Next step: you&apos;ll see the account details and upload your transfer slip. Tickets unlock after
+                          the organizer confirms.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </>
               )}
               </div>
               </div>
 
               <div
-                className="landing-checkout-footer shrink-0 border-t px-5 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-5"
+                className="landing-checkout-footer shrink-0 border-t px-5 pt-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-4"
                 style={{
                   borderColor: 'var(--landing-border)',
                   background: 'var(--landing-surface)',
                 }}
               >
-                {totalAmount > 0 && event.allowPayhere !== false && event.allowBankTransfer ? (
-                  <div className="mb-3 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
-                      Payment method
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <label
-                        className="flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm"
-                        style={{
-                          borderColor:
-                            paymentMethod === 'payhere' ? 'var(--primary)' : 'var(--landing-border)',
-                          background:
-                            paymentMethod === 'payhere'
-                              ? 'var(--landing-surface-muted)'
-                              : 'var(--landing-surface)',
-                          color: 'var(--landing-text)',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          checked={paymentMethod === 'payhere'}
-                          onChange={() => setPaymentMethod('payhere')}
-                          className="mt-0.5"
-                          style={{ accentColor: 'var(--primary)' }}
-                        />
-                        <span>
-                          <span className="font-semibold">Card / online (PayHere)</span>
-                          <span className="mt-0.5 block text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-                            Instant confirmation
-                          </span>
-                        </span>
-                      </label>
-                      <label
-                        className="flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm"
-                        style={{
-                          borderColor:
-                            paymentMethod === 'bank_transfer' ? 'var(--primary)' : 'var(--landing-border)',
-                          background:
-                            paymentMethod === 'bank_transfer'
-                              ? 'var(--landing-surface-muted)'
-                              : 'var(--landing-surface)',
-                          color: 'var(--landing-text)',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          checked={paymentMethod === 'bank_transfer'}
-                          onChange={() => setPaymentMethod('bank_transfer')}
-                          className="mt-0.5"
-                          style={{ accentColor: 'var(--primary)' }}
-                        />
-                        <span>
-                          <span className="font-semibold">Bank transfer</span>
-                          <span className="mt-0.5 block text-xs" style={{ color: 'var(--landing-text-muted)' }}>
-                            Transfer then upload slip
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                    {paymentMethod === 'bank_transfer' && event.bankTransfer ? (
-                      <div
-                        className="rounded-xl border px-3 py-2.5 text-xs leading-relaxed"
-                        style={{
-                          borderColor: 'var(--landing-border)',
-                          background: 'var(--landing-surface-muted)',
-                          color: 'var(--landing-text-muted)',
-                        }}
-                      >
-                        <p className="font-semibold" style={{ color: 'var(--landing-text)' }}>
-                          Transfer to
-                        </p>
-                        <p className="mt-1">
-                          {event.bankTransfer.accountHolderName}
-                          <br />
-                          {event.bankTransfer.bankName} · {event.bankTransfer.bankBranch}
-                          <br />
-                          A/C {event.bankTransfer.accountNumber}
-                        </p>
-                        <p className="mt-1.5">
-                          After you confirm, you&apos;ll upload your transfer slip. Tickets are issued once the organizer
-                          confirms payment.
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : totalAmount > 0 && event.allowBankTransfer && event.allowPayhere === false && event.bankTransfer ? (
-                  <div
-                    className="mb-3 rounded-xl border px-3 py-2.5 text-xs leading-relaxed"
-                    style={{
-                      borderColor: 'var(--landing-border)',
-                      background: 'var(--landing-surface-muted)',
-                      color: 'var(--landing-text-muted)',
-                    }}
-                  >
-                    <p className="font-semibold" style={{ color: 'var(--landing-text)' }}>
-                      Pay by bank transfer
-                    </p>
-                    <p className="mt-1">
-                      {event.bankTransfer.accountHolderName}
-                      <br />
-                      {event.bankTransfer.bankName} · {event.bankTransfer.bankBranch}
-                      <br />
-                      A/C {event.bankTransfer.accountNumber}
-                    </p>
-                  </div>
-                ) : null}
-                <div className="mb-3 space-y-2.5">
-                  <label className="flex items-start gap-2.5 text-sm leading-snug" style={{ color: 'var(--landing-text)' }}>
+                <div className="mb-2.5 space-y-1.5">
+                  <label className="flex items-start gap-2 text-xs leading-snug sm:text-sm" style={{ color: 'var(--landing-text)' }}>
                     <input
                       type="checkbox"
                       checked={acceptedOrganizerTerms}
                       onChange={(e) => setAcceptedOrganizerTerms(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border"
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border sm:h-4 sm:w-4"
                       style={{ accentColor: 'var(--primary)' }}
                     />
                     <span>
@@ -1111,12 +1068,12 @@ export const EventLanding: React.FC = () => {
                       </button>
                     </span>
                   </label>
-                  <label className="flex items-start gap-2.5 text-sm leading-snug" style={{ color: 'var(--landing-text)' }}>
+                  <label className="flex items-start gap-2 text-xs leading-snug sm:text-sm" style={{ color: 'var(--landing-text)' }}>
                     <input
                       type="checkbox"
                       checked={acceptedEventPolicy}
                       onChange={(e) => setAcceptedEventPolicy(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border"
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border sm:h-4 sm:w-4"
                       style={{ accentColor: 'var(--primary)' }}
                     />
                     <span>
@@ -1138,7 +1095,7 @@ export const EventLanding: React.FC = () => {
                   </label>
                 </div>
                 {payError && (
-                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+                  <div className="mb-2.5 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
                     {payError}
                   </div>
                 )}
@@ -1154,7 +1111,7 @@ export const EventLanding: React.FC = () => {
                       : totalAmount <= 0
                         ? 'Confirm registration'
                         : paymentMethod === 'bank_transfer' && event.allowBankTransfer
-                          ? 'Continue with bank transfer'
+                          ? 'Continue · bank transfer'
                           : `Pay ${formatLKRWhole(totalAmount)}`}
                 </button>
               </div>
