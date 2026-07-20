@@ -430,13 +430,10 @@ export const EventLanding: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center" style={{ ...themeVars, background: 'var(--landing-page-bg)' }}>
+      <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div
-            className="h-11 w-11 animate-spin rounded-full border-4 border-t-transparent"
-            style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }}
-          />
-          <p className="text-sm font-medium" style={{ color: 'var(--landing-text-muted)' }}>
+          <div className="h-11 w-11 animate-spin rounded-full border-2 border-white/20 border-t-[var(--primary)]" />
+          <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
             Loading event…
           </p>
         </div>
