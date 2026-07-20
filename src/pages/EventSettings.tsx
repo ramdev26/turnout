@@ -1143,7 +1143,8 @@ export const EventSettings: React.FC = () => {
               ui={ui}
             >
               <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
-                Collect extra details from each ticket holder. Saved when you save event details.
+                Collect extra details from each ticket holder. Choose field type (short text, long text, number,
+                dropdown, or radio) and save with event details.
               </p>
               <CheckoutFieldsEditor
                 fields={checkoutFields}
