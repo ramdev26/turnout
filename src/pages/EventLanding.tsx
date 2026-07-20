@@ -93,6 +93,7 @@ export const EventLanding: React.FC = () => {
   const [acceptedOrganizerTerms, setAcceptedOrganizerTerms] = useState(false);
   const [acceptedEventPolicy, setAcceptedEventPolicy] = useState(false);
   const [policyViewer, setPolicyViewer] = useState<{ title: string; html: string } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'payhere' | 'bank_transfer'>('payhere');
   const buyerName = watch('buyerName');
   const buyerEmail = watch('buyerEmail');
   const buyerPhone = watch('buyerPhone');
@@ -251,6 +252,7 @@ export const EventLanding: React.FC = () => {
     if (!event || !hasSelectedTickets) return;
     setAcceptedOrganizerTerms(false);
     setAcceptedEventPolicy(false);
+    setPaymentMethod(event.allowBankTransfer ? 'payhere' : 'payhere');
     setCheckoutOpen(true);
     setPayError(null);
     if (totalAmount > 0) {
@@ -380,6 +382,23 @@ export const EventLanding: React.FC = () => {
 
       if (totalAmount <= 0) {
         const res = await api.post<{ orderId: string; accessToken?: string }>('/api/orders', {
+          eventId: event.id,
+          buyerName: values.buyerName,
+          buyerEmail: values.buyerEmail,
+          buyerPhone: values.buyerPhone,
+          tickets: orderItems,
+          attendees,
+          acceptedOrganizerTerms: true,
+          acceptedEventPolicy: true,
+        });
+        setCheckoutOpen(false);
+        const tokenQs = res.accessToken ? `?token=${encodeURIComponent(res.accessToken)}` : '';
+        navigate(`/orders/${res.orderId}/success${tokenQs}`);
+      } else if (paymentMethod === 'bank_transfer' && event.allowBankTransfer) {
+        const res = await api.post<{
+          orderId: string;
+          accessToken?: string;
+        }>('/api/orders/bank-transfer', {
           eventId: event.id,
           buyerName: values.buyerName,
           buyerEmail: values.buyerEmail,
@@ -951,6 +970,94 @@ export const EventLanding: React.FC = () => {
                   background: 'var(--landing-surface)',
                 }}
               >
+                {totalAmount > 0 && event.allowBankTransfer ? (
+                  <div className="mb-3 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                      Payment method
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label
+                        className="flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm"
+                        style={{
+                          borderColor:
+                            paymentMethod === 'payhere' ? 'var(--primary)' : 'var(--landing-border)',
+                          background:
+                            paymentMethod === 'payhere'
+                              ? 'var(--landing-surface-muted)'
+                              : 'var(--landing-surface)',
+                          color: 'var(--landing-text)',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          checked={paymentMethod === 'payhere'}
+                          onChange={() => setPaymentMethod('payhere')}
+                          className="mt-0.5"
+                          style={{ accentColor: 'var(--primary)' }}
+                        />
+                        <span>
+                          <span className="font-semibold">Card / online (PayHere)</span>
+                          <span className="mt-0.5 block text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+                            Instant confirmation
+                          </span>
+                        </span>
+                      </label>
+                      <label
+                        className="flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm"
+                        style={{
+                          borderColor:
+                            paymentMethod === 'bank_transfer' ? 'var(--primary)' : 'var(--landing-border)',
+                          background:
+                            paymentMethod === 'bank_transfer'
+                              ? 'var(--landing-surface-muted)'
+                              : 'var(--landing-surface)',
+                          color: 'var(--landing-text)',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          checked={paymentMethod === 'bank_transfer'}
+                          onChange={() => setPaymentMethod('bank_transfer')}
+                          className="mt-0.5"
+                          style={{ accentColor: 'var(--primary)' }}
+                        />
+                        <span>
+                          <span className="font-semibold">Bank transfer</span>
+                          <span className="mt-0.5 block text-xs" style={{ color: 'var(--landing-text-muted)' }}>
+                            Transfer then upload slip
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    {paymentMethod === 'bank_transfer' && event.bankTransfer ? (
+                      <div
+                        className="rounded-xl border px-3 py-2.5 text-xs leading-relaxed"
+                        style={{
+                          borderColor: 'var(--landing-border)',
+                          background: 'var(--landing-surface-muted)',
+                          color: 'var(--landing-text-muted)',
+                        }}
+                      >
+                        <p className="font-semibold" style={{ color: 'var(--landing-text)' }}>
+                          Transfer to
+                        </p>
+                        <p className="mt-1">
+                          {event.bankTransfer.accountHolderName}
+                          <br />
+                          {event.bankTransfer.bankName} · {event.bankTransfer.bankBranch}
+                          <br />
+                          A/C {event.bankTransfer.accountNumber}
+                        </p>
+                        <p className="mt-1.5">
+                          After you confirm, you&apos;ll upload your transfer slip. Tickets are issued once the organizer
+                          confirms payment.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="mb-3 space-y-2.5">
                   <label className="flex items-start gap-2.5 text-sm leading-snug" style={{ color: 'var(--landing-text)' }}>
                     <input
@@ -1019,7 +1126,9 @@ export const EventLanding: React.FC = () => {
                       ? 'Preparing…'
                       : totalAmount <= 0
                         ? 'Confirm registration'
-                        : `Pay ${formatLKRWhole(totalAmount)}`}
+                        : paymentMethod === 'bank_transfer' && event.allowBankTransfer
+                          ? 'Continue with bank transfer'
+                          : `Pay ${formatLKRWhole(totalAmount)}`}
                 </button>
               </div>
             </form>

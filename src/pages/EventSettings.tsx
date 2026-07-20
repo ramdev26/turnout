@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Landmark,
   MapPin,
   Plus,
   Ticket as TicketIcon,
@@ -25,6 +26,7 @@ import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEdit
 import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventCategoryPicker } from '../components/organizer/EventCategoryPicker';
@@ -162,12 +164,15 @@ export const EventSettings: React.FC = () => {
     tickets: true,
     checkout: false,
     policy: false,
+    bankTransfer: false,
     advanced: false,
   });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
+  const [allowBankTransfer, setAllowBankTransfer] = useState(false);
+  const [savingBankTransfer, setSavingBankTransfer] = useState(false);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -264,6 +269,7 @@ export const EventSettings: React.FC = () => {
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
       setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
       setEventPolicyHtml(resolveEventPolicyHtml(ev.customization?.eventPolicyHtml));
+      setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer);
 
       const [ticketsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
@@ -539,6 +545,26 @@ export const EventSettings: React.FC = () => {
       setError(err?.message || err?.error || 'Failed to save event policy');
     } finally {
       setSavingPolicy(false);
+    }
+  };
+
+  const saveBankTransferSetting = async (enabled: boolean) => {
+    if (!eventId) return;
+    setSavingBankTransfer(true);
+    setError(null);
+    try {
+      const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
+        allowBankTransfer: enabled,
+      });
+      setEvent(res.event);
+      setAllowBankTransfer(!!res.event.customization?.allowBankTransfer || !!res.event.allowBankTransfer);
+      setFeedback(enabled ? 'Bank transfer enabled for this event.' : 'Bank transfer disabled for this event.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to update bank transfer setting');
+      setAllowBankTransfer(!enabled);
+    } finally {
+      setSavingBankTransfer(false);
     }
   };
 
@@ -1233,6 +1259,76 @@ export const EventSettings: React.FC = () => {
                   dangerouslySetInnerHTML={{ __html: eventPolicyHtml }}
                 />
               </div>
+            </SettingsCollapsibleSection>
+
+            <SettingsCollapsibleSection
+              title="Bank transfer"
+              subtitle={allowBankTransfer ? 'Enabled · review pending slips' : 'Optional payment method'}
+              icon={<Landmark className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('bankTransfer')}
+              onToggle={() => toggleSection('bankTransfer')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Let attendees pay by transferring to your bank account, then upload a slip. Tickets are issued after you
+                confirm the payment. Set your bank details in{' '}
+                <Link to="/dashboard/organization" className="font-semibold underline underline-offset-2">
+                  Organization settings
+                </Link>
+                .
+              </p>
+
+              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={allowBankTransfer}
+                    disabled={savingBankTransfer}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      setAllowBankTransfer(next);
+                      void saveBankTransferSetting(next);
+                    }}
+                    className="mt-1 h-4 w-4"
+                    style={{ accentColor: ui.accent }}
+                  />
+                  <span>
+                    <span className="font-semibold" style={{ color: ui.text }}>
+                      Accept bank transfer for this event
+                    </span>
+                    <span className="mt-0.5 block text-sm" style={{ color: ui.textMuted }}>
+                      Not enabled by default — turn on only for events where you want this option.
+                    </span>
+                  </span>
+                </label>
+                {paidEventReadiness &&
+                !(
+                  paidEventReadiness.bank.bankAccountHolderName &&
+                  paidEventReadiness.bank.bankName &&
+                  paidEventReadiness.bank.bankBranch &&
+                  paidEventReadiness.bank.bankAccountConfigured
+                ) ? (
+                  <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
+                    Add account holder, bank, branch, and account number in Organization settings before enabling.
+                  </p>
+                ) : null}
+              </div>
+
+              {allowBankTransfer && eventId ? (
+                <div className="mt-5">
+                  <h3 className="mb-3 text-sm font-semibold" style={{ color: ui.text }}>
+                    Pending transfers
+                  </h3>
+                  <BankTransferOrdersPanel
+                    eventId={eventId}
+                    ui={ui}
+                    onFeedback={setFeedback}
+                    onError={setError}
+                  />
+                </div>
+              ) : null}
             </SettingsCollapsibleSection>
 
             <SettingsCollapsibleSection

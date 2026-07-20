@@ -30,6 +30,13 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     $event['organizerTermsHtml'] = $terms !== '' ? $terms : null;
   }
 
+  if ($pdo !== null && function_exists('attach_bank_transfer_to_public_event')) {
+    $organizerUserId = (int)($row['organizer_user_id'] ?? 0);
+    if ($organizerUserId > 0) {
+      attach_bank_transfer_to_public_event($event, $pdo, $organizerUserId, $row);
+    }
+  }
+
   return $event;
 }
 

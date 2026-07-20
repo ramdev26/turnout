@@ -13,6 +13,7 @@ require __DIR__ . '/lib/arena_gallery.php';
 require __DIR__ . '/lib/organizer_team.php';
 require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
+require __DIR__ . '/lib/bank_transfer.php';
 require __DIR__ . '/lib/user_migrations.php';
 require __DIR__ . '/lib/email_verification.php';
 require __DIR__ . '/lib/super_admin.php';
@@ -80,6 +81,9 @@ if (preg_match('#^/uploads/organizer-logos/([^/]+)$#', $path, $logoMatch) && $me
 }
 if (preg_match('#^/uploads/organizer-docs/([^/]+)$#', $path, $docMatch) && $method === 'GET') {
   serve_local_organizer_doc_file($docMatch[1]);
+}
+if (preg_match('#^/uploads/bank-transfer-slips/([^/]+)$#', $path, $slipMatch) && $method === 'GET') {
+  serve_local_bank_transfer_slip_file($slipMatch[1]);
 }
 
 if ($path === '/uploads/banner' && $method === 'POST') {
@@ -1949,6 +1953,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $pdo = db();
   ensure_payhere_tables($pdo);
   ensure_order_policy_acceptance_columns($pdo);
+  ensure_order_bank_transfer_columns($pdo);
 
   $ev = require_publishable_event($pdo, $eventId);
 
@@ -1978,6 +1983,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     ]);
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
+    set_order_payment_method($pdo, $orderId, 'payhere');
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([
@@ -2750,6 +2756,22 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('arenaGalleryImages', $body)) {
     $customization['arenaGalleryImages'] = normalize_arena_gallery_images($body['arenaGalleryImages']);
   }
+  if (array_key_exists('allowBankTransfer', $body)) {
+    $wantBank = (bool)$body['allowBankTransfer'];
+    if ($wantBank) {
+      $ownerId = (int)($row['organizer_user_id'] ?? 0);
+      $profileRow = load_organizer_profile_row($pdo, $ownerId);
+      if (!organizer_receiving_bank_complete($profileRow)) {
+        json_response(400, [
+          'error' => 'bank_account_required',
+          'message' => 'Add your bank account details in Organization settings before enabling bank transfer for this event.',
+        ]);
+      }
+      $customization['allowBankTransfer'] = true;
+    } else {
+      unset($customization['allowBankTransfer']);
+    }
+  }
 
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);
@@ -3000,6 +3022,7 @@ if ($path === '/orders' && $method === 'POST') {
 
   $pdo = db();
   ensure_order_policy_acceptance_columns($pdo);
+  ensure_order_bank_transfer_columns($pdo);
   $ev = require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $totalCents = (int)$normalized['totalCents'];
@@ -3030,6 +3053,7 @@ if ($path === '/orders' && $method === 'POST') {
     ]);
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
+    set_order_payment_method($pdo, $orderId, 'free');
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
     increment_ticket_sold_counts($pdo, $normalizedItems);
 
@@ -3058,6 +3082,308 @@ if ($path === '/orders' && $method === 'POST') {
     $pdo->rollBack();
     json_response(400, ['error' => 'order_create_failed']);
   }
+}
+
+// ---- Bank transfer checkout ----
+if ($path === '/orders/bank-transfer' && $method === 'POST') {
+  $body = read_json_body();
+  $eventId = (int)($body['eventId'] ?? 0);
+  $buyerName = trim((string)($body['buyerName'] ?? ''));
+  $buyerPhone = trim((string)($body['buyerPhone'] ?? ''));
+  $buyerEmail = strtolower(trim((string)($body['buyerEmail'] ?? '')));
+  $items = $body['tickets'] ?? [];
+  $attendees = $body['attendees'] ?? [];
+
+  if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
+  if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
+  if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
+  if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
+  require_checkout_policy_acceptance($body);
+
+  $pdo = db();
+  ensure_order_policy_acceptance_columns($pdo);
+  ensure_order_bank_transfer_columns($pdo);
+  ensure_payhere_tables($pdo);
+
+  $ev = require_publishable_event($pdo, $eventId);
+  if (!event_allows_bank_transfer($ev)) {
+    json_response(400, [
+      'error' => 'bank_transfer_not_enabled',
+      'message' => 'Bank transfer is not enabled for this event.',
+    ]);
+  }
+
+  $organizerUserId = (int)($ev['organizer_user_id'] ?? 0);
+  $profileRow = load_organizer_profile_row($pdo, $organizerUserId);
+  $bankDetails = organizer_receiving_bank_api_shape($profileRow);
+  if ($bankDetails === null) {
+    json_response(400, [
+      'error' => 'bank_account_unavailable',
+      'message' => 'Organizer bank details are not available for transfer.',
+    ]);
+  }
+
+  $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
+  $checkoutFields = checkout_fields_from_event_row($ev);
+  validate_attendees_for_order($normalized['items'], $attendees, $checkoutFields);
+  $totalCents = (int)$normalized['totalCents'];
+  $normalizedItems = $normalized['items'];
+
+  if ($totalCents <= 0) {
+    json_response(400, ['error' => 'bank_transfer_requires_positive_amount']);
+  }
+
+  $buyerId = current_user_id();
+  $pdo->beginTransaction();
+  try {
+    $ins = $pdo->prepare('INSERT INTO orders (event_id, buyer_user_id, buyer_name, buyer_phone, buyer_email, tickets_json, total_amount_cents, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $ins->execute([
+      $eventId,
+      $buyerId,
+      $buyerName !== '' ? $buyerName : null,
+      $buyerPhone !== '' ? $buyerPhone : null,
+      $buyerEmail,
+      json_encode($normalizedItems, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+      $totalCents,
+      'pending',
+    ]);
+    $orderId = (int)$pdo->lastInsertId();
+    mark_order_policy_acceptance($pdo, $orderId);
+    set_order_payment_method($pdo, $orderId, 'bank_transfer');
+
+    $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
+    $attInsert->execute([
+      $orderId,
+      json_encode($attendees, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    ]);
+    upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'pending', null);
+    $pdo->commit();
+  } catch (Exception $e) {
+    $pdo->rollBack();
+    json_response(400, ['error' => 'bank_transfer_order_failed']);
+  }
+
+  $accessToken = issue_order_access_token($orderId);
+  json_response(201, [
+    'orderId' => (string)$orderId,
+    'accessToken' => $accessToken,
+    'paymentMethod' => 'bank_transfer',
+    'bankTransfer' => $bankDetails,
+    'totalAmount' => $totalCents / 100,
+  ]);
+}
+
+if (preg_match('#^/orders/(\\d+)/bank-transfer-slip$#', $path, $m) && $method === 'POST') {
+  $orderId = (int)$m[1];
+  $accessToken = trim((string)($_GET['token'] ?? $_POST['token'] ?? ''));
+  $pdo = db();
+  ensure_order_bank_transfer_columns($pdo);
+
+  $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'order_not_found']);
+
+  $uid = current_user_id();
+  $tokenOk = $accessToken !== '' && order_access_token_payload($accessToken, $orderId) !== null;
+  $isBuyer = false;
+  if ($uid !== null) {
+    if ((int)($row['buyer_user_id'] ?? 0) === $uid) {
+      $isBuyer = true;
+    } else {
+      $buyerUser = load_user_profile($uid);
+      $buyerEmailNorm = strtolower(trim((string)($row['buyer_email'] ?? '')));
+      $userEmailNorm = strtolower(trim((string)($buyerUser['email'] ?? '')));
+      if ($buyerEmailNorm !== '' && $userEmailNorm !== '' && $buyerEmailNorm === $userEmailNorm) {
+        $isBuyer = true;
+      }
+    }
+  }
+  if (!$isBuyer && !$tokenOk) {
+    json_response(403, ['error' => 'forbidden']);
+  }
+
+  $paymentMethod = trim((string)($row['payment_method'] ?? ''));
+  if ($paymentMethod !== 'bank_transfer') {
+    json_response(400, ['error' => 'not_bank_transfer_order']);
+  }
+  if ((string)$row['status'] !== 'pending') {
+    json_response(400, ['error' => 'order_not_pending', 'message' => 'This order is no longer awaiting a transfer slip.']);
+  }
+
+  if (!isset($_FILES['file'])) {
+    json_response(400, ['error' => 'missing_file']);
+  }
+  $file = $_FILES['file'];
+  if (!is_array($file) || (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK)) {
+    json_response(400, ['error' => 'upload_failed']);
+  }
+  $tmpPath = (string)($file['tmp_name'] ?? '');
+  if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+    json_response(400, ['error' => 'invalid_upload']);
+  }
+  $size = (int)($file['size'] ?? 0);
+  if ($size <= 0 || $size > (8 * 1024 * 1024)) {
+    json_response(400, ['error' => 'file_too_large', 'message' => 'Maximum file size is 8MB']);
+  }
+  $mime = detect_banner_mime($tmpPath, $file);
+  $allowed = organizer_doc_allowed_mime_types();
+  $ext = $allowed[$mime] ?? null;
+  if ($ext === null) {
+    json_response(400, ['error' => 'unsupported_file_type', 'message' => 'Upload PDF, JPG, PNG, or WEBP files only.']);
+  }
+
+  $slipUrl = try_upload_bank_transfer_slip_to_vercel_blob($tmpPath, $mime, $ext);
+  if ($slipUrl === null) {
+    $name = save_bank_transfer_slip_locally($tmpPath, $ext);
+    if ($name === null) {
+      json_response(500, ['error' => 'upload_storage_unavailable']);
+    }
+    $slipUrl = public_api_url('/api/uploads/bank-transfer-slips/' . $name);
+  }
+
+  $upd = $pdo->prepare(
+    'UPDATE orders
+     SET bank_transfer_slip_url = ?, bank_transfer_slip_uploaded_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND status = ? AND payment_method = ?'
+  );
+  $upd->execute([$slipUrl, $orderId, 'pending', 'bank_transfer']);
+  if ($upd->rowCount() < 1) {
+    json_response(400, ['error' => 'slip_update_failed']);
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'bankTransferSlipUrl' => $slipUrl,
+    'orderId' => (string)$orderId,
+  ]);
+}
+
+if (preg_match('#^/orders/(\\d+)/confirm-bank-transfer$#', $path, $m) && $method === 'POST') {
+  $orderId = (int)$m[1];
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  ensure_order_bank_transfer_columns($pdo);
+  ensure_payhere_tables($pdo);
+
+  $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'order_not_found']);
+
+  $ev = load_event_row_or_404($pdo, (int)$row['event_id']);
+  deny_unless_event_row_access($pdo, $ev, $uid, 'editor');
+
+  if (trim((string)($row['payment_method'] ?? '')) !== 'bank_transfer') {
+    json_response(400, ['error' => 'not_bank_transfer_order']);
+  }
+  if ((string)$row['status'] !== 'pending') {
+    json_response(400, ['error' => 'order_not_pending']);
+  }
+  if (trim((string)($row['bank_transfer_slip_url'] ?? '')) === '') {
+    json_response(400, [
+      'error' => 'slip_required',
+      'message' => 'Wait for the attendee to upload a transfer slip before confirming.',
+    ]);
+  }
+
+  $pdo->beginTransaction();
+  try {
+    payhere_fulfill_paid_order($pdo, $orderId, 'bank_transfer:' . $orderId, null);
+    $mark = $pdo->prepare(
+      'UPDATE orders
+       SET bank_transfer_confirmed_at = CURRENT_TIMESTAMP, bank_transfer_confirmed_by = ?
+       WHERE id = ?'
+    );
+    $mark->execute([$uid, $orderId]);
+    $pdo->commit();
+  } catch (Throwable $e) {
+    $pdo->rollBack();
+    json_response(400, ['error' => 'confirm_failed', 'message' => 'Could not confirm this bank transfer order.']);
+  }
+
+  json_response(200, ['ok' => true, 'orderId' => (string)$orderId, 'status' => 'paid']);
+}
+
+if (preg_match('#^/orders/(\\d+)/reject-bank-transfer$#', $path, $m) && $method === 'POST') {
+  $orderId = (int)$m[1];
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  ensure_order_bank_transfer_columns($pdo);
+
+  $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'order_not_found']);
+
+  $ev = load_event_row_or_404($pdo, (int)$row['event_id']);
+  deny_unless_event_row_access($pdo, $ev, $uid, 'editor');
+
+  if (trim((string)($row['payment_method'] ?? '')) !== 'bank_transfer') {
+    json_response(400, ['error' => 'not_bank_transfer_order']);
+  }
+  if ((string)$row['status'] !== 'pending') {
+    json_response(400, ['error' => 'order_not_pending']);
+  }
+
+  $upd = $pdo->prepare("UPDATE orders SET status = 'failed' WHERE id = ? AND status = 'pending'");
+  $upd->execute([$orderId]);
+  upsert_transaction(
+    $pdo,
+    (int)$row['event_id'],
+    $row['buyer_user_id'] !== null ? (int)$row['buyer_user_id'] : null,
+    $orderId,
+    (int)$row['total_amount_cents'],
+    'failed',
+    null
+  );
+
+  json_response(200, ['ok' => true, 'orderId' => (string)$orderId, 'status' => 'failed']);
+}
+
+if (preg_match('#^/events/(\\d+)/bank-transfer-orders$#', $path, $m) && $method === 'GET') {
+  $eventId = (int)$m[1];
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  ensure_order_bank_transfer_columns($pdo);
+  $ev = load_event_row_or_404($pdo, $eventId);
+  deny_unless_event_row_access($pdo, $ev, $uid, 'viewer');
+
+  $statusFilter = trim((string)($_GET['status'] ?? 'pending'));
+  if (!in_array($statusFilter, ['pending', 'paid', 'failed', 'all'], true)) {
+    $statusFilter = 'pending';
+  }
+
+  $sql =
+    "SELECT * FROM orders
+     WHERE event_id = ? AND payment_method = 'bank_transfer'";
+  $params = [$eventId];
+  if ($statusFilter !== 'all') {
+    $sql .= ' AND status = ?';
+    $params[] = $statusFilter;
+  }
+  $sql .= ' ORDER BY created_at DESC LIMIT 100';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+
+  $orders = [];
+  while ($row = $stmt->fetch()) {
+    $items = json_decode($row['tickets_json'], true);
+    if (!is_array($items)) $items = [];
+    $orders[] = array_merge([
+      'id' => (string)$row['id'],
+      'eventId' => (string)$row['event_id'],
+      'buyerName' => $row['buyer_name'] ?? null,
+      'buyerEmail' => $row['buyer_email'],
+      'buyerPhone' => $row['buyer_phone'] ?? null,
+      'tickets' => $items,
+      'totalAmount' => ((int)$row['total_amount_cents']) / 100,
+      'status' => $row['status'],
+      'createdAt' => gmdate('c', strtotime($row['created_at'])),
+    ], map_order_payment_fields($row));
+  }
+
+  json_response(200, ['orders' => $orders]);
 }
 
 if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
@@ -3092,11 +3418,14 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   if (!$isBuyer && !$isOrganizerOwner && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
 
   if ($hasAccessToken && (string)$row['status'] === 'pending') {
-    payhere_sync_order_from_transactions($pdo, $orderId);
-    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
-    $stmt->execute([$orderId]);
-    $row = $stmt->fetch();
-    if (!$row) json_response(404, ['error' => 'order_not_found']);
+    $pm = trim((string)($row['payment_method'] ?? ''));
+    if ($pm !== 'bank_transfer') {
+      payhere_sync_order_from_transactions($pdo, $orderId);
+      $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
+      $stmt->execute([$orderId]);
+      $row = $stmt->fetch();
+      if (!$row) json_response(404, ['error' => 'order_not_found']);
+    }
   }
 
   // Scoped ticket links always limit visibility — even if organizer/buyer is logged in.
@@ -3180,6 +3509,15 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
 
   $viewScope = $attendeeFilterIds !== null ? 'attendee' : 'order';
 
+  ensure_order_bank_transfer_columns($pdo);
+  $paymentFields = map_order_payment_fields($row);
+  $bankTransferDetails = null;
+  if (($paymentFields['paymentMethod'] ?? '') === 'bank_transfer') {
+    $organizerId = (int)($eventOwner['organizer_user_id'] ?? 0);
+    $profileRow = load_organizer_profile_row($pdo, $organizerId);
+    $bankTransferDetails = organizer_receiving_bank_api_shape($profileRow);
+  }
+
   $eventPayload = null;
   if ($hasAccessToken || $isBuyer || $isOrganizerOwner) {
     $evStmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
@@ -3191,7 +3529,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   }
 
   json_response(200, [
-    'order' => [
+    'order' => array_merge([
       'id' => (string)$row['id'],
       'eventId' => (string)$row['event_id'],
       'buyerId' => $row['buyer_user_id'] !== null ? (string)$row['buyer_user_id'] : null,
@@ -3204,7 +3542,8 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'createdAt' => gmdate('c', strtotime($row['created_at'])),
       'attendees' => $att,
       'viewScope' => $viewScope,
-    ],
+      'bankTransfer' => $bankTransferDetails,
+    ], $paymentFields),
     'event' => $eventPayload,
   ]);
 }

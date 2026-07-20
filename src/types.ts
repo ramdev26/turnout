@@ -280,6 +280,8 @@ export interface EventCustomization {
   checkoutFields?: CheckoutFieldDefinition[];
   /** Extra carousel slides for Arena template (banner is always slide 1). */
   arenaGalleryImages?: string[];
+  /** When true, attendees may pay via bank transfer (requires organizer bank details). */
+  allowBankTransfer?: boolean;
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }
@@ -346,6 +348,15 @@ export interface Event {
   organizerLogoUrl?: string | null;
   /** Organizer Terms & Conditions HTML for checkout acceptance */
   organizerTermsHtml?: string | null;
+  /** True when this event accepts bank transfer and organizer bank details are complete */
+  allowBankTransfer?: boolean;
+  /** Receiving bank account shown at checkout when bank transfer is enabled */
+  bankTransfer?: {
+    accountHolderName: string;
+    bankName: string;
+    bankBranch: string;
+    accountNumber: string;
+  } | null;
   title: string;
   description: string;
   date: string;
@@ -432,6 +443,16 @@ export interface Order {
   tickets: OrderItem[];
   totalAmount: number;
   status: 'pending' | 'paid' | 'failed';
+  paymentMethod?: 'free' | 'payhere' | 'bank_transfer' | string;
+  bankTransferSlipUrl?: string | null;
+  bankTransferSlipUploadedAt?: string | null;
+  bankTransferConfirmedAt?: string | null;
+  bankTransfer?: {
+    accountHolderName: string;
+    bankName: string;
+    bankBranch: string;
+    accountNumber: string;
+  } | null;
   stripeSessionId?: string;
   createdAt: string;
   /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */
