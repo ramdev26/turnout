@@ -408,7 +408,7 @@ export function LandingDesignDock({
   onDesignChange: (next: LandingDesignValue) => void;
 }) {
   const [open, setOpen] = useState<DockControl>(null);
-  const [expanded, setExpanded] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false));
+  const [expanded, setExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const update = (patch: Partial<LandingDesignValue>) => onDesignChange({ ...design, ...patch });
@@ -435,14 +435,6 @@ export function LandingDesignDock({
   useEffect(() => {
     loadLandingFont(design.fontFamily);
   }, [design.fontFamily]);
-
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth >= 768) setExpanded(true);
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
 
   useEffect(() => {
     if (!open) return;
