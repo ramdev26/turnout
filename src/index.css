@@ -30,6 +30,44 @@ body {
   min-height: 100vh;
 }
 
+/* Hand cursor on anything interactive / clickable */
+a,
+button,
+summary,
+label,
+select,
+[role='button'],
+[role='link'],
+[role='tab'],
+[role='menuitem'],
+[role='option'],
+[role='checkbox'],
+[role='radio'],
+[role='switch'],
+[role='combobox'],
+input[type='button'],
+input[type='submit'],
+input[type='reset'],
+input[type='checkbox'],
+input[type='radio'],
+input[type='file'],
+input[type='color'],
+input[type='range'],
+input[type='image'] {
+  cursor: pointer;
+}
+
+a:disabled,
+button:disabled,
+select:disabled,
+input:disabled,
+summary:disabled,
+[aria-disabled='true'],
+[role='button'][aria-disabled='true'],
+[role='link'][aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
 a,
 button,
 input,
