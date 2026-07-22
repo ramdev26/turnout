@@ -12,14 +12,10 @@ import {
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
+import { isOnlineEvent, onlinePlatformLabel, resolveOnlinePlatform } from '../../utils/eventLocation';
 
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function isOnlineLocation(location: string): boolean {
-  const v = location.toLowerCase();
-  return /meet|zoom|teams|online|virtual|stream|webinar/.test(v);
 }
 
 function GatherHeroImage({ event }: { event: Event }) {
@@ -99,8 +95,11 @@ function GatherDateBadge({ event }: { event: Event }) {
 
 function GatherLocation({ event }: { event: Event }) {
   const location = event.location?.trim() || 'Venue to be announced';
-  const online = isOnlineLocation(location);
+  const online = isOnlineEvent(event.customization, event.location);
   const Icon = online ? Video : MapPin;
+  const sub = online
+    ? `Online · ${onlinePlatformLabel(resolveOnlinePlatform(event.customization))}`
+    : 'In person';
   return (
     <div className="gt-meta-row">
       <span className="gt-loc-badge" aria-hidden>
@@ -108,7 +107,7 @@ function GatherLocation({ event }: { event: Event }) {
       </span>
       <div>
         <p className="gt-meta-title">{location}</p>
-        <p className="gt-meta-sub">{online ? 'Online event' : 'In person'}</p>
+        <p className="gt-meta-sub">{sub}</p>
       </div>
     </div>
   );

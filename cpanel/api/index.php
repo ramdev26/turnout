@@ -2743,6 +2743,43 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('scheduleTba', $body)) {
     $customization['scheduleTba'] = (bool)$body['scheduleTba'];
   }
+  if (array_key_exists('locationMode', $body)) {
+    $locationMode = trim((string)$body['locationMode']);
+    if ($locationMode === 'physical' || $locationMode === 'online') {
+      $customization['locationMode'] = $locationMode;
+    }
+  }
+  if (array_key_exists('onlinePlatform', $body)) {
+    $rawPlatform = $body['onlinePlatform'];
+    if ($rawPlatform === null || $rawPlatform === '') {
+      unset($customization['onlinePlatform']);
+    } else {
+      $platform = trim((string)$rawPlatform);
+      $allowedPlatforms = ['google_meet', 'zoom', 'youtube', 'other'];
+      if (in_array($platform, $allowedPlatforms, true)) {
+        $customization['onlinePlatform'] = $platform;
+      }
+    }
+  }
+  if (array_key_exists('onlineUrl', $body)) {
+    $rawUrl = $body['onlineUrl'];
+    if ($rawUrl === null || $rawUrl === '') {
+      unset($customization['onlineUrl']);
+    } else {
+      $onlineUrl = trim((string)$rawUrl);
+      if ($onlineUrl !== '' && filter_var($onlineUrl, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $onlineUrl)) {
+        $customization['onlineUrl'] = mb_substr($onlineUrl, 0, 500);
+      } else {
+        json_response(400, [
+          'error' => 'invalid_online_url',
+          'message' => 'Enter a valid meeting or stream link (https://…).',
+        ]);
+      }
+    }
+  }
+  if (($customization['locationMode'] ?? 'physical') !== 'online') {
+    unset($customization['onlinePlatform'], $customization['onlineUrl']);
+  }
   if (array_key_exists('checkoutFields', $body)) {
     $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);
   }

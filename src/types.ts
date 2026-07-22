@@ -263,6 +263,12 @@ export interface EventCustomization {
   eventPolicyHtml?: string;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
+  /** Physical venue vs online meeting / stream */
+  locationMode?: 'physical' | 'online';
+  /** Platform when locationMode is online */
+  onlinePlatform?: 'google_meet' | 'zoom' | 'youtube' | 'other';
+  /** Meeting / stream URL when locationMode is online */
+  onlineUrl?: string;
   heroText: string;
   heroSubtext: string;
   layout: 'standard' | 'centered' | 'split';
