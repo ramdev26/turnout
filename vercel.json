@@ -9,12 +9,6 @@
       "includeFiles": "{cpanel/api/**,.env}"
     }
   },
-  "crons": [
-    {
-      "path": "/api/cron/event-reminders",
-      "schedule": "*/5 * * * *"
-    }
-  ],
   "routes": [
     {
       "src": "^/api/(.*)$",

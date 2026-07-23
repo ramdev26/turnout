@@ -889,6 +889,18 @@ if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
     $payload['db'] = true;
     $payload['driver'] = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    // Keep virtual-event reminders moving even without a paid Vercel cron plan.
+    $reminderResult = maybe_process_online_event_reminders($pdo, 180);
+    if (is_array($reminderResult)) {
+      $payload['reminders'] = [
+        'ran' => true,
+        'sent' => (int)($reminderResult['sent'] ?? 0),
+        'emails' => (int)($reminderResult['emails'] ?? 0),
+        'sms' => (int)($reminderResult['sms'] ?? 0),
+      ];
+    } else {
+      $payload['reminders'] = ['ran' => false];
+    }
     json_response(200, $payload);
   } catch (Throwable $e) {
     $payload['ok'] = false;

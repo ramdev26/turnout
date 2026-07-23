@@ -1,0 +1,28 @@
+name: Virtual event reminders
+
+on:
+  schedule:
+    # Every 5 minutes — sends 15-min email/SMS reminders for online events.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reminder cron
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          BASE_URL="${APP_URL:-https://app.bigturnout.co}"
+          BASE_URL="${BASE_URL%/}"
+          URL="${BASE_URL}/api/cron/event-reminders"
+          if [ -n "${CRON_SECRET:-}" ]; then
+            curl -fsS -H "Authorization: Bearer ${CRON_SECRET}" "$URL"
+          else
+            # Fallback: health endpoint runs reminders lazily (rate-limited).
+            curl -fsS "${BASE_URL}/api/health"
+          fi
+          echo

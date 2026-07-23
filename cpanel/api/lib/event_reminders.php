@@ -131,6 +131,56 @@ function update_event_reminder_counts(PDO $pdo, int $eventId, string $reminderKe
   $stmt->execute([$emails, $sms, $eventId, $reminderKey]);
 }
 
+function reminder_cron_lock_get(PDO $pdo): int {
+  if (!function_exists('get_global_setting')) {
+    return 0;
+  }
+  $raw = trim((string)(get_global_setting($pdo, 'event_reminders_last_run', '0') ?? '0'));
+  return ctype_digit($raw) ? (int)$raw : 0;
+}
+
+function reminder_cron_lock_touch(PDO $pdo): void {
+  $now = (string)time();
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  try {
+    if ($driver === 'pgsql') {
+      $stmt = $pdo->prepare(
+        'INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?)
+         ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value'
+      );
+      $stmt->execute(['event_reminders_last_run', $now]);
+    } elseif ($driver === 'sqlite') {
+      $stmt = $pdo->prepare(
+        'INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?)
+         ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value'
+      );
+      $stmt->execute(['event_reminders_last_run', $now]);
+    } else {
+      $stmt = $pdo->prepare(
+        'INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)'
+      );
+      $stmt->execute(['event_reminders_last_run', $now]);
+    }
+  } catch (Throwable $e) {
+    // Ignore lock write failures.
+  }
+}
+
+/**
+ * Run reminders at most once every $minIntervalSeconds (used from /health and cron).
+ *
+ * @return array<string,mixed>|null
+ */
+function maybe_process_online_event_reminders(PDO $pdo, int $minIntervalSeconds = 180): ?array {
+  $last = reminder_cron_lock_get($pdo);
+  if ($last > 0 && (time() - $last) < $minIntervalSeconds) {
+    return null;
+  }
+  reminder_cron_lock_touch($pdo);
+  return process_online_event_reminders($pdo, 10, 20);
+}
+
 /**
  * @return list<array{email:?string,phone:?string,fullName:string}>
  */
