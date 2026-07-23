@@ -1,5 +1,12 @@
 <?php
 
+/** Bump when transaction email HTML changes — also exposed on /api/health. */
+const MAIL_LAYOUT_VERSION = 'transaction-white-v2-20260723';
+
+function mail_layout_version(): string {
+  return MAIL_LAYOUT_VERSION;
+}
+
 function mail_config(): array {
   $cfg = get_config();
   return is_array($cfg['mail'] ?? null) ? $cfg['mail'] : [];
@@ -509,6 +516,7 @@ function mail_transaction_layout(string $innerHtml, string $preheader = ''): str
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' .
     '<title>Ticket Booking Confirmation</title></head>' .
     '<body style="margin:0;padding:0;background:#f4f5f7;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#1f2937;">' .
+    '<!-- turnout-mail-layout:' . MAIL_LAYOUT_VERSION . ' -->' .
     $pre .
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 12px;">' .
     '<tr><td align="center">' .

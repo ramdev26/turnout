@@ -879,6 +879,7 @@ if ($path === '/health' && $method === 'GET') {
     'ok' => true,
     'service' => 'turnout-api',
     'db' => false,
+    'mailLayout' => function_exists('mail_layout_version') ? mail_layout_version() : 'unknown',
     'sms' => [
       'configured' => sms_enabled(),
       'senderId' => sms_enabled() ? (string)(sms_config()['sender_id'] ?? '') : null,
