@@ -4244,8 +4244,48 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST')
     ['ticketId' => $ticketId, 'quantity' => 1],
   ]);
   $normalizedItems = $normalized['items'];
-  // Manual registrations are complimentary — do not inflate paid revenue.
-  $totalCents = 0;
+  $ticketPriceCents = (int)$normalized['totalCents'];
+
+  $paymentMode = strtolower(trim((string)($body['paymentMode'] ?? 'complimentary')));
+  if (!in_array($paymentMode, ['complimentary', 'paid'], true)) {
+    json_response(400, [
+      'error' => 'invalid_payment_mode',
+      'message' => 'Choose complimentary or paid for this registration.',
+    ]);
+  }
+
+  $manualMethod = strtolower(trim((string)($body['manualPaymentMethod'] ?? 'cash')));
+  $allowedManualMethods = ['cash', 'bank_transfer', 'card', 'other'];
+  if ($paymentMode === 'paid' && !in_array($manualMethod, $allowedManualMethods, true)) {
+    json_response(400, [
+      'error' => 'invalid_manual_payment_method',
+      'message' => 'Select how payment was collected (cash, bank transfer, card, or other).',
+    ]);
+  }
+
+  if ($paymentMode === 'complimentary') {
+    $totalCents = 0;
+    $orderPaymentMethod = 'complimentary';
+    $txnReference = 'manual_complimentary';
+  } else {
+    if (array_key_exists('amount', $body) && $body['amount'] !== null && $body['amount'] !== '') {
+      $amountLkr = (float)$body['amount'];
+      if ($amountLkr < 0) {
+        json_response(400, ['error' => 'invalid_amount', 'message' => 'Payment amount cannot be negative.']);
+      }
+      $totalCents = (int)round($amountLkr * 100);
+    } else {
+      $totalCents = $ticketPriceCents;
+    }
+    if ($totalCents <= 0 && $ticketPriceCents > 0) {
+      json_response(400, [
+        'error' => 'invalid_amount',
+        'message' => 'Enter the amount collected, or choose complimentary.',
+      ]);
+    }
+    $orderPaymentMethod = 'manual_' . $manualMethod;
+    $txnReference = 'manual_' . $manualMethod;
+  }
 
   $attendees = [[
     'ticketId' => (string)$ticketId,
@@ -4274,8 +4314,8 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST')
     ]);
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
-    set_order_payment_method($pdo, $orderId, 'manual');
-    upsert_transaction($pdo, $eventId, $uid, $orderId, $totalCents, 'paid', 'manual_registration');
+    set_order_payment_method($pdo, $orderId, $orderPaymentMethod);
+    upsert_transaction($pdo, $eventId, $uid, $orderId, $totalCents, 'paid', $txnReference);
     increment_ticket_sold_counts($pdo, $normalizedItems);
 
     $createdCount = insert_attendees_for_order(
@@ -4330,6 +4370,12 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST')
     'attendee' => attendee_api_shape($attRow, $eventId),
     'stats' => fetch_attendee_stats($pdo, $eventId),
     'emailSent' => $sendEmail,
+    'payment' => [
+      'mode' => $paymentMode,
+      'method' => $paymentMode === 'paid' ? $manualMethod : null,
+      'amount' => $totalCents / 100,
+      'paymentMethod' => $orderPaymentMethod,
+    ],
   ]);
 }
 

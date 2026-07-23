@@ -12,6 +12,9 @@ import { validateCustomFieldValues, resolveCheckoutFieldType } from '../../utils
 import { cn } from '../../utils/cn';
 import { formatLKRWhole } from '../../utils/money';
 
+type ManualPaymentMethod = 'cash' | 'bank_transfer' | 'card' | 'other';
+type PaymentMode = 'complimentary' | 'paid';
+
 type Props = {
   open: boolean;
   eventId: string;
@@ -20,6 +23,13 @@ type Props = {
   onClose: () => void;
   onCreated: (attendee: Attendee, stats?: { total: number; checkedIn: number; pending: number }) => void;
 };
+
+const MANUAL_PAYMENT_OPTIONS: { id: ManualPaymentMethod; label: string }[] = [
+  { id: 'cash', label: 'Cash' },
+  { id: 'bank_transfer', label: 'Bank transfer' },
+  { id: 'card', label: 'Card (offline POS)' },
+  { id: 'other', label: 'Other' },
+];
 
 export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onClose, onCreated }: Props) {
   const cardStyle = cardStyleFor(ui);
@@ -34,6 +44,9 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('complimentary');
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<ManualPaymentMethod>('cash');
+  const [amount, setAmount] = useState('');
   const [sendEmail, setSendEmail] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +95,9 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
     setEmail('');
     setPhone('');
     setCustomFields({});
+    setPaymentMode('complimentary');
+    setManualPaymentMethod('cash');
+    setAmount('');
     setSendEmail(true);
     setError(null);
   }, [open]);
@@ -91,6 +107,13 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
     [tickets, ticketId]
   );
   const remaining = selectedTicket ? Math.max(0, selectedTicket.quantity - selectedTicket.sold) : 0;
+
+  useEffect(() => {
+    if (!selectedTicket) return;
+    if (paymentMode === 'paid') {
+      setAmount(String(selectedTicket.price));
+    }
+  }, [selectedTicket?.id, paymentMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setCustomValue = (key: string, value: string) => {
     setCustomFields((prev) => ({ ...prev, [key]: value }));
@@ -114,6 +137,17 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
       setError('This ticket type is sold out. Increase quantity in Event settings or choose another ticket.');
       return;
     }
+    if (paymentMode === 'paid') {
+      const parsed = Number(amount);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setError('Enter a valid payment amount.');
+        return;
+      }
+      if (parsed <= 0 && (selectedTicket?.price ?? 0) > 0) {
+        setError('Enter the amount collected, or choose complimentary.');
+        return;
+      }
+    }
     const fieldErr = validateCustomFieldValues(checkoutFields, customFields);
     if (fieldErr) {
       setError(fieldErr);
@@ -122,17 +156,23 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
 
     setSaving(true);
     try {
-      const res = await api.post<{
-        attendee: Attendee;
-        stats?: { total: number; checkedIn: number; pending: number };
-      }>(`/api/events/${eventId}/attendees`, {
+      const body: Record<string, unknown> = {
         ticketId,
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim(),
         customFields,
         sendEmail,
-      });
+        paymentMode,
+      };
+      if (paymentMode === 'paid') {
+        body.manualPaymentMethod = manualPaymentMethod;
+        body.amount = Number(amount);
+      }
+      const res = await api.post<{
+        attendee: Attendee;
+        stats?: { total: number; checkedIn: number; pending: number };
+      }>(`/api/events/${eventId}/attendees`, body);
       onCreated(res.attendee, res.stats);
       onClose();
     } catch (e: unknown) {
@@ -170,7 +210,7 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
               Register attendee
             </h2>
             <p className="mt-0.5 text-xs sm:text-sm" style={{ color: ui.textMuted }}>
-              Add someone manually — complimentary registration, counts toward ticket inventory.
+              Add someone manually — complimentary or with payment collected offline.
             </p>
           </div>
           <button
@@ -215,11 +255,90 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
               )}
               {selectedTicket ? (
                 <p className="text-xs" style={{ color: remaining > 0 ? ui.textMuted : '#dc2626' }}>
-                  {remaining} of {selectedTicket.quantity} remaining
-                  {selectedTicket.price > 0 ? ' · registered as complimentary (LKR 0)' : ''}
+                  {remaining} of {selectedTicket.quantity} remaining · ticket price{' '}
+                  {formatLKRWhole(selectedTicket.price)}
                 </p>
               ) : null}
             </div>
+
+            <section className="rounded-xl border p-4" style={cardMutedStyle}>
+              <p className="mb-3 text-xs font-bold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Payment
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    {
+                      id: 'complimentary' as const,
+                      title: 'Complimentary',
+                      detail: 'No payment · guest / comp ticket',
+                    },
+                    {
+                      id: 'paid' as const,
+                      title: 'Paid (manual)',
+                      detail: 'Cash, bank, card, or other collected offline',
+                    },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setPaymentMode(opt.id)}
+                    className="rounded-xl border p-3 text-left transition"
+                    style={{
+                      ...cardStyle,
+                      borderColor: paymentMode === opt.id ? ui.accent : ui.borderColor,
+                      boxShadow: paymentMode === opt.id ? `0 0 0 1px ${ui.accent}` : undefined,
+                    }}
+                  >
+                    <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                      {opt.title}
+                    </p>
+                    <p className="mt-0.5 text-xs" style={{ color: ui.textMuted }}>
+                      {opt.detail}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              {paymentMode === 'paid' ? (
+                <div className="mt-3 space-y-3">
+                  <div className="flex flex-col gap-1.5">
+                    <FlowLabel>How was payment collected?</FlowLabel>
+                    <TurnoutSelect
+                      value={manualPaymentMethod}
+                      onChange={(next) => setManualPaymentMethod(next as ManualPaymentMethod)}
+                      ariaLabel="Manual payment method"
+                      tone="light"
+                      style={fieldStyle}
+                      buttonClassName={cn(fieldClass, 'w-full')}
+                      options={MANUAL_PAYMENT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+                    />
+                  </div>
+                  <label className="flex flex-col gap-1.5">
+                    <FlowLabel>Amount collected (LKR)</FlowLabel>
+                    <FlowInput
+                      type="number"
+                      min={0}
+                      step="1"
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder={selectedTicket ? String(selectedTicket.price) : '0'}
+                      className={fieldClass}
+                      style={fieldStyle}
+                    />
+                    <p className="text-xs" style={{ color: ui.textMuted }}>
+                      Defaults to ticket price. Adjust if you collected a different amount.
+                    </p>
+                  </label>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs" style={{ color: ui.textMuted }}>
+                  Recorded as complimentary (LKR 0). Still uses one ticket from inventory.
+                </p>
+              )}
+            </section>
 
             <label className="flex flex-col gap-1.5">
               <FlowLabel>Full name</FlowLabel>
