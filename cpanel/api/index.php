@@ -869,6 +869,10 @@ if ($path === '/health' && $method === 'GET') {
     'ok' => true,
     'service' => 'turnout-api',
     'db' => false,
+    'sms' => [
+      'configured' => sms_enabled(),
+      'senderId' => sms_enabled() ? (string)(sms_config()['sender_id'] ?? '') : null,
+    ],
   ];
   try {
     $pdo = db();

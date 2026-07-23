@@ -270,6 +270,11 @@ export const EventCheckoutForm: React.FC<Props> = ({
         setIsPurchasing(false);
         return;
       }
+      if (!values.buyerPhone.trim()) {
+        setPayError('Enter your mobile number for SMS order confirmation.');
+        setIsPurchasing(false);
+        return;
+      }
       let attendees: {
         ticketId: string;
         fullName: string;
@@ -651,13 +656,17 @@ export const EventCheckoutForm: React.FC<Props> = ({
       </label>
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
-          Phone (optional)
+          Phone
         </span>
         <input
-          {...register('buyerPhone')}
+          {...register('buyerPhone', { required: true })}
+          placeholder="07X XXX XXXX"
           className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
           style={inputStyle}
         />
+        <span className="text-[11px]" style={{ color: 'var(--landing-text-muted)' }}>
+          Required for SMS order confirmation
+        </span>
       </label>
 
       {canAssignEachTicket && !assignEachTicket && (

@@ -6,7 +6,13 @@
 
 function sms_config(): array {
   $cfg = get_config();
-  return is_array($cfg['sms'] ?? null) ? $cfg['sms'] : [];
+  $sms = is_array($cfg['sms'] ?? null) ? $cfg['sms'] : [];
+  $senderId = trim((string)($sms['sender_id'] ?? ''));
+  // Docs placeholder — fall back to the approved Turnout mask.
+  if ($senderId === '' || strcasecmp($senderId, 'YOURBRAND') === 0 || strcasecmp($senderId, 'SMSlenzDEMO') === 0) {
+    $sms['sender_id'] = 'TURNOUT';
+  }
+  return $sms;
 }
 
 function sms_enabled(): bool {

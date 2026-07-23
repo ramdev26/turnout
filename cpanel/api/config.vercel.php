@@ -108,7 +108,7 @@ return [
     'enabled' => strtolower($env('SMS_ENABLED', 'true')) === 'true',
     'user_id' => $env('SMSLENZ_USER_ID', ''),
     'api_key' => $env('SMSLENZ_API_KEY', ''),
-    'sender_id' => $env('SMSLENZ_SENDER_ID', 'SMSlenzDEMO'),
+    'sender_id' => $env('SMSLENZ_SENDER_ID', 'TURNOUT'),
     'api_base_url' => $env('SMSLENZ_API_BASE_URL', 'https://smslenz.lk/api'),
   ],
   'domains' => [
