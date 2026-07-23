@@ -4244,6 +4244,13 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') 
     $attendees[] = attendee_api_shape($a, $eventId);
   }
 
+  // Opportunistic reminder pass while organizers are in the attendee module.
+  try {
+    maybe_process_online_event_reminders($pdo, 180);
+  } catch (Throwable $e) {
+    // Never block attendee listing on reminder failures.
+  }
+
   json_response(200, ['attendees' => $attendees, 'stats' => fetch_attendee_stats($pdo, $eventId)]);
 }
 
