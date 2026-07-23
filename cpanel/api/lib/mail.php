@@ -651,7 +651,7 @@ function send_buyer_order_confirmation_email(
     '<p style="margin:0 auto 8px;max-width:460px;font-size:15px;line-height:1.6;color:#4b5563;">' .
     'Your seat booking for <strong style="color:#111827;">' . $eventTitle . '</strong> is confirmed. ' .
     'Download your digital ticket using the button below.</p>' .
-    mail_cta_button($ticketUrl, 'DOWNLOAD DIGITAL TICKET', '#5b21b6') .
+    mail_cta_button($ticketUrl, 'DOWNLOAD DIGITAL TICKET', '#5b21b6', '#ffffff') .
     '</div>' .
     '<div style="padding:8px 28px 8px;">' .
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;">' .
@@ -722,7 +722,7 @@ function send_attendee_ticket_email(
     '<p style="margin:0 auto 8px;max-width:460px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ' . $greeting .
     ', you have ' . ($passCount > 1 ? '<strong>' . $passCount . ' tickets</strong>' : 'a ticket') .
     ' for <strong style="color:#111827;">' . $eventTitle . '</strong>.</p>' .
-    mail_cta_button($ticketUrl, $ticketLabel, '#5b21b6') .
+    mail_cta_button($ticketUrl, $ticketLabel, '#5b21b6', '#ffffff') .
     '</div>' .
     '<div style="padding:8px 28px 4px;">' .
     '<table width="100%" cellpadding="0" cellspacing="0">' .
