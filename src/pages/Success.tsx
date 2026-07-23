@@ -216,24 +216,56 @@ export const Success: React.FC = () => {
 
             {bank ? (
               <div className={`${cardShell} mt-6 p-4`} style={cardShellStyle}>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Transfer to</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">
+                  Bank transfer details
+                </p>
                 <dl className="mt-3 space-y-2 text-sm text-[var(--text)]">
                   <div className="flex justify-between gap-3">
-                    <dt className="text-[var(--text-muted)]">Account holder</dt>
+                    <dt className="text-[var(--text-muted)]">Account name</dt>
                     <dd className="font-semibold text-right">{bank.accountHolderName}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-[var(--text-muted)]">Bank</dt>
-                    <dd className="font-semibold text-right">{bank.bankName}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-[var(--text-muted)]">Branch</dt>
-                    <dd className="font-semibold text-right">{bank.bankBranch}</dd>
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="text-[var(--text-muted)]">Account number</dt>
                     <dd className="font-mono font-semibold text-right">{bank.accountNumber}</dd>
                   </div>
+                  {bank.accountType ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-muted)]">Account type</dt>
+                      <dd className="font-semibold text-right">{bank.accountType}</dd>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-muted)]">Bank name</dt>
+                    <dd className="font-semibold text-right">{bank.bankName}</dd>
+                  </div>
+                  {bank.bankAddress ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="shrink-0 text-[var(--text-muted)]">Bank address</dt>
+                      <dd className="font-semibold text-right">{bank.bankAddress}</dd>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-muted)]">Bank branch</dt>
+                    <dd className="font-semibold text-right">{bank.bankBranch}</dd>
+                  </div>
+                  {bank.bankCode ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-muted)]">BANK code</dt>
+                      <dd className="font-mono font-semibold text-right">{bank.bankCode}</dd>
+                    </div>
+                  ) : null}
+                  {bank.branchCode ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-muted)]">Branch code</dt>
+                      <dd className="font-mono font-semibold text-right">{bank.branchCode}</dd>
+                    </div>
+                  ) : null}
+                  {bank.swiftCode ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-muted)]">Swift code</dt>
+                      <dd className="font-mono font-semibold text-right">{bank.swiftCode}</dd>
+                    </div>
+                  ) : null}
                   <div className="flex justify-between gap-3 border-t pt-2" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
                     <dt className="text-[var(--text-muted)]">Amount</dt>
                     <dd className="font-semibold text-right">{formatLKRWhole(order.totalAmount)}</dd>

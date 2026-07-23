@@ -13,6 +13,11 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'bank_name' => $driver === 'pgsql' ? 'VARCHAR(255) NULL' : 'VARCHAR(255) NULL',
     'bank_branch' => $driver === 'pgsql' ? 'VARCHAR(255) NULL' : 'VARCHAR(255) NULL',
     'bank_account_number' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
+    'bank_account_type' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
+    'bank_address' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'bank_code' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
+    'bank_branch_code' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
+    'bank_swift_code' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
     'business_registration_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'bank_statement_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
@@ -92,6 +97,11 @@ function organizer_profile_bank_api_fields(array $profileRow): array {
     'bankBranch' => trim((string)($profileRow['bank_branch'] ?? '')) ?: null,
     'bankAccountNumberLast4' => $accountNumber !== '' ? substr($accountNumber, -4) : null,
     'bankAccountConfigured' => $accountNumber !== '',
+    'bankAccountType' => trim((string)($profileRow['bank_account_type'] ?? '')) ?: null,
+    'bankAddress' => trim((string)($profileRow['bank_address'] ?? '')) ?: null,
+    'bankCode' => trim((string)($profileRow['bank_code'] ?? '')) ?: null,
+    'bankBranchCode' => trim((string)($profileRow['bank_branch_code'] ?? '')) ?: null,
+    'bankSwiftCode' => trim((string)($profileRow['bank_swift_code'] ?? '')) ?: null,
     'bankStatementDocUrl' => trim((string)($profileRow['bank_statement_doc_url'] ?? '')) ?: null,
     'bankStatementDocUploaded' => trim((string)($profileRow['bank_statement_doc_url'] ?? '')) !== '',
   ];
@@ -214,6 +224,21 @@ function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array
   $bankAccountNumber = array_key_exists('bank_account_number', $fields)
     ? trim((string)$fields['bank_account_number'])
     : trim((string)($existing['bank_account_number'] ?? ''));
+  $bankAccountType = array_key_exists('bank_account_type', $fields)
+    ? trim((string)$fields['bank_account_type'])
+    : trim((string)($existing['bank_account_type'] ?? ''));
+  $bankAddress = array_key_exists('bank_address', $fields)
+    ? trim((string)$fields['bank_address'])
+    : trim((string)($existing['bank_address'] ?? ''));
+  $bankCode = array_key_exists('bank_code', $fields)
+    ? trim((string)$fields['bank_code'])
+    : trim((string)($existing['bank_code'] ?? ''));
+  $bankBranchCode = array_key_exists('bank_branch_code', $fields)
+    ? trim((string)$fields['bank_branch_code'])
+    : trim((string)($existing['bank_branch_code'] ?? ''));
+  $bankSwiftCode = array_key_exists('bank_swift_code', $fields)
+    ? trim((string)$fields['bank_swift_code'])
+    : trim((string)($existing['bank_swift_code'] ?? ''));
   $businessRegistrationDocUrl = array_key_exists('business_registration_doc_url', $fields)
     ? trim((string)$fields['business_registration_doc_url'])
     : trim((string)($existing['business_registration_doc_url'] ?? ''));
@@ -221,15 +246,37 @@ function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array
     ? trim((string)$fields['bank_statement_doc_url'])
     : trim((string)($existing['bank_statement_doc_url'] ?? ''));
 
+  $params = [
+    $userId,
+    mb_substr($organizationName, 0, 255),
+    $logoUrl !== '' ? $logoUrl : null,
+    $website !== '' ? $website : null,
+    $phone !== '' ? $phone : null,
+    $businessAddress !== '' ? $businessAddress : null,
+    $businessRegistrationNo !== '' ? $businessRegistrationNo : null,
+    $bankAccountHolderName !== '' ? $bankAccountHolderName : null,
+    $bankName !== '' ? $bankName : null,
+    $bankBranch !== '' ? $bankBranch : null,
+    $bankAccountNumber !== '' ? $bankAccountNumber : null,
+    $bankAccountType !== '' ? mb_substr($bankAccountType, 0, 64) : null,
+    $bankAddress !== '' ? $bankAddress : null,
+    $bankCode !== '' ? mb_substr($bankCode, 0, 32) : null,
+    $bankBranchCode !== '' ? mb_substr($bankBranchCode, 0, 32) : null,
+    $bankSwiftCode !== '' ? mb_substr($bankSwiftCode, 0, 32) : null,
+    $businessRegistrationDocUrl !== '' ? $businessRegistrationDocUrl : null,
+    $bankStatementDocUrl !== '' ? $bankStatementDocUrl : null,
+  ];
+
   if ($driver === 'sqlite') {
     $stmt = $pdo->prepare(
       'INSERT INTO organizer_profiles (
         user_id, organization_name, logo_url, website, phone,
         business_address, business_registration_no,
         bank_account_holder_name, bank_name, bank_branch, bank_account_number,
+        bank_account_type, bank_address, bank_code, bank_branch_code, bank_swift_code,
         business_registration_doc_url, bank_statement_doc_url,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id) DO UPDATE SET
         organization_name = excluded.organization_name,
         logo_url = excluded.logo_url,
@@ -241,34 +288,26 @@ function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array
         bank_name = excluded.bank_name,
         bank_branch = excluded.bank_branch,
         bank_account_number = excluded.bank_account_number,
+        bank_account_type = excluded.bank_account_type,
+        bank_address = excluded.bank_address,
+        bank_code = excluded.bank_code,
+        bank_branch_code = excluded.bank_branch_code,
+        bank_swift_code = excluded.bank_swift_code,
         business_registration_doc_url = excluded.business_registration_doc_url,
         bank_statement_doc_url = excluded.bank_statement_doc_url,
         updated_at = CURRENT_TIMESTAMP'
     );
-    $stmt->execute([
-      $userId,
-      mb_substr($organizationName, 0, 255),
-      $logoUrl !== '' ? $logoUrl : null,
-      $website !== '' ? $website : null,
-      $phone !== '' ? $phone : null,
-      $businessAddress !== '' ? $businessAddress : null,
-      $businessRegistrationNo !== '' ? $businessRegistrationNo : null,
-      $bankAccountHolderName !== '' ? $bankAccountHolderName : null,
-      $bankName !== '' ? $bankName : null,
-      $bankBranch !== '' ? $bankBranch : null,
-      $bankAccountNumber !== '' ? $bankAccountNumber : null,
-      $businessRegistrationDocUrl !== '' ? $businessRegistrationDocUrl : null,
-      $bankStatementDocUrl !== '' ? $bankStatementDocUrl : null,
-    ]);
+    $stmt->execute($params);
   } elseif ($driver === 'pgsql') {
     $stmt = $pdo->prepare(
       'INSERT INTO organizer_profiles (
         user_id, organization_name, logo_url, website, phone,
         business_address, business_registration_no,
         bank_account_holder_name, bank_name, bank_branch, bank_account_number,
+        bank_account_type, bank_address, bank_code, bank_branch_code, bank_swift_code,
         business_registration_doc_url, bank_statement_doc_url,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT (user_id) DO UPDATE SET
         organization_name = EXCLUDED.organization_name,
         logo_url = EXCLUDED.logo_url,
@@ -280,33 +319,25 @@ function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array
         bank_name = EXCLUDED.bank_name,
         bank_branch = EXCLUDED.bank_branch,
         bank_account_number = EXCLUDED.bank_account_number,
+        bank_account_type = EXCLUDED.bank_account_type,
+        bank_address = EXCLUDED.bank_address,
+        bank_code = EXCLUDED.bank_code,
+        bank_branch_code = EXCLUDED.bank_branch_code,
+        bank_swift_code = EXCLUDED.bank_swift_code,
         business_registration_doc_url = EXCLUDED.business_registration_doc_url,
         bank_statement_doc_url = EXCLUDED.bank_statement_doc_url,
         updated_at = CURRENT_TIMESTAMP'
     );
-    $stmt->execute([
-      $userId,
-      mb_substr($organizationName, 0, 255),
-      $logoUrl !== '' ? $logoUrl : null,
-      $website !== '' ? $website : null,
-      $phone !== '' ? $phone : null,
-      $businessAddress !== '' ? $businessAddress : null,
-      $businessRegistrationNo !== '' ? $businessRegistrationNo : null,
-      $bankAccountHolderName !== '' ? $bankAccountHolderName : null,
-      $bankName !== '' ? $bankName : null,
-      $bankBranch !== '' ? $bankBranch : null,
-      $bankAccountNumber !== '' ? $bankAccountNumber : null,
-      $businessRegistrationDocUrl !== '' ? $businessRegistrationDocUrl : null,
-      $bankStatementDocUrl !== '' ? $bankStatementDocUrl : null,
-    ]);
+    $stmt->execute($params);
   } else {
     $stmt = $pdo->prepare(
       'INSERT INTO organizer_profiles (
         user_id, organization_name, logo_url, website, phone,
         business_address, business_registration_no,
         bank_account_holder_name, bank_name, bank_branch, bank_account_number,
+        bank_account_type, bank_address, bank_code, bank_branch_code, bank_swift_code,
         business_registration_doc_url, bank_statement_doc_url
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         organization_name = VALUES(organization_name),
         logo_url = VALUES(logo_url),
@@ -318,24 +349,15 @@ function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array
         bank_name = VALUES(bank_name),
         bank_branch = VALUES(bank_branch),
         bank_account_number = VALUES(bank_account_number),
+        bank_account_type = VALUES(bank_account_type),
+        bank_address = VALUES(bank_address),
+        bank_code = VALUES(bank_code),
+        bank_branch_code = VALUES(bank_branch_code),
+        bank_swift_code = VALUES(bank_swift_code),
         business_registration_doc_url = VALUES(business_registration_doc_url),
         bank_statement_doc_url = VALUES(bank_statement_doc_url)'
     );
-    $stmt->execute([
-      $userId,
-      mb_substr($organizationName, 0, 255),
-      $logoUrl !== '' ? $logoUrl : null,
-      $website !== '' ? $website : null,
-      $phone !== '' ? $phone : null,
-      $businessAddress !== '' ? $businessAddress : null,
-      $businessRegistrationNo !== '' ? $businessRegistrationNo : null,
-      $bankAccountHolderName !== '' ? $bankAccountHolderName : null,
-      $bankName !== '' ? $bankName : null,
-      $bankBranch !== '' ? $bankBranch : null,
-      $bankAccountNumber !== '' ? $bankAccountNumber : null,
-      $businessRegistrationDocUrl !== '' ? $businessRegistrationDocUrl : null,
-      $bankStatementDocUrl !== '' ? $bankStatementDocUrl : null,
-    ]);
+    $stmt->execute($params);
   }
 
   return load_organizer_profile_row($pdo, $userId);

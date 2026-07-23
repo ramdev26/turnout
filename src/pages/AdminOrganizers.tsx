@@ -532,6 +532,11 @@ export const AdminOrganizers: React.FC = () => {
                           : 'Not configured'
                       }
                     />
+                    <InfoRow label="Account type" value={detail.profile.bankAccountType || '—'} />
+                    <InfoRow label="Bank address" value={detail.profile.bankAddress || '—'} />
+                    <InfoRow label="BANK code" value={detail.profile.bankCode || '—'} />
+                    <InfoRow label="Branch code" value={detail.profile.bankBranchCode || '—'} />
+                    <InfoRow label="Swift code" value={detail.profile.bankSwiftCode || '—'} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {detail.profile.businessRegistrationDocUrl ? (

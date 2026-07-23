@@ -67,6 +67,18 @@ export type OrganizerPayout = {
 
 export type OrganizerTeamRole = 'owner' | 'admin' | 'editor' | 'viewer';
 
+export type BankTransferDetails = {
+  accountHolderName: string;
+  bankName: string;
+  bankBranch: string;
+  accountNumber: string;
+  accountType?: string | null;
+  bankAddress?: string | null;
+  bankCode?: string | null;
+  branchCode?: string | null;
+  swiftCode?: string | null;
+};
+
 export type OrganizerProfile = {
   ownerUserId?: string;
   displayName: string;
@@ -84,6 +96,11 @@ export type OrganizerProfile = {
   bankBranch?: string | null;
   bankAccountNumberLast4?: string | null;
   bankAccountConfigured?: boolean;
+  bankAccountType?: string | null;
+  bankAddress?: string | null;
+  bankCode?: string | null;
+  bankBranchCode?: string | null;
+  bankSwiftCode?: string | null;
   bankStatementDocUrl?: string | null;
   bankStatementDocUploaded?: boolean;
   /** Organization Terms & Conditions (HTML). */
@@ -115,6 +132,11 @@ export type OrganizerPaidEventReadiness = {
     bankBranch: string | null;
     bankAccountNumberLast4: string | null;
     bankAccountConfigured: boolean;
+    bankAccountType: string | null;
+    bankAddress: string | null;
+    bankCode: string | null;
+    bankBranchCode: string | null;
+    bankSwiftCode: string | null;
     bankStatementDocUrl: string | null;
     bankStatementDocUploaded: boolean;
   };
@@ -370,12 +392,7 @@ export interface Event {
     bankTransfer?: boolean;
   };
   /** Receiving bank account shown at checkout when bank transfer is enabled */
-  bankTransfer?: {
-    accountHolderName: string;
-    bankName: string;
-    bankBranch: string;
-    accountNumber: string;
-  } | null;
+  bankTransfer?: BankTransferDetails | null;
   title: string;
   description: string;
   date: string;
@@ -466,12 +483,7 @@ export interface Order {
   bankTransferSlipUrl?: string | null;
   bankTransferSlipUploadedAt?: string | null;
   bankTransferConfirmedAt?: string | null;
-  bankTransfer?: {
-    accountHolderName: string;
-    bankName: string;
-    bankBranch: string;
-    accountNumber: string;
-  } | null;
+  bankTransfer?: BankTransferDetails | null;
   stripeSessionId?: string;
   createdAt: string;
   /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */

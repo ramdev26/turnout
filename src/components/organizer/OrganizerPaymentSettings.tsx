@@ -107,6 +107,11 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   const [bankName, setBankName] = useState('');
   const [bankBranch, setBankBranch] = useState('');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankAccountType, setBankAccountType] = useState('');
+  const [bankAddress, setBankAddress] = useState('');
+  const [bankCode, setBankCode] = useState('');
+  const [bankBranchCode, setBankBranchCode] = useState('');
+  const [bankSwiftCode, setBankSwiftCode] = useState('');
   const [readiness, setReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
   const [expanded, setExpanded] = useState<ExpandedProvider>('payhere');
 
@@ -123,6 +128,11 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     setBankName(res.readiness.bank.bankName || '');
     setBankBranch(res.readiness.bank.bankBranch || '');
     setBankAccountNumber('');
+    setBankAccountType(res.readiness.bank.bankAccountType || '');
+    setBankAddress(res.readiness.bank.bankAddress || '');
+    setBankCode(res.readiness.bank.bankCode || '');
+    setBankBranchCode(res.readiness.bank.bankBranchCode || '');
+    setBankSwiftCode(res.readiness.bank.bankSwiftCode || '');
   }, []);
 
   useEffect(() => {
@@ -183,6 +193,11 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
         bankAccountHolderName: bankAccountHolderName.trim(),
         bankName: bankName.trim(),
         bankBranch: bankBranch.trim(),
+        bankAccountType: bankAccountType.trim(),
+        bankAddress: bankAddress.trim(),
+        bankCode: bankCode.trim(),
+        bankBranchCode: bankBranchCode.trim(),
+        bankSwiftCode: bankSwiftCode.trim(),
       };
       if (bankAccountNumber.trim()) {
         body.bankAccountNumber = bankAccountNumber.trim();
@@ -370,34 +385,12 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <FlowLabel>Account holder name</FlowLabel>
+                  <FlowLabel>Account name</FlowLabel>
                   <FlowInput
                     value={bankAccountHolderName}
                     disabled={!isOwner}
                     onChange={(e) => setBankAccountHolderName(e.target.value)}
                     placeholder="Name as shown on bank account"
-                    className={fieldClass}
-                    style={fieldStyle}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <FlowLabel>Bank name</FlowLabel>
-                  <FlowInput
-                    value={bankName}
-                    disabled={!isOwner}
-                    onChange={(e) => setBankName(e.target.value)}
-                    placeholder="e.g. Commercial Bank"
-                    className={fieldClass}
-                    style={fieldStyle}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <FlowLabel>Branch</FlowLabel>
-                  <FlowInput
-                    value={bankBranch}
-                    disabled={!isOwner}
-                    onChange={(e) => setBankBranch(e.target.value)}
-                    placeholder="Branch name or code"
                     className={fieldClass}
                     style={fieldStyle}
                   />
@@ -422,6 +415,83 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                       Account number is saved. Leave blank to keep the current number.
                     </p>
                   ) : null}
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <FlowLabel>Account type</FlowLabel>
+                  <FlowInput
+                    value={bankAccountType}
+                    disabled={!isOwner}
+                    onChange={(e) => setBankAccountType(e.target.value)}
+                    placeholder="e.g. Current Account"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <FlowLabel>Bank name</FlowLabel>
+                  <FlowInput
+                    value={bankName}
+                    disabled={!isOwner}
+                    onChange={(e) => setBankName(e.target.value)}
+                    placeholder="e.g. Hatton National Bank PLC"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <FlowLabel>Bank address</FlowLabel>
+                  <FlowInput
+                    value={bankAddress}
+                    disabled={!isOwner}
+                    onChange={(e) => setBankAddress(e.target.value)}
+                    placeholder="Bank branch address"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <FlowLabel>Bank branch</FlowLabel>
+                  <FlowInput
+                    value={bankBranch}
+                    disabled={!isOwner}
+                    onChange={(e) => setBankBranch(e.target.value)}
+                    placeholder="e.g. WTC Branch"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <FlowLabel>BANK code</FlowLabel>
+                  <FlowInput
+                    value={bankCode}
+                    disabled={!isOwner}
+                    onChange={(e) => setBankCode(e.target.value)}
+                    placeholder="e.g. 7083"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <FlowLabel>Branch code</FlowLabel>
+                  <FlowInput
+                    value={bankBranchCode}
+                    disabled={!isOwner}
+                    onChange={(e) => setBankBranchCode(e.target.value)}
+                    placeholder="e.g. 703"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <FlowLabel>Swift code</FlowLabel>
+                  <FlowInput
+                    value={bankSwiftCode}
+                    disabled={!isOwner}
+                    onChange={(e) => setBankSwiftCode(e.target.value)}
+                    placeholder="e.g. HBLILKLX"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
                 </label>
               </div>
               {isOwner ? (

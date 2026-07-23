@@ -1511,6 +1511,11 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
   $bankName = trim((string)($body['bankName'] ?? ''));
   $bankBranch = trim((string)($body['bankBranch'] ?? ''));
   $bankAccountNumber = trim((string)($body['bankAccountNumber'] ?? ''));
+  $bankAccountType = trim((string)($body['bankAccountType'] ?? ''));
+  $bankAddress = trim((string)($body['bankAddress'] ?? ''));
+  $bankCode = trim((string)($body['bankCode'] ?? ''));
+  $bankBranchCode = trim((string)($body['bankBranchCode'] ?? ''));
+  $bankSwiftCode = trim((string)($body['bankSwiftCode'] ?? ''));
 
   if ($organizationName === '') {
     $existingProfile = load_organizer_profile_row($pdo, $uid);
@@ -1527,7 +1532,7 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     $pdo->prepare('UPDATE users SET display_name = ? WHERE id = ?')->execute([$displayName, $uid]);
   }
 
-  upsert_organizer_profile_paid_event_fields($pdo, $uid, [
+  $profileFields = [
     'organization_name' => $organizationName,
     'logo_url' => $logoUrl,
     'website' => $website,
@@ -1538,7 +1543,23 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     'bank_name' => $bankName,
     'bank_branch' => $bankBranch,
     'bank_account_number' => $bankAccountNumber,
-  ]);
+  ];
+  if (array_key_exists('bankAccountType', $body)) {
+    $profileFields['bank_account_type'] = $bankAccountType;
+  }
+  if (array_key_exists('bankAddress', $body)) {
+    $profileFields['bank_address'] = $bankAddress;
+  }
+  if (array_key_exists('bankCode', $body)) {
+    $profileFields['bank_code'] = $bankCode;
+  }
+  if (array_key_exists('bankBranchCode', $body)) {
+    $profileFields['bank_branch_code'] = $bankBranchCode;
+  }
+  if (array_key_exists('bankSwiftCode', $body)) {
+    $profileFields['bank_swift_code'] = $bankSwiftCode;
+  }
+  upsert_organizer_profile_paid_event_fields($pdo, $uid, $profileFields);
 
   if (array_key_exists('termsHtml', $body)) {
     upsert_organizer_terms_html($pdo, $uid, (string)$body['termsHtml']);
@@ -1604,6 +1625,21 @@ if (
     }
     if (array_key_exists('bankAccountNumber', $body)) {
       $bankFields['bank_account_number'] = trim((string)$body['bankAccountNumber']);
+    }
+    if (array_key_exists('bankAccountType', $body)) {
+      $bankFields['bank_account_type'] = trim((string)$body['bankAccountType']);
+    }
+    if (array_key_exists('bankAddress', $body)) {
+      $bankFields['bank_address'] = trim((string)$body['bankAddress']);
+    }
+    if (array_key_exists('bankCode', $body)) {
+      $bankFields['bank_code'] = trim((string)$body['bankCode']);
+    }
+    if (array_key_exists('bankBranchCode', $body)) {
+      $bankFields['bank_branch_code'] = trim((string)$body['bankBranchCode']);
+    }
+    if (array_key_exists('bankSwiftCode', $body)) {
+      $bankFields['bank_swift_code'] = trim((string)$body['bankSwiftCode']);
     }
     if ($bankFields !== []) {
       $holder = trim((string)($bankFields['bank_account_holder_name'] ?? ''));
