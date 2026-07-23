@@ -12,6 +12,7 @@ import {
   Search,
   Shield,
   Undo2,
+  UserPlus,
   Users,
   UserCheck,
   Clock,
@@ -22,6 +23,7 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel';
 import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
 import { AttendeeDetailDrawer } from '../components/organizer/AttendeeDetailDrawer';
+import { ManualAddAttendeeModal } from '../components/organizer/ManualAddAttendeeModal';
 import { FlowPage, FlowStatCard, FlowAlert, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { eventWorkspaceNav } from '../utils/organizerNav';
 import { cn } from '../utils/cn';
@@ -66,6 +68,7 @@ export const CheckInManager: React.FC = () => {
   const [pendingTransfers, setPendingTransfers] = useState(0);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
+  const [showAddAttendee, setShowAddAttendee] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
   const { eventId } = useParams<{ eventId: string }>();
@@ -352,6 +355,12 @@ export const CheckInManager: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {panel === 'list' ? (
+              <FlowButton onClick={() => setShowAddAttendee(true)} className="flex-1 sm:flex-none">
+                <UserPlus className="h-4 w-4" />
+                Add attendee
+              </FlowButton>
+            ) : null}
             <FlowButton variant="secondary" onClick={() => void exportCsv()} className="flex-1 sm:flex-none">
               <Download className="h-4 w-4" />
               Export CSV
@@ -528,6 +537,15 @@ export const CheckInManager: React.FC = () => {
                   Attendee list
                 </h2>
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAttendee(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold sm:hidden"
+                    style={accentButtonStyleFor(ui)}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Add
+                  </button>
                   {(['all', 'pending', 'checked_in'] as const).map((f) => (
                     <button
                       key={f}
@@ -576,7 +594,16 @@ export const CheckInManager: React.FC = () => {
               <div className="max-h-[min(70vh,560px)] overflow-auto">
                 {attendees.length === 0 ? (
                   <div className="p-8 text-center text-sm" style={{ color: ui.textMuted }}>
-                    No attendees match your filters. Tickets appear here after orders are completed.
+                    <p>No attendees match your filters.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddAttendee(true)}
+                      className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold underline-offset-2 hover:underline"
+                      style={{ color: ui.accent }}
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Register an attendee manually
+                    </button>
                   </div>
                 ) : (
                   <div className="divide-y" style={{ borderColor: ui.borderColor }}>
@@ -708,6 +735,29 @@ export const CheckInManager: React.FC = () => {
             }}
           />
         ) : null}
+
+        <ManualAddAttendeeModal
+          open={showAddAttendee}
+          eventId={eventId}
+          checkoutFields={checkoutFields}
+          ui={ui}
+          onClose={() => setShowAddAttendee(false)}
+          onCreated={(attendee, nextStats) => {
+            setAttendees((prev) => [attendee, ...prev.filter((a) => a.id !== attendee.id)]);
+            if (nextStats) setStats(nextStats);
+            else {
+              setStats((prev) => ({
+                total: prev.total + 1,
+                checkedIn: prev.checkedIn,
+                pending: prev.pending + 1,
+              }));
+            }
+            setMsg(`${attendee.fullName} registered successfully.`);
+            setErr(null);
+            setSelectedAttendee(attendee);
+            void load({ background: true });
+          }}
+        />
       </FlowPage>
     </OrganizerFlowShell>
   );

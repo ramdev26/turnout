@@ -4212,6 +4212,127 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'GET') 
   json_response(200, ['attendees' => $attendees, 'stats' => fetch_attendee_stats($pdo, $eventId)]);
 }
 
+if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_order_policy_acceptance_columns($pdo);
+  ensure_order_bank_transfer_columns($pdo);
+  ensure_attendees_custom_fields_column($pdo);
+
+  $ev = load_event_row_or_404($pdo, $eventId);
+  $ticketId = (int)($body['ticketId'] ?? 0);
+  $fullName = trim((string)($body['fullName'] ?? ''));
+  $email = strtolower(trim((string)($body['email'] ?? '')));
+  $phone = trim((string)($body['phone'] ?? ''));
+  $customFields = $body['customFields'] ?? [];
+  $sendEmail = !array_key_exists('sendEmail', $body) || !empty($body['sendEmail']);
+
+  if ($ticketId <= 0) json_response(400, ['error' => 'invalid_ticket', 'message' => 'Select a ticket type.']);
+  if ($fullName === '') json_response(400, ['error' => 'invalid_full_name', 'message' => 'Attendee name is required.']);
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(400, ['error' => 'invalid_email', 'message' => 'Enter a valid email address.']);
+  }
+
+  $checkoutFields = checkout_fields_from_event_row($ev);
+  validate_attendee_custom_fields($checkoutFields, is_array($customFields) ? $customFields : []);
+
+  $normalized = normalize_order_items_from_db($pdo, $eventId, [
+    ['ticketId' => $ticketId, 'quantity' => 1],
+  ]);
+  $normalizedItems = $normalized['items'];
+  // Manual registrations are complimentary — do not inflate paid revenue.
+  $totalCents = 0;
+
+  $attendees = [[
+    'ticketId' => (string)$ticketId,
+    'fullName' => $fullName,
+    'email' => $email,
+    'phone' => $phone,
+    'customFields' => is_array($customFields) ? $customFields : [],
+  ]];
+  validate_attendees_for_order($normalizedItems, $attendees, $checkoutFields);
+
+  $pdo->beginTransaction();
+  try {
+    $ins = $pdo->prepare(
+      'INSERT INTO orders (event_id, buyer_user_id, buyer_name, buyer_phone, buyer_email, tickets_json, total_amount_cents, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $ins->execute([
+      $eventId,
+      $uid,
+      $fullName,
+      $phone !== '' ? $phone : null,
+      $email,
+      json_encode($normalizedItems, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+      $totalCents,
+      'paid',
+    ]);
+    $orderId = (int)$pdo->lastInsertId();
+    mark_order_policy_acceptance($pdo, $orderId);
+    set_order_payment_method($pdo, $orderId, 'manual');
+    upsert_transaction($pdo, $eventId, $uid, $orderId, $totalCents, 'paid', 'manual_registration');
+    increment_ticket_sold_counts($pdo, $normalizedItems);
+
+    $createdCount = insert_attendees_for_order(
+      $pdo,
+      $orderId,
+      $eventId,
+      $attendees,
+      $email,
+      $phone,
+      $fullName,
+      $checkoutFields
+    );
+    if ($createdCount !== 1) {
+      throw new Exception('invalid_attendee');
+    }
+
+    $attStmt = $pdo->prepare(
+      'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, a.custom_fields_json, t.name AS ticket_name
+       FROM attendees a
+       JOIN tickets t ON t.id = a.ticket_id
+       WHERE a.order_id = ? AND a.event_id = ?
+       ORDER BY a.id DESC
+       LIMIT 1'
+    );
+    $attStmt->execute([$orderId, $eventId]);
+    $attRow = $attStmt->fetch();
+    if (!$attRow) {
+      throw new Exception('attendee_missing');
+    }
+
+    $pdo->commit();
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log(sprintf('[turnout] manual attendee register failed: %s', $e->getMessage()));
+    json_response(400, [
+      'error' => 'attendee_create_failed',
+      'message' => 'Could not register attendee. Check ticket availability and try again.',
+    ]);
+  }
+
+  if ($sendEmail) {
+    try {
+      send_order_confirmation_email($pdo, $orderId);
+    } catch (Throwable $e) {
+      error_log(sprintf('[turnout] manual attendee email failed order=%d: %s', $orderId, $e->getMessage()));
+    }
+  }
+
+  json_response(201, [
+    'ok' => true,
+    'orderId' => (string)$orderId,
+    'attendee' => attendee_api_shape($attRow, $eventId),
+    'stats' => fetch_attendee_stats($pdo, $eventId),
+    'emailSent' => $sendEmail,
+  ]);
+}
+
 if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];

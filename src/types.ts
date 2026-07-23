@@ -479,7 +479,7 @@ export interface Order {
   tickets: OrderItem[];
   totalAmount: number;
   status: 'pending' | 'paid' | 'failed';
-  paymentMethod?: 'free' | 'payhere' | 'bank_transfer' | string;
+  paymentMethod?: 'free' | 'payhere' | 'bank_transfer' | 'manual' | string;
   bankTransferSlipUrl?: string | null;
   bankTransferSlipUploadedAt?: string | null;
   bankTransferConfirmedAt?: string | null;
