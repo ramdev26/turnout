@@ -20,7 +20,7 @@
   display: none;
 }
 
-/* ── Full-bleed hero — always cover so public page matches live preview ── */
+/* ── Full-bleed hero ── */
 .sp-hero {
   width: 100%;
   max-width: 100%;
@@ -34,23 +34,35 @@
   display: block;
   width: 100%;
   max-width: none;
-  /* Use container width (cqi), not viewport (vw), so desktop preview ≈ public */
-  height: clamp(200px, 42cqi, 340px);
-  object-fit: cover;
-  object-position: center;
   border: 0;
 }
 
+/*
+ * Mobile / narrow: keep the full designed banner visible.
+ * Fixed-height + object-fit:cover was cropping titles/logos baked into the art.
+ */
+.sp-hero-img {
+  height: auto;
+  max-height: min(70vh, 560px);
+  object-fit: contain;
+  object-position: center top;
+}
+
 .sp-hero-fallback {
+  height: clamp(200px, 48cqi, 300px);
   background:
     radial-gradient(ellipse 80% 70% at 50% 40%, color-mix(in srgb, var(--sp-accent) 40%, #1e293b), transparent 70%),
     linear-gradient(145deg, #0f172a, #1e293b 55%, #334155);
 }
 
+/* Desktop: preserve previous full-bleed cover crop */
 @container spotlight (min-width: 1024px) {
   .sp-hero-img,
   .sp-hero-fallback {
     height: clamp(280px, 34cqi, 420px);
+    max-height: none;
+    object-fit: cover;
+    object-position: center;
   }
 }
 
@@ -835,7 +847,13 @@
   height: calc(6.1rem + env(safe-area-inset-bottom));
 }
 
-.event-settings-mobile-preview .sp-hero-img,
+.event-settings-mobile-preview .sp-hero-img {
+  height: auto !important;
+  max-height: 200px !important;
+  object-fit: contain !important;
+  object-position: center top !important;
+}
+
 .event-settings-mobile-preview .sp-hero-fallback {
   height: 150px !important;
 }
