@@ -41,6 +41,14 @@ if (str_starts_with($path, '/api')) {
   if ($path === false || $path === '') $path = '';
 }
 
+// Recover short ticket links when Vercel rewrites /t/{code} → /api/index.php
+if ($path === '' || $path === '/index.php' || !preg_match('#^/t/#', $path)) {
+  $reqUri = (string)($_SERVER['REQUEST_URI'] ?? '');
+  if (preg_match('#(?:^|/)t/([A-Za-z0-9]+)#', $reqUri, $uriShort)) {
+    $path = '/t/' . $uriShort[1];
+  }
+}
+
 function is_same_origin_request(): bool {
   return is_trusted_origin_request();
 }
