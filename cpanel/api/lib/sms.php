@@ -221,7 +221,7 @@ function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
 
   $stmt = $pdo->prepare(
     'SELECT o.id, o.buyer_name, o.buyer_phone, o.total_amount_cents, o.tickets_json,
-            e.title AS event_title
+            e.title AS event_title, e.event_date, e.location, e.customization_json
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
      WHERE o.id = ?
@@ -239,23 +239,56 @@ function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
   }
 
   $name = trim((string)($order['buyer_name'] ?? ''));
-  $greeting = $name !== '' ? $name : 'there';
+  $greeting = $name !== '' ? $name : 'Valued Customer';
   $eventTitle = trim((string)($order['event_title'] ?? 'your event'));
-  if (mb_strlen($eventTitle) > 60) {
-    $eventTitle = mb_substr($eventTitle, 0, 57) . '...';
-  }
+  $location = trim((string)($order['location'] ?? ''));
   $total = sms_format_lkr_from_cents((int)($order['total_amount_cents'] ?? 0));
-  $ticketUrl = mail_order_success_url($orderId);
-
-  $message =
-    'Hi ' . $greeting . ', your order #' . (int)$orderId .
-    ' for ' . $eventTitle . ' is confirmed. Total ' . $total . '.';
-  if ($ticketUrl !== '' && mb_strlen($message) + mb_strlen($ticketUrl) + 16 < 480) {
-    $message .= ' Tickets: ' . $ticketUrl;
-  } else {
-    $message .= ' Check your email for tickets.';
+  $bookingId = (string)(int)$order['id'];
+  $ticketUrl = mail_order_short_ticket_url($orderId);
+  if ($ticketUrl === '') {
+    $ticketUrl = mail_order_success_url($orderId);
   }
-  $message .= ' - Turnout';
+
+  $customization = json_decode((string)($order['customization_json'] ?? ''), true);
+  $scheduleTba = is_array($customization) && !empty($customization['scheduleTba']);
+  $when = 'date to be announced';
+  if (!$scheduleTba) {
+    $ts = strtotime((string)($order['event_date'] ?? ''));
+    if ($ts !== false) {
+      $when = date('Y-m-d H:i', $ts);
+    }
+  }
+
+  $lines = [];
+  $lines[] = 'Dear ' . $greeting . ',';
+  $lines[] = '';
+  $eventLine = 'Your tickets for ' . $eventTitle;
+  if ($when !== '') {
+    $eventLine .= ' on ' . $when;
+  }
+  if ($location !== '') {
+    $eventLine .= ' at ' . $location;
+  }
+  $eventLine .= ' have been confirmed.';
+  $lines[] = $eventLine;
+  $lines[] = '';
+  $lines[] = 'Booking ID: ' . $bookingId;
+  $lines[] = 'Total: ' . $total;
+  $lines[] = '';
+  if ($ticketUrl !== '') {
+    $lines[] = 'Download your e-ticket(s) here:';
+    $lines[] = $ticketUrl;
+    $lines[] = '';
+  } else {
+    $lines[] = 'Check your email for your e-tickets.';
+    $lines[] = '';
+  }
+  $lines[] = 'Thank you for choosing Turnout';
+
+  $message = implode("\n", $lines);
+  if (mb_strlen($message) > 1500) {
+    $message = mb_substr($message, 0, 1500);
+  }
 
   $ok = send_sms($phone, $message);
   if (!$ok) {

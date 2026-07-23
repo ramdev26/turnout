@@ -15,6 +15,10 @@
       "dest": "/api/index.php"
     },
     {
+      "src": "^/t/([A-Za-z0-9]+)/?$",
+      "dest": "/api/index.php"
+    },
+    {
       "src": "^/landing$",
       "dest": "/turnout-landing.html"
     },

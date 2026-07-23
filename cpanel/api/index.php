@@ -888,6 +888,39 @@ if ($path === '/health' && $method === 'GET') {
   }
 }
 
+/** Short ticket link from SMS: /t/{code} or /api/t/{code} → full order success URL */
+if (preg_match('#^/t/([A-Za-z0-9]+)$#', $path, $shortMatch) && $method === 'GET') {
+  $orderId = parse_order_short_code($shortMatch[1]);
+  if ($orderId === null) {
+    json_response(404, [
+      'error' => 'invalid_ticket_link',
+      'message' => 'This ticket link is invalid or has expired.',
+    ]);
+  }
+  // Confirm the order still exists before minting a long-lived access token.
+  try {
+    $pdo = db();
+    $chk = $pdo->prepare('SELECT id FROM orders WHERE id = ? LIMIT 1');
+    $chk->execute([$orderId]);
+    if (!$chk->fetch()) {
+      json_response(404, [
+        'error' => 'order_not_found',
+        'message' => 'This ticket link is invalid or has expired.',
+      ]);
+    }
+  } catch (Throwable $e) {
+    json_response(503, ['error' => 'db_unavailable']);
+  }
+
+  $dest = mail_order_success_url($orderId);
+  if ($dest === '') {
+    json_response(500, ['error' => 'link_unavailable']);
+  }
+  header('Cache-Control: no-store, max-age=0');
+  header('Location: ' . $dest, true, 302);
+  exit;
+}
+
 
 function load_event_row_or_404(PDO $pdo, int $eventId): array {
   $stmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');

@@ -406,6 +406,16 @@ function mail_order_success_url(int $orderId, ?int $attendeeId = null, ?array $a
   return $url;
 }
 
+/** Compact ticket link for SMS — resolves via /t/{code} to the full success URL. */
+function mail_order_short_ticket_url(int $orderId): string {
+  $base = mail_app_base_url();
+  $code = issue_order_short_code($orderId);
+  if ($base === '' || $code === '') {
+    return '';
+  }
+  return $base . '/t/' . rawurlencode($code);
+}
+
 function mail_app_base_url(): string {
   $cfg = get_config();
   $fromCfg = trim((string)(($cfg['payhere'] ?? [])['app_base_url'] ?? ''));
