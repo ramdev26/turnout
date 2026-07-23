@@ -13,9 +13,10 @@ type Props = {
   ui: CreateThemeUI;
   onFeedback?: (message: string) => void;
   onError?: (message: string) => void;
+  onPendingCountChange?: (count: number) => void;
 };
 
-export function BankTransferOrdersPanel({ eventId, ui, onFeedback, onError }: Props) {
+export function BankTransferOrdersPanel({ eventId, ui, onFeedback, onError, onPendingCountChange }: Props) {
   const cardMutedStyle = cardMutedStyleFor(ui);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -23,8 +24,10 @@ export function BankTransferOrdersPanel({ eventId, ui, onFeedback, onError }: Pr
 
   const load = useCallback(async () => {
     const res = await api.get<{ orders: Order[] }>(`/api/events/${eventId}/bank-transfer-orders?status=pending`);
-    setOrders(res.orders || []);
-  }, [eventId]);
+    const next = res.orders || [];
+    setOrders(next);
+    onPendingCountChange?.(next.length);
+  }, [eventId, onPendingCountChange]);
 
   useEffect(() => {
     (async () => {
@@ -43,7 +46,11 @@ export function BankTransferOrdersPanel({ eventId, ui, onFeedback, onError }: Pr
     setActingId(orderId);
     try {
       await api.post(`/api/orders/${orderId}/confirm-bank-transfer`, {});
-      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setOrders((prev) => {
+        const next = prev.filter((o) => o.id !== orderId);
+        onPendingCountChange?.(next.length);
+        return next;
+      });
       onFeedback?.('Bank transfer confirmed. Tickets issued.');
     } catch (e: unknown) {
       onError?.(formatApiError(e, 'Could not confirm bank transfer'));
@@ -56,7 +63,11 @@ export function BankTransferOrdersPanel({ eventId, ui, onFeedback, onError }: Pr
     setActingId(orderId);
     try {
       await api.post(`/api/orders/${orderId}/reject-bank-transfer`, {});
-      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setOrders((prev) => {
+        const next = prev.filter((o) => o.id !== orderId);
+        onPendingCountChange?.(next.length);
+        return next;
+      });
       onFeedback?.('Bank transfer order rejected.');
     } catch (e: unknown) {
       onError?.(formatApiError(e, 'Could not reject bank transfer'));

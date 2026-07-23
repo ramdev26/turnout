@@ -27,7 +27,6 @@ import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEdit
 import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
-import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
 import {
   EventLocationMode,
   OnlineEventPlatform,
@@ -1449,17 +1448,17 @@ export const EventSettings: React.FC = () => {
               ) : null}
 
               {allowBankTransfer && eventId ? (
-                <div className="mt-5">
-                  <h3 className="mb-3 text-sm font-semibold" style={{ color: ui.text }}>
-                    Pending bank transfers
-                  </h3>
-                  <BankTransferOrdersPanel
-                    eventId={eventId}
-                    ui={ui}
-                    onFeedback={setFeedback}
-                    onError={setError}
-                  />
-                </div>
+                <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
+                  Review and confirm transfer slips from{' '}
+                  <Link
+                    to={`/dashboard/events/${eventId}/checkin?tab=transfers`}
+                    className="font-semibold underline underline-offset-2"
+                    style={{ color: ui.accent }}
+                  >
+                    Check-in → Bank transfers
+                  </Link>
+                  .
+                </p>
               ) : null}
             </SettingsCollapsibleSection>
 

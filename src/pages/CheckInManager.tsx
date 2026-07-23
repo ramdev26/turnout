@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
   Copy,
   Download,
+  Landmark,
   List,
   QrCode,
   RefreshCw,
@@ -16,9 +17,10 @@ import {
   Clock,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee } from '../types';
+import { Attendee, Order } from '../types';
 import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel';
+import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
 import { FlowPage, FlowStatCard, FlowAlert, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { eventWorkspaceNav } from '../utils/organizerNav';
 import { cn } from '../utils/cn';
@@ -35,7 +37,7 @@ type CheckinResult = {
   attendee?: Attendee;
 };
 
-type PanelView = 'scan' | 'list';
+type PanelView = 'scan' | 'list' | 'transfers';
 
 export const CheckInManager: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -54,10 +56,23 @@ export const CheckInManager: React.FC = () => {
   const [copyHint, setCopyHint] = useState<string | null>(null);
   const [lastCheckIn, setLastCheckIn] = useState<Attendee | null>(null);
   const [showTokens, setShowTokens] = useState(false);
-  const [panel, setPanel] = useState<PanelView>('scan');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [panel, setPanel] = useState<PanelView>(
+    initialTab === 'transfers' || initialTab === 'list' || initialTab === 'scan' ? initialTab : 'scan'
+  );
+  const [pendingTransfers, setPendingTransfers] = useState(0);
   const hasLoadedOnceRef = useRef(false);
 
   const { eventId } = useParams<{ eventId: string }>();
+
+  const selectPanel = (id: PanelView) => {
+    setPanel(id);
+    const next = new URLSearchParams(searchParams);
+    if (id === 'scan') next.delete('tab');
+    else next.set('tab', id);
+    setSearchParams(next, { replace: true });
+  };
 
   const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
   const volunteerScannerUrl = useMemo(
@@ -123,6 +138,22 @@ export const CheckInManager: React.FC = () => {
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
+
+  useEffect(() => {
+    if (!eventId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ orders: Order[] }>(`/api/events/${eventId}/bank-transfer-orders?status=pending`);
+        if (!cancelled) setPendingTransfers((res.orders || []).length);
+      } catch {
+        // Badge is optional; transfers tab still loads its own list.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
 
   const handleRefresh = () => {
     void load({ background: true });
@@ -261,20 +292,33 @@ export const CheckInManager: React.FC = () => {
               [
                 { id: 'scan' as const, label: 'Scanner', icon: ScanLine },
                 { id: 'list' as const, label: 'Attendee list', icon: List },
+                { id: 'transfers' as const, label: 'Bank transfers', icon: Landmark },
               ] as const
             ).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
-                onClick={() => setPanel(id)}
+                onClick={() => selectPanel(id)}
                 className={cn(
-                  'inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold sm:flex-none',
+                  'inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold sm:flex-none sm:px-4',
                   panel === id ? 'turnout-btn-accent' : ''
                 )}
                 style={panel === id ? accentButtonStyleFor(ui) : { color: ui.textMuted }}
               >
-                <Icon className="h-4 w-4" />
-                {label}
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{label}</span>
+                {id === 'transfers' && pendingTransfers > 0 ? (
+                  <span
+                    className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                    style={
+                      panel === id
+                        ? { background: 'rgba(255,255,255,0.22)', color: 'inherit' }
+                        : { background: 'rgba(245,158,11,0.22)', color: '#d97706' }
+                    }
+                  >
+                    {pendingTransfers > 99 ? '99+' : pendingTransfers}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -574,6 +618,27 @@ export const CheckInManager: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {panel === 'transfers' && (
+          <div className="rounded-2xl border p-5 shadow-sm sm:p-6" style={cardStyle}>
+            <div className="mb-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold" style={{ color: ui.text }}>
+                <Landmark className="h-5 w-5" style={{ color: ui.accent }} />
+                Pending bank transfers
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                Confirm or reject transfer slips here. Tickets are issued after you confirm payment.
+              </p>
+            </div>
+            <BankTransferOrdersPanel
+              eventId={eventId}
+              ui={ui}
+              onFeedback={setMsg}
+              onError={setErr}
+              onPendingCountChange={setPendingTransfers}
+            />
           </div>
         )}
       </FlowPage>
