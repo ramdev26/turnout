@@ -6,6 +6,7 @@ export type ApiError = {
 import { getAuthToken } from './authToken';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const API_TIMEOUT_MS = 30000;
 
 export function toApiUrl(path: string): string {
   if (!apiBaseUrl) return path;
@@ -49,9 +50,42 @@ function invalidSuccessPayload(text: string, status: number): ApiError {
   };
 }
 
+function unreachableApiError(cause: unknown): ApiError {
+  const isAbort =
+    (typeof DOMException !== 'undefined' && cause instanceof DOMException && cause.name === 'AbortError') ||
+    (cause instanceof Error && cause.name === 'AbortError');
+  if (isAbort) {
+    return {
+      error: 'api_timeout',
+      message: 'The server took too long to respond. Please try again in a moment.',
+    };
+  }
+
+  const isProduction = import.meta.env.PROD;
+  // Same-origin deploys leave VITE_API_BASE_URL unset; blaming it is misleading.
+  if (isProduction && !apiBaseUrl) {
+    return {
+      error: 'api_unreachable',
+      message:
+        'Could not reach the API. Check your connection, disable ad blockers for this site, and try again.',
+    };
+  }
+  if (isProduction) {
+    return {
+      error: 'api_unreachable',
+      message:
+        'API server is not reachable. Verify VITE_API_BASE_URL points to your site origin (not …/api) and redeploy.',
+    };
+  }
+  return {
+    error: 'api_unreachable',
+    message: 'API server is not reachable. Start backend or set VITE_API_BASE_URL in .env.local.',
+  };
+}
+
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  const timeout = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   const token = getAuthToken();
   let res: Response;
   try {
@@ -66,15 +100,8 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       credentials: 'include',
       signal: controller.signal,
     });
-  } catch {
-    const isProduction = import.meta.env.PROD;
-    const guidance = isProduction
-      ? 'API server is not reachable. Configure VITE_API_BASE_URL in your Vercel project environment variables and redeploy.'
-      : 'API server is not reachable. Start backend or set VITE_API_BASE_URL in .env.local.';
-    throw {
-      error: 'api_unreachable',
-      message: guidance,
-    } as ApiError;
+  } catch (cause) {
+    throw unreachableApiError(cause);
   } finally {
     window.clearTimeout(timeout);
   }

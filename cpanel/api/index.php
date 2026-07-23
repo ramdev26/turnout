@@ -1509,7 +1509,10 @@ if ($path === '/organizer/paid-event-readiness' && $method === 'GET') {
   json_response(200, ['readiness' => organizer_paid_event_readiness_api_shape($pdo, $ownerUserId)]);
 }
 
-if ($path === '/organizer/payment-settings' && $method === 'GET') {
+if (
+  ($path === '/organizer/payment-settings' || $path === '/organizer/provider-settings')
+  && $method === 'GET'
+) {
   $uid = require_organizer_user_id();
   $pdo = db();
   $ctx = organizer_workspace_context($pdo, $uid);
@@ -1520,7 +1523,10 @@ if ($path === '/organizer/payment-settings' && $method === 'GET') {
   ]);
 }
 
-if ($path === '/organizer/payment-settings' && $method === 'POST') {
+if (
+  ($path === '/organizer/payment-settings' || $path === '/organizer/provider-settings')
+  && $method === 'POST'
+) {
   $uid = require_organizer_user_id();
   $pdo = db();
   $ctx = organizer_workspace_context($pdo, $uid);
@@ -1528,39 +1534,69 @@ if ($path === '/organizer/payment-settings' && $method === 'POST') {
     json_response(403, ['error' => 'forbidden', 'message' => 'Only the workspace owner can manage payment settings.']);
   }
   $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
-  $body = read_json_body();
-  $gatewayMode = normalize_organizer_gateway_mode((string)($body['gatewayMode'] ?? 'turnout'));
-  $fields = ['gateway_mode' => $gatewayMode];
-  if ($gatewayMode === 'own_payhere') {
-    $fields['payhere_merchant_id'] = trim((string)($body['ownPayhereMerchantId'] ?? ''));
-    if (array_key_exists('ownPayhereMerchantSecret', $body)) {
-      $fields['payhere_merchant_secret'] = trim((string)$body['ownPayhereMerchantSecret']);
+  try {
+    $body = read_json_body();
+    $gatewayMode = normalize_organizer_gateway_mode((string)($body['gatewayMode'] ?? 'turnout'));
+    $fields = ['gateway_mode' => $gatewayMode];
+    if ($gatewayMode === 'own_payhere') {
+      $fields['payhere_merchant_id'] = trim((string)($body['ownPayhereMerchantId'] ?? ''));
+      if (array_key_exists('ownPayhereMerchantSecret', $body)) {
+        $fields['payhere_merchant_secret'] = trim((string)$body['ownPayhereMerchantSecret']);
+      }
     }
-  }
-  upsert_organizer_payment_settings($pdo, $ownerUserId, $fields);
+    upsert_organizer_payment_settings($pdo, $ownerUserId, $fields);
 
-  $bankFields = [];
-  if (array_key_exists('bankAccountHolderName', $body)) {
-    $bankFields['bank_account_holder_name'] = trim((string)$body['bankAccountHolderName']);
-  }
-  if (array_key_exists('bankName', $body)) {
-    $bankFields['bank_name'] = trim((string)$body['bankName']);
-  }
-  if (array_key_exists('bankBranch', $body)) {
-    $bankFields['bank_branch'] = trim((string)$body['bankBranch']);
-  }
-  if (array_key_exists('bankAccountNumber', $body)) {
-    $bankFields['bank_account_number'] = trim((string)$body['bankAccountNumber']);
-  }
-  if ($bankFields !== []) {
-    upsert_organizer_profile_paid_event_fields($pdo, $ownerUserId, $bankFields);
-  }
+    $bankFields = [];
+    if (array_key_exists('bankAccountHolderName', $body)) {
+      $bankFields['bank_account_holder_name'] = trim((string)$body['bankAccountHolderName']);
+    }
+    if (array_key_exists('bankName', $body)) {
+      $bankFields['bank_name'] = trim((string)$body['bankName']);
+    }
+    if (array_key_exists('bankBranch', $body)) {
+      $bankFields['bank_branch'] = trim((string)$body['bankBranch']);
+    }
+    if (array_key_exists('bankAccountNumber', $body)) {
+      $bankFields['bank_account_number'] = trim((string)$body['bankAccountNumber']);
+    }
+    if ($bankFields !== []) {
+      $holder = trim((string)($bankFields['bank_account_holder_name'] ?? ''));
+      $bank = trim((string)($bankFields['bank_name'] ?? ''));
+      $branch = trim((string)($bankFields['bank_branch'] ?? ''));
+      $accountProvided = array_key_exists('bank_account_number', $bankFields);
+      $account = $accountProvided ? trim((string)$bankFields['bank_account_number']) : '';
+      $existingProfile = load_organizer_profile_row($pdo, $ownerUserId) ?: [];
+      $existingAccount = trim((string)($existingProfile['bank_account_number'] ?? ''));
+      $savingBankDetails = $holder !== '' || $bank !== '' || $branch !== '' || ($accountProvided && $account !== '');
+      if ($savingBankDetails) {
+        if ($holder === '' || $bank === '' || $branch === '') {
+          json_response(400, [
+            'error' => 'invalid_bank_details',
+            'message' => 'Account holder name, bank name, and branch are required.',
+          ]);
+        }
+        if (($accountProvided ? $account : $existingAccount) === '') {
+          json_response(400, [
+            'error' => 'invalid_bank_account_number',
+            'message' => 'Enter your bank account number.',
+          ]);
+        }
+      }
+      upsert_organizer_profile_paid_event_fields($pdo, $ownerUserId, $bankFields);
+    }
 
-  json_response(200, [
-    'ok' => true,
-    'settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId),
-    'readiness' => organizer_paid_event_readiness_api_shape($pdo, $ownerUserId),
-  ]);
+    json_response(200, [
+      'ok' => true,
+      'settings' => organizer_payment_settings_api_shape($pdo, $ownerUserId),
+      'readiness' => organizer_paid_event_readiness_api_shape($pdo, $ownerUserId),
+    ]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] organizer provider-settings save failed: %s', $e->getMessage()));
+    json_response(500, [
+      'error' => 'provider_settings_save_failed',
+      'message' => 'Could not save bank / provider settings. Please try again.',
+    ]);
+  }
 }
 
 if ($path === '/organizer/billing/preapprove' && $method === 'POST') {

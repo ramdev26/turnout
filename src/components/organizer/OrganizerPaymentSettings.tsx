@@ -112,7 +112,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
 
   const loadSettings = useCallback(async () => {
     const res = await api.get<{ settings: OrganizerPaymentSettings; readiness: OrganizerPaidEventReadiness }>(
-      '/api/organizer/payment-settings'
+      '/api/organizer/provider-settings'
     );
     setSettings(res.settings);
     setReadiness(res.readiness);
@@ -141,7 +141,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     })();
   }, [loadSettings, onError]);
 
-  const saveGatewaySettings = async () => {
+  const savePayhereSettings = async () => {
     setSaving(true);
     try {
       const body: Record<string, string> = { gatewayMode };
@@ -151,23 +151,52 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
           body.ownPayhereMerchantSecret = merchantSecret.trim();
         }
       }
-      body.bankAccountHolderName = bankAccountHolderName.trim();
-      body.bankName = bankName.trim();
-      body.bankBranch = bankBranch.trim();
+      const res = await api.post<{
+        settings: OrganizerPaymentSettings;
+        readiness: OrganizerPaidEventReadiness;
+      }>('/api/organizer/provider-settings', body);
+      setSettings(res.settings);
+      setReadiness(res.readiness);
+      setMerchantSecret('');
+      onFeedback?.('PayHere settings saved.');
+    } catch (e: unknown) {
+      onError?.(formatApiError(e, 'Failed to save PayHere settings'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveBankAccount = async () => {
+    setSaving(true);
+    try {
+      if (!bankAccountHolderName.trim() || !bankName.trim() || !bankBranch.trim()) {
+        onError?.('Account holder name, bank name, and branch are required.');
+        return;
+      }
+      if (!bankAccountNumber.trim() && !readiness?.bank.bankAccountConfigured) {
+        onError?.('Enter your bank account number.');
+        return;
+      }
+
+      const body: Record<string, string> = {
+        gatewayMode,
+        bankAccountHolderName: bankAccountHolderName.trim(),
+        bankName: bankName.trim(),
+        bankBranch: bankBranch.trim(),
+      };
       if (bankAccountNumber.trim()) {
         body.bankAccountNumber = bankAccountNumber.trim();
       }
       const res = await api.post<{
         settings: OrganizerPaymentSettings;
         readiness: OrganizerPaidEventReadiness;
-      }>('/api/organizer/payment-settings', body);
+      }>('/api/organizer/provider-settings', body);
       setSettings(res.settings);
       setReadiness(res.readiness);
-      setMerchantSecret('');
       setBankAccountNumber('');
-      onFeedback?.('Payment settings saved.');
+      onFeedback?.('Bank account saved.');
     } catch (e: unknown) {
-      onError?.(formatApiError(e, 'Failed to save payment settings'));
+      onError?.(formatApiError(e, 'Failed to save bank account'));
     } finally {
       setSaving(false);
     }
@@ -304,7 +333,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               )}
 
               {isOwner ? (
-                <FlowButton onClick={saveGatewaySettings} disabled={saving}>
+                <FlowButton onClick={savePayhereSettings} disabled={saving}>
                   {saving ? 'Saving…' : 'Save PayHere settings'}
                 </FlowButton>
               ) : null}
@@ -396,7 +425,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                 </label>
               </div>
               {isOwner ? (
-                <FlowButton onClick={saveGatewaySettings} disabled={saving}>
+                <FlowButton onClick={saveBankAccount} disabled={saving}>
                   {saving ? 'Saving…' : 'Save bank account'}
                 </FlowButton>
               ) : (
@@ -420,7 +449,7 @@ export const OrganizerBillingCardPanel: React.FC<Props> = ({ isOwner, onFeedback
 
   const load = useCallback(async () => {
     const res = await api.get<{ settings: OrganizerPaymentSettings; readiness: OrganizerPaidEventReadiness }>(
-      '/api/organizer/payment-settings'
+      '/api/organizer/provider-settings'
     );
     setSettings(res.settings);
   }, []);
