@@ -149,7 +149,8 @@ export function EventLocationFields({
               style={fieldStyle}
             />
             <p className="text-xs" style={{ color: compact ? ui.textSubtle : ui.textMuted }}>
-              Attendees will use this {platform.label} link to join.
+              Attendees get this {platform.label} link at checkout, plus an email and SMS reminder 15 minutes before
+              start.
             </p>
             {urlInvalid ? <p className="text-xs text-rose-500">Enter a valid http(s) link.</p> : null}
           </label>

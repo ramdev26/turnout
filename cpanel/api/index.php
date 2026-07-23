@@ -20,6 +20,7 @@ require __DIR__ . '/lib/super_admin.php';
 require __DIR__ . '/lib/admin_analytics.php';
 require __DIR__ . '/lib/core_schema.php';
 require __DIR__ . '/lib/sms.php';
+require __DIR__ . '/lib/event_reminders.php';
 
 set_cors_headers_for_same_domain();
 
@@ -870,6 +871,7 @@ run_boot_schema_guard('ensure_events_custom_domain_column', static fn () => ensu
 run_boot_schema_guard('ensure_attendees_custom_fields_column', static fn () => ensure_attendees_custom_fields_column(db()));
 run_boot_schema_guard('ensure_organizer_workspace_tables', static fn () => ensure_organizer_workspace_tables(db()));
 run_boot_schema_guard('ensure_organizer_payment_tables', static fn () => ensure_organizer_payment_tables(db()));
+run_boot_schema_guard('ensure_event_reminders_table', static fn () => ensure_event_reminders_table(db()));
 enforce_write_request_integrity($path, $method);
 
 if ($path === '/health' && $method === 'GET') {
@@ -893,6 +895,27 @@ if ($path === '/health' && $method === 'GET') {
     $payload['error'] = 'db_unavailable';
     $payload['message'] = $e->getMessage();
     json_response(503, $payload);
+  }
+}
+
+/** Cron: email + SMS reminders for virtual events starting in ~15 minutes. */
+if ($path === '/cron/event-reminders' && ($method === 'GET' || $method === 'POST')) {
+  require_cron_access();
+  $pdo = db();
+  try {
+    $result = process_online_event_reminders($pdo, 10, 20);
+    json_response(200, [
+      'ok' => true,
+      'reminder' => EVENT_REMINDER_ONLINE_15M,
+      'windowMinutes' => ['from' => 10, 'to' => 20],
+      'result' => $result,
+    ]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] event reminders cron failed: %s', $e->getMessage()));
+    json_response(500, [
+      'error' => 'reminder_cron_failed',
+      'message' => 'Could not process event reminders.',
+    ]);
   }
 }
 
