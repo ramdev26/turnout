@@ -116,3 +116,26 @@ export function validateCustomFieldValues(
   }
   return null;
 }
+
+/** Resolve stored custom-field values for organizer display (option labels when available). */
+export function formatCustomFieldDisplayValue(
+  field: CheckoutFieldDefinition | undefined,
+  raw: string | undefined | null
+): string {
+  const val = String(raw ?? '').trim();
+  if (!val) return '—';
+  if (!field) return val;
+  const type = resolveCheckoutFieldType(field.type);
+  if ((type === 'select' || type === 'radio') && field.options?.length) {
+    const match = field.options.find((o) => o.value === val || o.label === val);
+    if (match) return match.label;
+  }
+  return val;
+}
+
+export function humanizeCustomFieldKey(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim() || key;
+}

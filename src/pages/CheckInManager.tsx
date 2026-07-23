@@ -17,16 +17,18 @@ import {
   Clock,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee, Order } from '../types';
+import { Attendee, CheckoutFieldDefinition, Event, Order } from '../types';
 import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel';
 import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
+import { AttendeeDetailDrawer } from '../components/organizer/AttendeeDetailDrawer';
 import { FlowPage, FlowStatCard, FlowAlert, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { eventWorkspaceNav } from '../utils/organizerNav';
 import { cn } from '../utils/cn';
 import { accentButtonStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 import { absoluteAppUrl } from '../lib/publicAppUrl';
+import { normalizeCheckoutFields } from '../utils/checkoutFields';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
 type CheckinConfig = { staffPin: string; staffUrl: string };
@@ -62,6 +64,8 @@ export const CheckInManager: React.FC = () => {
     initialTab === 'transfers' || initialTab === 'list' || initialTab === 'scan' ? initialTab : 'scan'
   );
   const [pendingTransfers, setPendingTransfers] = useState(0);
+  const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
+  const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const hasLoadedOnceRef = useRef(false);
 
   const { eventId } = useParams<{ eventId: string }>();
@@ -144,6 +148,24 @@ export const CheckInManager: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
+        const res = await api.get<{ event: Event }>(`/api/events/${eventId}`);
+        if (!cancelled) {
+          setCheckoutFields(normalizeCheckoutFields(res.event?.customization?.checkoutFields));
+        }
+      } catch {
+        if (!cancelled) setCheckoutFields([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!eventId) return;
+    let cancelled = false;
+    (async () => {
+      try {
         const res = await api.get<{ orders: Order[] }>(`/api/events/${eventId}/bank-transfer-orders?status=pending`);
         if (!cancelled) setPendingTransfers((res.orders || []).length);
       } catch {
@@ -154,6 +176,12 @@ export const CheckInManager: React.FC = () => {
       cancelled = true;
     };
   }, [eventId]);
+
+  useEffect(() => {
+    if (!selectedAttendee) return;
+    const fresh = attendees.find((a) => a.id === selectedAttendee.id);
+    if (fresh && fresh !== selectedAttendee) setSelectedAttendee(fresh);
+  }, [attendees, selectedAttendee]);
 
   const handleRefresh = () => {
     void load({ background: true });
@@ -555,7 +583,16 @@ export const CheckInManager: React.FC = () => {
                     {attendees.map((a) => (
                       <div
                         key={a.id}
-                        className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedAttendee(a)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedAttendee(a);
+                          }
+                        }}
+                        className="flex cursor-pointer flex-col gap-3 p-4 transition hover:bg-black/[0.02] sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -583,13 +620,27 @@ export const CheckInManager: React.FC = () => {
                             {a.ticketName} · {a.email}
                             {a.phone ? ` · ${a.phone}` : ''}
                           </p>
+                          {a.customFields && Object.keys(a.customFields).length > 0 ? (
+                            <p className="mt-1 text-xs font-medium" style={{ color: ui.accent }}>
+                              {Object.keys(a.customFields).length} checkout answer
+                              {Object.keys(a.customFields).length === 1 ? '' : 's'} · tap for details
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-xs" style={{ color: ui.textSubtle }}>
+                              Tap for full details
+                            </p>
+                          )}
                           {showTokens && (
                             <p className="mt-2 font-mono text-[11px]" style={{ color: ui.textSubtle }}>
                               …{a.qrToken.slice(-8)}
                             </p>
                           )}
                         </div>
-                        <div className="flex shrink-0 gap-2">
+                        <div
+                          className="flex shrink-0 gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
                           {!a.checkedInAt && (
                             <button
                               type="button"
@@ -641,6 +692,22 @@ export const CheckInManager: React.FC = () => {
             />
           </div>
         )}
+
+        {selectedAttendee ? (
+          <AttendeeDetailDrawer
+            attendee={selectedAttendee}
+            checkoutFields={checkoutFields}
+            ui={ui}
+            checkingIn={checkingIn}
+            onClose={() => setSelectedAttendee(null)}
+            onCheckIn={(a) => {
+              void checkIn(a.qrToken);
+            }}
+            onUndoCheckIn={(a) => {
+              void undoCheckIn(a);
+            }}
+          />
+        ) : null}
       </FlowPage>
     </OrganizerFlowShell>
   );
