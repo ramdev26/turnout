@@ -19,6 +19,7 @@ require __DIR__ . '/lib/email_verification.php';
 require __DIR__ . '/lib/super_admin.php';
 require __DIR__ . '/lib/admin_analytics.php';
 require __DIR__ . '/lib/core_schema.php';
+require __DIR__ . '/lib/sms.php';
 
 set_cors_headers_for_same_domain();
 

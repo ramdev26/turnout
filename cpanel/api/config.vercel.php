@@ -104,6 +104,13 @@ return [
     'smtp_pass' => $env('MAIL_SMTP_PASS', ''),
     'smtp_secure' => $env('MAIL_SMTP_SECURE', 'tls'),
   ],
+  'sms' => [
+    'enabled' => strtolower($env('SMS_ENABLED', 'true')) === 'true',
+    'user_id' => $env('SMSLENZ_USER_ID', ''),
+    'api_key' => $env('SMSLENZ_API_KEY', ''),
+    'sender_id' => $env('SMSLENZ_SENDER_ID', 'SMSlenzDEMO'),
+    'api_base_url' => $env('SMSLENZ_API_BASE_URL', 'https://smslenz.lk/api'),
+  ],
   'domains' => [
     'cname_target' => $env('CUSTOM_DOMAIN_CNAME_TARGET', 'cname.vercel-dns.com'),
     'apex_ip' => $env('CUSTOM_DOMAIN_APEX_IP', '76.76.21.21'),

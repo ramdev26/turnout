@@ -643,6 +643,12 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
 
   $buyerOk = send_buyer_order_confirmation_email($pdo, $order, $orderId, $attendees, $buyerTicketUrl);
 
+  try {
+    send_order_confirmation_sms($pdo, $orderId);
+  } catch (Throwable $e) {
+    error_log('[turnout] order confirmation SMS error for order ' . $orderId . ': ' . $e->getMessage());
+  }
+
   $buyerEmail = strtolower(trim((string)$order['buyer_email']));
   $byEmail = [];
   foreach ($attendees as $a) {
