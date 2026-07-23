@@ -28,7 +28,7 @@
 
 .landing-showcase .landing-showcase-header {
   border-bottom: 1px solid var(--showcase-border);
-  background: color-mix(in srgb, var(--showcase-card) 72%, transparent);
+  background: var(--landing-header-bg, color-mix(in srgb, var(--showcase-card) 72%, transparent));
   backdrop-filter: blur(14px);
 }
 
@@ -89,13 +89,9 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--landing-on-primary, #0a2426);
-  background: linear-gradient(
-    135deg,
-    var(--showcase-accent) 0%,
-    color-mix(in srgb, var(--secondary) 55%, var(--showcase-accent)) 100%
-  );
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--showcase-accent) 35%, transparent);
+  color: var(--landing-on-button, var(--landing-on-primary, #0a2426));
+  background: var(--landing-button, var(--showcase-accent));
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent);
   transition: transform 0.2s, filter 0.2s;
 }
 
@@ -175,22 +171,26 @@
 
 .landing-showcase-hero-accent {
   font-family: var(--landing-font-display);
-  font-size: clamp(2rem, 5vw, 3.25rem);
-  font-weight: 500;
+  font-size: var(--landing-h1-size, clamp(2rem, 5vw, 3.25rem));
+  font-weight: var(--landing-h1-weight, 500);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   letter-spacing: -0.02em;
   line-height: 1.05;
-  color: var(--showcase-accent);
+  color: var(--landing-heading, var(--showcase-accent));
   max-width: 56rem;
   margin-inline: auto;
 }
 
 .landing-showcase-hero-title {
   font-family: var(--landing-font-display);
-  font-size: clamp(2.25rem, 6vw, 4rem);
-  font-weight: 500;
+  font-size: var(--landing-h1-size, clamp(2.25rem, 6vw, 4rem));
+  font-weight: var(--landing-h1-weight, 500);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   letter-spacing: -0.03em;
   line-height: 1.02;
-  color: var(--landing-text);
+  color: var(--landing-heading, var(--landing-text));
   text-wrap: balance;
   max-width: 56rem;
   margin-inline: auto;
@@ -200,7 +200,10 @@
   margin-top: 1rem;
   max-width: 40rem;
   margin-inline: auto;
-  font-size: 0.9375rem;
+  font-size: var(--landing-body-size, 0.9375rem);
+  font-weight: var(--landing-body-weight, inherit);
+  font-style: var(--landing-body-style, normal);
+  text-decoration: var(--landing-body-decoration, none);
   line-height: 1.65;
   color: var(--landing-text-muted);
   text-wrap: pretty;
@@ -331,8 +334,10 @@
 
 .landing-showcase-section-title {
   font-family: var(--landing-font-display);
-  font-size: clamp(1.75rem, 3vw, 2.35rem);
-  font-weight: 500;
+  font-size: var(--landing-h2-size, clamp(1.75rem, 3vw, 2.35rem));
+  font-weight: var(--landing-h2-weight, 500);
+  font-style: var(--landing-h2-style, normal);
+  text-decoration: var(--landing-h2-decoration, none);
   letter-spacing: -0.02em;
   color: var(--showcase-accent);
 }
@@ -463,7 +468,7 @@
 
 .landing-showcase-footer {
   border-top: 1px solid var(--showcase-border);
-  background: color-mix(in srgb, var(--showcase-card) 55%, transparent);
+  background: var(--landing-footer-bg, color-mix(in srgb, var(--showcase-card) 55%, transparent));
 }
 
 .landing-showcase-footer-inner {

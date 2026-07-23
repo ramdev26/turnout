@@ -225,6 +225,14 @@ function storedHexColor(value: string | undefined): string | undefined {
   return normalized && /^#[0-9a-f]{6}$/.test(normalized) ? normalized : undefined;
 }
 
+/** Clamp organizer type-scale overrides (px) into a safe range. */
+function storedFontSizePx(value: number | undefined, min: number, max: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value);
+  if (rounded < min || rounded > max) return undefined;
+  return rounded;
+}
+
 const LIGHT_LANDING_TEXT = '#0f172a';
 const LIGHT_LANDING_TEXT_MUTED = '#475569';
 
@@ -564,17 +572,49 @@ export function landingCssVars(
   const accentReadable = pickReadableAccent(primary, secondary);
   const onPrimary = isLightHex(primary) ? TURNOUT_BRAND.ink : '#ffffff';
 
+  const buttonColor = storedHexColor(c.buttonColor);
+  const headingColor = storedHexColor(c.headingColor);
+  const bodyTextColor = storedHexColor(c.bodyTextColor);
+  const mutedTextColor = storedHexColor(c.mutedTextColor);
+  const pageBackgroundColor = storedHexColor(c.pageBackgroundColor);
+  const surfaceColor = storedHexColor(c.surfaceColor);
+  const surfaceMutedColor = storedHexColor(c.surfaceMutedColor);
+  const borderColor = storedHexColor(c.borderColor);
+  const headerBgColor = storedHexColor(c.headerBgColor);
+  const footerBgColor = storedHexColor(c.footerBgColor);
+  const h1FontSize = storedFontSizePx(c.h1FontSize, 20, 96);
+  const h2FontSize = storedFontSizePx(c.h2FontSize, 14, 64);
+  const bodyFontSize = storedFontSizePx(c.bodyFontSize, 12, 28);
+  const smallFontSize = storedFontSizePx(c.smallFontSize, 10, 20);
+
+  const buttonFill = buttonColor || accentReadable;
+  const onButton = isLightHex(buttonFill) ? TURNOUT_BRAND.ink : '#ffffff';
+  const textColor = bodyTextColor || surfaces.text;
+  const textMuted = mutedTextColor || surfaces.textMuted;
+  const heading = headingColor || textColor;
+  const pageBg = pageBackgroundColor || surfaces.pageBg;
+  const surfaceBg = surfaceColor || surfaces.surfaceBg;
+  const surfaceMutedBg = surfaceMutedColor || surfaces.surfaceMutedBg;
+  const border = borderColor || surfaces.borderColor;
+  const headerBg = headerBgColor || surfaceBg;
+  const footerBg = footerBgColor || `color-mix(in srgb, ${surfaceBg} 55%, transparent)`;
+
   return {
     ['--primary' as string]: primary,
     ['--secondary' as string]: secondary,
-    ['--landing-accent-readable' as string]: accentReadable,
-    ['--landing-on-primary' as string]: onPrimary,
-    ['--landing-page-bg' as string]: surfaces.pageBg,
-    ['--landing-surface' as string]: surfaces.surfaceBg,
-    ['--landing-surface-muted' as string]: surfaces.surfaceMutedBg,
-    ['--landing-text' as string]: surfaces.text,
-    ['--landing-text-muted' as string]: surfaces.textMuted,
-    ['--landing-border' as string]: surfaces.borderColor,
+    ['--landing-accent-readable' as string]: buttonColor || accentReadable,
+    ['--landing-on-primary' as string]: buttonColor ? onButton : onPrimary,
+    ['--landing-button' as string]: buttonFill,
+    ['--landing-on-button' as string]: onButton,
+    ['--landing-page-bg' as string]: pageBg,
+    ['--landing-surface' as string]: surfaceBg,
+    ['--landing-surface-muted' as string]: surfaceMutedBg,
+    ['--landing-text' as string]: textColor,
+    ['--landing-text-muted' as string]: textMuted,
+    ['--landing-heading' as string]: heading,
+    ['--landing-border' as string]: border,
+    ['--landing-header-bg' as string]: headerBg,
+    ['--landing-footer-bg' as string]: footerBg,
     ['--landing-shadow' as string]: surfaces.cardShadow,
     ['--landing-shadow-hover' as string]: isDark
       ? '0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.06)'
@@ -586,6 +626,22 @@ export function landingCssVars(
     ['--landing-font-display' as string]: font.display,
     ['--landing-font-body' as string]: font.body,
     ['--landing-accent' as string]: primary,
-    ['--primary-on' as string]: onPrimary,
+    ['--primary-on' as string]: buttonColor ? onButton : onPrimary,
+    ...(h1FontSize ? { ['--landing-h1-size' as string]: `${h1FontSize}px` } : {}),
+    ...(h2FontSize ? { ['--landing-h2-size' as string]: `${h2FontSize}px` } : {}),
+    ...(bodyFontSize ? { ['--landing-body-size' as string]: `${bodyFontSize}px` } : {}),
+    ...(smallFontSize ? { ['--landing-small-size' as string]: `${smallFontSize}px` } : {}),
+    ...(c.h1Bold ? { ['--landing-h1-weight' as string]: '800' } : {}),
+    ...(c.h1Italic ? { ['--landing-h1-style' as string]: 'italic' } : {}),
+    ...(c.h1Underline ? { ['--landing-h1-decoration' as string]: 'underline' } : {}),
+    ...(c.h2Bold ? { ['--landing-h2-weight' as string]: '700' } : {}),
+    ...(c.h2Italic ? { ['--landing-h2-style' as string]: 'italic' } : {}),
+    ...(c.h2Underline ? { ['--landing-h2-decoration' as string]: 'underline' } : {}),
+    ...(c.bodyBold ? { ['--landing-body-weight' as string]: '700' } : {}),
+    ...(c.bodyItalic ? { ['--landing-body-style' as string]: 'italic' } : {}),
+    ...(c.bodyUnderline ? { ['--landing-body-decoration' as string]: 'underline' } : {}),
+    ...(c.smallBold ? { ['--landing-small-weight' as string]: '700' } : {}),
+    ...(c.smallItalic ? { ['--landing-small-style' as string]: 'italic' } : {}),
+    ...(c.smallUnderline ? { ['--landing-small-decoration' as string]: 'underline' } : {}),
   };
 }

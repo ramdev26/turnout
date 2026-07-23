@@ -1,6 +1,49 @@
 <?php
 
-/** @return list<array{id:string,label:string,key:string,required:bool,placeholder?:string}> */
+/**
+ * @return 'text'|'textarea'|'number'|'select'|'radio'
+ */
+function normalize_checkout_field_type(mixed $raw): string {
+  $type = strtolower(trim((string)$raw));
+  if (in_array($type, ['text', 'textarea', 'number', 'select', 'radio'], true)) {
+    return $type;
+  }
+  return 'text';
+}
+
+/**
+ * @return list<array{id:string,label:string,value:string}>
+ */
+function normalize_checkout_field_options(mixed $raw): array {
+  if (!is_array($raw)) return [];
+  $out = [];
+  $seen = [];
+  foreach ($raw as $opt) {
+    if (!is_array($opt)) continue;
+    $label = trim((string)($opt['label'] ?? ''));
+    if ($label === '') continue;
+    $value = trim((string)($opt['value'] ?? ''));
+    if ($value === '') {
+      $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '_', $label) ?? '');
+      $slug = trim($slug, '_');
+      $value = $slug !== '' ? $slug : ('opt_' . (count($out) + 1));
+    }
+    $value = mb_substr($value, 0, 80);
+    if (isset($seen[$value])) continue;
+    $seen[$value] = true;
+    $id = trim((string)($opt['id'] ?? ''));
+    if ($id === '') $id = 'opt_' . $value;
+    $out[] = [
+      'id' => mb_substr($id, 0, 64),
+      'label' => mb_substr($label, 0, 80),
+      'value' => $value,
+    ];
+    if (count($out) >= 24) break;
+  }
+  return $out;
+}
+
+/** @return list<array{id:string,label:string,key:string,required:bool,type:string,placeholder?:string,options?:list<array{id:string,label:string,value:string}>}> */
 function normalize_checkout_fields(mixed $raw): array {
   if (!is_array($raw)) return [];
   $out = [];
@@ -15,15 +58,24 @@ function normalize_checkout_fields(mixed $raw): array {
     $seen[$key] = true;
     $id = trim((string)($f['id'] ?? ''));
     if ($id === '') $id = 'cf_' . $key;
+    $type = normalize_checkout_field_type($f['type'] ?? 'text');
     $row = [
       'id' => mb_substr($id, 0, 64),
       'label' => mb_substr($label, 0, 80),
       'key' => $key,
       'required' => !empty($f['required']),
+      'type' => $type,
     ];
-    $placeholder = trim((string)($f['placeholder'] ?? ''));
-    if ($placeholder !== '') {
-      $row['placeholder'] = mb_substr($placeholder, 0, 120);
+    if (in_array($type, ['text', 'textarea', 'number'], true)) {
+      $placeholder = trim((string)($f['placeholder'] ?? ''));
+      if ($placeholder !== '') {
+        $row['placeholder'] = mb_substr($placeholder, 0, 120);
+      }
+    }
+    if ($type === 'select' || $type === 'radio') {
+      $options = normalize_checkout_field_options($f['options'] ?? []);
+      if (count($options) < 1) continue;
+      $row['options'] = $options;
     }
     $out[] = $row;
     if (count($out) >= 12) break;
@@ -31,7 +83,7 @@ function normalize_checkout_fields(mixed $raw): array {
   return $out;
 }
 
-/** @return list<array{id:string,label:string,key:string,required:bool,placeholder?:string}> */
+/** @return list<array{id:string,label:string,key:string,required:bool,type:string,placeholder?:string,options?:list<array{id:string,label:string,value:string}>}> */
 function checkout_fields_from_event_row(array $eventRow): array {
   $customization = json_decode((string)($eventRow['customization_json'] ?? ''), true);
   if (!is_array($customization)) return [];
@@ -66,7 +118,7 @@ function ensure_attendees_custom_fields_column(PDO $pdo): void {
   $checked = true;
 }
 
-/** @param list<array{id:string,label:string,key:string,required:bool,placeholder?:string}> $checkoutFields */
+/** @param list<array{id:string,label:string,key:string,required:bool,type?:string,options?:list<array{id:string,label:string,value:string}>}> $checkoutFields */
 function validate_attendee_custom_fields(array $checkoutFields, mixed $customFields): void {
   if (count($checkoutFields) < 1) return;
   if (!is_array($customFields)) {
@@ -75,6 +127,7 @@ function validate_attendee_custom_fields(array $checkoutFields, mixed $customFie
   foreach ($checkoutFields as $field) {
     $key = (string)($field['key'] ?? '');
     $label = (string)($field['label'] ?? $key);
+    $type = normalize_checkout_field_type($field['type'] ?? 'text');
     $val = trim((string)($customFields[$key] ?? ''));
     if (!empty($field['required']) && $val === '') {
       json_response(400, [
@@ -83,17 +136,43 @@ function validate_attendee_custom_fields(array $checkoutFields, mixed $customFie
         'field' => $key,
       ]);
     }
-    if ($val !== '' && mb_strlen($val) > 200) {
+    if ($val === '') continue;
+
+    $maxLen = $type === 'textarea' ? 2000 : 200;
+    if (mb_strlen($val) > $maxLen) {
       json_response(400, [
         'error' => 'invalid_custom_field',
-        'message' => $label . ' is too long (max 200 characters).',
+        'message' => $label . ' is too long (max ' . $maxLen . ' characters).',
         'field' => $key,
       ]);
+    }
+
+    if ($type === 'number' && !preg_match('/^-?\d+(\.\d+)?$/', $val)) {
+      json_response(400, [
+        'error' => 'invalid_custom_field',
+        'message' => $label . ' must be a valid number.',
+        'field' => $key,
+      ]);
+    }
+
+    if ($type === 'select' || $type === 'radio') {
+      $allowed = [];
+      foreach (($field['options'] ?? []) as $opt) {
+        if (!is_array($opt)) continue;
+        $allowed[(string)($opt['value'] ?? '')] = true;
+      }
+      if ($allowed !== [] && !isset($allowed[$val])) {
+        json_response(400, [
+          'error' => 'invalid_custom_field',
+          'message' => 'Please choose a valid option for ' . $label . '.',
+          'field' => $key,
+        ]);
+      }
     }
   }
 }
 
-/** @param list<array{id:string,label:string,key:string,required:bool,placeholder?:string}> $checkoutFields */
+/** @param list<array{id:string,label:string,key:string,required:bool,type?:string,placeholder?:string,options?:list}> $checkoutFields */
 function sanitize_attendee_custom_fields(array $checkoutFields, mixed $customFields): ?string {
   if (count($checkoutFields) < 1) return null;
   $src = is_array($customFields) ? $customFields : [];

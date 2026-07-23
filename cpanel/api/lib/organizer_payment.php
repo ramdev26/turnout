@@ -308,7 +308,8 @@ function organizer_payment_is_ready(array $row): bool {
   if ($mode === 'turnout') {
     return true;
   }
-  return organizer_own_payhere_is_configured($row) && organizer_billing_is_active($row);
+  // Billing card is optional and managed in a separate section.
+  return organizer_own_payhere_is_configured($row);
 }
 
 function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {

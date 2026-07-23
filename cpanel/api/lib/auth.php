@@ -663,7 +663,39 @@ function order_access_token_valid(string $token, int $orderId): bool {
 
 }
 
+/**
+ * Compact signed ticket link code for SMS (e.g. 9IXA1B2C3D).
+ * Format: base36(orderId) + 6-char HMAC (case-insensitive).
+ */
+function issue_order_short_code(int $orderId): string {
+  if ($orderId <= 0) {
+    return '';
+  }
+  $idPart = strtoupper(base_convert((string)$orderId, 10, 36));
+  $sig = strtoupper(substr(hash_hmac('sha256', 'turnout-ticket-short:' . $orderId, auth_signing_key()), 0, 6));
+  return $idPart . $sig;
+}
 
+function parse_order_short_code(string $code): ?int {
+  $code = strtoupper(preg_replace('/[^A-Z0-9]/', '', $code) ?? '');
+  if (strlen($code) < 7 || strlen($code) > 24) {
+    return null;
+  }
+  $sig = substr($code, -6);
+  $idPart = substr($code, 0, -6);
+  if ($idPart === '' || !preg_match('/^[0-9A-Z]+$/', $idPart)) {
+    return null;
+  }
+  $orderId = (int)base_convert($idPart, 36, 10);
+  if ($orderId <= 0) {
+    return null;
+  }
+  $expected = strtoupper(substr(hash_hmac('sha256', 'turnout-ticket-short:' . $orderId, auth_signing_key()), 0, 6));
+  if (!hash_equals($expected, $sig)) {
+    return null;
+  }
+  return $orderId;
+}
 
 /** Password reset link token (1 hour). */
 function issue_password_reset_token(int $userId): string {

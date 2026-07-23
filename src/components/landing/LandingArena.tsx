@@ -9,6 +9,7 @@ import {
   Navigation,
   Ticket,
   Users,
+  Video,
 } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
@@ -24,6 +25,12 @@ import {
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveArenaCarouselSlides } from './arenaGallery';
+import {
+  isOnlineEvent,
+  onlinePlatformLabel,
+  resolveOnlineJoinUrl,
+  resolveOnlinePlatform,
+} from '../../utils/eventLocation';
 
 function ticketIcon(ticket: EventTicket) {
   const name = ticket.name.toLowerCase();
@@ -179,10 +186,14 @@ function ArenaEventDetailsCard({ event }: { event: Event }) {
   const eventDate = new Date(event.date);
   const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
   const category = resolveEventCategory(event.customization?.eventCategory);
-
-  const mapsUrl = event.location?.trim()
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
-    : null;
+  const online = isOnlineEvent(event.customization, event.location);
+  const joinUrl = resolveOnlineJoinUrl(event.customization);
+  const platformLabel = onlinePlatformLabel(resolveOnlinePlatform(event.customization));
+  const mapsUrl =
+    !online && event.location?.trim()
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
+      : null;
+  const LocationIcon = online ? Video : MapPin;
 
   return (
     <div className="landing-arena-event-card">
@@ -204,10 +215,15 @@ function ArenaEventDetailsCard({ event }: { event: Event }) {
 
       <div className="landing-arena-location-row">
         <div className="landing-arena-location-text">
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--arena-muted)' }} />
+          <LocationIcon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--arena-muted)' }} />
           <span>{event.location || 'Venue to be announced'}</span>
         </div>
-        {mapsUrl ? (
+        {joinUrl ? (
+          <a href={joinUrl} target="_blank" rel="noopener noreferrer" className="landing-arena-navigate-btn">
+            <Video className="h-3.5 w-3.5" />
+            Join {platformLabel}
+          </a>
+        ) : mapsUrl ? (
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="landing-arena-navigate-btn">
             <Navigation className="h-3.5 w-3.5" />
             Navigate
@@ -218,7 +234,7 @@ function ArenaEventDetailsCard({ event }: { event: Event }) {
       {category.name ? (
         <div className="landing-arena-tags">
           <span className="landing-arena-tag">{category.name}</span>
-          <span className="landing-arena-tag">Live event</span>
+          <span className="landing-arena-tag">{online ? 'Online event' : 'Live event'}</span>
         </div>
       ) : null}
 
@@ -361,7 +377,7 @@ export function LandingArenaPage({
     <div
       className="landing-page landing-showcase landing-arena relative isolate"
       data-landing-tone={tone}
-      style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}
+      style={{ ...landingCssVars(event.customization, event.templateId), ...landingShellStyle() }}
     >
       <ArenaHeader event={event} />
 

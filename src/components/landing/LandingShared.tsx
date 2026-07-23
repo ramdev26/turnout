@@ -7,11 +7,14 @@ import {
   MapPin,
   ShieldCheck,
   Ticket,
+  Video,
 } from 'lucide-react';
 import { Event, Ticket as EventTicket } from '../../types';
 import { toApiUrl } from '../../api/client';
 import { formatLKRWhole } from '../../utils/money';
 import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
+import { EventPolicyLink } from './EventPolicyViewer';
+import { isOnlineEvent } from '../../utils/eventLocation';
 
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
@@ -104,7 +107,7 @@ export function LandingPageShell({
     <div
       className={`landing-page landing-showcase relative isolate`}
       data-landing-tone={tone}
-      style={{ ...landingCssVars(event.customization), ...landingShellStyle() }}
+      style={{ ...landingCssVars(event.customization, event.templateId), ...landingShellStyle() }}
     >
       {children}
       {!showcase ? <LandingFooter event={event} /> : null}
@@ -271,8 +274,12 @@ export function EventMeta({
         <p className="value">{dateStr}</p>
       </div>
       <div className="landing-showcase-info-card">
-        <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
-        <p className="label">Venue</p>
+        {isOnlineEvent(event.customization, event.location) ? (
+          <Video className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+        ) : (
+          <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+        )}
+        <p className="label">{isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}</p>
         <p className="value">{event.location || 'Venue to be announced'}</p>
       </div>
     </div>
@@ -618,6 +625,9 @@ export function LandingFooter({ event }: { event: Event }) {
           </span>{' '}
           © {year}
         </p>
+        <nav className="landing-showcase-footer-links" aria-label="Event links">
+          <EventPolicyLink html={event.customization?.eventPolicyHtml} className="text-xs font-semibold underline-offset-2 hover:underline sm:text-sm" />
+        </nav>
       </div>
     </footer>
   );

@@ -13,9 +13,12 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowAlert, FlowButton, FlowCard, FlowInput, FlowLabel, FlowPage } from '../components/flow/FlowPrimitives';
 import { organizerMainNav } from '../utils/organizerNav';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
-import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
-import { OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
+import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor, accentButtonStyleFor } from '../themes/flowUi';
+import { OrganizerLogoUpload } from '../components/ui/OrganizerLogoUpload';
+import { OrganizerBillingCardPanel, OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
+import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
+import { TurnoutSelect } from '../components/ui/TurnoutSelect';
+import { DEFAULT_ORGANIZER_TERMS_HTML, resolveOrganizerTermsHtml } from '../utils/organizerTerms';
 
 const ROLE_LABELS: Record<OrganizerTeamRole, string> = {
   owner: 'Owner',
@@ -46,6 +49,9 @@ export const OrganizerAccount: React.FC = () => {
   const [uploadingBrDoc, setUploadingBrDoc] = useState(false);
   const [uploadingBankStatementDoc, setUploadingBankStatementDoc] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [termsHtml, setTermsHtml] = useState(DEFAULT_ORGANIZER_TERMS_HTML);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [savingTerms, setSavingTerms] = useState(false);
 
   const [workspace, setWorkspace] = useState<OrganizerWorkspace | null>(null);
   const [profile, setProfile] = useState<OrganizerProfile>({
@@ -96,7 +102,9 @@ export const OrganizerAccount: React.FC = () => {
           businessRegistrationDocUploaded: !!res.profile.businessRegistrationDocUploaded,
           bankStatementDocUrl: res.profile.bankStatementDocUrl || '',
           bankStatementDocUploaded: !!res.profile.bankStatementDocUploaded,
+          termsHtml: res.profile.termsHtml || null,
         });
+        setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
         if (res.workspace.canManageTeam) {
           await loadTeam();
         }
@@ -201,6 +209,38 @@ export const OrganizerAccount: React.FC = () => {
     }
   };
 
+  const saveTerms = async (html: string) => {
+    if (!workspace?.isOwner) return;
+    setSavingTerms(true);
+    setError(null);
+    try {
+      const next = resolveOrganizerTermsHtml(html);
+      const res = await api.post<{ ok: boolean; profile: OrganizerProfile; user: Parameters<typeof setUser>[0] }>(
+        '/api/me/organizer-profile',
+        {
+          displayName: profile.displayName.trim(),
+          organizationName: profile.organizationName.trim(),
+          logoUrl: profile.logoUrl || undefined,
+          website: profile.website?.trim() || undefined,
+          phone: profile.phone?.trim() || undefined,
+          businessAddress: profile.businessAddress?.trim() || undefined,
+          businessRegistrationNo: profile.businessRegistrationNo?.trim() || undefined,
+          termsHtml: next,
+        }
+      );
+      setUser(res.user);
+      setProfile((p) => ({ ...p, ...res.profile }));
+      setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
+      setTermsModalOpen(false);
+      setFeedback('Terms & Conditions saved.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save Terms & Conditions');
+    } finally {
+      setSavingTerms(false);
+    }
+  };
+
   const removeLogo = async () => {
     if (!workspace?.isOwner) return;
     setRemovingLogo(true);
@@ -289,42 +329,41 @@ export const OrganizerAccount: React.FC = () => {
         {feedback ? <FlowAlert variant="success">{feedback}</FlowAlert> : null}
 
         <FlowCard>
-          <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
-            Organization profile
-          </h2>
-          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Your logo and organization name represent your brand across events.
-          </p>
-
-          <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
-            <div className="h-[180px]">
-              <BannerUploadSquare
-                previewUrl={profile.logoUrl ? normalizeLogoUrl(profile.logoUrl) : undefined}
-                disabled={uploadingLogo}
-                onFileSelect={uploadLogo}
-                frameClassName="min-h-[180px] rounded-xl"
-                placeholderClassName="min-h-[180px]"
-              />
-              <p className="mt-2 text-center text-xs" style={{ color: ui.textMuted }}>
-                Organization logo
-              </p>
-              {workspace?.isOwner && profile.logoUrl ? (
-                <button
-                  type="button"
-                  onClick={() => void removeLogo()}
-                  disabled={removingLogo || uploadingLogo}
-                  className="mt-2 w-full rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-60"
-                >
-                  {removingLogo ? 'Removing…' : 'Remove logo'}
-                </button>
-              ) : null}
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full"
+              style={{ background: ui.accentSoft, color: ui.accent }}
+            >
+              <Building2 className="h-5 w-5" />
             </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+                Organization profile
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                Your logo and organization name appear on public event pages and tickets.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-8 lg:grid-cols-[11rem_minmax(0,1fr)] lg:items-start">
+            <OrganizerLogoUpload
+              previewUrl={profile.logoUrl ? normalizeLogoUrl(profile.logoUrl) : undefined}
+              disabled={uploadingLogo}
+              removing={removingLogo}
+              canEdit={!!workspace?.isOwner}
+              ui={ui}
+              onFileSelect={uploadLogo}
+              onRemove={() => void removeLogo()}
+            />
+
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 sm:col-span-2">
                 <FlowLabel>Your name</FlowLabel>
                 <FlowInput
                   value={profile.displayName}
                   onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))}
+                  disabled={!workspace?.isOwner}
                 />
               </label>
               <label className="flex flex-col gap-1.5 sm:col-span-2">
@@ -332,11 +371,16 @@ export const OrganizerAccount: React.FC = () => {
                 <FlowInput
                   value={profile.organizationName}
                   onChange={(e) => setProfile((p) => ({ ...p, organizationName: e.target.value }))}
+                  disabled={!workspace?.isOwner}
                 />
               </label>
               <label className="flex flex-col gap-1.5">
                 <FlowLabel>Phone</FlowLabel>
-                <FlowInput value={profile.phone || ''} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} />
+                <FlowInput
+                  value={profile.phone || ''}
+                  onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))}
+                  disabled={!workspace?.isOwner}
+                />
               </label>
               <label className="flex flex-col gap-1.5">
                 <FlowLabel>Website</FlowLabel>
@@ -344,6 +388,7 @@ export const OrganizerAccount: React.FC = () => {
                   value={profile.website || ''}
                   onChange={(e) => setProfile((p) => ({ ...p, website: e.target.value }))}
                   placeholder="https://"
+                  disabled={!workspace?.isOwner}
                 />
               </label>
               <label className="flex flex-col gap-1.5 sm:col-span-2">
@@ -358,7 +403,7 @@ export const OrganizerAccount: React.FC = () => {
               Business details for paid events
             </h3>
             <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-              Required before you can publish your first paid event. Free events do not need this.
+              Optional for setup, but recommended before you run paid events.
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 sm:col-span-2">
@@ -370,6 +415,7 @@ export const OrganizerAccount: React.FC = () => {
                   placeholder="Street, city, postal code"
                   className={fieldClass}
                   style={fieldStyle}
+                  disabled={!workspace?.isOwner}
                 />
               </label>
               <label className="flex flex-col gap-1.5 sm:col-span-2">
@@ -378,81 +424,114 @@ export const OrganizerAccount: React.FC = () => {
                   value={profile.businessRegistrationNo || ''}
                   onChange={(e) => setProfile((p) => ({ ...p, businessRegistrationNo: e.target.value }))}
                   placeholder="Company / BR number"
+                  disabled={!workspace?.isOwner}
                 />
               </label>
-              <div className="sm:col-span-2 rounded-xl border p-3" style={cardMutedStyle}>
-                <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                  Business Registration (BR) document
-                </p>
-                <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
-                  Upload PDF, JPG, PNG, or WEBP (max 8MB). Required for paid events.
-                </p>
-                <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium" style={fieldStyle}>
-                  {uploadingBrDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-                  {uploadingBrDoc ? 'Uploading…' : profile.businessRegistrationDocUploaded ? 'Replace BR document' : 'Upload BR document'}
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="application/pdf,image/png,image/jpeg,image/webp"
-                    disabled={uploadingBrDoc || !workspace?.isOwner}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void uploadOrganizerDocument('br', file);
-                      e.currentTarget.value = '';
-                    }}
-                  />
-                </label>
-                {profile.businessRegistrationDocUploaded ? (
-                  <a
-                    href={profile.businessRegistrationDocUrl || '#'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-xs underline"
-                    style={{ color: ui.accent }}
+
+              <div className="rounded-2xl border border-dashed p-4" style={cardMutedStyle}>
+                <div className="flex items-start gap-3">
+                  <div
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+                    style={{ background: ui.accentSoft, color: ui.accent }}
                   >
-                    <FileText className="h-3.5 w-3.5" />
-                    View BR document
-                  </a>
-                ) : null}
+                    <UploadCloud className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                      Business Registration (BR)
+                    </p>
+                    <p className="mt-0.5 text-xs" style={{ color: ui.textMuted }}>
+                      PDF, JPG, PNG, or WEBP · max 8MB
+                    </p>
+                    <label
+                      className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-60"
+                      style={accentButtonStyleFor(ui)}
+                    >
+                      {uploadingBrDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {uploadingBrDoc
+                        ? 'Uploading…'
+                        : profile.businessRegistrationDocUploaded
+                          ? 'Replace document'
+                          : 'Upload document'}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="application/pdf,image/png,image/jpeg,image/webp"
+                        disabled={uploadingBrDoc || !workspace?.isOwner}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void uploadOrganizerDocument('br', file);
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                    {profile.businessRegistrationDocUploaded ? (
+                      <a
+                        href={profile.businessRegistrationDocUrl || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-2"
+                        style={{ color: ui.accent }}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        View uploaded BR
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-              <div className="sm:col-span-2 rounded-xl border p-3" style={cardMutedStyle}>
-                <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                  Latest bank statement
-                </p>
-                <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
-                  Upload a recent bank statement (PDF, JPG, PNG, WEBP; max 8MB). Required for paid events.
-                </p>
-                <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium" style={fieldStyle}>
-                  {uploadingBankStatementDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-                  {uploadingBankStatementDoc
-                    ? 'Uploading…'
-                    : profile.bankStatementDocUploaded
-                      ? 'Replace bank statement'
-                      : 'Upload bank statement'}
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="application/pdf,image/png,image/jpeg,image/webp"
-                    disabled={uploadingBankStatementDoc || !workspace?.isOwner}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void uploadOrganizerDocument('bank_statement', file);
-                      e.currentTarget.value = '';
-                    }}
-                  />
-                </label>
-                {profile.bankStatementDocUploaded ? (
-                  <a
-                    href={profile.bankStatementDocUrl || '#'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-xs underline"
-                    style={{ color: ui.accent }}
+
+              <div className="rounded-2xl border border-dashed p-4" style={cardMutedStyle}>
+                <div className="flex items-start gap-3">
+                  <div
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+                    style={{ background: ui.accentSoft, color: ui.accent }}
                   >
-                    <FileText className="h-3.5 w-3.5" />
-                    View latest bank statement
-                  </a>
-                ) : null}
+                    <UploadCloud className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                      Latest bank statement
+                    </p>
+                    <p className="mt-0.5 text-xs" style={{ color: ui.textMuted }}>
+                      PDF, JPG, PNG, or WEBP · max 8MB
+                    </p>
+                    <label
+                      className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-60"
+                      style={accentButtonStyleFor(ui)}
+                    >
+                      {uploadingBankStatementDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {uploadingBankStatementDoc
+                        ? 'Uploading…'
+                        : profile.bankStatementDocUploaded
+                          ? 'Replace statement'
+                          : 'Upload statement'}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="application/pdf,image/png,image/jpeg,image/webp"
+                        disabled={uploadingBankStatementDoc || !workspace?.isOwner}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void uploadOrganizerDocument('bank_statement', file);
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                    {profile.bankStatementDocUploaded ? (
+                      <a
+                        href={profile.bankStatementDocUrl || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-2"
+                        style={{ color: ui.accent }}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        View uploaded statement
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -472,17 +551,75 @@ export const OrganizerAccount: React.FC = () => {
 
         <FlowCard className="mt-6">
           <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5" style={{ color: ui.accent }} />
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Terms &amp; Conditions
+            </h2>
+          </div>
+          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+            Your organization terms apply across all events. Attendees must accept them at checkout along with each
+            event&apos;s policy.
+          </p>
+          <div className="mt-5 rounded-2xl border p-4" style={cardMutedStyle}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold" style={{ color: ui.text }}>
+                  Organization terms
+                </p>
+                <p className="mt-0.5 text-sm" style={{ color: ui.textMuted }}>
+                  Default template is ready — customize anytime.
+                </p>
+              </div>
+              {workspace?.isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => setTermsModalOpen(true)}
+                  className="shrink-0 rounded-xl px-3.5 py-2 text-sm font-semibold"
+                  style={accentButtonStyleFor(ui)}
+                >
+                  Edit terms
+                </button>
+              ) : null}
+            </div>
+            <div
+              className="event-policy-content max-h-40 overflow-hidden text-sm leading-relaxed opacity-90"
+              style={{ color: ui.textMuted }}
+              dangerouslySetInnerHTML={{ __html: termsHtml }}
+            />
+          </div>
+        </FlowCard>
+
+        <FlowCard className="mt-6">
+          <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" style={{ color: ui.accent }} />
             <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
               Payments
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Choose Turnout Pay (we handle fees and payouts) or connect your own PayHere account (requires a billing
-            card for platform fees).
+            Set up payment providers for your organization. Then enable the methods you want on each event.
           </p>
           <div className="mt-5">
             <OrganizerPaymentSettingsPanel
+              isOwner={!!workspace?.isOwner}
+              onFeedback={setFeedback}
+              onError={setError}
+            />
+          </div>
+        </FlowCard>
+
+        <FlowCard className="mt-6">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" style={{ color: ui.accent }} />
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Billing card (optional)
+            </h2>
+          </div>
+          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+            Card details are managed separately. This is optional and not required to proceed with paid events.
+          </p>
+          <div className="mt-5">
+            <OrganizerBillingCardPanel
               isOwner={!!workspace?.isOwner}
               onFeedback={setFeedback}
               onError={setError}
@@ -515,16 +652,19 @@ export const OrganizerAccount: React.FC = () => {
                   style={fieldStyle}
                 />
               </div>
-              <select
+              <TurnoutSelect
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as OrganizerTeamRole)}
-                className={fieldClass}
+                onChange={(next) => setInviteRole(next as OrganizerTeamRole)}
+                ariaLabel="Invite role"
+                tone={ui.isDark ? 'dark' : 'light'}
                 style={fieldStyle}
-              >
-                <option value="admin">Admin</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
+                buttonClassName={fieldClass}
+                options={[
+                  { value: 'admin', label: 'Admin' },
+                  { value: 'editor', label: 'Editor' },
+                  { value: 'viewer', label: 'Viewer' },
+                ]}
+              />
               <FlowButton onClick={sendInvite} disabled={inviting || !inviteEmail.trim()}>
                 <UserPlus className="h-4 w-4" />
                 {inviting ? 'Sending…' : 'Invite'}
@@ -607,6 +747,16 @@ export const OrganizerAccount: React.FC = () => {
           </FlowCard>
         ) : null}
       </FlowPage>
+      <EventPolicyEditorModal
+        open={termsModalOpen}
+        title="Terms & Conditions"
+        value={termsHtml}
+        defaultTemplate={DEFAULT_ORGANIZER_TERMS_HTML}
+        ui={ui}
+        saving={savingTerms}
+        onClose={() => setTermsModalOpen(false)}
+        onSave={(html) => void saveTerms(html)}
+      />
     </OrganizerFlowShell>
   );
 };

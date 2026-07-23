@@ -2,6 +2,10 @@
 
 .landing-page {
   font-family: var(--landing-font-body);
+  font-size: var(--landing-body-size, 1rem);
+  font-weight: var(--landing-body-weight, inherit);
+  font-style: var(--landing-body-style, normal);
+  text-decoration: var(--landing-body-decoration, none);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: clip;
@@ -31,15 +35,21 @@
 
 .landing-display {
   font-family: var(--landing-font-display);
-  font-weight: 500;
+  font-weight: var(--landing-h1-weight, 500);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   letter-spacing: -0.03em;
   line-height: 1.08;
+  color: var(--landing-heading, var(--landing-text));
+  font-size: var(--landing-h1-size, inherit);
 }
 
 .landing-eyebrow {
   font-family: var(--landing-font-body);
-  font-size: 0.6875rem;
-  font-weight: 700;
+  font-size: var(--landing-small-size, 0.6875rem);
+  font-weight: var(--landing-small-weight, 700);
+  font-style: var(--landing-small-style, normal);
+  text-decoration: var(--landing-small-decoration, none);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -242,13 +252,9 @@
 
 .landing-btn-primary,
 .landing-showcase-btn-cta {
-  color: var(--landing-on-primary, #0a2426);
-  background: linear-gradient(
-    135deg,
-    var(--showcase-accent) 0%,
-    color-mix(in srgb, var(--secondary) 55%, var(--showcase-accent)) 100%
-  );
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--showcase-accent) 35%, transparent);
+  color: var(--landing-on-button, var(--landing-on-primary, #0a2426));
+  background: var(--landing-button, var(--showcase-accent));
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent);
   transition:
     transform 0.2s ease,
     box-shadow 0.25s ease,
@@ -371,9 +377,9 @@
 }
 
 .landing-checkout-confirm {
-  color: var(--landing-on-primary, var(--primary-on, #ffffff)) !important;
-  background: var(--landing-accent-readable, var(--primary)) !important;
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--landing-on-button, var(--landing-on-primary, var(--primary-on, #ffffff))) !important;
+  background: var(--landing-button, var(--landing-accent-readable, var(--primary))) !important;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--landing-button, var(--primary)) 35%, transparent);
 }
 
 /* Checkout confirm footer shipping */

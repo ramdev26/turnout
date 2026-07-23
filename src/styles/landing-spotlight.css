@@ -1,11 +1,11 @@
 /* Spotlight — marketplace event-detail layout (distinct from Showcase editorial) */
 
 .landing-spotlight {
-  --sp-bg: #ffffff;
-  --sp-ink: #0f172a;
-  --sp-muted: #64748b;
-  --sp-line: #e2e8f0;
-  --sp-soft: #f8fafc;
+  --sp-bg: var(--landing-page-bg, #ffffff);
+  --sp-ink: var(--landing-text, #0f172a);
+  --sp-muted: var(--landing-text-muted, #64748b);
+  --sp-line: var(--landing-border, #e2e8f0);
+  --sp-soft: var(--landing-surface-muted, #f8fafc);
   --sp-accent: var(--landing-accent-readable, var(--primary));
   --sp-on-accent: var(--landing-on-primary, #0a2426);
   --sp-cta: color-mix(in srgb, var(--sp-accent) 88%, #ea580c 12%);
@@ -20,7 +20,7 @@
   display: none;
 }
 
-/* ── Full-bleed hero — always cover so public page matches live preview ── */
+/* ── Full-bleed hero ── */
 .sp-hero {
   width: 100%;
   max-width: 100%;
@@ -34,23 +34,35 @@
   display: block;
   width: 100%;
   max-width: none;
-  /* Use container width (cqi), not viewport (vw), so desktop preview ≈ public */
-  height: clamp(200px, 42cqi, 340px);
-  object-fit: cover;
-  object-position: center;
   border: 0;
 }
 
+/*
+ * Mobile / narrow: keep the full designed banner visible.
+ * Fixed-height + object-fit:cover was cropping titles/logos baked into the art.
+ */
+.sp-hero-img {
+  height: auto;
+  max-height: min(70vh, 560px);
+  object-fit: contain;
+  object-position: center top;
+}
+
 .sp-hero-fallback {
+  height: clamp(200px, 48cqi, 300px);
   background:
     radial-gradient(ellipse 80% 70% at 50% 40%, color-mix(in srgb, var(--sp-accent) 40%, #1e293b), transparent 70%),
     linear-gradient(145deg, #0f172a, #1e293b 55%, #334155);
 }
 
+/* Desktop: preserve previous full-bleed cover crop */
 @container spotlight (min-width: 1024px) {
   .sp-hero-img,
   .sp-hero-fallback {
     height: clamp(280px, 34cqi, 420px);
+    max-height: none;
+    object-fit: cover;
+    object-position: center;
   }
 }
 
@@ -98,19 +110,24 @@
 
 .sp-title {
   margin-top: 0.55rem;
-  font-family: var(--landing-font-body), ui-sans-serif, system-ui, sans-serif;
-  font-size: clamp(1.65rem, 4.5vw, 2.35rem);
-  font-weight: 800;
+  font-family: var(--landing-font-display), var(--landing-font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--landing-h1-size, clamp(1.65rem, 4.5vw, 2.35rem));
+  font-weight: var(--landing-h1-weight, 800);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   line-height: 1.12;
   letter-spacing: -0.03em;
   text-transform: uppercase;
-  color: var(--sp-ink);
+  color: var(--landing-heading, var(--sp-ink));
 }
 
 .sp-teaser {
   margin-top: 0.65rem;
   max-width: 38rem;
-  font-size: 0.9375rem;
+  font-size: var(--landing-body-size, 0.9375rem);
+  font-weight: var(--landing-body-weight, inherit);
+  font-style: var(--landing-body-style, normal);
+  text-decoration: var(--landing-body-decoration, none);
   line-height: 1.55;
   color: var(--sp-muted);
 }
@@ -593,7 +610,7 @@
 .sp-rail-card {
   border: 1px solid var(--sp-line);
   border-radius: 1rem;
-  background: #fff;
+  background: var(--landing-surface, #fff);
   padding: 1rem;
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.04),
@@ -726,13 +743,13 @@
   gap: 0.4rem;
   border: none;
   border-radius: 9999px;
-  background: var(--sp-cta);
+  background: var(--landing-button, var(--sp-cta));
   padding: 0.7rem 1.1rem;
   font-size: 0.9rem;
   font-weight: 800;
-  color: var(--sp-on-accent);
+  color: var(--landing-on-button, var(--sp-on-accent));
   cursor: pointer;
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--sp-cta) 32%, transparent);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--landing-button, var(--sp-cta)) 32%, transparent);
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 
@@ -830,7 +847,13 @@
   height: calc(6.1rem + env(safe-area-inset-bottom));
 }
 
-.event-settings-mobile-preview .sp-hero-img,
+.event-settings-mobile-preview .sp-hero-img {
+  height: auto !important;
+  max-height: 200px !important;
+  object-fit: contain !important;
+  object-position: center top !important;
+}
+
 .event-settings-mobile-preview .sp-hero-fallback {
   height: 150px !important;
 }

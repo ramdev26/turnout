@@ -292,6 +292,7 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
     'bankAccountConfigured' => trim((string)($row['bank_account_number'] ?? '')) !== '',
     'bankStatementDocUrl' => trim((string)($row['bank_statement_doc_url'] ?? '')) ?: null,
     'bankStatementDocUploaded' => trim((string)($row['bank_statement_doc_url'] ?? '')) !== '',
+    'termsHtml' => trim((string)($row['terms_html'] ?? '')) ?: null,
   ];
 }
 

@@ -10,6 +10,7 @@ import {
   Share2,
   Star,
   Ticket,
+  Video,
 } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
@@ -25,14 +26,13 @@ import {
 import { VenueMapEmbed } from './VenueMapEmbed';
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
-
-const DEFAULT_POLICIES = [
-  'Tickets are non-refundable once purchased, unless the event is cancelled by the organizer.',
-  'Purchase only from this official page to avoid fraudulent listings.',
-  'Keep your QR code secure — lost tickets may not be reissued.',
-  'Re-entry may not be permitted after leaving the venue.',
-  'The organizer may refuse entry for safety or policy reasons.',
-];
+import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
+import {
+  isOnlineEvent,
+  onlinePlatformLabel,
+  resolveOnlineJoinUrl,
+  resolveOnlinePlatform,
+} from '../../utils/eventLocation';
 
 function lowestAvailablePrice(tickets: EventTicket[]): number | null {
   const available = tickets.filter((t) => ticketRemaining(t) > 0);
@@ -101,9 +101,15 @@ function SpotlightQuickFacts({ event }: { event: Event }) {
         </div>
       </div>
       <div className="sp-quickfact">
-        <MapPin className="h-4 w-4" />
+        {isOnlineEvent(event.customization, event.location) ? (
+          <Video className="h-4 w-4" />
+        ) : (
+          <MapPin className="h-4 w-4" />
+        )}
         <div>
-          <p className="sp-quickfact-label">Venue</p>
+          <p className="sp-quickfact-label">
+            {isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}
+          </p>
           <p className="sp-quickfact-value">{event.location?.trim() || 'Venue TBA'}</p>
         </div>
       </div>
@@ -133,8 +139,9 @@ function SpotlightOrganizer({ event }: { event: Event }) {
   );
 }
 
-function SpotlightPolicies() {
+function SpotlightPolicies({ event }: { event: Event }) {
   const [open, setOpen] = useState(false);
+  const html = resolveEventPolicyHtml(event.customization?.eventPolicyHtml);
   return (
     <section className="sp-block">
       <button type="button" className="sp-accordion" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -142,11 +149,10 @@ function SpotlightPolicies() {
         <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open ? (
-        <ul className="sp-policy-list">
-          {DEFAULT_POLICIES.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
+        <div
+          className="event-policy-content sp-policy-list text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
       ) : null}
     </section>
   );
@@ -165,35 +171,67 @@ function SpotlightAbout({ event }: { event: Event }) {
 
 function SpotlightLocation({ event }: { event: Event }) {
   const location = event.location?.trim() || 'Venue to be announced';
+  const online = isOnlineEvent(event.customization, event.location);
+  const joinUrl = resolveOnlineJoinUrl(event.customization);
   const hasLocation = Boolean(event.location?.trim());
-  const mapsUrl = hasLocation
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location!.trim())}`
-    : null;
+  const mapsUrl =
+    !online && hasLocation
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location!.trim())}`
+      : null;
+  const platformLabel = onlinePlatformLabel(resolveOnlinePlatform(event.customization));
 
   return (
     <section id="landing-venue" className="sp-block scroll-mt-28">
       <div className="sp-location-head">
-        <h2 className="sp-h2">Location</h2>
-        {mapsUrl ? (
+        <h2 className="sp-h2">{online ? 'Online event' : 'Location'}</h2>
+        {joinUrl ? (
+          <a href={joinUrl} target="_blank" rel="noopener noreferrer" className="sp-nav-link">
+            Join {platformLabel} <Video className="h-3.5 w-3.5" />
+          </a>
+        ) : mapsUrl ? (
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="sp-nav-link">
             Navigate <Navigation className="h-3.5 w-3.5" />
           </a>
         ) : null}
       </div>
-      <div className="sp-map">
-        <VenueMapEmbed
-          query={hasLocation ? event.location : null}
-          title={`${event.title} venue map`}
-          emptyLabel="Venue to be announced"
-          className="sp-map-embed"
-        />
-        <div className="sp-map-caption">
-          <p className="sp-map-name">{location}</p>
-          <p className="sp-map-hint">
-            {hasLocation ? 'Interactive map · open Google Maps for directions' : 'Add a venue address to show the map'}
-          </p>
+      {online ? (
+        <div className="sp-map">
+          <div className="sp-map-caption" style={{ padding: '1.25rem' }}>
+            <p className="sp-map-name">{location}</p>
+            <p className="sp-map-hint">
+              {joinUrl
+                ? `Use the ${platformLabel} link to join when the event starts.`
+                : 'Meeting link will be shared by the organizer.'}
+            </p>
+            {joinUrl ? (
+              <a
+                href={joinUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="sp-nav-link"
+                style={{ marginTop: '0.75rem', display: 'inline-flex' }}
+              >
+                Open meeting link
+              </a>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="sp-map">
+          <VenueMapEmbed
+            query={hasLocation ? event.location : null}
+            title={`${event.title} venue map`}
+            emptyLabel="Venue to be announced"
+            className="sp-map-embed"
+          />
+          <div className="sp-map-caption">
+            <p className="sp-map-name">{location}</p>
+            <p className="sp-map-hint">
+              {hasLocation ? 'Interactive map · open Google Maps for directions' : 'Add a venue address to show the map'}
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -429,7 +467,7 @@ export function LandingSpotlightPage({
 
               <div className="sp-sections">
                 <SpotlightAbout event={event} />
-                <SpotlightPolicies />
+                <SpotlightPolicies event={event} />
                 <SpotlightLocation event={event} />
 
                 <section id="landing-tickets" className="sp-block scroll-mt-28">

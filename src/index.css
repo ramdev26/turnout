@@ -30,6 +30,44 @@ body {
   min-height: 100vh;
 }
 
+/* Hand cursor on anything interactive / clickable */
+a,
+button,
+summary,
+label,
+select,
+[role='button'],
+[role='link'],
+[role='tab'],
+[role='menuitem'],
+[role='option'],
+[role='checkbox'],
+[role='radio'],
+[role='switch'],
+[role='combobox'],
+input[type='button'],
+input[type='submit'],
+input[type='reset'],
+input[type='checkbox'],
+input[type='radio'],
+input[type='file'],
+input[type='color'],
+input[type='range'],
+input[type='image'] {
+  cursor: pointer;
+}
+
+a:disabled,
+button:disabled,
+select:disabled,
+input:disabled,
+summary:disabled,
+[aria-disabled='true'],
+[role='button'][aria-disabled='true'],
+[role='link'][aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
 a,
 button,
 input,
@@ -231,3 +269,52 @@ select {
     border-color: var(--border) !important;
   }
 }
+
+/* Native <select> option menus inherit light text on dark UIs and become unreadable
+   against the browser's white popup. Force readable option colors everywhere. */
+select option,
+select optgroup {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+/* Event policy rich content (editor + public viewer) */
+.event-policy-editor h3,
+.event-policy-content h3 {
+  margin: 0.85rem 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.event-policy-editor h4,
+.event-policy-content h4 {
+  margin: 0.7rem 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.event-policy-editor p,
+.event-policy-content p {
+  margin: 0.4rem 0;
+}
+
+.event-policy-editor ul,
+.event-policy-content ul,
+.event-policy-editor ol,
+.event-policy-content ol {
+  margin: 0.35rem 0 0.7rem;
+  padding-left: 1.25rem;
+}
+
+.event-policy-editor li,
+.event-policy-content li {
+  margin: 0.2rem 0;
+}
+
+.event-policy-editor a,
+.event-policy-content a {
+  text-decoration: underline;
+  color: var(--landing-accent-readable, var(--primary, #c0ff72));
+}
+
+

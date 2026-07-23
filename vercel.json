@@ -6,12 +6,16 @@
   "functions": {
     "api/**/*.php": {
       "runtime": "vercel-php@0.7.3",
-      "includeFiles": "cpanel/api/**"
+      "includeFiles": "{cpanel/api/**,.env}"
     }
   },
   "routes": [
     {
       "src": "^/api/(.*)$",
+      "dest": "/api/index.php"
+    },
+    {
+      "src": "^/t/([A-Za-z0-9]+)/?$",
       "dest": "/api/index.php"
     },
     {

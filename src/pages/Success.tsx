@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Order, Event } from '../types';
-import { CheckCircle, Calendar, MapPin, Ticket, Download, Sparkles } from 'lucide-react';
+import { CheckCircle, Calendar, MapPin, Ticket, Download, Sparkles, UploadCloud, Landmark } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'motion/react';
-import { api } from '../api/client';
+import { api, toApiUrl } from '../api/client';
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { TURNOUT_BRAND } from '../themes/brandColors';
 import { formatApiError } from '../utils/apiError';
+import { formatLKRWhole } from '../utils/money';
 
 type TicketPdfTemplate = 'classic' | 'midnight' | 'sunset';
 
@@ -36,6 +37,10 @@ export const Success: React.FC = () => {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [uploadingSlip, setUploadingSlip] = useState(false);
+  const [slipError, setSlipError] = useState<string | null>(null);
+  const [slipFeedback, setSlipFeedback] = useState<string | null>(null);
+  const slipInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchOrderData = async () => {
@@ -96,6 +101,42 @@ export const Success: React.FC = () => {
     fetchOrderData();
   }, [orderId, accessToken, passId]);
 
+  const uploadSlip = async (file: File) => {
+    if (!orderId || !order) return;
+    setUploadingSlip(true);
+    setSlipError(null);
+    setSlipFeedback(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const qs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
+      const res = await fetch(toApiUrl(`/api/orders/${orderId}/bank-transfer-slip${qs}`), {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw Object.assign(new Error(data.message || data.error || 'Upload failed'), data);
+      }
+      setOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              bankTransferSlipUrl: data.bankTransferSlipUrl || prev.bankTransferSlipUrl,
+              bankTransferSlipUploadedAt: new Date().toISOString(),
+            }
+          : prev
+      );
+      setSlipFeedback('Transfer slip uploaded. The organizer will confirm your payment soon.');
+    } catch (e: unknown) {
+      setSlipError(formatApiError(e, 'Could not upload transfer slip. Try again.'));
+    } finally {
+      setUploadingSlip(false);
+      if (slipInputRef.current) slipInputRef.current.value = '';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center px-4 pb-[env(safe-area-inset-bottom)]">
@@ -136,6 +177,141 @@ export const Success: React.FC = () => {
     );
   }
 
+  if (order.status === 'pending' && order.paymentMethod === 'bank_transfer') {
+    const bank = order.bankTransfer || event.bankTransfer;
+    const slipUrl = order.bankTransferSlipUrl
+      ? order.bankTransferSlipUrl.startsWith('http')
+        ? order.bankTransferSlipUrl
+        : toApiUrl(order.bankTransferSlipUrl)
+      : null;
+
+    return (
+      <div className="mx-auto min-h-dvh max-w-lg overflow-x-hidden px-4 py-10 pb-[max(2rem,env(safe-area-inset-bottom))] sm:py-16">
+        <div
+          className="overflow-hidden rounded-2xl border backdrop-blur-xl"
+          style={{
+            borderColor: TURNOUT_BRAND.limeLine,
+            background: 'rgba(5, 46, 48, 0.55)',
+            boxShadow: '0 24px 56px rgba(5, 46, 48, 0.5)',
+          }}
+        >
+          <div
+            className="pointer-events-none h-1 w-full"
+            style={{ background: `linear-gradient(90deg, ${TURNOUT_BRAND.lime500}, ${TURNOUT_BRAND.teal600})` }}
+          />
+          <div className="px-5 py-8 sm:px-8">
+            <div
+              className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full"
+              style={{ background: TURNOUT_BRAND.limeSoft }}
+            >
+              <Landmark className="h-8 w-8" style={{ color: TURNOUT_BRAND.lime500 }} />
+            </div>
+            <h1 className="text-center text-2xl font-semibold tracking-tight text-[var(--text)]">
+              Complete your bank transfer
+            </h1>
+            <p className="mx-auto mt-2 max-w-md text-center text-sm text-[var(--text-muted)]">
+              Order #{order.id} · {formatLKRWhole(order.totalAmount)}. Transfer the exact amount, then upload your slip.
+              Tickets are issued after the organizer confirms payment.
+            </p>
+
+            {bank ? (
+              <div className={`${cardShell} mt-6 p-4`} style={cardShellStyle}>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Transfer to</p>
+                <dl className="mt-3 space-y-2 text-sm text-[var(--text)]">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-muted)]">Account holder</dt>
+                    <dd className="font-semibold text-right">{bank.accountHolderName}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-muted)]">Bank</dt>
+                    <dd className="font-semibold text-right">{bank.bankName}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-muted)]">Branch</dt>
+                    <dd className="font-semibold text-right">{bank.bankBranch}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-[var(--text-muted)]">Account number</dt>
+                    <dd className="font-mono font-semibold text-right">{bank.accountNumber}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3 border-t pt-2" style={{ borderColor: TURNOUT_BRAND.limeLine }}>
+                    <dt className="text-[var(--text-muted)]">Amount</dt>
+                    <dd className="font-semibold text-right">{formatLKRWhole(order.totalAmount)}</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+
+            <div className={`${cardShell} mt-4 p-4`} style={cardShellStyle}>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Transfer slip</p>
+              {slipUrl ? (
+                <div className="mt-3 space-y-3">
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Slip uploaded{order.bankTransferSlipUploadedAt ? ` · awaiting organizer confirmation` : ''}.
+                  </p>
+                  <a
+                    href={slipUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex text-sm font-semibold underline underline-offset-2"
+                    style={{ color: TURNOUT_BRAND.lime400 }}
+                  >
+                    View uploaded slip
+                  </a>
+                  <button
+                    type="button"
+                    disabled={uploadingSlip}
+                    onClick={() => slipInputRef.current?.click()}
+                    className="block text-xs font-semibold text-[var(--text-muted)] underline-offset-2 hover:underline"
+                  >
+                    Replace slip
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Upload a photo or PDF of your bank transfer receipt (max 8MB).
+                  </p>
+                  <button
+                    type="button"
+                    disabled={uploadingSlip}
+                    onClick={() => slipInputRef.current?.click()}
+                    className="turnout-btn-accent mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-on)' }}
+                  >
+                    <UploadCloud className="h-4 w-4" />
+                    {uploadingSlip ? 'Uploading…' : 'Upload transfer slip'}
+                  </button>
+                </div>
+              )}
+              <input
+                ref={slipInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadSlip(file);
+                }}
+              />
+              {slipError ? <p className="mt-3 text-xs font-medium text-red-300">{slipError}</p> : null}
+              {slipFeedback ? <p className="mt-3 text-xs font-medium" style={{ color: TURNOUT_BRAND.lime400 }}>{slipFeedback}</p> : null}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-6 w-full rounded-xl border px-5 py-2.5 text-sm font-semibold text-[var(--text)]"
+              style={{ borderColor: TURNOUT_BRAND.limeLine }}
+            >
+              Refresh status
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (order.status === 'pending') {
     return (
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center overflow-x-hidden px-4 py-16 pb-[max(2rem,env(safe-area-inset-bottom))] text-center sm:py-24">
@@ -155,6 +331,20 @@ export const Success: React.FC = () => {
         >
           Refresh
         </button>
+      </div>
+    );
+  }
+
+  if (order.status === 'failed') {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center overflow-x-hidden px-4 py-16 text-center">
+        <h2 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Payment not completed</h2>
+        <p className="mt-2 text-[var(--text-muted)]">
+          This order was cancelled or rejected. Contact the organizer if you already transferred funds.
+        </p>
+        <Link to="/" className="mt-6 text-sm font-semibold text-[var(--primary)] underline-offset-2 hover:underline">
+          Go back home
+        </Link>
       </div>
     );
   }

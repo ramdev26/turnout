@@ -406,6 +406,16 @@ function mail_order_success_url(int $orderId, ?int $attendeeId = null, ?array $a
   return $url;
 }
 
+/** Compact ticket link for SMS — resolves via /t/{code} to the full success URL. */
+function mail_order_short_ticket_url(int $orderId): string {
+  $base = mail_app_base_url();
+  $code = issue_order_short_code($orderId);
+  if ($base === '' || $code === '') {
+    return '';
+  }
+  return $base . '/t/' . rawurlencode($code);
+}
+
 function mail_app_base_url(): string {
   $cfg = get_config();
   $fromCfg = trim((string)(($cfg['payhere'] ?? [])['app_base_url'] ?? ''));
@@ -642,6 +652,12 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   $buyerTicketUrl = mail_order_success_url($orderId);
 
   $buyerOk = send_buyer_order_confirmation_email($pdo, $order, $orderId, $attendees, $buyerTicketUrl);
+
+  try {
+    send_order_confirmation_sms($pdo, $orderId);
+  } catch (Throwable $e) {
+    error_log('[turnout] order confirmation SMS error for order ' . $orderId . ': ' . $e->getMessage());
+  }
 
   $buyerEmail = strtolower(trim((string)$order['buyer_email']));
   $byEmail = [];

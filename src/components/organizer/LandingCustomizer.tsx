@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Check, Palette, Sparkles, Type as TypeIcon } from 'lucide-react';
+import { Palette, Type as TypeIcon, Bold, Italic, Underline } from 'lucide-react';
 import type { CreateThemeUI } from '../../themes/eventThemes';
 import { landingCssVars } from '../../themes/eventThemes';
 import {
@@ -11,9 +11,7 @@ import {
 } from '../../themes/landingFonts';
 import type { LandingDisplayMode, LandingStyle } from '../../types';
 import type { LayoutTemplateId } from '../../templates/templates';
-import { EVENT_CATEGORIES, resolveEventCategory } from '../../themes/eventCategories';
-import { cn } from '../../utils/cn';
-import { accentSegmentStyleFor } from '../../themes/flowUi';
+import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
 
 export type LandingDesignValue = {
   templateId: LayoutTemplateId;
@@ -23,6 +21,35 @@ export type LandingDesignValue = {
   fontFamily: LandingFontKey;
   displayMode: LandingDisplayMode;
   landingStyle: LandingStyle;
+  /** Deep colour overrides (optional hex). Empty/undefined uses template-derived tones. */
+  buttonColor?: string;
+  headingColor?: string;
+  bodyTextColor?: string;
+  mutedTextColor?: string;
+  pageBackgroundColor?: string;
+  surfaceColor?: string;
+  surfaceMutedColor?: string;
+  borderColor?: string;
+  headerBgColor?: string;
+  footerBgColor?: string;
+  /** Type scale overrides in px. */
+  h1FontSize?: number;
+  h2FontSize?: number;
+  bodyFontSize?: number;
+  smallFontSize?: number;
+  /** Per-element type emphasis. */
+  h1Bold?: boolean;
+  h1Italic?: boolean;
+  h1Underline?: boolean;
+  h2Bold?: boolean;
+  h2Italic?: boolean;
+  h2Underline?: boolean;
+  bodyBold?: boolean;
+  bodyItalic?: boolean;
+  bodyUnderline?: boolean;
+  smallBold?: boolean;
+  smallItalic?: boolean;
+  smallUnderline?: boolean;
 };
 
 export { LANDING_LAYOUT_TEMPLATES } from '../../templates/templates';
@@ -81,128 +108,100 @@ export function LandingCustomizer({
 
   const update = (patch: Partial<LandingDesignValue>) => onChange({ ...value, ...patch });
 
-  const applyCategory = (id: string) => {
-    const cat = resolveEventCategory(id);
-    onChange({
-      ...value,
-      eventCategory: cat.id,
-    });
-  };
-
-  const activePresetId = COLOR_PRESETS.find(
-    (p) => p.primary.toLowerCase() === value.primaryColor.toLowerCase()
-  )?.id;
   const fontKey = resolveLandingFontKey(value.fontFamily);
 
-  const segmentBase =
-    'flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition focus:outline-none';
+  const asHex = (v: string | undefined, fallback: string) =>
+    /^#([0-9a-f]{6})$/i.test(v || '') ? (v as string) : fallback;
 
   return (
     <div className="space-y-6">
-      {/* Event category */}
-      <div className="space-y-3">
-        <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Event type</SectionLabel>
-        <p className="text-xs" style={{ color: ui.textMuted }}>
-          Label only — colours and fonts stay with your template / Customize design.
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {EVENT_CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const active = (value.eventCategory || 'default') === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => applyCategory(cat.id)}
-                className="flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-center transition"
-                style={
-                  active
-                    ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.text }
-                    : { borderColor: ui.borderColor, background: ui.cardBg, color: ui.text }
-                }
-              >
-                <Icon className="h-4 w-4" style={{ color: active ? ui.accent : ui.textMuted }} />
-                <span className="text-xs font-semibold">{cat.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Colour */}
       <div className="space-y-3">
-        <SectionLabel icon={<Palette className="h-3.5 w-3.5" />}>Colour</SectionLabel>
-        <div className="flex flex-wrap items-center gap-2.5">
-          {COLOR_PRESETS.map((preset) => {
-            const active = activePresetId === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                title={preset.name}
-                aria-label={preset.name}
-                onClick={() => update({ primaryColor: preset.primary, secondaryColor: preset.secondary })}
-                className={cn(
-                  'relative grid h-9 w-9 place-items-center rounded-full transition hover:scale-105',
-                  active ? 'ring-2 ring-offset-2' : 'ring-0'
-                )}
-                style={{
-                  background: `linear-gradient(135deg, ${preset.primary}, ${preset.secondary})`,
-                  ['--tw-ring-color' as string]: preset.primary,
-                  ['--tw-ring-offset-color' as string]: ui.cardBg,
-                }}
-              >
-                {active && <Check className="h-4 w-4 text-white drop-shadow" />}
-              </button>
-            );
-          })}
-
-          {/* Custom colour picker */}
-          <label
-            className="relative grid h-9 w-9 cursor-pointer place-items-center overflow-hidden rounded-full ring-1 ring-inset"
-            title="Custom colour"
-            style={{
-              background: 'conic-gradient(from 180deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)',
-              ['--tw-ring-color' as string]: ui.borderColor,
-            }}
-          >
-            <input
-              type="color"
-              value={/^#([0-9a-f]{6})$/i.test(value.primaryColor) ? value.primaryColor : '#059669'}
-              onChange={(e) => update({ primaryColor: e.target.value, secondaryColor: e.target.value })}
-              className="absolute inset-0 cursor-pointer opacity-0"
-              aria-label="Pick a custom colour"
-            />
-            {!activePresetId && <Check className="pointer-events-none h-4 w-4 text-white drop-shadow" />}
-          </label>
+        <SectionLabel icon={<Palette className="h-3.5 w-3.5" />}>Colours</SectionLabel>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              ['primaryColor', 'Accent', value.primaryColor, '#059669', false],
+              ['secondaryColor', 'Secondary', value.secondaryColor, '#10b981', false],
+              ['buttonColor', 'Button', value.buttonColor, value.primaryColor, true],
+              ['headingColor', 'Headings', value.headingColor, value.bodyTextColor || '#0f172a', true],
+              ['bodyTextColor', 'Body text', value.bodyTextColor, '#0f172a', true],
+              ['mutedTextColor', 'Muted text', value.mutedTextColor, '#64748b', true],
+              ['pageBackgroundColor', 'Page background', value.pageBackgroundColor, '#ffffff', true],
+              ['surfaceColor', 'Cards / sections', value.surfaceColor, '#ffffff', true],
+              ['surfaceMutedColor', 'Muted surfaces', value.surfaceMutedColor, '#f4f6fa', true],
+              ['borderColor', 'Borders', value.borderColor, '#d8e0ec', true],
+              ['headerBgColor', 'Header', value.headerBgColor, '#ffffff', true],
+              ['footerBgColor', 'Footer', value.footerBgColor, '#ffffff', true],
+            ] as const
+          ).map(([key, label, current, fallback, clearable]) => (
+            <div
+              key={key}
+              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: ui.borderColor, background: ui.cardBg, color: ui.text }}
+            >
+              <span className="font-medium">{label}</span>
+              <span className="flex items-center gap-2">
+                <TurnoutColorPicker
+                  value={asHex(current, fallback)}
+                  onChange={(hex) => update({ [key]: hex })}
+                  ariaLabel={label}
+                  tone={ui.isDark ? 'dark' : 'light'}
+                />
+                {clearable && current ? (
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold underline-offset-2 hover:underline"
+                    style={{ color: ui.textMuted }}
+                    onClick={() => update({ [key]: undefined })}
+                  >
+                    Reset
+                  </button>
+                ) : null}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Style */}
+      {/* Size */}
       <div className="space-y-3">
-        <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Style</SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
-          {STYLE_OPTIONS.map((opt) => {
-            const active = value.landingStyle === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => update({ landingStyle: opt.id })}
-                className="rounded-xl border p-3 text-left transition"
-                style={
-                  active
-                    ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.text }
-                    : { borderColor: ui.borderColor, background: ui.cardBg, color: ui.text }
-                }
-              >
-                <p className="text-sm font-semibold">{opt.name}</p>
-                <p className="mt-0.5 text-xs" style={{ color: ui.textSubtle }}>
-                  {opt.hint}
-                </p>
-              </button>
-            );
-          })}
+        <SectionLabel icon={<TypeIcon className="h-3.5 w-3.5" />}>Size</SectionLabel>
+        <div className="space-y-3">
+          {(
+            [
+              ['h1FontSize', 'Heading (H1)', value.h1FontSize, 40, 22, 72],
+              ['h2FontSize', 'Subheading (H2)', value.h2FontSize, 24, 16, 48],
+              ['bodyFontSize', 'Paragraph', value.bodyFontSize, 16, 12, 24],
+              ['smallFontSize', 'Small / caption', value.smallFontSize, 13, 10, 18],
+            ] as const
+          ).map(([key, label, current, fallback, min, max]) => (
+            <div key={key} className="rounded-xl border px-3 py-2" style={{ borderColor: ui.borderColor, background: ui.cardBg }}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-sm font-medium" style={{ color: ui.text }}>
+                  {label}
+                </span>
+                <span className="flex items-center gap-2 text-[11px]" style={{ color: ui.textMuted }}>
+                  {current ? `${current}px` : `Auto · ${fallback}px`}
+                  {current ? (
+                    <button type="button" className="font-semibold underline-offset-2 hover:underline" onClick={() => update({ [key]: undefined })}>
+                      Reset
+                    </button>
+                  ) : null}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={min}
+                max={max}
+                step={1}
+                value={typeof current === 'number' ? current : fallback}
+                onChange={(e) => update({ [key]: Number(e.target.value) })}
+                className="w-full"
+                aria-label={label}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -239,27 +238,53 @@ export function LandingCustomizer({
         </div>
       </div>
 
-      {/* Display */}
+      {/* Style */}
       <div className="space-y-3">
-        <SectionLabel icon={<Sparkles className="h-3.5 w-3.5" />}>Display</SectionLabel>
-        <div
-          className="flex gap-1 rounded-xl border p-1"
-          style={{ borderColor: ui.borderColor, background: ui.cardMutedBg }}
-        >
-          {DISPLAY_OPTIONS.map((opt) => {
-            const active = value.displayMode === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => update({ displayMode: opt.id })}
-                className={segmentBase}
-                style={accentSegmentStyleFor(ui, active)}
-              >
-                {opt.name}
-              </button>
-            );
-          })}
+        <SectionLabel icon={<Bold className="h-3.5 w-3.5" />}>Style</SectionLabel>
+        <div className="space-y-2">
+          {(
+            [
+              ['Heading (H1)', 'h1Bold', 'h1Italic', 'h1Underline', value.h1Bold, value.h1Italic, value.h1Underline],
+              ['Subheading (H2)', 'h2Bold', 'h2Italic', 'h2Underline', value.h2Bold, value.h2Italic, value.h2Underline],
+              ['Paragraph', 'bodyBold', 'bodyItalic', 'bodyUnderline', value.bodyBold, value.bodyItalic, value.bodyUnderline],
+              ['Small / caption', 'smallBold', 'smallItalic', 'smallUnderline', value.smallBold, value.smallItalic, value.smallUnderline],
+            ] as const
+          ).map(([label, boldKey, italicKey, underlineKey, bold, italic, underline]) => (
+            <div
+              key={label}
+              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2"
+              style={{ borderColor: ui.borderColor, background: ui.cardBg }}
+            >
+              <span className="text-sm font-medium" style={{ color: ui.text }}>
+                {label}
+              </span>
+              <div className="flex items-center gap-1.5">
+                {(
+                  [
+                    [boldKey, bold, Bold, 'Bold'],
+                    [italicKey, italic, Italic, 'Italic'],
+                    [underlineKey, underline, Underline, 'Underline'],
+                  ] as const
+                ).map(([key, active, Icon, title]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    title={title}
+                    aria-pressed={!!active}
+                    onClick={() => update({ [key]: !active || undefined })}
+                    className="grid h-8 w-8 place-items-center rounded-lg border transition"
+                    style={
+                      active
+                        ? { borderColor: ui.accent, background: ui.accentSoft, color: ui.accent }
+                        : { borderColor: ui.borderColor, background: ui.cardMutedBg, color: ui.textMuted }
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

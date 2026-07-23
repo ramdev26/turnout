@@ -28,7 +28,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const isPublicLanding =
     /^\/e\/[^/]+$/.test(path) ||
-    (/^\/events\/[^/]+$/.test(path) && !/^\/events\/(new|themes)$/.test(path));
+    /^\/e\/[^/]+\/checkout$/.test(path) ||
+    (/^\/events\/[^/]+$/.test(path) && !/^\/events\/(new|themes)$/.test(path)) ||
+    (/^\/events\/[^/]+\/checkout$/.test(path) && !/^\/events\/(new|themes)\//.test(path));
   const isStaffCheckin = /^\/staff\/checkin\/[^/]+$/.test(path);
   const isOrganizerConsole =
     /^\/dashboard/.test(path) || /^\/events\/(new|themes)/.test(path);

@@ -1,13 +1,13 @@
 /* Arena — mobile-first venue / fight-night ticket layout */
 
 .landing-arena {
-  --arena-bg: #ffffff;
-  --arena-header-bg: #0a0a0a;
-  --arena-border: #eeeeee;
-  --arena-text: #111111;
-  --arena-muted: #666666;
+  --arena-bg: var(--landing-page-bg, #ffffff);
+  --arena-header-bg: var(--landing-header-bg, #0a0a0a);
+  --arena-border: var(--landing-border, #eeeeee);
+  --arena-text: var(--landing-text, #111111);
+  --arena-muted: var(--landing-text-muted, #666666);
   --arena-popular: #e11d48;
-  --arena-surface: #f7f7f7;
+  --arena-surface: var(--landing-surface-muted, #f7f7f7);
   container-type: inline-size;
   container-name: arena;
   background: var(--arena-bg);
@@ -406,12 +406,14 @@
 .landing-arena-title {
   margin-top: 0.35rem;
   font-family: var(--landing-font-display);
-  font-size: clamp(1.5rem, 5vw, 1.875rem);
-  font-weight: 800;
+  font-size: var(--landing-h1-size, clamp(1.5rem, 5vw, 1.875rem));
+  font-weight: var(--landing-h1-weight, 800);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
   line-height: 1.08;
   letter-spacing: -0.02em;
   text-transform: uppercase;
-  color: var(--arena-text);
+  color: var(--landing-heading, var(--arena-text));
 }
 
 @container arena (min-width: 1024px) {
@@ -649,8 +651,10 @@
 }
 
 .landing-arena-section-title {
-  font-size: 1.375rem;
-  font-weight: 800;
+  font-size: var(--landing-h2-size, 1.375rem);
+  font-weight: var(--landing-h2-weight, 800);
+  font-style: var(--landing-h2-style, normal);
+  text-decoration: var(--landing-h2-decoration, none);
   letter-spacing: -0.02em;
 }
 
@@ -776,13 +780,13 @@
   margin-left: auto;
   border-radius: 0.4rem;
   border: none;
-  background: var(--arena-text);
+  background: var(--landing-button, var(--arena-text));
   padding: 0.45rem 1rem;
   font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--landing-on-button, #fff);
 }
 
 .landing-arena-add-btn:disabled {
@@ -807,12 +811,12 @@
   gap: 0.4rem;
   border: none;
   border-radius: 0.5rem;
-  background: var(--arena-text);
+  background: var(--landing-button, var(--arena-text));
   font-size: 0.8125rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--landing-on-button, #fff);
 }
 
 .landing-arena-checkout-btn:disabled {

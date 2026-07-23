@@ -26,6 +26,15 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     $event['organizerName'] = $orgName !== '' ? $orgName : ($displayName !== '' ? $displayName : 'Organizer');
     $logo = trim((string)($profile['logoUrl'] ?? ''));
     $event['organizerLogoUrl'] = $logo !== '' ? $logo : null;
+    $terms = trim((string)($profile['termsHtml'] ?? ''));
+    $event['organizerTermsHtml'] = $terms !== '' ? $terms : null;
+  }
+
+  if ($pdo !== null && function_exists('attach_bank_transfer_to_public_event')) {
+    $organizerUserId = (int)($row['organizer_user_id'] ?? 0);
+    if ($organizerUserId > 0) {
+      attach_bank_transfer_to_public_event($event, $pdo, $organizerUserId, $row);
+    }
   }
 
   return $event;
@@ -45,6 +54,50 @@ function require_publishable_event(PDO $pdo, int $eventId): array {
     json_response(404, ['error' => 'event_not_found']);
   }
   return $row;
+}
+
+function ensure_order_policy_acceptance_columns(PDO $pdo): void {
+  static $checked = false;
+  if ($checked) return;
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $cols = [
+    'accepted_organizer_terms_at' => $driver === 'pgsql' ? 'TIMESTAMP NULL' : 'DATETIME NULL',
+    'accepted_event_policy_at' => $driver === 'pgsql' ? 'TIMESTAMP NULL' : 'DATETIME NULL',
+  ];
+  foreach ($cols as $name => $type) {
+    try {
+      if ($driver === 'pgsql') {
+        $pdo->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS {$name} {$type}");
+      } else {
+        $pdo->exec("ALTER TABLE orders ADD COLUMN {$name} {$type}");
+      }
+    } catch (Throwable $e) {
+      // Column may already exist.
+    }
+  }
+  $checked = true;
+}
+
+function require_checkout_policy_acceptance(array $body): void {
+  $acceptedTerms = !empty($body['acceptedOrganizerTerms']);
+  $acceptedPolicy = !empty($body['acceptedEventPolicy']);
+  if (!$acceptedTerms || !$acceptedPolicy) {
+    json_response(400, [
+      'error' => 'policy_acceptance_required',
+      'message' => 'Please accept the organizer Terms & Conditions and the Event policy to continue.',
+    ]);
+  }
+}
+
+function mark_order_policy_acceptance(PDO $pdo, int $orderId): void {
+  ensure_order_policy_acceptance_columns($pdo);
+  $stmt = $pdo->prepare(
+    'UPDATE orders
+     SET accepted_organizer_terms_at = CURRENT_TIMESTAMP,
+         accepted_event_policy_at = CURRENT_TIMESTAMP
+     WHERE id = ?'
+  );
+  $stmt->execute([$orderId]);
 }
 
 function normalize_order_items_from_db(PDO $pdo, int $eventId, array $items): array {

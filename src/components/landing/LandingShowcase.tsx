@@ -11,6 +11,7 @@ import {
   Ticket,
   Lock,
   TrendingUp,
+  Video,
 } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
@@ -22,7 +23,9 @@ import {
   ticketRemaining,
   useCountdown,
 } from './LandingShared';
+import { EventPolicyLink } from './EventPolicyViewer';
 import { formatLKRWhole } from '../../utils/money';
+import { isOnlineEvent } from '../../utils/eventLocation';
 
 function splitHeroTitle(title: string): { accent: string; main: string } {
   const trimmed = title.trim();
@@ -184,8 +187,12 @@ function ShowcaseHero({ event }: { event: Event }) {
           <p className="value">{dateStr}</p>
         </div>
         <div className="landing-showcase-info-card">
-          <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
-          <p className="label">Venue</p>
+          {isOnlineEvent(event.customization, event.location) ? (
+            <Video className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+          ) : (
+            <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+          )}
+          <p className="label">{isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}</p>
           <p className="value">{event.location || 'Venue to be announced'}</p>
         </div>
       </div>
@@ -623,6 +630,7 @@ function ShowcaseFooter({ event }: { event: Event }) {
           <a href="#landing-venue" onClick={(e) => { e.preventDefault(); scroll('landing-venue'); }}>
             Venue
           </a>
+          <EventPolicyLink html={event.customization?.eventPolicyHtml} />
         </nav>
       </div>
     </footer>

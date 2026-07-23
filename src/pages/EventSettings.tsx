@@ -7,6 +7,9 @@ import {
   Copy,
   ExternalLink,
   Eye,
+  FileText,
+  CreditCard,
+  Landmark,
   MapPin,
   Plus,
   Ticket as TicketIcon,
@@ -19,10 +22,20 @@ import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
 import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
-import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
+import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
+import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
+import {
+  EventLocationMode,
+  OnlineEventPlatform,
+  formatEventLocationDisplay,
+  isValidMeetingUrl,
+  resolveEventLocationMode,
+  resolveOnlinePlatform,
+} from '../utils/eventLocation';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventCategoryPicker } from '../components/organizer/EventCategoryPicker';
@@ -36,24 +49,13 @@ import { resolveLandingFontKey } from '../themes/landingFonts';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
 import { absoluteAppUrl } from '../lib/publicAppUrl';
+import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
+import { TurnoutColorPicker } from '../components/ui/TurnoutColorPicker';
+import { DEFAULT_EVENT_POLICY_HTML, resolveEventPolicyHtml } from '../utils/eventPolicy';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function formatScheduleDay(value: string): string {
-  if (!value) return 'Select date';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'Select date';
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-function formatScheduleTime(value: string): string {
-  if (!value) return '--:--';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function normalizeBannerUrl(url: string): string {
@@ -147,7 +149,10 @@ export const EventSettings: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [shortDescription, setShortDescription] = useState('');
+  const [locationMode, setLocationMode] = useState<EventLocationMode>('physical');
   const [location, setLocation] = useState('');
+  const [onlinePlatform, setOnlinePlatform] = useState<OnlineEventPlatform>('google_meet');
+  const [onlineUrl, setOnlineUrl] = useState('');
   const [date, setDate] = useState('');
   const [scheduleTba, setScheduleTba] = useState(false);
   const [bannerUrl, setBannerUrl] = useState('');
@@ -170,10 +175,17 @@ export const EventSettings: React.FC = () => {
     publicUrl: false,
     tickets: true,
     checkout: false,
+    policy: false,
+    payments: false,
     advanced: false,
   });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
+  const [policyModalOpen, setPolicyModalOpen] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [allowPayhere, setAllowPayhere] = useState(true);
+  const [allowBankTransfer, setAllowBankTransfer] = useState(false);
+  const [savingPaymentMethods, setSavingPaymentMethods] = useState(false);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -186,6 +198,7 @@ export const EventSettings: React.FC = () => {
   const [ticketPdfFooterNote, setTicketPdfFooterNote] = useState('Please bring this ticket and a valid ID.');
   const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantity: 100, description: '' });
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
+  const [eventPolicyHtml, setEventPolicyHtml] = useState(DEFAULT_EVENT_POLICY_HTML);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
@@ -208,7 +221,11 @@ export const EventSettings: React.FC = () => {
       setTitle(ev.title);
       setDescription(ev.description || '');
       setShortDescription(ev.customization?.heroSubtext || '');
-      setLocation(ev.location);
+      const mode = resolveEventLocationMode(ev.customization);
+      setLocationMode(mode);
+      setOnlinePlatform(resolveOnlinePlatform(ev.customization));
+      setOnlineUrl(ev.customization?.onlineUrl || '');
+      setLocation(mode === 'online' ? '' : ev.location);
       setDate(toDatetimeLocalValue(new Date(ev.date)));
       setScheduleTba(!!ev.customization?.scheduleTba);
       setBannerUrl(ev.bannerUrl || '');
@@ -231,6 +248,32 @@ export const EventSettings: React.FC = () => {
           landing.landingStyle === 'minimal' || landing.landingStyle === 'bold' || landing.landingStyle === 'glass'
             ? landing.landingStyle
             : templateDefaults.landingStyle,
+        buttonColor: landing.buttonColor,
+        headingColor: landing.headingColor,
+        bodyTextColor: landing.bodyTextColor,
+        mutedTextColor: landing.mutedTextColor,
+        pageBackgroundColor: landing.pageBackgroundColor,
+        surfaceColor: landing.surfaceColor,
+        surfaceMutedColor: landing.surfaceMutedColor,
+        borderColor: landing.borderColor,
+        headerBgColor: landing.headerBgColor,
+        footerBgColor: landing.footerBgColor,
+        h1FontSize: landing.h1FontSize,
+        h2FontSize: landing.h2FontSize,
+        bodyFontSize: landing.bodyFontSize,
+        smallFontSize: landing.smallFontSize,
+        h1Bold: landing.h1Bold,
+        h1Italic: landing.h1Italic,
+        h1Underline: landing.h1Underline,
+        h2Bold: landing.h2Bold,
+        h2Italic: landing.h2Italic,
+        h2Underline: landing.h2Underline,
+        bodyBold: landing.bodyBold,
+        bodyItalic: landing.bodyItalic,
+        bodyUnderline: landing.bodyUnderline,
+        smallBold: landing.smallBold,
+        smallItalic: landing.smallItalic,
+        smallUnderline: landing.smallUnderline,
       });
       setTicketPdfTemplateId((ev.customization?.ticketPdfTemplateId as 'classic' | 'midnight' | 'sunset') || 'classic');
       setTicketPdfPrimaryColor(
@@ -242,6 +285,18 @@ export const EventSettings: React.FC = () => {
       setTicketPdfBadgeText(ev.customization?.ticketPdfBadgeText || 'VIP ACCESS');
       setTicketPdfFooterNote(ev.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.');
       setCheckoutFields(normalizeCheckoutFields(ev.customization?.checkoutFields));
+      setEventPolicyHtml(resolveEventPolicyHtml(ev.customization?.eventPolicyHtml));
+      const pm = ev.customization?.paymentMethods;
+      const payhereOn =
+        typeof ev.allowPayhere === 'boolean'
+          ? ev.allowPayhere
+          : typeof pm?.payhere === 'boolean'
+            ? pm.payhere
+            : typeof ev.customization?.allowPayhere === 'boolean'
+              ? ev.customization.allowPayhere
+              : true;
+      setAllowPayhere(payhereOn);
+      setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer || !!pm?.bankTransfer);
 
       const [ticketsRes, attendeesRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
@@ -288,21 +343,27 @@ export const EventSettings: React.FC = () => {
     let score = 0;
     if (slug.length >= 3) score += 20;
     if (tickets.length > 0) score += 20;
-    if (location.trim().length > 2) score += 20;
+    const locationOk =
+      locationMode === 'online' ? isValidMeetingUrl(onlineUrl) : location.trim().length > 2;
+    if (locationOk) score += 20;
     if (scheduleTba || !!date) score += 20;
     if (event?.status === 'published') score += 20;
     return score;
-  }, [date, event?.status, location, scheduleTba, slug, tickets.length]);
+  }, [date, event?.status, location, locationMode, onlineUrl, scheduleTba, slug, tickets.length]);
 
   const previewEvent = useMemo((): Event | null => {
     if (!event) return null;
     const baseCustomization = landingCustomizationFromDesign(design, themeId);
+    const resolvedLocation =
+      locationMode === 'online'
+        ? formatEventLocationDisplay({ mode: 'online', platform: onlinePlatform })
+        : location.trim() || 'Venue to be announced';
     return {
       ...event,
       title: title.trim() || 'Your event title',
       description:
         description.trim() || event.description || 'Join us for an unforgettable live experience. Reserve your passes online.',
-      location: location.trim() || 'Venue to be announced',
+      location: resolvedLocation,
       date: !scheduleTba && date ? new Date(date).toISOString() : event.date,
       bannerUrl: bannerUrl ? normalizeBannerUrl(bannerUrl) : event.bannerUrl,
       slug: slug || event.slug,
@@ -312,6 +373,9 @@ export const EventSettings: React.FC = () => {
         ...event.customization,
         ...baseCustomization,
         scheduleTba,
+        locationMode,
+        onlinePlatform: locationMode === 'online' ? onlinePlatform : undefined,
+        onlineUrl: locationMode === 'online' ? onlineUrl.trim() || undefined : undefined,
         heroSubtext: shortDescription.trim(),
         heroText: title.trim() || event.title,
         layout: event.customization?.layout || 'standard',
@@ -326,6 +390,9 @@ export const EventSettings: React.FC = () => {
     design,
     event,
     location,
+    locationMode,
+    onlinePlatform,
+    onlineUrl,
     scheduleTba,
     shortDescription,
     slug,
@@ -405,11 +472,30 @@ export const EventSettings: React.FC = () => {
     setError(null);
     setFeedback(null);
     try {
+      if (locationMode === 'physical' && !location.trim()) {
+        setError('Add a venue or place for this event.');
+        setSavingBranding(false);
+        return;
+      }
+      if (locationMode === 'online' && !isValidMeetingUrl(onlineUrl)) {
+        setError('Enter a valid meeting or stream link (https://…).');
+        setSavingBranding(false);
+        return;
+      }
+
+      const resolvedLocation =
+        locationMode === 'online'
+          ? formatEventLocationDisplay({ mode: 'online', platform: onlinePlatform })
+          : location.trim();
+
       const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
         themeId,
         title: title.trim(),
         description: description.trim(),
-        location: location.trim(),
+        location: resolvedLocation,
+        locationMode,
+        onlinePlatform: locationMode === 'online' ? onlinePlatform : null,
+        onlineUrl: locationMode === 'online' ? onlineUrl.trim() : null,
         date: new Date(date).toISOString(),
         bannerUrl: bannerUrl || undefined,
         heroSubtext: shortDescription.trim(),
@@ -420,13 +506,41 @@ export const EventSettings: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        buttonColor: design.buttonColor || null,
+        headingColor: design.headingColor || null,
+        bodyTextColor: design.bodyTextColor || null,
+        mutedTextColor: design.mutedTextColor || null,
+        pageBackgroundColor: design.pageBackgroundColor || null,
+        surfaceColor: design.surfaceColor || null,
+        surfaceMutedColor: design.surfaceMutedColor || null,
+        borderColor: design.borderColor || null,
+        headerBgColor: design.headerBgColor || null,
+        footerBgColor: design.footerBgColor || null,
+        h1FontSize: design.h1FontSize ?? null,
+        h2FontSize: design.h2FontSize ?? null,
+        bodyFontSize: design.bodyFontSize ?? null,
+        smallFontSize: design.smallFontSize ?? null,
+        h1Bold: design.h1Bold ?? null,
+        h1Italic: design.h1Italic ?? null,
+        h1Underline: design.h1Underline ?? null,
+        h2Bold: design.h2Bold ?? null,
+        h2Italic: design.h2Italic ?? null,
+        h2Underline: design.h2Underline ?? null,
+        bodyBold: design.bodyBold ?? null,
+        bodyItalic: design.bodyItalic ?? null,
+        bodyUnderline: design.bodyUnderline ?? null,
+        smallBold: design.smallBold ?? null,
+        smallItalic: design.smallItalic ?? null,
+        smallUnderline: design.smallUnderline ?? null,
         templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
+        eventPolicyHtml,
         arenaGalleryImages,
       });
       setEvent(res.event);
       setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
+      setEventPolicyHtml(resolveEventPolicyHtml(res.event.customization?.eventPolicyHtml));
       setDesign((prev) => ({
         ...prev,
         templateId: resolveLayoutTemplateId(res.event.templateId),
@@ -436,12 +550,92 @@ export const EventSettings: React.FC = () => {
         fontFamily: resolveLandingFontKey(res.event.customization?.fontFamily) || prev.fontFamily,
         displayMode: (res.event.customization?.displayMode as LandingDesignValue['displayMode']) || prev.displayMode,
         landingStyle: (res.event.customization?.landingStyle as LandingDesignValue['landingStyle']) || prev.landingStyle,
+        buttonColor: res.event.customization?.buttonColor,
+        headingColor: res.event.customization?.headingColor,
+        bodyTextColor: res.event.customization?.bodyTextColor,
+        mutedTextColor: res.event.customization?.mutedTextColor,
+        pageBackgroundColor: res.event.customization?.pageBackgroundColor,
+        surfaceColor: res.event.customization?.surfaceColor,
+        surfaceMutedColor: res.event.customization?.surfaceMutedColor,
+        borderColor: res.event.customization?.borderColor,
+        headerBgColor: res.event.customization?.headerBgColor,
+        footerBgColor: res.event.customization?.footerBgColor,
+        h1FontSize: res.event.customization?.h1FontSize,
+        h2FontSize: res.event.customization?.h2FontSize,
+        bodyFontSize: res.event.customization?.bodyFontSize,
+        smallFontSize: res.event.customization?.smallFontSize,
+        h1Bold: res.event.customization?.h1Bold,
+        h1Italic: res.event.customization?.h1Italic,
+        h1Underline: res.event.customization?.h1Underline,
+        h2Bold: res.event.customization?.h2Bold,
+        h2Italic: res.event.customization?.h2Italic,
+        h2Underline: res.event.customization?.h2Underline,
+        bodyBold: res.event.customization?.bodyBold,
+        bodyItalic: res.event.customization?.bodyItalic,
+        bodyUnderline: res.event.customization?.bodyUnderline,
+        smallBold: res.event.customization?.smallBold,
+        smallItalic: res.event.customization?.smallItalic,
+        smallUnderline: res.event.customization?.smallUnderline,
       }));
       setFeedback('Event details and theme saved.');
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to save changes');
     } finally {
       setSavingBranding(false);
+    }
+  };
+
+  const saveEventPolicy = async (html: string) => {
+    if (!eventId) return;
+    setSavingPolicy(true);
+    setError(null);
+    try {
+      const next = resolveEventPolicyHtml(html);
+      const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
+        eventPolicyHtml: next,
+      });
+      setEvent(res.event);
+      setEventPolicyHtml(resolveEventPolicyHtml(res.event.customization?.eventPolicyHtml));
+      setPolicyModalOpen(false);
+      setFeedback('Event policy saved.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save event policy');
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  const savePaymentMethods = async (next: { payhere: boolean; bankTransfer: boolean }) => {
+    if (!eventId) return;
+    setSavingPaymentMethods(true);
+    setError(null);
+    try {
+      const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
+        paymentMethods: {
+          payhere: next.payhere,
+          bankTransfer: next.bankTransfer,
+        },
+      });
+      setEvent(res.event);
+      const pm = res.event.customization?.paymentMethods;
+      setAllowPayhere(
+        typeof res.event.allowPayhere === 'boolean'
+          ? res.event.allowPayhere
+          : typeof pm?.payhere === 'boolean'
+            ? pm.payhere
+            : true
+      );
+      setAllowBankTransfer(
+        !!res.event.customization?.allowBankTransfer || !!res.event.allowBankTransfer || !!pm?.bankTransfer
+      );
+      setFeedback('Payment methods updated for this event.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to update payment methods');
+      await loadAll();
+    } finally {
+      setSavingPaymentMethods(false);
     }
   };
 
@@ -560,9 +754,12 @@ export const EventSettings: React.FC = () => {
     return (
       <div
         className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center"
-        style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)' }}
+        style={{ background: ui.pageBg }}
       >
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: ui.accent }} />
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-2 border-t-transparent"
+          style={{ borderColor: ui.borderColor, borderTopColor: ui.accent }}
+        />
       </div>
     );
   }
@@ -864,7 +1061,13 @@ export const EventSettings: React.FC = () => {
                         {formatScheduleTime(date)}
                       </p>
                     </div>
-                    <input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} style={fieldStyle} />
+                    <TurnoutDateTimePicker
+                      value={date}
+                      onChange={setDate}
+                      fieldClassName={fieldClass}
+                      fieldStyle={fieldStyle}
+                      tone={ui.isDark ? 'dark' : 'light'}
+                    />
                   </div>
                 </div>
               )}
@@ -872,7 +1075,11 @@ export const EventSettings: React.FC = () => {
 
             <SettingsCollapsibleSection
               title="Location"
-              subtitle={location.trim() || 'Venue or place'}
+              subtitle={
+                locationMode === 'online'
+                  ? formatEventLocationDisplay({ mode: 'online', platform: onlinePlatform })
+                  : location.trim() || 'Venue or place'
+              }
               icon={<MapPin className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
               open={isSectionOpen('location')}
               onToggle={() => toggleSection('location')}
@@ -880,14 +1087,16 @@ export const EventSettings: React.FC = () => {
               cardStyle={cardStyle}
               ui={ui}
             >
-              <LocationAutocomplete
-                value={location}
-                onChange={setLocation}
-                placeholder="Search venue or place"
-                className={fieldClass}
-                style={fieldStyle}
-                hintClassName="mt-2 text-xs"
-                hintStyle={{ color: ui.textMuted }}
+              <EventLocationFields
+                ui={ui}
+                mode={locationMode}
+                physicalLocation={location}
+                onlinePlatform={onlinePlatform}
+                onlineUrl={onlineUrl}
+                onModeChange={setLocationMode}
+                onPhysicalLocationChange={setLocation}
+                onOnlinePlatformChange={setOnlinePlatform}
+                onOnlineUrlChange={setOnlineUrl}
               />
             </SettingsCollapsibleSection>
 
@@ -1068,7 +1277,8 @@ export const EventSettings: React.FC = () => {
               ui={ui}
             >
               <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
-                Collect extra details from each ticket holder. Saved when you save event details.
+                Collect extra details from each ticket holder. Choose field type (short text, long text, number,
+                dropdown, or radio) and save with event details.
               </p>
               <CheckoutFieldsEditor
                 fields={checkoutFields}
@@ -1078,6 +1288,179 @@ export const EventSettings: React.FC = () => {
                 fieldStyle={fieldStyle}
                 cardMutedStyle={cardMutedStyle}
               />
+            </SettingsCollapsibleSection>
+
+            <SettingsCollapsibleSection
+              title="Event policy"
+              subtitle="Default template ready · edit anytime"
+              open={isSectionOpen('policy')}
+              onToggle={() => toggleSection('policy')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Every event starts with a clear ticket &amp; refund policy. Customize it for your venue, or insert the
+                default template again anytime.
+              </p>
+              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full"
+                      style={{ background: ui.accentSoft, color: ui.accent }}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-semibold" style={{ color: ui.text }}>
+                        Event policy
+                      </p>
+                      <p className="mt-0.5 text-sm" style={{ color: ui.textMuted }}>
+                        Shown on your public event page for attendees.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPolicyModalOpen(true)}
+                    className="shrink-0 rounded-xl px-3.5 py-2 text-sm font-semibold"
+                    style={accentButtonStyleFor(ui)}
+                  >
+                    Edit policy
+                  </button>
+                </div>
+                <div
+                  className="event-policy-content max-h-40 overflow-hidden text-sm leading-relaxed opacity-90"
+                  style={{ color: ui.textMuted }}
+                  dangerouslySetInnerHTML={{ __html: eventPolicyHtml }}
+                />
+              </div>
+            </SettingsCollapsibleSection>
+
+            <SettingsCollapsibleSection
+              title="Payment methods"
+              subtitle={
+                [allowPayhere ? 'PayHere' : null, allowBankTransfer ? 'Bank transfer' : null]
+                  .filter(Boolean)
+                  .join(' · ') || 'None enabled'
+              }
+              icon={<CreditCard className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('payments')}
+              onToggle={() => toggleSection('payments')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Choose which payment methods attendees can use for this event. Configure providers in{' '}
+                <Link to="/dashboard/organization" className="font-semibold underline underline-offset-2">
+                  Organization → Payments
+                </Link>
+                .
+              </p>
+
+              <div className="overflow-hidden rounded-2xl border" style={cardMutedStyle}>
+                <label className="flex items-start gap-3 border-b px-4 py-3.5" style={{ borderColor: ui.borderColor }}>
+                  <input
+                    type="checkbox"
+                    checked={allowPayhere}
+                    disabled={savingPaymentMethods}
+                    onChange={(e) => {
+                      const nextPayhere = e.target.checked;
+                      setAllowPayhere(nextPayhere);
+                      void savePaymentMethods({ payhere: nextPayhere, bankTransfer: allowBankTransfer });
+                    }}
+                    className="mt-1 h-4 w-4"
+                    style={{ accentColor: ui.accent }}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold" style={{ color: ui.text }}>
+                        PayHere
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={
+                          allowPayhere
+                            ? { background: 'rgba(16, 185, 129, 0.14)', color: '#059669' }
+                            : { background: 'rgba(245, 158, 11, 0.16)', color: '#d97706' }
+                        }
+                      >
+                        {allowPayhere ? 'Active' : 'Inactive'}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 block text-sm" style={{ color: ui.textMuted }}>
+                      Card / online checkout with instant confirmation
+                    </span>
+                  </span>
+                  <CreditCard className="mt-0.5 h-4 w-4 shrink-0" style={{ color: ui.textMuted }} />
+                </label>
+
+                <label className="flex items-start gap-3 px-4 py-3.5">
+                  <input
+                    type="checkbox"
+                    checked={allowBankTransfer}
+                    disabled={savingPaymentMethods}
+                    onChange={(e) => {
+                      const nextBank = e.target.checked;
+                      setAllowBankTransfer(nextBank);
+                      void savePaymentMethods({ payhere: allowPayhere, bankTransfer: nextBank });
+                    }}
+                    className="mt-1 h-4 w-4"
+                    style={{ accentColor: ui.accent }}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold" style={{ color: ui.text }}>
+                        Bank transfer
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={
+                          allowBankTransfer
+                            ? { background: 'rgba(16, 185, 129, 0.14)', color: '#059669' }
+                            : { background: 'rgba(245, 158, 11, 0.16)', color: '#d97706' }
+                        }
+                      >
+                        {allowBankTransfer ? 'Active' : 'Inactive'}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 block text-sm" style={{ color: ui.textMuted }}>
+                      Attendee transfers funds, uploads slip, you confirm
+                    </span>
+                  </span>
+                  <Landmark className="mt-0.5 h-4 w-4 shrink-0" style={{ color: ui.textMuted }} />
+                </label>
+              </div>
+
+              {paidEventReadiness &&
+              allowBankTransfer &&
+              !(
+                paidEventReadiness.bank.bankAccountHolderName &&
+                paidEventReadiness.bank.bankName &&
+                paidEventReadiness.bank.bankBranch &&
+                paidEventReadiness.bank.bankAccountConfigured
+              ) ? (
+                <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
+                  Add account holder, bank, branch, and account number in Organization settings before bank transfer will
+                  appear at checkout.
+                </p>
+              ) : null}
+
+              {allowBankTransfer && eventId ? (
+                <div className="mt-5">
+                  <h3 className="mb-3 text-sm font-semibold" style={{ color: ui.text }}>
+                    Pending bank transfers
+                  </h3>
+                  <BankTransferOrdersPanel
+                    eventId={eventId}
+                    ui={ui}
+                    onFeedback={setFeedback}
+                    onError={setError}
+                  />
+                </div>
+              ) : null}
             </SettingsCollapsibleSection>
 
             <SettingsCollapsibleSection
@@ -1121,8 +1504,28 @@ export const EventSettings: React.FC = () => {
                         ))}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <input type="color" value={ticketPdfPrimaryColor} onChange={(e) => setTicketPdfPrimaryColor(e.target.value)} className={fieldClass} style={fieldStyle} />
-                        <input type="color" value={ticketPdfAccentColor} onChange={(e) => setTicketPdfAccentColor(e.target.value)} className={fieldClass} style={fieldStyle} />
+                        <div className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={fieldStyle}>
+                          <span className="text-sm font-medium" style={{ color: ui.text }}>
+                            Primary
+                          </span>
+                          <TurnoutColorPicker
+                            value={ticketPdfPrimaryColor}
+                            onChange={setTicketPdfPrimaryColor}
+                            tone={ui.isDark ? 'dark' : 'light'}
+                            ariaLabel="Ticket PDF primary colour"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={fieldStyle}>
+                          <span className="text-sm font-medium" style={{ color: ui.text }}>
+                            Accent
+                          </span>
+                          <TurnoutColorPicker
+                            value={ticketPdfAccentColor}
+                            onChange={setTicketPdfAccentColor}
+                            tone={ui.isDark ? 'dark' : 'light'}
+                            ariaLabel="Ticket PDF accent colour"
+                          />
+                        </div>
                       </div>
                       <input value={ticketPdfBadgeText} onChange={(e) => setTicketPdfBadgeText(e.target.value)} className={fieldClass} style={fieldStyle} />
                       <input value={ticketPdfFooterNote} onChange={(e) => setTicketPdfFooterNote(e.target.value)} className={fieldClass} style={fieldStyle} />
@@ -1201,6 +1604,14 @@ export const EventSettings: React.FC = () => {
       </div>
 
       <LandingDesignDock design={design} onDesignChange={setDesign} />
+      <EventPolicyEditorModal
+        open={policyModalOpen}
+        value={eventPolicyHtml}
+        ui={ui}
+        saving={savingPolicy}
+        onClose={() => setPolicyModalOpen(false)}
+        onSave={(html) => void saveEventPolicy(html)}
+      />
     </div>
   );
 };

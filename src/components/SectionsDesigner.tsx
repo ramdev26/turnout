@@ -4,6 +4,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities';
 import { Event, SectionBlock, SectionDesign, SectionType, Ticket } from '../types';
 import { formatLKR } from '../utils/money';
+import { TurnoutColorPicker } from './ui/TurnoutColorPicker';
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -211,20 +212,18 @@ export const SectionsDesigner: React.FC<Props> = ({ value, onChange, eventPrevie
         <div className="mt-4 grid gap-4">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-neutral-800">Content background</div>
-            <input
-              type="color"
+            <TurnoutColorPicker
               value={value.theme.contentBackground}
-              onChange={(e) => setTheme({ contentBackground: e.target.value })}
-              className="h-10 w-12 rounded-lg border border-neutral-200 bg-white p-1"
+              onChange={(hex) => setTheme({ contentBackground: hex })}
+              ariaLabel="Content background"
             />
           </div>
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-neutral-800">Border</div>
-            <input
-              type="color"
-              value={value.theme.border}
-              onChange={(e) => setTheme({ border: e.target.value })}
-              className="h-10 w-12 rounded-lg border border-neutral-200 bg-white p-1"
+            <TurnoutColorPicker
+              value={/^#[0-9a-f]{6}$/i.test(value.theme.border) ? value.theme.border : '#111714'}
+              onChange={(hex) => setTheme({ border: hex })}
+              ariaLabel="Border colour"
             />
           </div>
         </div>

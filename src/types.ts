@@ -86,6 +86,8 @@ export type OrganizerProfile = {
   bankAccountConfigured?: boolean;
   bankStatementDocUrl?: string | null;
   bankStatementDocUploaded?: boolean;
+  /** Organization Terms & Conditions (HTML). */
+  termsHtml?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
@@ -192,6 +194,16 @@ export type LandingDisplayMode = 'auto' | 'light' | 'dark';
 /** Landing surface treatment (Apple-style "Style" control) */
 export type LandingStyle = 'glass' | 'minimal' | 'bold';
 
+/** Input control for an organizer-defined checkout question. */
+export type CheckoutFieldType = 'text' | 'textarea' | 'number' | 'select' | 'radio';
+
+export type CheckoutFieldOption = {
+  id: string;
+  label: string;
+  /** Value stored on the attendee answer */
+  value: string;
+};
+
 /** Organizer-defined fields collected per ticket holder at checkout (e.g. NIC). */
 export type CheckoutFieldDefinition = {
   id: string;
@@ -199,12 +211,16 @@ export type CheckoutFieldDefinition = {
   /** Stable key stored on each attendee, e.g. `nic` */
   key: string;
   required: boolean;
+  /** Defaults to short text when omitted (back-compat). */
+  type?: CheckoutFieldType;
   placeholder?: string;
+  /** Choices for select / radio fields. */
+  options?: CheckoutFieldOption[];
 };
 
 export interface EventCustomization {
   themeId?: EventThemeId;
-  /** Event category preset (Music, Sports, etc.) applied under the Minimal theme */
+  /** Event category label (Music, Sports, etc.) — separate from design colours */
   eventCategory?: string;
   primaryColor: string;
   secondaryColor: string;
@@ -213,8 +229,46 @@ export interface EventCustomization {
   displayMode?: LandingDisplayMode;
   /** Landing surface style: frosted glass, clean minimal, or bold solid */
   landingStyle?: LandingStyle;
+  /** Deep colour overrides — when set, win over derived theme surfaces */
+  buttonColor?: string;
+  headingColor?: string;
+  bodyTextColor?: string;
+  mutedTextColor?: string;
+  pageBackgroundColor?: string;
+  /** Section / chrome colours for full landing customization */
+  surfaceColor?: string;
+  surfaceMutedColor?: string;
+  borderColor?: string;
+  headerBgColor?: string;
+  footerBgColor?: string;
+  /** Deep type scale overrides (px). When unset, templates keep their default clamps. */
+  h1FontSize?: number;
+  h2FontSize?: number;
+  bodyFontSize?: number;
+  smallFontSize?: number;
+  /** Per-element type emphasis (bold / italic / underline). */
+  h1Bold?: boolean;
+  h1Italic?: boolean;
+  h1Underline?: boolean;
+  h2Bold?: boolean;
+  h2Italic?: boolean;
+  h2Underline?: boolean;
+  bodyBold?: boolean;
+  bodyItalic?: boolean;
+  bodyUnderline?: boolean;
+  smallBold?: boolean;
+  smallItalic?: boolean;
+  smallUnderline?: boolean;
+  /** Per-event ticket / attendance policy (HTML). Falls back to platform default when empty. */
+  eventPolicyHtml?: string;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
+  /** Physical venue vs online meeting / stream */
+  locationMode?: 'physical' | 'online';
+  /** Platform when locationMode is online */
+  onlinePlatform?: 'google_meet' | 'zoom' | 'youtube' | 'other';
+  /** Meeting / stream URL when locationMode is online */
+  onlineUrl?: string;
   heroText: string;
   heroSubtext: string;
   layout: 'standard' | 'centered' | 'split';
@@ -232,6 +286,15 @@ export interface EventCustomization {
   checkoutFields?: CheckoutFieldDefinition[];
   /** Extra carousel slides for Arena template (banner is always slide 1). */
   arenaGalleryImages?: string[];
+  /** When true, attendees may pay via bank transfer (requires organizer bank details). */
+  allowBankTransfer?: boolean;
+  /** When false, PayHere/card checkout is disabled for this event. Defaults to true. */
+  allowPayhere?: boolean;
+  /** Explicit payment method toggles for this event. */
+  paymentMethods?: {
+    payhere?: boolean;
+    bankTransfer?: boolean;
+  };
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }
@@ -296,6 +359,23 @@ export interface Event {
   organizerName?: string;
   /** Organizer logo URL when set in account settings */
   organizerLogoUrl?: string | null;
+  /** Organizer Terms & Conditions HTML for checkout acceptance */
+  organizerTermsHtml?: string | null;
+  /** True when this event accepts bank transfer and organizer bank details are complete */
+  allowBankTransfer?: boolean;
+  /** True when card/online PayHere checkout is enabled for this event */
+  allowPayhere?: boolean;
+  paymentMethods?: {
+    payhere?: boolean;
+    bankTransfer?: boolean;
+  };
+  /** Receiving bank account shown at checkout when bank transfer is enabled */
+  bankTransfer?: {
+    accountHolderName: string;
+    bankName: string;
+    bankBranch: string;
+    accountNumber: string;
+  } | null;
   title: string;
   description: string;
   date: string;
@@ -382,6 +462,16 @@ export interface Order {
   tickets: OrderItem[];
   totalAmount: number;
   status: 'pending' | 'paid' | 'failed';
+  paymentMethod?: 'free' | 'payhere' | 'bank_transfer' | string;
+  bankTransferSlipUrl?: string | null;
+  bankTransferSlipUploadedAt?: string | null;
+  bankTransferConfirmedAt?: string | null;
+  bankTransfer?: {
+    accountHolderName: string;
+    bankName: string;
+    bankBranch: string;
+    accountNumber: string;
+  } | null;
   stripeSessionId?: string;
   createdAt: string;
   /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */

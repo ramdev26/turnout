@@ -15,6 +15,7 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'bank_account_number' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
     'business_registration_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'bank_statement_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
   ];
 
   if ($driver === 'sqlite') {
@@ -114,13 +115,15 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
   $paymentRow = organizer_payment_settings_row($pdo, $ownerUserId);
   $gatewayMode = normalize_organizer_gateway_mode((string)($paymentRow['gateway_mode'] ?? 'turnout'));
 
-  $needsBusiness = !organizer_business_details_complete($profileRow);
+  $businessIncomplete = !organizer_business_details_complete($profileRow);
+  // Temporarily do not block paid events on business details.
+  $needsBusiness = false;
   $needsBank = $gatewayMode === 'turnout' && !organizer_bank_details_complete($profileRow);
   $needsOwnPayhere = $gatewayMode === 'own_payhere' && !organizer_own_payhere_is_configured($paymentRow);
   $needsBillingCard = $gatewayMode === 'own_payhere' && !organizer_billing_is_active($paymentRow);
 
   $missing = [];
-  if ($needsBusiness) {
+  if ($businessIncomplete) {
     if (trim((string)($profileRow['organization_name'] ?? '')) === '') $missing[] = 'organization_name';
     if (trim((string)($profileRow['business_address'] ?? '')) === '') $missing[] = 'business_address';
     if (trim((string)($profileRow['phone'] ?? '')) === '') $missing[] = 'phone';
@@ -134,7 +137,8 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
     if (trim((string)($profileRow['bank_account_number'] ?? '')) === '') $missing[] = 'bank_account_number';
   }
 
-  $isReady = !$needsBusiness && !$needsBank && !$needsOwnPayhere && !$needsBillingCard;
+  // Business details and billing card are optional and no longer block paid events.
+  $isReady = !$needsBank && !$needsOwnPayhere;
 
   return [
     'isReady' => $isReady,
@@ -335,4 +339,26 @@ function upsert_organizer_profile_paid_event_fields(PDO $pdo, int $userId, array
   }
 
   return load_organizer_profile_row($pdo, $userId);
+}
+
+function sanitize_policy_html(string $raw): string {
+  $clean = strip_tags($raw, '<p><br><br/><strong><b><em><i><u><ul><ol><li><h3><h4><a><span>');
+  $clean = preg_replace('/\son\w+="[^"]*"/i', '', $clean) ?? $clean;
+  $clean = preg_replace("/\son\w+='[^']*'/i", '', $clean) ?? $clean;
+  $clean = preg_replace('/javascript:/i', '', $clean) ?? $clean;
+  return trim($clean);
+}
+
+function upsert_organizer_terms_html(PDO $pdo, int $userId, string $termsHtml): void {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  $clean = sanitize_policy_html($termsHtml);
+  if ($clean === '') {
+    $clean = null;
+  } else {
+    $clean = mb_substr($clean, 0, 20000);
+  }
+  // Ensure a profile row exists first.
+  upsert_organizer_profile_paid_event_fields($pdo, $userId, []);
+  $stmt = $pdo->prepare('UPDATE organizer_profiles SET terms_html = ? WHERE user_id = ?');
+  $stmt->execute([$clean, $userId]);
 }

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { resolveLayoutTemplateId } from '../templates/templates';
-import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
+  AlertCircle,
   ArrowLeft,
   CalendarDays,
   ChevronDown,
@@ -21,12 +22,13 @@ import { useAuthStore } from '../store/useAuthStore';
 import { Event, EventCustomization, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
-import { LocationAutocomplete } from '../components/ui/LocationAutocomplete';
+import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventCategoryPicker } from '../components/organizer/EventCategoryPicker';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { formatEventLocationDisplay, isValidMeetingUrl } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
@@ -34,6 +36,8 @@ import { EVENT_CATEGORIES } from '../themes/eventCategories';
 import { resolveTemplateDesignDefaults } from '../themes/templateDefaults';
 import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
+import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
+import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -47,9 +51,12 @@ const eventSchema = z
     slug: z.string().optional(),
     description: z.string().optional(),
     shortDescription: z.string().max(160, 'Keep it under 160 characters').optional(),
-    date: z.string().min(1, 'Start time is required'),
+    date: z.string().optional().or(z.literal('')),
     endDate: z.string().optional(),
-    location: z.string().min(1, 'Location is required'),
+    locationMode: z.enum(['physical', 'online']),
+    location: z.string(),
+    onlinePlatform: z.enum(['google_meet', 'zoom', 'youtube', 'other']),
+    onlineUrl: z.string().optional(),
     bannerUrl: z
       .string()
       .refine(
@@ -72,6 +79,21 @@ const eventSchema = z
     dnsConfigured: z.boolean(),
   })
   .superRefine((data, ctx) => {
+    if (data.locationMode === 'physical') {
+      if (!(data.location || '').trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Location is required',
+          path: ['location'],
+        });
+      }
+    } else if (!isValidMeetingUrl(data.onlineUrl || '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid meeting or stream link (https://…)',
+        path: ['onlineUrl'],
+      });
+    }
     if (data.endDate && data.date) {
       const start = new Date(data.date).getTime();
       const end = new Date(data.endDate).getTime();
@@ -106,61 +128,6 @@ function fieldClassFor(ui: CreateThemeUI): string {
   );
 }
 
-function openNativePicker(el: HTMLInputElement) {
-  if (typeof el.showPicker === 'function') {
-    try {
-      el.showPicker();
-    } catch {
-      el.focus();
-    }
-  } else {
-    el.focus();
-  }
-}
-
-function ScheduleDateTimeField({
-  id,
-  label,
-  labelColor,
-  value,
-  onChange,
-  fieldClass,
-  fieldStyle,
-  isDark,
-  min,
-}: {
-  id: string;
-  label: string;
-  labelColor: string;
-  value: string;
-  onChange: (next: string) => void;
-  fieldClass: string;
-  fieldStyle: React.CSSProperties;
-  isDark: boolean;
-  min?: string;
-}) {
-  const localValue = value.includes('T') ? value.slice(0, 16) : '';
-  return (
-    <label className="space-y-1" htmlFor={id}>
-      <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: labelColor }}>
-        <CalendarDays className="h-3.5 w-3.5 opacity-70" />
-        {label}
-      </span>
-      <input
-        id={id}
-        type="datetime-local"
-        value={localValue}
-        min={min}
-        step={300}
-        onChange={(e) => onChange(e.target.value)}
-        onClick={(e) => openNativePicker(e.currentTarget)}
-        className={cn(fieldClass, 'min-h-[44px] cursor-pointer')}
-        style={{ ...fieldStyle, colorScheme: isDark ? 'dark' : 'light' }}
-      />
-    </label>
-  );
-}
-
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -183,20 +150,6 @@ function defaultEndDate(startIso: string): string {
   const end = new Date(start);
   end.setHours(end.getHours() + 1);
   return toDatetimeLocalValue(end);
-}
-
-function formatScheduleDay(value: string): string {
-  if (!value) return 'Select date';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'Select date';
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-function formatScheduleTime(value: string): string {
-  if (!value) return '--:--';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function Toggle({
@@ -272,6 +225,7 @@ export const CreateEvent: React.FC = () => {
     control,
     handleSubmit,
     setValue,
+    setFocus,
     watch,
     formState: { errors },
   } = useForm<EventFormValues>({
@@ -282,7 +236,10 @@ export const CreateEvent: React.FC = () => {
       shortDescription: '',
       date: defaultStartDate(),
       endDate: '',
+      locationMode: 'physical',
       location: '',
+      onlinePlatform: 'google_meet',
+      onlineUrl: '',
       bannerUrl: '',
       tickets: [{ name: 'General Admission', price: 0, quantity: 500 }],
       requireApproval: false,
@@ -295,6 +252,7 @@ export const CreateEvent: React.FC = () => {
     },
   });
 
+  const submitErrorRef = React.useRef<HTMLDivElement>(null);
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'tickets' });
 
   const title = watch('title');
@@ -302,7 +260,10 @@ export const CreateEvent: React.FC = () => {
   const shortDescription = watch('shortDescription');
   const date = watch('date');
   const endDate = watch('endDate');
+  const locationMode = watch('locationMode');
   const location = watch('location');
+  const onlinePlatform = watch('onlinePlatform');
+  const onlineUrl = watch('onlineUrl');
   const bannerUrl = watch('bannerUrl');
   const tickets = watch('tickets');
   const requireApproval = watch('requireApproval');
@@ -402,19 +363,92 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
+  const collectFormErrorMessages = (formErrors: FieldErrors<EventFormValues>): string[] => {
+    const messages: string[] = [];
+    const push = (message?: string) => {
+      if (message && !messages.includes(message)) messages.push(message);
+    };
+
+    push(formErrors.title?.message);
+    if (hasSchedule) {
+      if (!(date || '').trim()) push('Start date & time is required');
+      else push(formErrors.date?.message);
+      push(formErrors.endDate?.message);
+    }
+    push(formErrors.location?.message);
+    push(formErrors.onlineUrl?.message);
+    push(formErrors.shortDescription?.message);
+    push(formErrors.bannerUrl?.message);
+    push(formErrors.customDomain?.message);
+    push(formErrors.tickets?.message || formErrors.tickets?.root?.message);
+
+    const ticketErrors = formErrors.tickets;
+    if (Array.isArray(ticketErrors)) {
+      ticketErrors.forEach((tier, index) => {
+        if (!tier) return;
+        push(tier.name?.message ? `Ticket ${index + 1}: ${tier.name.message}` : undefined);
+        push(tier.price?.message ? `Ticket ${index + 1}: ${tier.price.message}` : undefined);
+        push(tier.quantity?.message ? `Ticket ${index + 1}: ${tier.quantity.message}` : undefined);
+      });
+    }
+
+    return messages;
+  };
+
+  const showValidationFeedback = (formErrors: FieldErrors<EventFormValues> = errors) => {
+    const messages = collectFormErrorMessages(formErrors);
+    setSubmitError(
+      messages.length > 0
+        ? `Please complete the required fields: ${messages.join(' · ')}`
+        : 'Please complete the required fields before creating your event.'
+    );
+    requestAnimationFrame(() => {
+      submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    const firstField =
+      formErrors.title
+        ? 'title'
+        : hasSchedule && (!(date || '').trim() || formErrors.date)
+          ? 'date'
+          : formErrors.location
+            ? 'location'
+            : formErrors.customDomain
+              ? 'customDomain'
+              : null;
+    if (firstField === 'title' || firstField === 'location' || firstField === 'customDomain') {
+      try {
+        setFocus(firstField);
+      } catch {
+        /* field may be unmounted */
+      }
+    }
+  };
+
+  const onInvalid = (formErrors: FieldErrors<EventFormValues>) => {
+    showValidationFeedback(formErrors);
+  };
+
   const onSubmit = async (data: EventFormValues) => {
     if (!user) return;
     setSubmitError(null);
+
+    if (hasSchedule && !(data.date || '').trim()) {
+      showValidationFeedback({ date: { type: 'required', message: 'Start date & time is required' } });
+      return;
+    }
 
     if (ticketMode === 'paid') {
       const hasPaidTier = data.tickets.some((t) => t.price > 0);
       if (!hasPaidTier) {
         setSubmitError('Add at least one paid ticket tier with a price greater than 0.');
+        submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
       if (paidEventReadiness && !paidEventReadiness.isReady) {
         setShowPaidSetupGate(true);
         setSubmitError('Complete business and payment setup in Organization settings before publishing a paid event.');
+        submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
     }
@@ -429,7 +463,37 @@ export const CreateEvent: React.FC = () => {
         fontFamily: design.fontFamily,
         displayMode: design.displayMode,
         landingStyle: design.landingStyle,
+        buttonColor: design.buttonColor,
+        headingColor: design.headingColor,
+        bodyTextColor: design.bodyTextColor,
+        mutedTextColor: design.mutedTextColor,
+        pageBackgroundColor: design.pageBackgroundColor,
+        surfaceColor: design.surfaceColor,
+        surfaceMutedColor: design.surfaceMutedColor,
+        borderColor: design.borderColor,
+        headerBgColor: design.headerBgColor,
+        footerBgColor: design.footerBgColor,
+        h1FontSize: design.h1FontSize,
+        h2FontSize: design.h2FontSize,
+        bodyFontSize: design.bodyFontSize,
+        smallFontSize: design.smallFontSize,
+        h1Bold: design.h1Bold,
+        h1Italic: design.h1Italic,
+        h1Underline: design.h1Underline,
+        h2Bold: design.h2Bold,
+        h2Italic: design.h2Italic,
+        h2Underline: design.h2Underline,
+        bodyBold: design.bodyBold,
+        bodyItalic: design.bodyItalic,
+        bodyUnderline: design.bodyUnderline,
+        smallBold: design.smallBold,
+        smallItalic: design.smallItalic,
+        smallUnderline: design.smallUnderline,
+        eventPolicyHtml: DEFAULT_EVENT_POLICY_HTML,
         scheduleTba: !hasSchedule,
+        locationMode: data.locationMode,
+        onlinePlatform: data.locationMode === 'online' ? data.onlinePlatform : undefined,
+        onlineUrl: data.locationMode === 'online' ? (data.onlineUrl || '').trim() : undefined,
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
@@ -458,12 +522,17 @@ export const CreateEvent: React.FC = () => {
               description: data.requireApproval ? 'Requires organizer approval' : undefined,
             }));
 
+      const resolvedLocation =
+        data.locationMode === 'online'
+          ? formatEventLocationDisplay({ mode: 'online', platform: data.onlinePlatform })
+          : data.location.trim();
+
       const created = await api.post<{ eventId: string; slug: string }>('/api/events', {
         slug: data.slug,
         title: data.title,
         description: (data.description || '').trim() || `Join us for ${data.title}.`,
         date: data.date,
-        location: data.location,
+        location: resolvedLocation,
         bannerUrl: data.bannerUrl || `https://picsum.photos/seed/${Date.now()}/1200/600`,
         templateId: design.templateId,
         customization,
@@ -485,14 +554,26 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
-  const canSubmit = title.length >= 3 && !!date && !!location?.trim();
+  const locationReady =
+    locationMode === 'online'
+      ? isValidMeetingUrl(onlineUrl || '')
+      : Boolean((location || '').trim());
+
+  const canSubmit = title.trim().length >= 3 && locationReady && (!hasSchedule || !!(date || '').trim());
 
   const previewEvent = useMemo((): Event => {
     const scheduleTba = !hasSchedule;
     const baseCustomization = landingCustomizationFromDesign(design, themeId);
+    const resolvedLocation =
+      locationMode === 'online'
+        ? formatEventLocationDisplay({ mode: 'online', platform: onlinePlatform })
+        : location.trim() || 'Venue to be announced';
     const customization: EventCustomization = {
       ...baseCustomization,
       scheduleTba,
+      locationMode,
+      onlinePlatform: locationMode === 'online' ? onlinePlatform : undefined,
+      onlineUrl: locationMode === 'online' ? (onlineUrl || '').trim() || undefined : undefined,
       heroSubtext: (shortDescription || '').trim(),
       heroText: title.trim() || 'Your event title',
       layout: 'standard',
@@ -510,7 +591,7 @@ export const CreateEvent: React.FC = () => {
         (description || '').trim() ||
         `Join us for ${title.trim() || 'an unforgettable live experience'}. Reserve your passes online.`,
       date: hasSchedule && date ? new Date(date).toISOString() : new Date().toISOString(),
-      location: location.trim() || 'Venue to be announced',
+      location: resolvedLocation,
       bannerUrl: bannerUrl
         ? normalizeBannerUrl(bannerUrl)
         : 'https://picsum.photos/seed/turnout-create-preview/1200/600',
@@ -526,6 +607,9 @@ export const CreateEvent: React.FC = () => {
     design,
     hasSchedule,
     location,
+    locationMode,
+    onlinePlatform,
+    onlineUrl,
     shortDescription,
     themeId,
     title,
@@ -617,7 +701,7 @@ export const CreateEvent: React.FC = () => {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={cn(
@@ -669,8 +753,13 @@ export const CreateEvent: React.FC = () => {
             {/* Right column */}
             <div className="flex flex-col">
               {submitError && (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                  {submitError}
+                <div
+                  ref={submitErrorRef}
+                  role="alert"
+                  className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{submitError}</span>
                 </div>
               )}
 
@@ -767,15 +856,14 @@ export const CreateEvent: React.FC = () => {
                         {formatScheduleTime(date)}
                       </p>
                     </div>
-                    <ScheduleDateTimeField
+                    <TurnoutDateTimePicker
                       id="event-start-datetime"
                       label="Start date & time"
-                      labelColor={ui.textSubtle}
                       value={date}
                       onChange={(next) => setValue('date', next, { shouldValidate: true })}
-                      fieldClass={fieldClass}
+                      fieldClassName={fieldClass}
                       fieldStyle={fieldStyle}
-                      isDark={ui.isDark}
+                      tone={ui.isDark ? 'dark' : 'light'}
                     />
                     {errors.date && <p className="text-xs text-rose-600">{errors.date.message}</p>}
                   </div>
@@ -799,16 +887,15 @@ export const CreateEvent: React.FC = () => {
                           {formatScheduleTime(endDate || defaultEndDate(date))}
                         </p>
                       </div>
-                      <ScheduleDateTimeField
+                      <TurnoutDateTimePicker
                         id="event-end-datetime"
                         label="End date & time"
-                        labelColor={ui.textSubtle}
                         value={endDate || defaultEndDate(date)}
                         min={date}
                         onChange={(next) => setValue('endDate', next, { shouldValidate: true })}
-                        fieldClass={fieldClass}
+                        fieldClassName={fieldClass}
                         fieldStyle={fieldStyle}
-                        isDark={ui.isDark}
+                        tone={ui.isDark ? 'dark' : 'light'}
                       />
                       {errors.endDate && <p className="text-xs text-rose-600">{errors.endDate.message}</p>}
                       <button
@@ -840,26 +927,24 @@ export const CreateEvent: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <MapPin className="mt-1 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
                   <div className="min-w-0 flex-1">
-                    <Controller
-                      name="location"
-                      control={control}
-                      render={({ field }) => (
-                        <LocationAutocomplete
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          placeholder="Search venue or place"
-                          className="w-full border-0 bg-transparent p-0 text-sm font-medium focus:outline-none"
-                          style={{ color: ui.text }}
-                          hintClassName="mt-0.5 text-xs"
-                          hintStyle={{ color: ui.textSubtle }}
-                        />
-                      )}
-                    />
-                    <p className="mt-0.5 text-xs" style={{ color: ui.textSubtle }}>
-                      Venue or place name — not a street address
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                      Location
                     </p>
-                    {errors.location && <p className="mt-1 text-xs text-rose-600">{errors.location.message}</p>}
+                    <EventLocationFields
+                      ui={ui}
+                      compact
+                      mode={locationMode}
+                      physicalLocation={location}
+                      onlinePlatform={onlinePlatform}
+                      onlineUrl={onlineUrl || ''}
+                      onModeChange={(mode) => setValue('locationMode', mode, { shouldValidate: true })}
+                      onPhysicalLocationChange={(value) => setValue('location', value, { shouldValidate: true })}
+                      onOnlinePlatformChange={(platform) =>
+                        setValue('onlinePlatform', platform, { shouldValidate: true })
+                      }
+                      onOnlineUrlChange={(url) => setValue('onlineUrl', url, { shouldValidate: true })}
+                      error={errors.location?.message || errors.onlineUrl?.message || null}
+                    />
                   </div>
                 </div>
               </div>
@@ -1197,11 +1282,11 @@ export const CreateEvent: React.FC = () => {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={isSubmitting || !canSubmit}
+                disabled={isSubmitting}
                 className="turnout-btn-accent mt-6 w-full rounded-xl px-8 py-3.5 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={accentButtonStyleFor(ui)}
                 onMouseEnter={(e) => {
-                  if (!isSubmitting && canSubmit) e.currentTarget.style.backgroundColor = ui.accentHover;
+                  if (!isSubmitting) e.currentTarget.style.backgroundColor = ui.accentHover;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = ui.accent;
@@ -1209,9 +1294,10 @@ export const CreateEvent: React.FC = () => {
               >
                 {isSubmitting ? 'Creating…' : 'Create Event'}
               </button>
-              {!canSubmit && (
+              {!canSubmit && !submitError && (
                 <p className="mt-2 text-center text-xs" style={{ color: ui.textSubtle }}>
-                  Add event name, start time, and location to continue.
+                  Tip: event name and a venue or meeting link are required
+                  {hasSchedule ? ', plus a start date & time' : ''}.
                 </p>
               )}
             </div>
