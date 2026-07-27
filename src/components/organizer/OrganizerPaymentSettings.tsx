@@ -209,7 +209,11 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
       setSettings(res.settings);
       setReadiness(res.readiness);
       setBankAccountNumber('');
-      onFeedback?.('Bank account saved.');
+      onFeedback?.(
+        res.readiness?.isReady
+          ? 'Bank account saved. You can publish paid events now.'
+          : 'Bank account saved.'
+      );
     } catch (e: unknown) {
       onError?.(formatApiError(e, 'Failed to save bank account'));
     } finally {

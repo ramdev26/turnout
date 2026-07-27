@@ -494,7 +494,7 @@ export const OrganizerAccount: React.FC = () => {
                       Latest bank statement
                     </p>
                     <p className="mt-0.5 text-xs" style={{ color: ui.textMuted }}>
-                      PDF, JPG, PNG, or WEBP · max 8MB
+                      Optional · PDF, JPG, PNG, or WEBP · max 8MB
                     </p>
                     <label
                       className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold disabled:opacity-60"

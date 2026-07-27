@@ -66,11 +66,11 @@ function organizer_business_details_complete(array $profileRow): bool {
 }
 
 function organizer_bank_details_complete(array $profileRow): bool {
+  // Bank statement upload remains optional KYC — do not block paid events on it.
   return trim((string)($profileRow['bank_account_holder_name'] ?? '')) !== ''
     && trim((string)($profileRow['bank_name'] ?? '')) !== ''
     && trim((string)($profileRow['bank_branch'] ?? '')) !== ''
-    && trim((string)($profileRow['bank_account_number'] ?? '')) !== ''
-    && trim((string)($profileRow['bank_statement_doc_url'] ?? '')) !== '';
+    && trim((string)($profileRow['bank_account_number'] ?? '')) !== '';
 }
 
 function mask_bank_account_number(string $accountNumber): ?string {
@@ -176,9 +176,13 @@ function assert_organizer_can_sell_paid_tickets(PDO $pdo, int $ownerUserId, floa
   $readiness = organizer_paid_event_readiness($pdo, $ownerUserId);
   if ($readiness['isReady']) return;
 
+  $hint = ($readiness['gatewayMode'] ?? '') === 'own_payhere'
+    ? 'Add your PayHere merchant credentials in Organization → Payments before selling paid tickets.'
+    : 'Add your bank payout details in Organization → Payments before selling paid tickets.';
+
   json_response(400, [
     'error' => 'paid_event_setup_required',
-    'message' => 'Complete your business and payment setup in Organization settings before selling paid tickets.',
+    'message' => $hint,
     'readiness' => $readiness,
   ]);
 }

@@ -76,8 +76,8 @@ export const PaidEventSetupGate: React.FC<Props> = ({
             {title}
           </h3>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Free events can go live right away. Before your first paid event, complete the setup below in Organization
-            settings.
+            Free events can go live right away. Before publishing a paid event, add payout details in Organization →
+            Payments.
           </p>
 
           <div className="mt-4 space-y-2">
@@ -86,7 +86,7 @@ export const PaidEventSetupGate: React.FC<Props> = ({
                 done={bankDone}
                 icon={<Landmark className="h-4 w-4" />}
                 label="Bank account for payouts"
-                  detail="Account holder name, bank, branch, account number, and latest bank statement."
+                detail="Account holder name, bank name, branch, and account number."
               />
             ) : (
               <>

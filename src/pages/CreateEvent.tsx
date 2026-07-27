@@ -319,12 +319,10 @@ export const CreateEvent: React.FC = () => {
   };
 
   const switchToPaidMode = () => {
-    if (paidEventReadiness && !paidEventReadiness.isReady) {
-      setShowPaidSetupGate(true);
-      return;
-    }
-    setShowPaidSetupGate(false);
+    // Always enter paid mode so organizers can configure tiers. If payout setup is
+    // incomplete, show the gate and still block publish via onSubmit / API assert.
     setTicketMode('paid');
+    setShowPaidSetupGate(Boolean(paidEventReadiness && !paidEventReadiness.isReady));
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
         { name: 'Early Bird', price: 1500, quantity: 50 },
@@ -447,7 +445,11 @@ export const CreateEvent: React.FC = () => {
       }
       if (paidEventReadiness && !paidEventReadiness.isReady) {
         setShowPaidSetupGate(true);
-        setSubmitError('Complete business and payment setup in Organization settings before publishing a paid event.');
+        setSubmitError(
+          paidEventReadiness.gatewayMode === 'own_payhere'
+            ? 'Add your PayHere merchant credentials in Organization → Payments before publishing a paid event.'
+            : 'Add your bank payout details in Organization → Payments before publishing a paid event.'
+        );
         submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
@@ -1017,7 +1019,7 @@ export const CreateEvent: React.FC = () => {
                   </div>
                 </div>
 
-                {ticketMode === 'paid' && showPaidSetupGate ? (
+                {ticketMode === 'paid' && paidEventReadiness && !paidEventReadiness.isReady ? (
                   <div className="mb-4">
                     <PaidEventSetupGate
                       readiness={paidEventReadiness}
