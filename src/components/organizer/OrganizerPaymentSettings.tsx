@@ -25,9 +25,13 @@ type Props = {
 type ExpandedSection = 'providers' | 'installments' | 'bank_transfer' | 'payouts' | null;
 
 const PROVIDER_LOGOS = {
+  // Official remote URLs (preferred in browser). Local copies used as reliable fallbacks.
   payhere: 'https://www.payhere.lk/downloads/images/payhere_long_banner.png',
-  koko: 'https://paykoko.com/img/logo1.7ff549c0.png',
-  mintpay:
+  payhereFallback: '/payment-logos/payhere.svg',
+  koko: '/payment-logos/koko.png',
+  kokoRemote: 'https://paykoko.com/img/logo1.7ff549c0.png',
+  mintpay: '/payment-logos/mintpay.png',
+  mintpayRemote:
     'https://objectstorage.ap-mumbai-1.oraclecloud.com/n/softlogicbicloud/b/cdn/o/payment-method-images/62d940d670e2b.png',
 } as const;
 
@@ -38,6 +42,7 @@ const OWN_GATEWAY_OPTIONS: Array<{
   accent: string;
   mark: string;
   logoUrl?: string;
+  logoFallback?: string;
 }> = [
   {
     id: 'payhere',
@@ -46,6 +51,7 @@ const OWN_GATEWAY_OPTIONS: Array<{
     accent: '#2563EB',
     mark: 'PH',
     logoUrl: PROVIDER_LOGOS.payhere,
+    logoFallback: PROVIDER_LOGOS.payhereFallback,
   },
   { id: 'webx', name: 'WebX Pay', available: false, accent: '#7C3AED', mark: 'WX' },
   { id: 'directpay', name: 'DirectPay', available: false, accent: '#0D9488', mark: 'DP' },
@@ -98,35 +104,53 @@ function ProviderLogo({
   alt,
   size = 'md',
   wide = false,
+  fallbackSrc,
 }: {
   src: string;
   alt: string;
   size?: 'sm' | 'md' | 'lg';
   wide?: boolean;
+  fallbackSrc?: string;
 }) {
+  const [currentSrc, setCurrentSrc] = useState(src);
   const height = size === 'sm' ? 'h-8' : size === 'lg' ? 'h-12' : 'h-10';
   const width = wide
     ? size === 'sm'
-      ? 'w-24'
+      ? 'w-28'
       : size === 'lg'
-        ? 'w-40'
-        : 'w-32'
+        ? 'w-44'
+        : 'w-36'
     : size === 'sm'
-      ? 'w-14'
+      ? 'w-16'
       : size === 'lg'
-        ? 'w-24'
-        : 'w-20';
+        ? 'w-28'
+        : 'w-24';
+
+  useEffect(() => {
+    setCurrentSrc(src);
+  }, [src]);
 
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white px-2 shadow-sm',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white px-2.5 shadow-sm',
         height,
         width
       )}
       style={{ borderColor: 'rgba(255,255,255,0.18)' }}
     >
-      <img src={src} alt={alt} className="max-h-full max-w-full object-contain" loading="lazy" />
+      <img
+        src={currentSrc}
+        alt={alt}
+        className="max-h-full max-w-full object-contain"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => {
+          if (fallbackSrc && currentSrc !== fallbackSrc) {
+            setCurrentSrc(fallbackSrc);
+          }
+        }}
+      />
     </span>
   );
 }
@@ -341,7 +365,13 @@ function GatewayPickerModal({
                 }}
               >
                 {option.logoUrl ? (
-                  <ProviderLogo src={option.logoUrl} alt={option.name} wide={option.id === 'payhere'} size="md" />
+                  <ProviderLogo
+                    src={option.logoUrl}
+                    alt={option.name}
+                    wide={option.id === 'payhere'}
+                    size="md"
+                    fallbackSrc={option.logoFallback}
+                  />
                 ) : (
                   <BrandMark mark={option.mark} accent={option.accent} />
                 )}
@@ -716,7 +746,13 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <ProviderLogo src={PROVIDER_LOGOS.payhere} alt="PayHere" wide size="md" />
+                  <ProviderLogo
+                    src={PROVIDER_LOGOS.payhere}
+                    alt="PayHere"
+                    wide
+                    size="md"
+                    fallbackSrc={PROVIDER_LOGOS.payhereFallback}
+                  />
                   <div>
                     <p className="text-sm font-semibold" style={{ color: ui.text }}>
                       Gateway credentials
@@ -844,8 +880,18 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               onClick={() => void saveInstallments('turnout')}
               trailing={
                 <span className="inline-flex items-center gap-1.5">
-                  <ProviderLogo src={PROVIDER_LOGOS.koko} alt="Koko" size="sm" />
-                  <ProviderLogo src={PROVIDER_LOGOS.mintpay} alt="Mintpay" size="sm" />
+                  <ProviderLogo
+                    src={PROVIDER_LOGOS.kokoRemote}
+                    alt="Koko"
+                    size="sm"
+                    fallbackSrc={PROVIDER_LOGOS.koko}
+                  />
+                  <ProviderLogo
+                    src={PROVIDER_LOGOS.mintpayRemote}
+                    alt="Mintpay"
+                    size="sm"
+                    fallbackSrc={PROVIDER_LOGOS.mintpay}
+                  />
                 </span>
               }
             />
@@ -876,7 +922,12 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <ProviderLogo src={PROVIDER_LOGOS.koko} alt="Koko" size="sm" />
+                      <ProviderLogo
+                        src={PROVIDER_LOGOS.kokoRemote}
+                        alt="Koko"
+                        size="sm"
+                        fallbackSrc={PROVIDER_LOGOS.koko}
+                      />
                       Koko
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
@@ -922,7 +973,12 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <ProviderLogo src={PROVIDER_LOGOS.mintpay} alt="Mintpay" size="sm" />
+                      <ProviderLogo
+                        src={PROVIDER_LOGOS.mintpayRemote}
+                        alt="Mintpay"
+                        size="sm"
+                        fallbackSrc={PROVIDER_LOGOS.mintpay}
+                      />
                       Mintpay
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
