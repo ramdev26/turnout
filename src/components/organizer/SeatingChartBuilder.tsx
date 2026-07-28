@@ -116,10 +116,23 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
       boxShadow: isSelected ? '0 10px 24px rgba(0,0,0,0.35)' : '0 6px 14px rgba(0,0,0,0.25)',
     };
 
+    const dragHandle = (
+      <div
+        className="seating-drag-handle flex items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+        style={{ background: 'rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.18)', cursor: 'grab' }}
+      >
+        <span>{el.type}</span>
+        <span style={{ color: 'rgba(255,255,255,0.75)' }}>Drag</span>
+      </div>
+    );
+
     if (el.type === 'stage') {
       return (
-        <div style={{ ...shellStyle, borderRadius: 18, display: 'grid', placeItems: 'center', background: 'rgba(15, 56, 74, 0.88)' }}>
-          <p className="text-xs font-bold uppercase tracking-[0.18em]">{el.props.name || 'Stage'}</p>
+        <div style={{ ...shellStyle, borderRadius: 18, background: 'rgba(15, 56, 74, 0.88)' }}>
+          {dragHandle}
+          <div className="grid h-[calc(100%-28px)] place-items-center">
+            <p className="text-xs font-bold uppercase tracking-[0.18em]">{el.props.name || 'Stage'}</p>
+          </div>
         </div>
       );
     }
@@ -128,7 +141,9 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
       const cols = Math.max(1, Number(el.props.cols) || 1);
       const rowPrefix = String(el.props.prefix || 'A').charAt(0).toUpperCase();
       return (
-        <div style={{ ...shellStyle, padding: 6 }}>
+        <div style={{ ...shellStyle, padding: 0 }}>
+          {dragHandle}
+          <div className="p-1.5">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-200">
             {el.props.priceTier || 'Tier'} · {rowPrefix}-{String.fromCharCode(rowPrefix.charCodeAt(0) + rows - 1)}
           </p>
@@ -137,13 +152,16 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
               <span key={i} className="rounded-full border border-cyan-200/60 bg-cyan-300/20" />
             ))}
           </div>
+          </div>
         </div>
       );
     }
     if (el.type === 'table') {
       const seats = Math.max(2, Number(el.props.seats) || 8);
       return (
-        <div style={{ ...shellStyle, display: 'grid', placeItems: 'center' }}>
+        <div style={{ ...shellStyle, display: 'grid', placeItems: 'stretch' }}>
+          {dragHandle}
+          <div className="relative grid h-[calc(100%-30px)] place-items-center">
           <div className="relative grid h-14 w-14 place-items-center rounded-full border-2 border-emerald-200/80 bg-emerald-300/20 text-xs font-bold">
             {el.props.name || 'Table'}
             {Array.from({ length: Math.min(seats, 12) }).map((_, i) => (
@@ -156,24 +174,31 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
               />
             ))}
           </div>
+          </div>
         </div>
       );
     }
     if (el.type === 'group') {
       return (
-        <div style={{ ...shellStyle, padding: 10 }}>
+        <div style={{ ...shellStyle, padding: 0 }}>
+          {dragHandle}
+          <div className="p-2.5">
           <p className="text-xs font-bold text-amber-200">{el.props.name || 'Group hold'}</p>
           <p className="mt-1 text-[11px] text-amber-100/80">Seats: {Number(el.props.seats) || 0}</p>
           <p className="text-[10px] uppercase tracking-wide text-amber-100/70">Code: {el.props.code || 'HOLD'}</p>
+          </div>
         </div>
       );
     }
     return (
-      <div style={{ ...shellStyle, padding: 10 }}>
+      <div style={{ ...shellStyle, padding: 0 }}>
+        {dragHandle}
+        <div className="p-2.5">
         <p className="text-xs font-bold" style={{ color: el.props.color || '#7dd3fc' }}>
           {el.props.tier || 'Pricing tier'}
         </p>
         <p className="mt-1 text-sm font-extrabold">LKR {Number(el.props.price || 0).toLocaleString()}</p>
+        </div>
       </div>
     );
   };
@@ -224,6 +249,9 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
               size={{ width: el.w, height: el.h }}
               position={{ x: el.x, y: el.y }}
               bounds="parent"
+              dragHandleClassName="seating-drag-handle"
+              enableUserSelectHack
+              style={{ touchAction: 'none' }}
               onDragStart={() => setSelectedId(el.id)}
               onDragStop={(_, d) => updateElement(el.id, { x: d.x, y: d.y })}
               onResizeStart={() => setSelectedId(el.id)}
