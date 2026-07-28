@@ -597,7 +597,7 @@ export const OrganizerAccount: React.FC = () => {
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Choose checkout, installments, bank transfer, and payouts for your organization.
+            Set up checkout, installments, bank transfer, and payouts — step by step.
           </p>
           <div className="mt-5">
             <OrganizerPaymentSettingsPanel

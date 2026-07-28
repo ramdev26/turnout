@@ -13,7 +13,7 @@ import { startPayHerePreapprove } from '../../lib/payhereCheckout';
 import { formatApiError } from '../../utils/apiError';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../flow/FlowPrimitives';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
+import { cardStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
 import { cn } from '../../utils/cn';
 
 type Props = {
@@ -31,19 +31,30 @@ const OWN_GATEWAY_OPTIONS: Array<{
   accent: string;
   mark: string;
 }> = [
-  { id: 'payhere', name: 'PayHere', available: true, accent: '#0A6CFF', mark: 'PH' },
-  { id: 'webx', name: 'WebX Pay', available: false, accent: '#111827', mark: 'WX' },
-  { id: 'directpay', name: 'DirectPay', available: false, accent: '#0F766E', mark: 'DP' },
+  { id: 'payhere', name: 'PayHere', available: true, accent: '#2563EB', mark: 'PH' },
+  { id: 'webx', name: 'WebX Pay', available: false, accent: '#7C3AED', mark: 'WX' },
+  { id: 'directpay', name: 'DirectPay', available: false, accent: '#0D9488', mark: 'DP' },
 ];
 
+function hoverOverlay(isDark: boolean): string {
+  return isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)';
+}
+
 function StatusBadge({ active, label }: { active: boolean; label?: string }) {
+  const ui = APP_FLOW_UI;
   return (
     <span
       className="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
       style={
         active
-          ? { background: 'rgba(16, 185, 129, 0.14)', color: '#059669' }
-          : { background: 'rgba(148, 163, 184, 0.18)', color: '#64748b' }
+          ? {
+              background: ui.isDark ? 'rgba(192, 255, 114, 0.16)' : 'rgba(16, 185, 129, 0.14)',
+              color: ui.isDark ? ui.accent : '#059669',
+            }
+          : {
+              background: ui.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(148, 163, 184, 0.18)',
+              color: ui.textMuted,
+            }
       }
     >
       {label || (active ? 'Active' : 'Off')}
@@ -51,10 +62,14 @@ function StatusBadge({ active, label }: { active: boolean; label?: string }) {
   );
 }
 
-function BrandMark({ mark, accent }: { mark: string; accent: string }) {
+function BrandMark({ mark, accent, size = 'md' }: { mark: string; accent: string; size?: 'sm' | 'md' }) {
+  const dim = size === 'sm' ? 'h-8 w-8 text-[10px]' : 'h-11 w-11 text-xs';
   return (
     <span
-      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-extrabold tracking-wide text-white"
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-xl font-extrabold tracking-wide text-white shadow-sm',
+        dim
+      )}
       style={{ background: accent }}
       aria-hidden
     >
@@ -88,12 +103,19 @@ function SectionCard({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-black/[0.02]"
+        className="flex w-full items-center gap-3 px-4 py-4 text-left transition"
+        style={{ background: expanded ? hoverOverlay(ui.isDark) : 'transparent' }}
+        onMouseEnter={(e) => {
+          if (!expanded) e.currentTarget.style.background = hoverOverlay(ui.isDark);
+        }}
+        onMouseLeave={(e) => {
+          if (!expanded) e.currentTarget.style.background = 'transparent';
+        }}
       >
         {icon ? (
           <div
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-            style={{ background: ui.accentSoft, color: ui.accent }}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border"
+            style={{ background: ui.accentSoft, color: ui.accent, borderColor: ui.borderColor }}
           >
             {icon}
           </div>
@@ -113,7 +135,10 @@ function SectionCard({
         />
       </button>
       {expanded ? (
-        <div className="border-t px-4 py-4" style={{ borderColor: ui.borderColor }}>
+        <div
+          className="border-t px-4 py-4"
+          style={{ borderColor: ui.borderColor, background: ui.isDark ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.015)' }}
+        >
           {children}
         </div>
       ) : null}
@@ -137,15 +162,14 @@ function ChoiceCard({
   trailing?: React.ReactNode;
 }) {
   const ui = APP_FLOW_UI;
-  const muted = cardMutedStyleFor(ui);
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="w-full rounded-xl border p-3.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+      className="w-full rounded-xl border p-3.5 text-left transition disabled:cursor-not-allowed disabled:opacity-55"
       style={{
-        ...muted,
+        backgroundColor: selected ? ui.accentSoft : ui.fieldBg,
         borderColor: selected ? ui.accent : ui.borderColor,
         boxShadow: selected ? `0 0 0 1px ${ui.accent}` : undefined,
       }}
@@ -156,10 +180,10 @@ function ChoiceCard({
           style={{
             borderColor: selected ? ui.accent : ui.borderColor,
             background: selected ? ui.accent : 'transparent',
-            color: selected ? '#fff' : 'transparent',
+            color: selected ? ui.accentOn : 'transparent',
           }}
         >
-          <Check className="h-3 w-3" />
+          <Check className="h-3 w-3" strokeWidth={3} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -177,11 +201,124 @@ function ChoiceCard({
   );
 }
 
+function GatewayPickerModal({
+  open,
+  onClose,
+  isOwner,
+  onSelect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  isOwner: boolean;
+  onSelect: (id: OrganizerOwnGatewayId) => void;
+}) {
+  const ui = APP_FLOW_UI;
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const panelBg = ui.isDark ? '#0a3f42' : '#ffffff';
+  const rowBg = ui.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.03)';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      style={{ background: 'rgba(2, 18, 20, 0.72)', backdropFilter: 'blur(6px)' }}
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="w-full max-w-lg overflow-hidden rounded-2xl border shadow-2xl"
+        style={{
+          backgroundColor: panelBg,
+          borderColor: ui.borderColor,
+          color: ui.text,
+          boxShadow: ui.isDark ? '0 24px 64px rgba(0,0,0,0.55)' : '0 24px 64px rgba(15,23,42,0.18)',
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="own-gateway-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-start justify-between gap-3 border-b px-5 py-4"
+          style={{ borderColor: ui.borderColor, background: ui.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)' }}
+        >
+          <div>
+            <h3 id="own-gateway-title" className="text-base font-semibold" style={{ color: ui.text }}>
+              Choose your gateway
+            </h3>
+            <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+              Connect a merchant account you already own. More providers are coming soon.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 transition"
+            style={{ color: ui.textMuted, background: hoverOverlay(ui.isDark) }}
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3 p-5">
+          {OWN_GATEWAY_OPTIONS.map((option) => {
+            const enabled = isOwner && option.available;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={!enabled}
+                onClick={() => onSelect(option.id)}
+                className="flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition disabled:cursor-not-allowed"
+                style={{
+                  borderColor: option.available ? ui.borderColor : ui.borderColor,
+                  background: rowBg,
+                  opacity: option.available ? 1 : 0.72,
+                }}
+              >
+                <BrandMark mark={option.mark} accent={option.accent} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                    {option.name}
+                  </p>
+                  <p className="mt-0.5 text-xs" style={{ color: ui.textMuted }}>
+                    {option.available ? 'Ready to connect' : 'Coming soon'}
+                  </p>
+                </div>
+                {option.available ? (
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-bold"
+                    style={{ background: ui.accent, color: ui.accentOn }}
+                  >
+                    Connect
+                  </span>
+                ) : (
+                  <StatusBadge active={false} label="Soon" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeedback, onError }) => {
   const ui = APP_FLOW_UI;
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
-  const cardMutedStyle = cardMutedStyleFor(ui);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -418,15 +555,20 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <section className="space-y-3">
-        <div>
-          <h3 className="text-sm font-semibold" style={{ color: ui.text }}>
-            Payment providers
-          </h3>
-          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Choose how attendees pay online. Turnout Pay is the default for every new organizer.
-          </p>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-[0.12em]" style={{ color: ui.accent }}>
+              01 · Checkout
+            </h3>
+            <p className="mt-1 text-base font-semibold" style={{ color: ui.text }}>
+              Payment providers
+            </p>
+            <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+              Choose how attendees pay online. Turnout Pay is the default for every new organizer.
+            </p>
+          </div>
         </div>
 
         <SectionCard
@@ -473,15 +615,21 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
             />
 
             {gatewayMode === 'own_payhere' ? (
-              <div className="rounded-xl border p-4" style={cardMutedStyle}>
+              <div
+                className="rounded-xl border p-4"
+                style={{
+                  backgroundColor: ui.fieldBg,
+                  borderColor: ui.borderColor,
+                }}
+              >
                 <div className="flex items-center gap-3">
-                  <BrandMark mark="PH" accent="#0A6CFF" />
+                  <BrandMark mark="PH" accent="#2563EB" />
                   <div>
                     <p className="text-sm font-semibold" style={{ color: ui.text }}>
                       Gateway credentials
                     </p>
                     <p className="text-xs" style={{ color: ui.textMuted }}>
-                      Only PayHere is available right now. Other gateways are coming soon.
+                      Enter your merchant ID and secret to finish connecting.
                     </p>
                   </div>
                 </div>
@@ -529,11 +677,14 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
 
       <section className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold" style={{ color: ui.text }}>
-            Installment payments
+          <h3 className="text-sm font-bold uppercase tracking-[0.12em]" style={{ color: ui.accent }}>
+            02 · Installments
           </h3>
+          <p className="mt-1 text-base font-semibold" style={{ color: ui.text }}>
+            Installment payments
+          </p>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Let attendees pay in installments with Koko or Mintpay.
+            Let attendees pay over time with Koko or Mintpay.
           </p>
         </div>
 
@@ -567,8 +718,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               onClick={() => void saveInstallments('turnout')}
               trailing={
                 <span className="inline-flex items-center gap-1.5">
-                  <BrandMark mark="K" accent="#7C3AED" />
-                  <BrandMark mark="M" accent="#059669" />
+                  <BrandMark mark="K" accent="#7C3AED" size="sm" />
+                  <BrandMark mark="M" accent="#059669" size="sm" />
                 </span>
               }
             />
@@ -584,7 +735,10 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
             />
 
             {installmentMode === 'own' ? (
-              <div className="space-y-4 rounded-xl border p-4" style={cardMutedStyle}>
+              <div
+                className="space-y-4 rounded-xl border p-4"
+                style={{ backgroundColor: ui.fieldBg, borderColor: ui.borderColor }}
+              >
                 <label className="flex items-start gap-3">
                   <input
                     type="checkbox"
@@ -592,10 +746,11 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                     checked={ownKokoEnabled}
                     disabled={!isOwner}
                     onChange={(e) => setOwnKokoEnabled(e.target.checked)}
+                    style={{ accentColor: ui.accent }}
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <BrandMark mark="K" accent="#7C3AED" />
+                      <BrandMark mark="K" accent="#7C3AED" size="sm" />
                       Koko
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
@@ -637,10 +792,11 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                     checked={ownMintpayEnabled}
                     disabled={!isOwner}
                     onChange={(e) => setOwnMintpayEnabled(e.target.checked)}
+                    style={{ accentColor: ui.accent }}
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <BrandMark mark="M" accent="#059669" />
+                      <BrandMark mark="M" accent="#059669" size="sm" />
                       Mintpay
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
@@ -691,11 +847,14 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
 
       <section className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold" style={{ color: ui.text }}>
-            Bank transfer
+          <h3 className="text-sm font-bold uppercase tracking-[0.12em]" style={{ color: ui.accent }}>
+            03 · Bank transfer
           </h3>
+          <p className="mt-1 text-base font-semibold" style={{ color: ui.text }}>
+            Manual payments
+          </p>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Accept manual bank transfers. Attendees upload a slip and you confirm payment.
+            Accept bank transfers with slip upload and organizer confirmation.
           </p>
         </div>
 
@@ -731,9 +890,12 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
 
       <section className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold" style={{ color: ui.text }}>
-            Payouts setup
+          <h3 className="text-sm font-bold uppercase tracking-[0.12em]" style={{ color: ui.accent }}>
+            04 · Payouts
           </h3>
+          <p className="mt-1 text-base font-semibold" style={{ color: ui.text }}>
+            Payouts setup
+          </p>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
             Link the bank account where your ticket earnings should be sent.
           </p>
@@ -874,63 +1036,12 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
       </section>
 
       {gatewayModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
-          <div
-            className="w-full max-w-lg overflow-hidden rounded-2xl border bg-white shadow-2xl"
-            style={{ borderColor: ui.borderColor }}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="own-gateway-title"
-          >
-            <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: ui.borderColor }}>
-              <div>
-                <h3 id="own-gateway-title" className="text-base font-semibold" style={{ color: ui.text }}>
-                  Choose your gateway
-                </h3>
-                <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                  Select a provider to connect. More options are on the way.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setGatewayModalOpen(false)}
-                className="rounded-lg p-1.5 hover:bg-black/[0.04]"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" style={{ color: ui.textMuted }} />
-              </button>
-            </div>
-            <div className="space-y-3 p-5">
-              {OWN_GATEWAY_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={!isOwner || !option.available}
-                  onClick={() => void selectOwnGatewayFromModal(option.id)}
-                  className="flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition hover:bg-black/[0.02] disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{ borderColor: ui.borderColor }}
-                >
-                  <BrandMark mark={option.mark} accent={option.accent} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                      {option.name}
-                    </p>
-                    <p className="text-xs" style={{ color: ui.textMuted }}>
-                      {option.available ? 'Available now' : 'Coming soon'}
-                    </p>
-                  </div>
-                  {option.available ? (
-                    <span className="text-xs font-semibold" style={{ color: ui.accent }}>
-                      Connect
-                    </span>
-                  ) : (
-                    <StatusBadge active={false} label="Soon" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <GatewayPickerModal
+          open={gatewayModalOpen}
+          onClose={() => setGatewayModalOpen(false)}
+          isOwner={isOwner}
+          onSelect={(id) => void selectOwnGatewayFromModal(id)}
+        />
       ) : null}
     </div>
   );
@@ -1003,10 +1114,12 @@ export const OrganizerBillingCardPanel: React.FC<Props> = ({ isOwner, onFeedback
   }
 
   const billingActive = settings?.billing.status === 'active';
-  const cardMutedStyle = cardMutedStyleFor(ui);
 
   return (
-    <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+    <div
+      className="rounded-2xl border p-4"
+      style={{ backgroundColor: ui.fieldBg, borderColor: ui.borderColor }}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-semibold" style={{ color: ui.text }}>
