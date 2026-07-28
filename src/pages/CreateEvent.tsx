@@ -902,6 +902,10 @@ export const CreateEvent: React.FC = () => {
                 previewUrl={bannerUrl ? normalizeBannerUrl(bannerUrl) : undefined}
                 disabled={isUploadingBanner}
                 onFileSelect={(file) => void uploadBannerFile(file)}
+                onRemove={() => {
+                  setValue('bannerUrl', '', { shouldDirty: true, shouldValidate: true });
+                  setBannerUploadError(null);
+                }}
                 frameClassName={ui.bannerFrame}
                 placeholderClassName={ui.bannerPlaceholder}
               />
