@@ -1,6 +1,8 @@
 <?php
 
 const ORGANIZER_GATEWAY_MODES = ['turnout', 'own_payhere'];
+const ORGANIZER_OWN_GATEWAYS = ['payhere', 'webx', 'directpay'];
+const ORGANIZER_INSTALLMENT_MODES = ['off', 'turnout', 'own'];
 const ORGANIZER_BILLING_STATUSES = ['none', 'pending', 'active', 'failed'];
 const ORGANIZER_COMMISSION_MODES = ['percentage', 'flat_per_ticket'];
 
@@ -78,6 +80,14 @@ function ensure_organizer_payment_tables_inner(PDO $pdo): void {
     );
     try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode TEXT NOT NULL DEFAULT "percentage"'); } catch (Throwable $e) {}
     try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN commission_value REAL NULL'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN own_gateway TEXT NULL'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN installment_mode TEXT NOT NULL DEFAULT "off"'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN own_koko_enabled INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN own_mintpay_enabled INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN koko_merchant_id TEXT NULL'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN koko_merchant_secret_enc TEXT NULL'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_id TEXT NULL'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_secret_enc TEXT NULL'); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
     return;
   }
@@ -111,6 +121,14 @@ function ensure_organizer_payment_tables_inner(PDO $pdo): void {
     );
     try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode VARCHAR(32) NOT NULL DEFAULT 'percentage'"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_value NUMERIC(12,2) NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS own_gateway VARCHAR(32) NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS installment_mode VARCHAR(32) NOT NULL DEFAULT 'off'"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS own_koko_enabled BOOLEAN NOT NULL DEFAULT FALSE"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS own_mintpay_enabled BOOLEAN NOT NULL DEFAULT FALSE"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS koko_merchant_id VARCHAR(64) NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS koko_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS mintpay_merchant_id VARCHAR(64) NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS mintpay_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
     return;
   }
@@ -149,6 +167,14 @@ function ensure_organizer_payment_tables_inner(PDO $pdo): void {
   );
   try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_mode ENUM('percentage','flat_per_ticket') NOT NULL DEFAULT 'percentage'"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN commission_value DECIMAL(12,2) NULL"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN own_gateway VARCHAR(32) NULL"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN installment_mode VARCHAR(32) NOT NULL DEFAULT 'off'"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN own_koko_enabled TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN own_mintpay_enabled TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN koko_merchant_id VARCHAR(64) NULL"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN koko_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_id VARCHAR(64) NULL"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
 }
 
 function normalize_organizer_gateway_mode(string $mode): string {
@@ -168,6 +194,7 @@ function default_organizer_payment_settings_row(int $userId): array {
   return [
     'user_id' => $userId,
     'gateway_mode' => 'turnout',
+    'own_gateway' => null,
     'payhere_merchant_id' => null,
     'payhere_merchant_secret_enc' => null,
     'billing_customer_token' => null,
@@ -177,7 +204,25 @@ function default_organizer_payment_settings_row(int $userId): array {
     'billing_setup_at' => null,
     'commission_mode' => 'percentage',
     'commission_value' => null,
+    'installment_mode' => 'off',
+    'own_koko_enabled' => 0,
+    'own_mintpay_enabled' => 0,
+    'koko_merchant_id' => null,
+    'koko_merchant_secret_enc' => null,
+    'mintpay_merchant_id' => null,
+    'mintpay_merchant_secret_enc' => null,
   ];
+}
+
+function normalize_organizer_own_gateway(?string $gateway): ?string {
+  $gateway = strtolower(trim((string)$gateway));
+  if ($gateway === '') return null;
+  return in_array($gateway, ORGANIZER_OWN_GATEWAYS, true) ? $gateway : null;
+}
+
+function normalize_organizer_installment_mode(string $mode): string {
+  $mode = strtolower(trim($mode));
+  return in_array($mode, ORGANIZER_INSTALLMENT_MODES, true) ? $mode : 'off';
 }
 
 function normalize_organizer_commission_mode(string $mode): string {
@@ -315,6 +360,14 @@ function organizer_payment_is_ready(array $row): bool {
 function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
   $row = organizer_payment_settings_row($pdo, $userId);
   $mode = normalize_organizer_gateway_mode((string)($row['gateway_mode'] ?? 'turnout'));
+  $ownGateway = normalize_organizer_own_gateway($row['own_gateway'] ?? null);
+  if ($mode === 'own_payhere' && $ownGateway === null) {
+    $ownGateway = 'payhere';
+  }
+  if ($mode === 'turnout') {
+    $ownGateway = null;
+  }
+  $installmentMode = normalize_organizer_installment_mode((string)($row['installment_mode'] ?? 'off'));
   $commissionPct = get_platform_commission_pct($pdo);
   $commissionCfg = organizer_commission_config($pdo, $userId, $commissionPct);
   $billingStatus = (string)($row['billing_setup_status'] ?? 'none');
@@ -324,8 +377,16 @@ function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
 
   return [
     'gatewayMode' => $mode,
+    'ownGateway' => $ownGateway,
     'ownPayhereMerchantId' => trim((string)($row['payhere_merchant_id'] ?? '')),
     'ownPayhereSecretConfigured' => trim((string)($row['payhere_merchant_secret_enc'] ?? '')) !== '',
+    'installmentMode' => $installmentMode,
+    'ownKokoEnabled' => !empty($row['own_koko_enabled']),
+    'ownMintpayEnabled' => !empty($row['own_mintpay_enabled']),
+    'ownKokoMerchantId' => trim((string)($row['koko_merchant_id'] ?? '')),
+    'ownKokoSecretConfigured' => trim((string)($row['koko_merchant_secret_enc'] ?? '')) !== '',
+    'ownMintpayMerchantId' => trim((string)($row['mintpay_merchant_id'] ?? '')),
+    'ownMintpaySecretConfigured' => trim((string)($row['mintpay_merchant_secret_enc'] ?? '')) !== '',
     'billing' => [
       'status' => $billingStatus,
       'cardLast4' => trim((string)($row['billing_card_last4'] ?? '')) ?: null,
@@ -351,6 +412,36 @@ function upsert_organizer_payment_settings(PDO $pdo, int $userId, array $fields)
   $gatewayMode = array_key_exists('gateway_mode', $fields)
     ? normalize_organizer_gateway_mode((string)$fields['gateway_mode'])
     : normalize_organizer_gateway_mode((string)($existing['gateway_mode'] ?? 'turnout'));
+
+  $ownGateway = array_key_exists('own_gateway', $fields)
+    ? normalize_organizer_own_gateway($fields['own_gateway'] ?? null)
+    : normalize_organizer_own_gateway($existing['own_gateway'] ?? null);
+  if ($gatewayMode === 'own_payhere') {
+    $ownGateway = $ownGateway ?: 'payhere';
+    if ($ownGateway !== 'payhere') {
+      json_response(400, [
+        'error' => 'gateway_coming_soon',
+        'message' => 'That payment gateway is coming soon. Please choose PayHere for now.',
+      ]);
+    }
+  } else {
+    $ownGateway = null;
+  }
+
+  $installmentMode = array_key_exists('installment_mode', $fields)
+    ? normalize_organizer_installment_mode((string)$fields['installment_mode'])
+    : normalize_organizer_installment_mode((string)($existing['installment_mode'] ?? 'off'));
+  $ownKokoEnabled = array_key_exists('own_koko_enabled', $fields)
+    ? (!empty($fields['own_koko_enabled']) ? 1 : 0)
+    : (!empty($existing['own_koko_enabled']) ? 1 : 0);
+  $ownMintpayEnabled = array_key_exists('own_mintpay_enabled', $fields)
+    ? (!empty($fields['own_mintpay_enabled']) ? 1 : 0)
+    : (!empty($existing['own_mintpay_enabled']) ? 1 : 0);
+  if ($installmentMode !== 'own') {
+    $ownKokoEnabled = 0;
+    $ownMintpayEnabled = 0;
+  }
+
   $merchantId = array_key_exists('payhere_merchant_id', $fields)
     ? trim((string)$fields['payhere_merchant_id'])
     : trim((string)($existing['payhere_merchant_id'] ?? ''));
@@ -362,51 +453,118 @@ function upsert_organizer_payment_settings(PDO $pdo, int $userId, array $fields)
     }
   }
 
+  $kokoMerchantId = array_key_exists('koko_merchant_id', $fields)
+    ? trim((string)$fields['koko_merchant_id'])
+    : trim((string)($existing['koko_merchant_id'] ?? ''));
+  $kokoSecretEnc = (string)($existing['koko_merchant_secret_enc'] ?? '');
+  if (array_key_exists('koko_merchant_secret', $fields)) {
+    $kokoSecretPlain = trim((string)$fields['koko_merchant_secret']);
+    if ($kokoSecretPlain !== '') {
+      $kokoSecretEnc = encrypt_payment_secret($kokoSecretPlain);
+    }
+  }
+
+  $mintpayMerchantId = array_key_exists('mintpay_merchant_id', $fields)
+    ? trim((string)$fields['mintpay_merchant_id'])
+    : trim((string)($existing['mintpay_merchant_id'] ?? ''));
+  $mintpaySecretEnc = (string)($existing['mintpay_merchant_secret_enc'] ?? '');
+  if (array_key_exists('mintpay_merchant_secret', $fields)) {
+    $mintpaySecretPlain = trim((string)$fields['mintpay_merchant_secret']);
+    if ($mintpaySecretPlain !== '') {
+      $mintpaySecretEnc = encrypt_payment_secret($mintpaySecretPlain);
+    }
+  }
+
   if ($gatewayMode === 'own_payhere') {
     if ($merchantId === '') {
-      json_response(400, ['error' => 'invalid_payhere_merchant_id', 'message' => 'PayHere merchant ID is required.']);
+      json_response(400, ['error' => 'invalid_payhere_merchant_id', 'message' => 'Merchant ID is required for your gateway.']);
     }
     if ($secretEnc === '') {
-      json_response(400, ['error' => 'invalid_payhere_merchant_secret', 'message' => 'PayHere merchant secret is required.']);
+      json_response(400, ['error' => 'invalid_payhere_merchant_secret', 'message' => 'Merchant secret is required for your gateway.']);
     }
   }
 
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
   $merchantIdValue = $merchantId !== '' ? $merchantId : null;
   $secretEncValue = $secretEnc !== '' ? $secretEnc : null;
+  $ownGatewayValue = $ownGateway;
+  $kokoMerchantIdValue = $kokoMerchantId !== '' ? $kokoMerchantId : null;
+  $kokoSecretEncValue = $kokoSecretEnc !== '' ? $kokoSecretEnc : null;
+  $mintpayMerchantIdValue = $mintpayMerchantId !== '' ? $mintpayMerchantId : null;
+  $mintpaySecretEncValue = $mintpaySecretEnc !== '' ? $mintpaySecretEnc : null;
+
+  $columns = 'user_id, gateway_mode, own_gateway, payhere_merchant_id, payhere_merchant_secret_enc, installment_mode, own_koko_enabled, own_mintpay_enabled, koko_merchant_id, koko_merchant_secret_enc, mintpay_merchant_id, mintpay_merchant_secret_enc';
+  $values = [
+    $userId,
+    $gatewayMode,
+    $ownGatewayValue,
+    $merchantIdValue,
+    $secretEncValue,
+    $installmentMode,
+    $ownKokoEnabled,
+    $ownMintpayEnabled,
+    $kokoMerchantIdValue,
+    $kokoSecretEncValue,
+    $mintpayMerchantIdValue,
+    $mintpaySecretEncValue,
+  ];
 
   if ($driver === 'sqlite') {
     $stmt = $pdo->prepare(
-      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, payhere_merchant_id, payhere_merchant_secret_enc, updated_at)
-       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      "INSERT INTO organizer_payment_settings ({$columns}, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id) DO UPDATE SET
          gateway_mode = excluded.gateway_mode,
+         own_gateway = excluded.own_gateway,
          payhere_merchant_id = excluded.payhere_merchant_id,
          payhere_merchant_secret_enc = excluded.payhere_merchant_secret_enc,
-         updated_at = CURRENT_TIMESTAMP'
+         installment_mode = excluded.installment_mode,
+         own_koko_enabled = excluded.own_koko_enabled,
+         own_mintpay_enabled = excluded.own_mintpay_enabled,
+         koko_merchant_id = excluded.koko_merchant_id,
+         koko_merchant_secret_enc = excluded.koko_merchant_secret_enc,
+         mintpay_merchant_id = excluded.mintpay_merchant_id,
+         mintpay_merchant_secret_enc = excluded.mintpay_merchant_secret_enc,
+         updated_at = CURRENT_TIMESTAMP"
     );
-    $stmt->execute([$userId, $gatewayMode, $merchantIdValue, $secretEncValue]);
+    $stmt->execute($values);
   } elseif ($driver === 'pgsql') {
     $stmt = $pdo->prepare(
-      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, payhere_merchant_id, payhere_merchant_secret_enc, updated_at)
-       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      "INSERT INTO organizer_payment_settings ({$columns}, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id) DO UPDATE SET
          gateway_mode = EXCLUDED.gateway_mode,
+         own_gateway = EXCLUDED.own_gateway,
          payhere_merchant_id = EXCLUDED.payhere_merchant_id,
          payhere_merchant_secret_enc = EXCLUDED.payhere_merchant_secret_enc,
-         updated_at = CURRENT_TIMESTAMP'
+         installment_mode = EXCLUDED.installment_mode,
+         own_koko_enabled = EXCLUDED.own_koko_enabled,
+         own_mintpay_enabled = EXCLUDED.own_mintpay_enabled,
+         koko_merchant_id = EXCLUDED.koko_merchant_id,
+         koko_merchant_secret_enc = EXCLUDED.koko_merchant_secret_enc,
+         mintpay_merchant_id = EXCLUDED.mintpay_merchant_id,
+         mintpay_merchant_secret_enc = EXCLUDED.mintpay_merchant_secret_enc,
+         updated_at = CURRENT_TIMESTAMP"
     );
-    $stmt->execute([$userId, $gatewayMode, $merchantIdValue, $secretEncValue]);
+    $stmt->execute($values);
   } else {
     $stmt = $pdo->prepare(
-      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, payhere_merchant_id, payhere_merchant_secret_enc)
-       VALUES (?, ?, ?, ?)
+      "INSERT INTO organizer_payment_settings ({$columns})
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          gateway_mode = VALUES(gateway_mode),
+         own_gateway = VALUES(own_gateway),
          payhere_merchant_id = VALUES(payhere_merchant_id),
-         payhere_merchant_secret_enc = VALUES(payhere_merchant_secret_enc)'
+         payhere_merchant_secret_enc = VALUES(payhere_merchant_secret_enc),
+         installment_mode = VALUES(installment_mode),
+         own_koko_enabled = VALUES(own_koko_enabled),
+         own_mintpay_enabled = VALUES(own_mintpay_enabled),
+         koko_merchant_id = VALUES(koko_merchant_id),
+         koko_merchant_secret_enc = VALUES(koko_merchant_secret_enc),
+         mintpay_merchant_id = VALUES(mintpay_merchant_id),
+         mintpay_merchant_secret_enc = VALUES(mintpay_merchant_secret_enc)"
     );
-    $stmt->execute([$userId, $gatewayMode, $merchantIdValue, $secretEncValue]);
+    $stmt->execute($values);
   }
 
   return organizer_payment_settings_row($pdo, $userId);

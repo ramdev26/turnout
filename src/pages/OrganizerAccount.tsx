@@ -597,7 +597,7 @@ export const OrganizerAccount: React.FC = () => {
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Set up payment providers for your organization. Then enable the methods you want on each event.
+            Choose checkout, installments, bank transfer, and payouts for your organization.
           </p>
           <div className="mt-5">
             <OrganizerPaymentSettingsPanel
@@ -612,11 +612,11 @@ export const OrganizerAccount: React.FC = () => {
           <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" style={{ color: ui.accent }} />
             <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
-              Billing card (optional)
+              Account card (optional)
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Card details are managed separately. This is optional and not required to proceed with paid events.
+            Only needed if you use your own gateway. Keep a card on file for your organizer account.
           </p>
           <div className="mt-5">
             <OrganizerBillingCardPanel

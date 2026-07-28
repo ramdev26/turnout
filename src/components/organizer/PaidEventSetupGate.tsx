@@ -93,8 +93,8 @@ export const PaidEventSetupGate: React.FC<Props> = ({
                 <RequirementRow
                   done={payhereDone}
                   icon={<ShieldCheck className="h-4 w-4" />}
-                  label="PayHere credentials"
-                  detail="Your PayHere merchant ID and secret so ticket payments go to your account."
+                  label="Your payment gateway"
+                  detail="Connect your merchant ID and secret for your own gateway."
                 />
               </>
             )}

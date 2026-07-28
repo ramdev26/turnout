@@ -1,6 +1,6 @@
 <?php
 
-const TURNOUT_API_BRIDGE_VERSION = '2026-07-23-mail-white-v2';
+const TURNOUT_API_BRIDGE_VERSION = '2026-07-28-payment-settings-v2';
 
 if (isset($_GET['turnout_api_version'])) {
   header('Content-Type: application/json; charset=utf-8');

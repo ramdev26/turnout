@@ -171,12 +171,24 @@ export type OrganizerWorkspace = {
 
 export type OrganizerGatewayMode = 'turnout' | 'own_payhere';
 
+export type OrganizerOwnGatewayId = 'payhere' | 'webx' | 'directpay';
+
+export type OrganizerInstallmentMode = 'off' | 'turnout' | 'own';
+
 export type OrganizerBillingStatus = 'none' | 'pending' | 'active' | 'failed';
 
 export type OrganizerPaymentSettings = {
   gatewayMode: OrganizerGatewayMode;
+  ownGateway: OrganizerOwnGatewayId | null;
   ownPayhereMerchantId: string;
   ownPayhereSecretConfigured: boolean;
+  installmentMode: OrganizerInstallmentMode;
+  ownKokoEnabled: boolean;
+  ownMintpayEnabled: boolean;
+  ownKokoMerchantId: string;
+  ownKokoSecretConfigured: boolean;
+  ownMintpayMerchantId: string;
+  ownMintpaySecretConfigured: boolean;
   billing: {
     status: OrganizerBillingStatus;
     cardLast4: string | null;

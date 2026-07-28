@@ -447,7 +447,7 @@ export const CreateEvent: React.FC = () => {
         setShowPaidSetupGate(true);
         setSubmitError(
           paidEventReadiness.gatewayMode === 'own_payhere'
-            ? 'Add your PayHere merchant credentials in Organization → Payments before publishing a paid event.'
+            ? 'Connect your own payment gateway in Organization → Payments before publishing a paid event.'
             : 'Add your bank payout details in Organization → Payments before publishing a paid event.'
         );
         submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });

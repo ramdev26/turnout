@@ -1641,12 +1641,47 @@ if (
     $body = read_json_body();
     $gatewayMode = normalize_organizer_gateway_mode((string)($body['gatewayMode'] ?? 'turnout'));
     $fields = ['gateway_mode' => $gatewayMode];
+
+    if (array_key_exists('ownGateway', $body)) {
+      $fields['own_gateway'] = $body['ownGateway'];
+    } elseif ($gatewayMode === 'own_payhere') {
+      $fields['own_gateway'] = 'payhere';
+    } else {
+      $fields['own_gateway'] = null;
+    }
+
+    if (array_key_exists('installmentMode', $body)) {
+      $fields['installment_mode'] = (string)$body['installmentMode'];
+    }
+    if (array_key_exists('ownKokoEnabled', $body)) {
+      $fields['own_koko_enabled'] = !empty($body['ownKokoEnabled']);
+    }
+    if (array_key_exists('ownMintpayEnabled', $body)) {
+      $fields['own_mintpay_enabled'] = !empty($body['ownMintpayEnabled']);
+    }
+
     if ($gatewayMode === 'own_payhere') {
-      $fields['payhere_merchant_id'] = trim((string)($body['ownPayhereMerchantId'] ?? ''));
+      if (array_key_exists('ownPayhereMerchantId', $body)) {
+        $fields['payhere_merchant_id'] = trim((string)$body['ownPayhereMerchantId']);
+      }
       if (array_key_exists('ownPayhereMerchantSecret', $body)) {
         $fields['payhere_merchant_secret'] = trim((string)$body['ownPayhereMerchantSecret']);
       }
     }
+
+    if (array_key_exists('ownKokoMerchantId', $body)) {
+      $fields['koko_merchant_id'] = trim((string)$body['ownKokoMerchantId']);
+    }
+    if (array_key_exists('ownKokoMerchantSecret', $body)) {
+      $fields['koko_merchant_secret'] = trim((string)$body['ownKokoMerchantSecret']);
+    }
+    if (array_key_exists('ownMintpayMerchantId', $body)) {
+      $fields['mintpay_merchant_id'] = trim((string)$body['ownMintpayMerchantId']);
+    }
+    if (array_key_exists('ownMintpayMerchantSecret', $body)) {
+      $fields['mintpay_merchant_secret'] = trim((string)$body['ownMintpayMerchantSecret']);
+    }
+
     upsert_organizer_payment_settings($pdo, $ownerUserId, $fields);
 
     $bankFields = [];

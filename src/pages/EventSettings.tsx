@@ -1340,7 +1340,7 @@ export const EventSettings: React.FC = () => {
             <SettingsCollapsibleSection
               title="Payment methods"
               subtitle={
-                [allowPayhere ? 'PayHere' : null, allowBankTransfer ? 'Bank transfer' : null]
+                [allowPayhere ? 'Online checkout' : null, allowBankTransfer ? 'Bank transfer' : null]
                   .filter(Boolean)
                   .join(' · ') || 'None enabled'
               }
@@ -1376,7 +1376,7 @@ export const EventSettings: React.FC = () => {
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold" style={{ color: ui.text }}>
-                        PayHere
+                        Online checkout
                       </span>
                       <span
                         className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
