@@ -723,15 +723,6 @@ export const CreateEvent: React.FC = () => {
               />
               {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-              <div className="rounded-xl border px-3.5 py-2.5" style={{ ...fieldStyle, borderColor: ui.borderColor }}>
-                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Theme
-                </p>
-                <p className="mt-0.5 text-sm font-medium" style={{ color: ui.text }}>
-                  Minimal
-                </p>
-              </div>
-
             </div>
 
             {/* Right column */}
