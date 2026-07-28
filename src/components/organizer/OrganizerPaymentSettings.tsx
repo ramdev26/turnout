@@ -26,7 +26,7 @@ type ExpandedSection = 'providers' | 'installments' | 'bank_transfer' | 'payouts
 
 const PROVIDER_LOGOS = {
   // Official remote URLs (preferred in browser). Local copies used as reliable fallbacks.
-  payhere: 'https://www.payhere.lk/downloads/images/payhere_long_banner.png',
+  payhere: 'https://www.payhere.lk/downloads/images/payhere_square_banner.png',
   payhereFallback: '/payment-logos/payhere.svg',
   koko: '/payment-logos/koko.png',
   kokoRemote: 'https://paykoko.com/img/logo1.7ff549c0.png',
