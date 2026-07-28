@@ -147,8 +147,8 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
     if (trim((string)($profileRow['bank_account_number'] ?? '')) === '') $missing[] = 'bank_account_number';
   }
 
-  // Business details and billing card are optional and no longer block paid events.
-  $isReady = !$needsBank && !$needsOwnPayhere;
+  // Business details stay optional. Own-gateway organizers must complete credentials + account card.
+  $isReady = !$needsBank && !$needsOwnPayhere && !$needsBillingCard;
 
   return [
     'isReady' => $isReady,
@@ -177,7 +177,7 @@ function assert_organizer_can_sell_paid_tickets(PDO $pdo, int $ownerUserId, floa
   if ($readiness['isReady']) return;
 
   $hint = ($readiness['gatewayMode'] ?? '') === 'own_payhere'
-    ? 'Add your PayHere merchant credentials in Organization → Payments before selling paid tickets.'
+    ? 'Connect your own gateway and add an account card in Organization → Payments before selling paid tickets.'
     : 'Add your bank payout details in Organization → Payments before selling paid tickets.';
 
   json_response(400, [

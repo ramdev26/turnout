@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, Landmark, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CreditCard, Landmark, ShieldCheck } from 'lucide-react';
 import { OrganizerPaidEventReadiness } from '../../types';
 import { FlowAlert, FlowButton } from '../flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../flow/FlowPrimitives';
@@ -62,6 +62,7 @@ export const PaidEventSetupGate: React.FC<Props> = ({
   const { requirements, gatewayMode } = readiness;
   const bankDone = !requirements.needsBankDetails;
   const payhereDone = !requirements.needsOwnPayhereCredentials;
+  const billingDone = !requirements.needsBillingCard;
 
   return (
     <div
@@ -76,7 +77,7 @@ export const PaidEventSetupGate: React.FC<Props> = ({
             {title}
           </h3>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Free events can go live right away. Before publishing a paid event, add payout details in Organization →
+            Free events can go live right away. Before publishing a paid event, finish payment setup in Organization →
             Payments.
           </p>
 
@@ -95,6 +96,12 @@ export const PaidEventSetupGate: React.FC<Props> = ({
                   icon={<ShieldCheck className="h-4 w-4" />}
                   label="Your payment gateway"
                   detail="Connect your merchant ID and secret for your own gateway."
+                />
+                <RequirementRow
+                  done={billingDone}
+                  icon={<CreditCard className="h-4 w-4" />}
+                  label="Account card"
+                  detail="Add an account card to finish your own-gateway setup."
                 />
               </>
             )}

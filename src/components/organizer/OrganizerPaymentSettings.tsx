@@ -797,10 +797,10 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                        Account card
+                        Account card <span style={{ color: ui.accent }}>· Required</span>
                       </p>
                       <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
-                        Optional. Keep a card on file for your organizer account when using your own gateway.
+                        Required when using your own gateway. Add a card on file to finish setup.
                       </p>
                     </div>
                     {settings?.billing.status === 'active' ? (
@@ -812,7 +812,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                         {settings.billing.cardBrand || 'Card'} ···· {settings.billing.cardLast4 || '****'}
                       </span>
                     ) : (
-                      <StatusBadge active={false} label="Not set up" />
+                      <StatusBadge active={false} label="Required" />
                     )}
                   </div>
                   {isOwner ? (
@@ -1285,10 +1285,10 @@ export const OrganizerBillingCardPanel: React.FC<Props> = ({ isOwner, onFeedback
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-semibold" style={{ color: ui.text }}>
-            Account card
+            Account card <span style={{ color: ui.accent }}>· Required</span>
           </p>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Optional when using your own gateway. Keep a card on file for your organizer account.
+            Required when using your own gateway. Add a card on file to finish setup.
           </p>
         </div>
         {billingActive ? (

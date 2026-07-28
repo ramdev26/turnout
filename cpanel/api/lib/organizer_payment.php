@@ -353,8 +353,7 @@ function organizer_payment_is_ready(array $row): bool {
   if ($mode === 'turnout') {
     return true;
   }
-  // Billing card is optional and managed in a separate section.
-  return organizer_own_payhere_is_configured($row);
+  return organizer_own_payhere_is_configured($row) && organizer_billing_is_active($row);
 }
 
 function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
@@ -615,6 +614,12 @@ function payhere_cfg_for_organizer(PDO $pdo, int $organizerUserId): array {
       json_response(400, [
         'error' => 'organizer_payhere_not_configured',
         'message' => 'Connect your payment gateway merchant ID and secret in Organization settings before selling tickets.',
+      ]);
+    }
+    if (!organizer_billing_is_active($row)) {
+      json_response(400, [
+        'error' => 'organizer_billing_required',
+        'message' => 'Add an account card in Organization → Payments before selling tickets with your own gateway.',
       ]);
     }
     $platform = payhere_cfg();
