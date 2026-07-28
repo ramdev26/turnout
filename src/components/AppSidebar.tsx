@@ -45,7 +45,12 @@ function SidebarNavSection({
               )}
               style={
                 active
-                  ? { background: ui.accentSoft, color: ui.accentOn, border: `1px solid ${ui.borderColor}` }
+                  ? {
+                      background: ui.accent,
+                      color: ui.accentOn,
+                      border: `1px solid ${ui.accent}`,
+                      boxShadow: '0 6px 16px rgba(0, 0, 0, 0.18)',
+                    }
                   : { color: ui.textMuted }
               }
             >
