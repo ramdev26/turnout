@@ -301,6 +301,7 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
               size={{ width: el.w, height: el.h }}
               position={{ x: el.x, y: el.y }}
               bounds="parent"
+              dragHandleClassName="seating-drag-handle"
               enableUserSelectHack
               style={{ touchAction: 'none' }}
               dragAxis="both"
