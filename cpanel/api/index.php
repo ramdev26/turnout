@@ -2986,8 +2986,12 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization['eventPolicyHtml'] = mb_substr($clean, 0, 20000);
     }
   }
-  if (array_key_exists('arenaGalleryImages', $body)) {
-    $customization['arenaGalleryImages'] = normalize_arena_gallery_images($body['arenaGalleryImages']);
+  if (array_key_exists('eventGalleryImages', $body) || array_key_exists('arenaGalleryImages', $body)) {
+    $rawGallery = array_key_exists('eventGalleryImages', $body) ? $body['eventGalleryImages'] : $body['arenaGalleryImages'];
+    $gallery = normalize_event_gallery_images($rawGallery);
+    // Keep both keys during migration so older clients keep working.
+    $customization['eventGalleryImages'] = $gallery;
+    $customization['arenaGalleryImages'] = $gallery;
   }
   if (array_key_exists('allowBankTransfer', $body) || array_key_exists('paymentMethods', $body) || array_key_exists('allowPayhere', $body)) {
     $currentMethods = event_payment_methods_from_customization($customization);

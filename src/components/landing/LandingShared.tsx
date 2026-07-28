@@ -15,6 +15,7 @@ import { formatLKRWhole } from '../../utils/money';
 import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
 import { EventPolicyLink } from './EventPolicyViewer';
 import { isOnlineEvent } from '../../utils/eventLocation';
+import { resolveArenaCarouselSlides } from './arenaGallery';
 
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
@@ -235,6 +236,27 @@ export function EventBanner({
         />
       )}
     </div>
+  );
+}
+
+export function EventGalleryStrip({ event, className = '' }: { event: Event; className?: string }) {
+  const extras = resolveArenaCarouselSlides(event).slice(1, 8);
+  if (extras.length === 0) return null;
+
+  return (
+    <section className={`mt-4 ${className}`.trim()} aria-label="Event gallery">
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {extras.map((url, index) => (
+          <div
+            key={`${url}-${index}`}
+            className="h-20 w-28 shrink-0 overflow-hidden rounded-lg border"
+            style={{ borderColor: 'var(--showcase-border)' }}
+          >
+            <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

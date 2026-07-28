@@ -4,6 +4,7 @@ import { CalendarDays, MapPin, Minus, Plus, Video } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
+  EventGalleryStrip,
   LandingFooter,
   LandingPageShell,
   LandingTopBar,
@@ -296,6 +297,7 @@ export function LandingGatherPage(props: LandingTemplateProps) {
           {/* Desktop: left rail / Mobile: stacked order via CSS */}
           <aside className="gt-aside">
             <GatherHeroImage event={event} />
+            <EventGalleryStrip event={event} className="px-3" />
             <div className="gt-aside-desktop-only">
               <GatherHost event={event} />
               <GatherSidebarExtras event={event} tickets={tickets} />

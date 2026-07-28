@@ -15,6 +15,7 @@ import {
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
+  EventGalleryStrip,
   LandingFooter,
   LandingPageShell,
   LandingTopBar,
@@ -434,6 +435,9 @@ export function LandingSpotlightPage({
 
       <div className="landing-spotlight">
         <SpotlightHeroBanner event={event} />
+        <div className="mx-auto w-full max-w-6xl px-4 pt-2 sm:px-6 lg:px-8">
+          <EventGalleryStrip event={event} className="mt-0" />
+        </div>
 
         <div className="sp-shell">
           <div className="sp-grid">

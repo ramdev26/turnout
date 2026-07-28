@@ -1,12 +1,16 @@
 import type { Event } from '../../types';
 
-/** Banner first, then extra Arena gallery images (deduped). */
+function readRawGalleryExtras(event: Pick<Event, 'customization'>): unknown {
+  return event.customization?.eventGalleryImages ?? event.customization?.arenaGalleryImages;
+}
+
+/** Banner first, then extra event gallery images (deduped). */
 export function resolveArenaCarouselSlides(event: Pick<Event, 'bannerUrl' | 'customization'>): string[] {
   const slides: string[] = [];
   const banner = event.bannerUrl?.trim();
   if (banner) slides.push(banner);
 
-  const extras = event.customization?.arenaGalleryImages;
+  const extras = readRawGalleryExtras(event);
   if (!Array.isArray(extras)) return slides;
 
   for (const raw of extras) {
@@ -25,3 +29,5 @@ export function normalizeArenaGalleryImages(urls: unknown): string[] {
   }
   return out;
 }
+
+export const normalizeEventGalleryImages = normalizeArenaGalleryImages;

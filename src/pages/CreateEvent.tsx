@@ -27,6 +27,7 @@ import { type LandingDesignValue } from '../components/organizer/LandingCustomiz
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
 import { formatEventLocationDisplay, isValidMeetingUrl } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
@@ -37,6 +38,7 @@ import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
+import { normalizeEventGalleryImages } from '../components/landing/arenaGallery';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
@@ -193,7 +195,9 @@ export const CreateEvent: React.FC = () => {
   const [freeUnlimited, setFreeUnlimited] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
+  const [eventGalleryImages, setEventGalleryImages] = useState<string[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
@@ -360,6 +364,37 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
+  const uploadGalleryFile = async (file: File) => {
+    setBannerUploadError(null);
+    setIsUploadingGallery(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(toApiUrl('/api/uploads/banner'), {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const text = await res.text();
+      let data: { bannerUrl?: string; error?: string; message?: string } | null = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+      if (res.ok && data?.bannerUrl) {
+        const url = normalizeBannerUrl(data.bannerUrl);
+        setEventGalleryImages((prev) => normalizeEventGalleryImages([...prev, url]));
+        return;
+      }
+      setBannerUploadError(data?.message || 'Upload failed. Try again.');
+    } catch {
+      setBannerUploadError('Upload failed. Check your connection.');
+    } finally {
+      setIsUploadingGallery(false);
+    }
+  };
+
   const collectFormErrorMessages = (formErrors: FieldErrors<EventFormValues>): string[] => {
     const messages: string[] = [];
     const push = (message?: string) => {
@@ -504,6 +539,8 @@ export const CreateEvent: React.FC = () => {
         dnsRecordType: data.useCustomDomain ? data.dnsRecordType : undefined,
         dnsRecordTarget: data.useCustomDomain ? (data.dnsRecordTarget || '').trim() : undefined,
         dnsConfigured: data.useCustomDomain ? data.dnsConfigured : false,
+        eventGalleryImages,
+        arenaGalleryImages: eventGalleryImages,
       };
 
       const payloadTickets =
@@ -581,6 +618,8 @@ export const CreateEvent: React.FC = () => {
       primaryColor: design.primaryColor,
       secondaryColor: design.secondaryColor,
       fontFamily: design.fontFamily,
+      eventGalleryImages,
+      arenaGalleryImages: eventGalleryImages,
     };
     return {
       id: 'preview',
@@ -612,6 +651,7 @@ export const CreateEvent: React.FC = () => {
     onlinePlatform,
     onlineUrl,
     shortDescription,
+    eventGalleryImages,
     themeId,
     title,
     user?.displayName,
@@ -722,6 +762,23 @@ export const CreateEvent: React.FC = () => {
                 placeholderClassName={ui.bannerPlaceholder}
               />
               {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
+              <ArenaGalleryEditor
+                images={eventGalleryImages}
+                disabled={isSubmitting}
+                uploading={isUploadingGallery}
+                onUpload={uploadGalleryFile}
+                onRemove={(index) => setEventGalleryImages((prev) => prev.filter((_, i) => i !== index))}
+                title="Event gallery"
+                description="Cover image is image 1. Add multiple visuals for all layouts."
+                emptyText="No extra images yet — add posters, venue shots, or sponsor creatives."
+                ui={{
+                  borderColor: ui.borderColor,
+                  text: ui.text,
+                  textMuted: ui.textMuted,
+                  textSubtle: ui.textSubtle,
+                  cardBg: ui.cardMutedBg,
+                }}
+              />
 
               <div className="rounded-2xl border p-4" style={cardMutedStyle}>
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>

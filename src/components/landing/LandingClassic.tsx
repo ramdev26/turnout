@@ -5,6 +5,7 @@ import {
   CheckoutPanel,
   CountdownDisplay,
   EventBanner,
+  EventGalleryStrip,
   EventMeta,
   HeroSubtitle,
   HeroTitle,
@@ -35,6 +36,7 @@ export function LandingClassicPage(props: LandingTemplateProps) {
             <EventBanner event={event} overlay="none" imageClassName="landing-poster-img" />
           </div>
         ) : null}
+        <EventGalleryStrip event={event} className="mx-auto max-w-3xl" />
 
         <div className={`text-center ${hasBanner ? 'mt-8' : 'mt-2'}`}>
           <PremiumBadge>{themeDisplayName(event)}</PremiumBadge>

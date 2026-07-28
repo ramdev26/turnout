@@ -40,7 +40,7 @@ import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventCategoryPicker } from '../components/organizer/EventCategoryPicker';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
-import { normalizeArenaGalleryImages } from '../components/landing/arenaGallery';
+import { normalizeEventGalleryImages } from '../components/landing/arenaGallery';
 import { normalizeLandingCustomization, type EventThemeId } from '../themes/eventThemes';
 import { resolveTemplateDesignDefaults } from '../themes/templateDefaults';
 import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
@@ -155,7 +155,7 @@ export const EventSettings: React.FC = () => {
   const [date, setDate] = useState('');
   const [scheduleTba, setScheduleTba] = useState(false);
   const [bannerUrl, setBannerUrl] = useState('');
-  const [arenaGalleryImages, setArenaGalleryImages] = useState<string[]>([]);
+  const [eventGalleryImages, setEventGalleryImages] = useState<string[]>([]);
   const [isUploadingArenaGallery, setIsUploadingArenaGallery] = useState(false);
   const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(true);
@@ -228,7 +228,9 @@ export const EventSettings: React.FC = () => {
       setDate(toDatetimeLocalValue(new Date(ev.date)));
       setScheduleTba(!!ev.customization?.scheduleTba);
       setBannerUrl(ev.bannerUrl || '');
-      setArenaGalleryImages(normalizeArenaGalleryImages(ev.customization?.arenaGalleryImages));
+      setEventGalleryImages(
+        normalizeEventGalleryImages(ev.customization?.eventGalleryImages ?? ev.customization?.arenaGalleryImages)
+      );
       setSlug(ev.slug);
       const landing = normalizeLandingCustomization(ev.customization, resolveLayoutTemplateId(ev.templateId));
       const templateDefaults = resolveTemplateDesignDefaults(ev.templateId);
@@ -378,11 +380,12 @@ export const EventSettings: React.FC = () => {
         heroSubtext: shortDescription.trim(),
         heroText: title.trim() || event.title,
         layout: event.customization?.layout || 'standard',
-        arenaGalleryImages,
+        eventGalleryImages,
+        arenaGalleryImages: eventGalleryImages,
       },
     };
   }, [
-    arenaGalleryImages,
+    eventGalleryImages,
     bannerUrl,
     date,
     description,
@@ -457,7 +460,7 @@ export const EventSettings: React.FC = () => {
         setBannerUploadError('Gallery upload failed');
         return;
       }
-      setArenaGalleryImages((prev) => normalizeArenaGalleryImages([...prev, url]));
+      setEventGalleryImages((prev) => normalizeEventGalleryImages([...prev, url]));
     } catch {
       setBannerUploadError('Gallery upload failed. Check your connection.');
     } finally {
@@ -534,10 +537,12 @@ export const EventSettings: React.FC = () => {
         templateId: design.templateId,
         checkoutFields: normalizeCheckoutFields(checkoutFields),
         eventPolicyHtml,
-        arenaGalleryImages,
+        eventGalleryImages,
       });
       setEvent(res.event);
-      setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
+      setEventGalleryImages(
+        normalizeEventGalleryImages(res.event.customization?.eventGalleryImages ?? res.event.customization?.arenaGalleryImages)
+      );
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
       setEventPolicyHtml(resolveEventPolicyHtml(res.event.customization?.eventPolicyHtml));
       setDesign((prev) => ({
@@ -866,22 +871,23 @@ export const EventSettings: React.FC = () => {
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-            {design.templateId === 'template-6' ? (
-              <ArenaGalleryEditor
-                images={arenaGalleryImages}
-                disabled={savingBranding}
-                uploading={isUploadingArenaGallery}
-                onUpload={uploadArenaGalleryFile}
-                onRemove={(index) => setArenaGalleryImages((prev) => prev.filter((_, i) => i !== index))}
-                ui={{
-                  borderColor: ui.borderColor,
-                  text: ui.text,
-                  textMuted: ui.textMuted,
-                  textSubtle: ui.textSubtle,
-                  cardBg: ui.cardMutedBg,
-                }}
-              />
-            ) : null}
+            <ArenaGalleryEditor
+              images={eventGalleryImages}
+              disabled={savingBranding}
+              uploading={isUploadingArenaGallery}
+              onUpload={uploadArenaGalleryFile}
+              onRemove={(index) => setEventGalleryImages((prev) => prev.filter((_, i) => i !== index))}
+              title="Event gallery"
+              description="Cover image is image 1. Add extra visuals for all layout templates."
+              emptyText="No extra images yet — add posters, maps, or venue shots."
+              ui={{
+                borderColor: ui.borderColor,
+                text: ui.text,
+                textMuted: ui.textMuted,
+                textSubtle: ui.textSubtle,
+                cardBg: ui.cardMutedBg,
+              }}
+            />
 
             <EventCategoryPicker
               value={design.eventCategory}

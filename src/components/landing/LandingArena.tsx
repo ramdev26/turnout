@@ -72,7 +72,10 @@ function ArenaHeader({ event }: { event: Event }) {
 }
 
 function ArenaCarousel({ event }: { event: Event }) {
-  const slides = useMemo(() => resolveArenaCarouselSlides(event), [event.bannerUrl, event.customization?.arenaGalleryImages]);
+  const slides = useMemo(
+    () => resolveArenaCarouselSlides(event),
+    [event.bannerUrl, event.customization?.eventGalleryImages, event.customization?.arenaGalleryImages]
+  );
   const [index, setIndex] = useState(0);
   const hasMultiple = slides.length > 1;
   const current = slides[index] ?? null;

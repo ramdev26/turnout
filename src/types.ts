@@ -318,7 +318,9 @@ export interface EventCustomization {
   ticketPdfFooterNote?: string;
   /** Extra questions asked for each ticket holder during checkout */
   checkoutFields?: CheckoutFieldDefinition[];
-  /** Extra carousel slides for Arena template (banner is always slide 1). */
+  /** Extra gallery images shared by all landing templates (banner is always image 1). */
+  eventGalleryImages?: string[];
+  /** Backward-compatible alias for older Arena-only clients. */
   arenaGalleryImages?: string[];
   /** When true, attendees may pay via bank transfer (requires organizer bank details). */
   allowBankTransfer?: boolean;

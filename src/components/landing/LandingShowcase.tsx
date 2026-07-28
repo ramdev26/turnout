@@ -17,6 +17,7 @@ import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
   EventBanner,
+  EventGalleryStrip,
   LandingPageShell,
   pad2,
   resolveLandingOrganizerBrand,
@@ -167,6 +168,9 @@ function ShowcaseHero({ event }: { event: Event }) {
         <div className="landing-showcase-hero-banner">
           <div className="landing-poster-frame landing-poster-frame--hero landing-poster-frame--showcase mx-auto w-full">
             <EventBanner event={event} overlay="none" fullWidth imageClassName="landing-poster-img" />
+          </div>
+          <div className="mx-auto mt-2 w-full max-w-[56rem] px-2 sm:px-3">
+            <EventGalleryStrip event={event} className="mt-0" />
           </div>
         </div>
       ) : null}
