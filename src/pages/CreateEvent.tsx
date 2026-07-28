@@ -723,6 +723,63 @@ export const CreateEvent: React.FC = () => {
               />
               {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
+              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Setup progress
+                </p>
+                <div className="mt-3 space-y-2.5">
+                  {[
+                    { label: 'Event name', done: (title || '').trim().length >= 3, icon: <FileText className="h-3.5 w-3.5" /> },
+                    { label: 'Cover image', done: (bannerUrl || '').trim() !== '', icon: <Eye className="h-3.5 w-3.5" /> },
+                    {
+                      label: 'Location',
+                      done:
+                        locationMode === 'online'
+                          ? isValidMeetingUrl((onlineUrl || '').trim())
+                          : (location || '').trim().length >= 3,
+                      icon: <MapPin className="h-3.5 w-3.5" />,
+                    },
+                    {
+                      label: ticketMode === 'paid' ? 'Paid ticket added' : 'Free ticket ready',
+                      done: ticketMode === 'paid' ? tickets.some((t) => Number(t.price) > 0) : true,
+                      icon: <Ticket className="h-3.5 w-3.5" />,
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2" style={cardStyle}>
+                      <span
+                        className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
+                        style={{
+                          background: item.done ? ui.accentSoft : 'rgba(255,255,255,0.06)',
+                          color: item.done ? ui.accent : ui.textMuted,
+                        }}
+                      >
+                        {item.icon}
+                      </span>
+                      <p className="min-w-0 flex-1 truncate text-xs font-medium" style={{ color: ui.text }}>
+                        {item.label}
+                      </p>
+                      <span
+                        className="text-[11px] font-semibold"
+                        style={{ color: item.done ? ui.accent : ui.textMuted }}
+                      >
+                        {item.done ? 'Done' : 'Pending'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border p-4" style={cardMutedStyle}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Quick guidance
+                </p>
+                <ul className="mt-2 space-y-1.5 text-xs leading-relaxed" style={{ color: ui.textMuted }}>
+                  <li>Use a clear banner image to boost conversions.</li>
+                  <li>{ticketMode === 'paid' ? 'Add at least one paid ticket tier.' : 'Switch to Paid when you need pricing tiers.'}</li>
+                  <li>{visibility === 'public' ? 'This event is currently visible to everyone.' : 'This event is private right now.'}</li>
+                </ul>
+              </div>
+
             </div>
 
             {/* Right column */}
