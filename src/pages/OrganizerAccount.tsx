@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Building2, CreditCard, FileText, Loader2, Mail, Trash2, UploadCloud, UserPlus, Users } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { api, toApiUrl } from '../api/client';
 import {
   OrganizerProfile,
@@ -35,6 +36,7 @@ function normalizeLogoUrl(url: string): string {
 
 export const OrganizerAccount: React.FC = () => {
   const { setUser } = useAuthStore();
+  const { hash } = useLocation();
   const ui = APP_FLOW_UI;
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
@@ -116,6 +118,17 @@ export const OrganizerAccount: React.FC = () => {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!hash || loading) return;
+    const id = hash.replace(/^#/, '');
+    const node = document.getElementById(id);
+    if (!node) return;
+    const raf = window.requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [hash, loading]);
 
   const uploadLogo = async (file: File) => {
     setUploadingLogo(true);
