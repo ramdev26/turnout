@@ -14,12 +14,13 @@ import {
   Globe,
   MapPin,
   Plus,
+  Rows3,
   Ticket,
   Trash2,
   Users,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { Event, EventCustomization, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
+import { Event, EventCustomization, OrganizerPaidEventReadiness, SeatingChartDesign, Ticket as EventTicket } from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { EventLocationFields } from '../components/ui/EventLocationFields';
@@ -28,6 +29,7 @@ import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
+import { SeatingChartBuilder, createDefaultSeatingChart } from '../components/organizer/SeatingChartBuilder';
 import { formatEventLocationDisplay, isValidMeetingUrl } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
@@ -131,6 +133,8 @@ type CreateEventDraftV1 = {
     hasSchedule: boolean;
     hasEnd: boolean;
     eventGalleryImages: string[];
+    seatingEnabled: boolean;
+    seatingChart: SeatingChartDesign;
   };
   design: LandingDesignValue;
 };
@@ -227,6 +231,8 @@ export const CreateEvent: React.FC = () => {
   const [hasSchedule, setHasSchedule] = useState(false);
   // End time is optional — most events only need a start.
   const [hasEnd, setHasEnd] = useState(false);
+  const [seatingEnabled, setSeatingEnabled] = useState(false);
+  const [seatingChart, setSeatingChart] = useState<SeatingChartDesign>(() => createDefaultSeatingChart());
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
   const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
@@ -358,6 +364,12 @@ export const CreateEvent: React.FC = () => {
       setHasSchedule(Boolean(parsed.ui.hasSchedule));
       setHasEnd(Boolean(parsed.ui.hasEnd));
       setEventGalleryImages(safeGallery);
+      setSeatingEnabled(Boolean(parsed.ui.seatingEnabled));
+      setSeatingChart(
+        parsed.ui.seatingChart && parsed.ui.seatingChart.version === 1
+          ? (parsed.ui.seatingChart as SeatingChartDesign)
+          : createDefaultSeatingChart()
+      );
       setDesign(parsed.design as LandingDesignValue);
     } catch {
       // Ignore malformed local drafts and continue with defaults.
@@ -405,6 +417,8 @@ export const CreateEvent: React.FC = () => {
         hasSchedule,
         hasEnd,
         eventGalleryImages,
+        seatingEnabled,
+        seatingChart,
       },
       design,
     };
@@ -440,6 +454,8 @@ export const CreateEvent: React.FC = () => {
     dnsRecordTarget,
     dnsConfigured,
     shortDescription,
+    seatingChart,
+    seatingEnabled,
     ticketMode,
     tickets,
     title,
@@ -680,6 +696,7 @@ export const CreateEvent: React.FC = () => {
         dnsConfigured: data.useCustomDomain ? data.dnsConfigured : false,
         eventGalleryImages,
         arenaGalleryImages: eventGalleryImages,
+        seatingChart: seatingEnabled ? seatingChart : undefined,
       };
 
       const payloadTickets =
@@ -764,6 +781,7 @@ export const CreateEvent: React.FC = () => {
       fontFamily: design.fontFamily,
       eventGalleryImages,
       arenaGalleryImages: eventGalleryImages,
+      seatingChart: seatingEnabled ? seatingChart : undefined,
     };
     return {
       id: 'preview',
@@ -796,6 +814,8 @@ export const CreateEvent: React.FC = () => {
     onlineUrl,
     shortDescription,
     eventGalleryImages,
+    seatingChart,
+    seatingEnabled,
     themeId,
     title,
     user?.displayName,
@@ -1440,6 +1460,52 @@ export const CreateEvent: React.FC = () => {
 
                 {errors.tickets?.message && (
                   <p className="mt-2 text-xs text-rose-600">{errors.tickets.message}</p>
+                )}
+              </div>
+
+              {/* Seating (optional) */}
+              <div className={cn(panelCn, 'mb-6 p-4')} style={cardStyle}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <Rows3 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                        Reserved seating (optional)
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
+                        Build a drag-and-drop style seating map with stage, seat blocks, tables/PODs, group holds, and pricing tiers.
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={seatingEnabled}
+                    onChange={setSeatingEnabled}
+                    label="Enable reserved seating builder"
+                    accent={ui.accent}
+                    offColor={ui.isDark ? 'rgba(255,255,255,0.25)' : '#d1d5db'}
+                  />
+                </div>
+
+                {seatingEnabled ? (
+                  <div className="mt-4 rounded-xl border p-2.5" style={cardMutedStyle}>
+                    <SeatingChartBuilder
+                      value={seatingChart}
+                      onChange={setSeatingChart}
+                      ui={{
+                        text: ui.text,
+                        textMuted: ui.textMuted,
+                        textSubtle: ui.textSubtle,
+                        borderColor: ui.borderColor,
+                        cardBg: ui.cardMutedBg,
+                        fieldBg: ui.fieldBg,
+                        accent: ui.accent,
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs" style={{ color: ui.textSubtle }}>
+                    Keep this off if your event uses open/general admission only.
+                  </p>
                 )}
               </div>
 

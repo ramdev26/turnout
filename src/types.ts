@@ -322,6 +322,8 @@ export interface EventCustomization {
   eventGalleryImages?: string[];
   /** Backward-compatible alias for older Arena-only clients. */
   arenaGalleryImages?: string[];
+  /** Optional interactive reserved seating chart configuration. */
+  seatingChart?: SeatingChartDesign;
   /** When true, attendees may pay via bank transfer (requires organizer bank details). */
   allowBankTransfer?: boolean;
   /** When false, PayHere/card checkout is disabled for this event. Defaults to true. */
@@ -385,6 +387,28 @@ export type SectionDesign = {
     border: string;
   };
   blocks: SectionBlock[];
+};
+
+export type SeatingChartElementType = 'stage' | 'seat' | 'table' | 'group' | 'pricing';
+
+export type SeatingChartElement = {
+  id: string;
+  type: SeatingChartElementType;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  props: Record<string, any>;
+};
+
+export type SeatingChartDesign = {
+  version: 1;
+  canvas: {
+    width: number;
+    height: number;
+    background?: string;
+  };
+  elements: SeatingChartElement[];
 };
 
 export interface Event {
