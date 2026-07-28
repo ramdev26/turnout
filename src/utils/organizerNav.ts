@@ -24,6 +24,14 @@ export function eventWorkspaceNav(eventId: string): AppNavLink[] {
   ];
 }
 
+export function organizationSettingsSubNav(): AppNavLink[] {
+  return [
+    { to: '/dashboard/organization#org-profile', label: 'Profile', exact: true },
+    { to: '/dashboard/organization#org-terms', label: 'Terms', exact: true },
+    { to: '/dashboard/organization#org-payments', label: 'Payments', exact: true },
+  ];
+}
+
 export function isOrganizerDashboardPath(pathname: string): boolean {
   if (pathname === '/dashboard') return true;
   if (pathname === '/dashboard/earnings') return true;

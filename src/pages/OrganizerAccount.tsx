@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Building2, CreditCard, FileText, Loader2, Mail, Trash2, UploadCloud, UserPlus, Users } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
 import {
@@ -13,7 +13,7 @@ import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { FlowAlert, FlowButton, FlowCard, FlowInput, FlowLabel, FlowPage } from '../components/flow/FlowPrimitives';
 import { organizerMainNav } from '../utils/organizerNav';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
-import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor, accentButtonStyleFor } from '../themes/flowUi';
+import { cardMutedStyleFor, fieldClassFor, fieldStyleFor, accentButtonStyleFor } from '../themes/flowUi';
 import { OrganizerLogoUpload } from '../components/ui/OrganizerLogoUpload';
 import { OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
 import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
@@ -72,13 +72,6 @@ export const OrganizerAccount: React.FC = () => {
   const [invites, setInvites] = useState<OrganizerTeamInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<OrganizerTeamRole>('editor');
-  const [activeSection, setActiveSection] = useState<'profile' | 'terms' | 'payments' | 'team'>('profile');
-  const sectionRefs = useRef<Record<'profile' | 'terms' | 'payments' | 'team', HTMLElement | null>>({
-    profile: null,
-    terms: null,
-    payments: null,
-    team: null,
-  });
 
   const loadTeam = async () => {
     const res = await api.get<{ members: OrganizerTeamMember[]; invites: OrganizerTeamInvite[]; workspace: OrganizerWorkspace }>(
@@ -319,34 +312,6 @@ export const OrganizerAccount: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const onScroll = () => {
-      const entries: Array<{ key: 'profile' | 'terms' | 'payments' | 'team'; top: number }> = [
-        { key: 'profile', top: sectionRefs.current.profile?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY },
-        { key: 'terms', top: sectionRefs.current.terms?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY },
-        { key: 'payments', top: sectionRefs.current.payments?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY },
-        { key: 'team', top: sectionRefs.current.team?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY },
-      ];
-
-      const visible = entries
-        .filter((entry) => entry.top < window.innerHeight * 0.45)
-        .sort((a, b) => b.top - a.top)[0];
-      if (visible) {
-        setActiveSection(visible.key);
-      }
-    };
-
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [workspace?.canManageTeam]);
-
-  const scrollToSection = (section: 'profile' | 'terms' | 'payments' | 'team') => {
-    const node = sectionRefs.current[section];
-    if (!node) return;
-    node.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   if (loading) {
     return (
       <OrganizerFlowShell title="Organization" subtitle="Loading…" navLinks={organizerMainNav}>
@@ -363,28 +328,7 @@ export const OrganizerAccount: React.FC = () => {
         {error ? <FlowAlert variant="error">{error}</FlowAlert> : null}
         {feedback ? <FlowAlert variant="success">{feedback}</FlowAlert> : null}
 
-        <div className="sticky top-[70px] z-20 rounded-2xl border p-2 backdrop-blur" style={cardStyleFor(ui)}>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: 'profile' as const, label: 'Profile' },
-              { key: 'terms' as const, label: 'Terms' },
-              { key: 'payments' as const, label: 'Payments' },
-              ...(workspace?.canManageTeam ? [{ key: 'team' as const, label: 'Team' }] : []),
-            ].map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => scrollToSection(item.key)}
-                className="rounded-lg px-3 py-1.5 text-sm font-semibold transition"
-                style={activeSection === item.key ? accentButtonStyleFor(ui) : { color: ui.textMuted }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <section id="org-profile" ref={(el) => { sectionRefs.current.profile = el; }}>
+        <section id="org-profile">
         <FlowCard>
           <div className="flex items-start gap-3">
             <div
@@ -607,7 +551,7 @@ export const OrganizerAccount: React.FC = () => {
         </FlowCard>
         </section>
 
-        <section id="org-terms" ref={(el) => { sectionRefs.current.terms = el; }}>
+        <section id="org-terms">
         <FlowCard className="mt-6">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5" style={{ color: ui.accent }} />
@@ -649,7 +593,7 @@ export const OrganizerAccount: React.FC = () => {
         </FlowCard>
         </section>
 
-        <section id="org-payments" ref={(el) => { sectionRefs.current.payments = el; }}>
+        <section id="org-payments">
         <FlowCard className="mt-6">
           <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" style={{ color: ui.accent }} />
@@ -671,7 +615,7 @@ export const OrganizerAccount: React.FC = () => {
         </section>
 
         {workspace?.canManageTeam ? (
-          <section id="org-team" ref={(el) => { sectionRefs.current.team = el; }}>
+          <section id="org-team">
           <FlowCard className="mt-6">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5" style={{ color: ui.accent }} />

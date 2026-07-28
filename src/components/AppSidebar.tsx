@@ -21,16 +21,18 @@ type Props = {
 function SidebarNavSection({
   links,
   pathname,
+  hash,
   onNavigate,
 }: {
   links: AppNavLink[];
   pathname: string;
+  hash: string;
   onNavigate?: () => void;
 }) {
   return (
     <ul className="space-y-0.5">
       {links.map((link) => {
-        const active = isNavLinkActive(pathname, link);
+        const active = isNavLinkActive(pathname, link, hash);
         const Icon = link.icon;
         return (
           <li key={link.to}>
@@ -65,11 +67,11 @@ export const AppSidebar: React.FC<Props> = ({
   mobileOpen,
   onMobileClose,
 }) => {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
 
   useEffect(() => {
     onMobileClose();
-  }, [pathname, onMobileClose]);
+  }, [pathname, hash, onMobileClose]);
 
   const sidebarContent = (
     <div className="flex h-full flex-col">
@@ -89,7 +91,7 @@ export const AppSidebar: React.FC<Props> = ({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
-        <SidebarNavSection links={primaryLinks} pathname={pathname} onNavigate={onMobileClose} />
+        <SidebarNavSection links={primaryLinks} pathname={pathname} hash={hash} onNavigate={onMobileClose} />
 
         {secondaryLinks && secondaryLinks.length > 0 ? (
           <div className="mt-6 border-t pt-4" style={{ borderColor: ui.borderColor }}>
@@ -101,7 +103,7 @@ export const AppSidebar: React.FC<Props> = ({
                 {secondaryTitle}
               </p>
             ) : null}
-            <SidebarNavSection links={secondaryLinks} pathname={pathname} onNavigate={onMobileClose} />
+            <SidebarNavSection links={secondaryLinks} pathname={pathname} hash={hash} onNavigate={onMobileClose} />
           </div>
         ) : null}
       </nav>

@@ -14,7 +14,7 @@ import { TURNOUT_BRAND } from '../themes/brandColors';
 import { AppSidebar } from './AppSidebar';
 import { adminMainNav, BASADMIN_BASE } from '../utils/adminNav';
 import { attendeeMainNav } from '../utils/attendeeNav';
-import { eventWorkspaceNav, organizerMainNav } from '../utils/organizerNav';
+import { eventWorkspaceNav, organizationSettingsSubNav, organizerMainNav } from '../utils/organizerNav';
 import type { AppNavLink } from '../utils/appNav';
 
 const ui = EVENT_THEMES.minimal.ui;
@@ -80,15 +80,17 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       return { primaryLinks: attendeeMainNav };
     }
 
-    const secondary =
+    const inOrganizationSettings = path.startsWith('/dashboard/organization');
+    const eventWorkspaceSecondary =
       eventId && !['new', 'themes'].includes(eventId) ? eventWorkspaceNav(eventId) : undefined;
+    const secondary = inOrganizationSettings ? organizationSettingsSubNav() : eventWorkspaceSecondary;
 
     return {
       primaryLinks: organizerMainNav,
-      secondaryTitle: secondary ? 'Event workspace' : undefined,
+      secondaryTitle: secondary ? (inOrganizationSettings ? 'Organization' : 'Event workspace') : undefined,
       secondaryLinks: secondary,
     };
-  }, [user, eventId]);
+  }, [user, eventId, path]);
 
   const accountHref =
     user?.role === 'attendee'

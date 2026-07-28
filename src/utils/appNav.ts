@@ -9,10 +9,15 @@ export type AppNavLink = {
   matchPaths?: string[];
 };
 
-export function isNavLinkActive(pathname: string, link: AppNavLink): boolean {
+export function isNavLinkActive(pathname: string, link: AppNavLink, currentHash = ''): boolean {
+  const [linkPath, linkHash = ''] = link.to.split('#');
+  const normalizedPath = linkPath || link.to;
   if (link.matchPaths?.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return true;
   }
-  if (link.exact) return pathname === link.to;
-  return pathname === link.to || pathname.startsWith(`${link.to}/`);
+  if (linkHash) {
+    return pathname === normalizedPath && currentHash === `#${linkHash}`;
+  }
+  if (link.exact) return pathname === normalizedPath;
+  return pathname === normalizedPath || pathname.startsWith(`${normalizedPath}/`);
 }
