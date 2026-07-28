@@ -614,13 +614,7 @@ function payhere_cfg_for_organizer(PDO $pdo, int $organizerUserId): array {
     if (!organizer_own_payhere_is_configured($row)) {
       json_response(400, [
         'error' => 'organizer_payhere_not_configured',
-        'message' => 'Connect your PayHere merchant ID and secret in Organization settings before selling tickets.',
-      ]);
-    }
-    if (!organizer_billing_is_active($row)) {
-      json_response(400, [
-        'error' => 'organizer_billing_required',
-        'message' => 'Add a billing card in Organization settings. Ticket sales go to your PayHere account, so Turnout needs your card on file to collect platform fees.',
+        'message' => 'Connect your payment gateway merchant ID and secret in Organization settings before selling tickets.',
       ]);
     }
     $platform = payhere_cfg();
@@ -629,7 +623,7 @@ function payhere_cfg_for_organizer(PDO $pdo, int $organizerUserId): array {
     if ($merchantId === '' || $merchantSecret === '') {
       json_response(400, [
         'error' => 'organizer_payhere_not_configured',
-        'message' => 'Organizer PayHere credentials are incomplete. Update payment settings.',
+        'message' => 'Organizer gateway credentials are incomplete. Update payment settings.',
       ]);
     }
     return [

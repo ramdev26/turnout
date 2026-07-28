@@ -15,7 +15,7 @@ import { organizerMainNav } from '../utils/organizerNav';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cardMutedStyleFor, cardStyleFor, fieldClassFor, fieldStyleFor, accentButtonStyleFor } from '../themes/flowUi';
 import { OrganizerLogoUpload } from '../components/ui/OrganizerLogoUpload';
-import { OrganizerBillingCardPanel, OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
+import { OrganizerPaymentSettingsPanel } from '../components/organizer/OrganizerPaymentSettings';
 import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { TurnoutSelect } from '../components/ui/TurnoutSelect';
 import { DEFAULT_ORGANIZER_TERMS_HTML, resolveOrganizerTermsHtml } from '../utils/organizerTerms';
@@ -601,25 +601,6 @@ export const OrganizerAccount: React.FC = () => {
           </p>
           <div className="mt-5">
             <OrganizerPaymentSettingsPanel
-              isOwner={!!workspace?.isOwner}
-              onFeedback={setFeedback}
-              onError={setError}
-            />
-          </div>
-        </FlowCard>
-
-        <FlowCard className="mt-6">
-          <div className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" style={{ color: ui.accent }} />
-            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
-              Account card (optional)
-            </h2>
-          </div>
-          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Only needed if you use your own gateway. Keep a card on file for your organizer account.
-          </p>
-          <div className="mt-5">
-            <OrganizerBillingCardPanel
               isOwner={!!workspace?.isOwner}
               onFeedback={setFeedback}
               onError={setError}

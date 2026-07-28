@@ -348,6 +348,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   const [expanded, setExpanded] = useState<ExpandedSection>(null);
   const [gatewayModalOpen, setGatewayModalOpen] = useState(false);
   const [bankTransferEnabled, setBankTransferEnabled] = useState(true);
+  const [addingCard, setAddingCard] = useState(false);
 
   const applySettings = useCallback((next: OrganizerPaymentSettings, nextReadiness: OrganizerPaidEventReadiness) => {
     setSettings(next);
@@ -516,14 +517,49 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     };
     if (bankAccountNumber.trim()) body.bankAccountNumber = bankAccountNumber.trim();
 
-    const res = await postSettings(
+    await postSettings(
       body,
       readiness?.isReady || gatewayMode === 'own_payhere'
         ? 'Payout bank account saved.'
         : 'Payout bank account saved. You can publish paid events now.'
     );
-    if (res?.readiness?.isReady) {
-      // keep success copy above
+  };
+
+  const addBillingCard = async () => {
+    setAddingCard(true);
+    try {
+      const res = await api.post<OrganizerBillingPreapproveResponse>('/api/organizer/billing/preapprove', {});
+      await startPayHerePreapprove(res, {
+        onCompleted: async (setupOrderId) => {
+          try {
+            const statusRes = await api.get<{ sessionStatus: string; settings: OrganizerPaymentSettings }>(
+              `/api/organizer/billing/status?setup_order_id=${encodeURIComponent(setupOrderId)}`
+            );
+            if (settings && readiness) {
+              applySettings(statusRes.settings, readiness);
+            } else {
+              setSettings(statusRes.settings);
+            }
+            // Refresh full settings + readiness after card setup.
+            await loadSettings();
+            if (statusRes.settings.billing.status === 'active') {
+              onFeedback?.('Account card saved.');
+            } else {
+              onError?.('Card setup did not complete. Try again.');
+            }
+          } finally {
+            setAddingCard(false);
+          }
+        },
+        onDismissed: () => setAddingCard(false),
+        onError: (message) => {
+          onError?.(message);
+          setAddingCard(false);
+        },
+      });
+    } catch (e: unknown) {
+      onError?.(formatApiError(e, 'Could not start card setup'));
+      setAddingCard(false);
     }
   };
 
@@ -616,7 +652,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
 
             {gatewayMode === 'own_payhere' ? (
               <div
-                className="rounded-xl border p-4"
+                className="space-y-4 rounded-xl border p-4"
                 style={{
                   backgroundColor: ui.fieldBg,
                   borderColor: ui.borderColor,
@@ -633,7 +669,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                     </p>
                   </div>
                 </div>
-                <div className="mt-4 grid gap-3">
+                <div className="grid gap-3">
                   <label className="flex flex-col gap-1.5">
                     <FlowLabel>Merchant ID</FlowLabel>
                     <FlowInput
@@ -659,12 +695,45 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   </label>
                 </div>
                 {isOwner ? (
-                  <div className="mt-4">
-                    <FlowButton onClick={() => void saveOwnGatewayCredentials()} disabled={saving}>
-                      {saving ? 'Saving…' : 'Save gateway'}
-                    </FlowButton>
-                  </div>
+                  <FlowButton onClick={() => void saveOwnGatewayCredentials()} disabled={saving}>
+                    {saving ? 'Saving…' : 'Save gateway'}
+                  </FlowButton>
                 ) : null}
+
+                <div className="border-t pt-4" style={{ borderColor: ui.borderColor }}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                        Account card
+                      </p>
+                      <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
+                        Optional. Keep a card on file for your organizer account when using your own gateway.
+                      </p>
+                    </div>
+                    {settings?.billing.status === 'active' ? (
+                      <span
+                        className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
+                        style={{ background: ui.accentSoft, color: ui.accent }}
+                      >
+                        <CreditCard className="h-3.5 w-3.5" />
+                        {settings.billing.cardBrand || 'Card'} ···· {settings.billing.cardLast4 || '****'}
+                      </span>
+                    ) : (
+                      <StatusBadge active={false} label="Not set up" />
+                    )}
+                  </div>
+                  {isOwner ? (
+                    <div className="mt-3">
+                      <FlowButton onClick={() => void addBillingCard()} disabled={addingCard || saving}>
+                        {addingCard
+                          ? 'Opening secure card form…'
+                          : settings?.billing.status === 'active'
+                            ? 'Update account card'
+                            : 'Add account card'}
+                      </FlowButton>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ) : (
               <p className="text-sm" style={{ color: ui.textMuted }}>
