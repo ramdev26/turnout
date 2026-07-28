@@ -120,6 +120,28 @@ const eventSchema = z
 
 type EventFormValues = z.infer<typeof eventSchema>;
 
+type CreateEventDraftV1 = {
+  version: 1;
+  savedAt: number;
+  form: EventFormValues;
+  ui: {
+    ticketMode: 'free' | 'paid';
+    freeUnlimited: boolean;
+    visibility: 'public' | 'private';
+    hasSchedule: boolean;
+    hasEnd: boolean;
+    eventGalleryImages: string[];
+  };
+  design: LandingDesignValue;
+};
+
+const CREATE_EVENT_DRAFT_VERSION = 1;
+const CREATE_EVENT_DRAFT_KEY_PREFIX = 'turnout:create-event-draft:';
+
+function createEventDraftKey(userId?: string): string {
+  return `${CREATE_EVENT_DRAFT_KEY_PREFIX}${userId || 'anonymous'}`;
+}
+
 function fieldClassFor(ui: CreateThemeUI): string {
   return cn(
     'w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2',
@@ -228,6 +250,7 @@ export const CreateEvent: React.FC = () => {
     control,
     handleSubmit,
     setValue,
+    reset,
     setFocus,
     watch,
     formState: { errors },
@@ -256,9 +279,11 @@ export const CreateEvent: React.FC = () => {
   });
 
   const submitErrorRef = React.useRef<HTMLDivElement>(null);
+  const hydratedDraftRef = React.useRef(false);
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'tickets' });
 
   const title = watch('title');
+  const slug = watch('slug');
   const description = watch('description');
   const shortDescription = watch('shortDescription');
   const date = watch('date');
@@ -271,6 +296,11 @@ export const CreateEvent: React.FC = () => {
   const tickets = watch('tickets');
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
+  const customDomain = watch('customDomain');
+  const dnsProvider = watch('dnsProvider');
+  const dnsRecordType = watch('dnsRecordType');
+  const dnsRecordTarget = watch('dnsRecordTarget');
+  const dnsConfigured = watch('dnsConfigured');
 
   const ui = APP_FLOW_UI;
   const cardStyle = cardStyleFor(ui);
@@ -304,10 +334,119 @@ export const CreateEvent: React.FC = () => {
     [tickets]
   );
 
+  useEffect(() => {
+    if (hydratedDraftRef.current) return;
+    const storageKey = createEventDraftKey(user?.uid);
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        hydratedDraftRef.current = true;
+        return;
+      }
+      const parsed = JSON.parse(raw) as Partial<CreateEventDraftV1>;
+      if (parsed?.version !== CREATE_EVENT_DRAFT_VERSION || !parsed.form || !parsed.ui || !parsed.design) {
+        localStorage.removeItem(storageKey);
+        hydratedDraftRef.current = true;
+        return;
+      }
+
+      const safeGallery = normalizeEventGalleryImages(parsed.ui.eventGalleryImages);
+      reset(parsed.form as EventFormValues);
+      setTicketMode(parsed.ui.ticketMode === 'paid' ? 'paid' : 'free');
+      setFreeUnlimited(Boolean(parsed.ui.freeUnlimited));
+      setVisibility(parsed.ui.visibility === 'private' ? 'private' : 'public');
+      setHasSchedule(Boolean(parsed.ui.hasSchedule));
+      setHasEnd(Boolean(parsed.ui.hasEnd));
+      setEventGalleryImages(safeGallery);
+      setDesign(parsed.design as LandingDesignValue);
+    } catch {
+      // Ignore malformed local drafts and continue with defaults.
+    } finally {
+      hydratedDraftRef.current = true;
+    }
+  }, [reset, user?.uid]);
+
   const normalizeBannerUrl = (url: string) => {
     if (!url || /^https?:\/\//i.test(url) || url.startsWith('data:image/')) return url;
     return toApiUrl(url);
   };
+
+  useEffect(() => {
+    if (!hydratedDraftRef.current) return;
+    const storageKey = createEventDraftKey(user?.uid);
+    const payload: CreateEventDraftV1 = {
+      version: 1,
+      savedAt: Date.now(),
+      form: {
+        title,
+        slug,
+        description,
+        shortDescription,
+        date,
+        endDate,
+        locationMode,
+        location,
+        onlinePlatform,
+        onlineUrl,
+        bannerUrl,
+        tickets,
+        requireApproval,
+        useCustomDomain,
+        customDomain,
+        dnsProvider,
+        dnsRecordType,
+        dnsRecordTarget,
+        dnsConfigured,
+      },
+      ui: {
+        ticketMode,
+        freeUnlimited,
+        visibility,
+        hasSchedule,
+        hasEnd,
+        eventGalleryImages,
+      },
+      design,
+    };
+
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(payload));
+      } catch {
+        // Ignore storage quota or privacy-mode errors.
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    bannerUrl,
+    date,
+    description,
+    design,
+    endDate,
+    eventGalleryImages,
+    freeUnlimited,
+    hasEnd,
+    hasSchedule,
+    location,
+    locationMode,
+    onlinePlatform,
+    onlineUrl,
+    requireApproval,
+    slug,
+    customDomain,
+    dnsProvider,
+    dnsRecordType,
+    dnsRecordTarget,
+    dnsConfigured,
+    shortDescription,
+    ticketMode,
+    tickets,
+    title,
+    useCustomDomain,
+    user?.uid,
+    visibility,
+  ]);
 
   const switchToFreeMode = () => {
     setTicketMode('free');
@@ -577,6 +716,11 @@ export const CreateEvent: React.FC = () => {
         tickets: payloadTickets,
       });
 
+      try {
+        localStorage.removeItem(createEventDraftKey(user?.uid));
+      } catch {
+        // Ignore storage errors on cleanup.
+      }
       window.open(`/e/${created.slug}`, '_blank', 'noopener,noreferrer');
       navigate('/dashboard');
     } catch (error: any) {
