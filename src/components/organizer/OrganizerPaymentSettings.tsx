@@ -24,14 +24,29 @@ type Props = {
 
 type ExpandedSection = 'providers' | 'installments' | 'bank_transfer' | 'payouts' | null;
 
+const PROVIDER_LOGOS = {
+  payhere: 'https://www.payhere.lk/downloads/images/payhere_long_banner.png',
+  koko: 'https://paykoko.com/img/logo1.7ff549c0.png',
+  mintpay:
+    'https://objectstorage.ap-mumbai-1.oraclecloud.com/n/softlogicbicloud/b/cdn/o/payment-method-images/62d940d670e2b.png',
+} as const;
+
 const OWN_GATEWAY_OPTIONS: Array<{
   id: OrganizerOwnGatewayId;
   name: string;
   available: boolean;
   accent: string;
   mark: string;
+  logoUrl?: string;
 }> = [
-  { id: 'payhere', name: 'PayHere', available: true, accent: '#2563EB', mark: 'PH' },
+  {
+    id: 'payhere',
+    name: 'PayHere',
+    available: true,
+    accent: '#2563EB',
+    mark: 'PH',
+    logoUrl: PROVIDER_LOGOS.payhere,
+  },
   { id: 'webx', name: 'WebX Pay', available: false, accent: '#7C3AED', mark: 'WX' },
   { id: 'directpay', name: 'DirectPay', available: false, accent: '#0D9488', mark: 'DP' },
 ];
@@ -74,6 +89,44 @@ function BrandMark({ mark, accent, size = 'md' }: { mark: string; accent: string
       aria-hidden
     >
       {mark}
+    </span>
+  );
+}
+
+function ProviderLogo({
+  src,
+  alt,
+  size = 'md',
+  wide = false,
+}: {
+  src: string;
+  alt: string;
+  size?: 'sm' | 'md' | 'lg';
+  wide?: boolean;
+}) {
+  const height = size === 'sm' ? 'h-8' : size === 'lg' ? 'h-12' : 'h-10';
+  const width = wide
+    ? size === 'sm'
+      ? 'w-24'
+      : size === 'lg'
+        ? 'w-40'
+        : 'w-32'
+    : size === 'sm'
+      ? 'w-14'
+      : size === 'lg'
+        ? 'w-24'
+        : 'w-20';
+
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white px-2 shadow-sm',
+        height,
+        width
+      )}
+      style={{ borderColor: 'rgba(255,255,255,0.18)' }}
+    >
+      <img src={src} alt={alt} className="max-h-full max-w-full object-contain" loading="lazy" />
     </span>
   );
 }
@@ -287,7 +340,11 @@ function GatewayPickerModal({
                   opacity: option.available ? 1 : 0.72,
                 }}
               >
-                <BrandMark mark={option.mark} accent={option.accent} />
+                {option.logoUrl ? (
+                  <ProviderLogo src={option.logoUrl} alt={option.name} wide={option.id === 'payhere'} size="md" />
+                ) : (
+                  <BrandMark mark={option.mark} accent={option.accent} />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold" style={{ color: ui.text }}>
                     {option.name}
@@ -659,7 +716,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <BrandMark mark="PH" accent="#2563EB" />
+                  <ProviderLogo src={PROVIDER_LOGOS.payhere} alt="PayHere" wide size="md" />
                   <div>
                     <p className="text-sm font-semibold" style={{ color: ui.text }}>
                       Gateway credentials
@@ -787,8 +844,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               onClick={() => void saveInstallments('turnout')}
               trailing={
                 <span className="inline-flex items-center gap-1.5">
-                  <BrandMark mark="K" accent="#7C3AED" size="sm" />
-                  <BrandMark mark="M" accent="#059669" size="sm" />
+                  <ProviderLogo src={PROVIDER_LOGOS.koko} alt="Koko" size="sm" />
+                  <ProviderLogo src={PROVIDER_LOGOS.mintpay} alt="Mintpay" size="sm" />
                 </span>
               }
             />
@@ -819,7 +876,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <BrandMark mark="K" accent="#7C3AED" size="sm" />
+                      <ProviderLogo src={PROVIDER_LOGOS.koko} alt="Koko" size="sm" />
                       Koko
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
@@ -865,7 +922,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <BrandMark mark="M" accent="#059669" size="sm" />
+                      <ProviderLogo src={PROVIDER_LOGOS.mintpay} alt="Mintpay" size="sm" />
                       Mintpay
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
