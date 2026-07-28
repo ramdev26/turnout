@@ -880,18 +880,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               onClick={() => void saveInstallments('turnout')}
               trailing={
                 <span className="inline-flex items-center gap-1.5">
-                  <ProviderLogo
-                    src={PROVIDER_LOGOS.kokoRemote}
-                    alt="Koko"
-                    size="sm"
-                    fallbackSrc={PROVIDER_LOGOS.koko}
-                  />
-                  <ProviderLogo
-                    src={PROVIDER_LOGOS.mintpayRemote}
-                    alt="Mintpay"
-                    size="sm"
-                    fallbackSrc={PROVIDER_LOGOS.mintpay}
-                  />
+                  <ProviderLogo src={PROVIDER_LOGOS.koko} alt="Koko" size="sm" />
+                  <ProviderLogo src={PROVIDER_LOGOS.mintpay} alt="Mintpay" size="sm" />
                 </span>
               }
             />
@@ -922,12 +912,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <ProviderLogo
-                        src={PROVIDER_LOGOS.kokoRemote}
-                        alt="Koko"
-                        size="sm"
-                        fallbackSrc={PROVIDER_LOGOS.koko}
-                      />
+                      <ProviderLogo src={PROVIDER_LOGOS.koko} alt="Koko" size="sm" />
                       Koko
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
@@ -973,12 +958,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   />
                   <span>
                     <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
-                      <ProviderLogo
-                        src={PROVIDER_LOGOS.mintpayRemote}
-                        alt="Mintpay"
-                        size="sm"
-                        fallbackSrc={PROVIDER_LOGOS.mintpay}
-                      />
+                      <ProviderLogo src={PROVIDER_LOGOS.mintpay} alt="Mintpay" size="sm" />
                       Mintpay
                     </span>
                     <span className="mt-1 block text-xs" style={{ color: ui.textMuted }}>
