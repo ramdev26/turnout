@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Rnd } from 'react-rnd';
 import { CircleDot, Grid3X3, Rows3, Square, Tag } from 'lucide-react';
 import { SeatingChartDesign, SeatingChartElement, SeatingChartElementType } from '../../types';
@@ -53,6 +53,9 @@ export function createDefaultSeatingChart(): SeatingChartDesign {
 
 export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value, onChange, ui }) => {
   const [selectedId, setSelectedId] = useState<string | null>(value.elements[0]?.id || null);
+  const [paletteDragType, setPaletteDragType] = useState<SeatingChartElementType | null>(null);
+  const [dropPoint, setDropPoint] = useState<{ x: number; y: number } | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
   const selected = useMemo(() => value.elements.find((el) => el.id === selectedId) || null, [value.elements, selectedId]);
 
   const updateElement = (id: string, patch: Partial<SeatingChartElement>) => {
@@ -69,18 +72,24 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
     });
   };
 
-  const addElement = (item: PaletteItem) => {
+  const addElementAt = (item: PaletteItem, x: number, y: number) => {
+    const maxX = Math.max(0, value.canvas.width - item.defaultW);
+    const maxY = Math.max(0, value.canvas.height - item.defaultH);
     const next: SeatingChartElement = {
       id: uid(),
       type: item.type,
-      x: 24,
-      y: 24,
+      x: Math.max(0, Math.min(maxX, Math.round(x))),
+      y: Math.max(0, Math.min(maxY, Math.round(y))),
       w: item.defaultW,
       h: item.defaultH,
       props: { ...item.defaultProps },
     };
     onChange({ ...value, elements: [...value.elements, next] });
     setSelectedId(next.id);
+  };
+
+  const addElement = (item: PaletteItem) => {
+    addElementAt(item, 24, 24);
   };
 
   const removeSelected = () => {
@@ -215,6 +224,16 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
               key={item.type}
               type="button"
               onClick={() => addElement(item)}
+              draggable
+              onDragStart={(e) => {
+                setPaletteDragType(item.type);
+                e.dataTransfer.setData('application/x-seating-tool', item.type);
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+              onDragEnd={() => {
+                setPaletteDragType(null);
+                setDropPoint(null);
+              }}
               className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm font-semibold transition hover:opacity-90"
               style={{ borderColor: ui.borderColor, background: ui.fieldBg, color: ui.text }}
             >
@@ -234,6 +253,7 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
         </div>
         <div
           className="relative mx-auto rounded-xl border"
+          ref={canvasRef}
           style={{
             width: value.canvas.width,
             height: value.canvas.height,
@@ -242,16 +262,48 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
             backgroundImage:
               'radial-gradient(circle at 50% 0%, rgba(20,184,166,0.18), transparent 48%), repeating-linear-gradient(0deg, rgba(255,255,255,0.04), rgba(255,255,255,0.04) 1px, transparent 1px, transparent 20px), repeating-linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.04) 1px, transparent 1px, transparent 20px)',
           }}
+          onDragOver={(e) => {
+            const toolType = e.dataTransfer.getData('application/x-seating-tool') as SeatingChartElementType;
+            if (!toolType && !paletteDragType) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            setDropPoint({ x, y });
+          }}
+          onDragLeave={() => setDropPoint(null)}
+          onDrop={(e) => {
+            const raw = e.dataTransfer.getData('application/x-seating-tool') as SeatingChartElementType;
+            const type = raw || paletteDragType;
+            if (!type) return;
+            e.preventDefault();
+            const item = palette.find((p) => p.type === type);
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (!item || !rect) return;
+            const x = e.clientX - rect.left - item.defaultW / 2;
+            const y = e.clientY - rect.top - item.defaultH / 2;
+            addElementAt(item, x, y);
+            setPaletteDragType(null);
+            setDropPoint(null);
+          }}
         >
+          {dropPoint ? (
+            <div
+              className="pointer-events-none absolute z-10 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-cyan-300/90 bg-cyan-300/20"
+              style={{ left: dropPoint.x, top: dropPoint.y }}
+            />
+          ) : null}
           {value.elements.map((el) => (
             <Rnd
               key={el.id}
               size={{ width: el.w, height: el.h }}
               position={{ x: el.x, y: el.y }}
               bounds="parent"
-              dragHandleClassName="seating-drag-handle"
               enableUserSelectHack
               style={{ touchAction: 'none' }}
+              dragAxis="both"
               onDragStart={() => setSelectedId(el.id)}
               onDragStop={(_, d) => updateElement(el.id, { x: d.x, y: d.y })}
               onResizeStart={() => setSelectedId(el.id)}
@@ -274,6 +326,9 @@ export const SeatingChartBuilder: React.FC<SeatingChartBuilderProps> = ({ value,
       <div className="rounded-xl border p-3" style={{ borderColor: ui.borderColor, background: ui.cardBg }}>
         <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
           Properties
+        </p>
+        <p className="mt-1 text-[11px]" style={{ color: ui.textMuted }}>
+          Tip: drag tools from the left panel and drop anywhere on the canvas.
         </p>
         {!selected ? (
           <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
