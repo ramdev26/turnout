@@ -236,6 +236,7 @@ export const CreateEvent: React.FC = () => {
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
   const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
+  const [activeSubMenu, setActiveSubMenu] = useState<'details' | 'seating'>('details');
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
@@ -904,18 +905,39 @@ export const CreateEvent: React.FC = () => {
             </button>
           </div>
         </div>
+        <div className="mx-auto mt-4 flex w-full max-w-[1440px]">
+          <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
+            <button
+              type="button"
+              onClick={() => setActiveSubMenu('details')}
+              className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+              style={accentSegmentStyleFor(ui, activeSubMenu === 'details')}
+            >
+              Event details
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubMenu('seating')}
+              className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+              style={accentSegmentStyleFor(ui, activeSubMenu === 'seating')}
+            >
+              Seating customizer
+            </button>
+          </div>
+        </div>
       </header>
 
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div
-            className={cn(
-              'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:gap-10 lg:py-8 lg:pb-72',
-              showLivePreview
-                ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,460px)]'
-                : 'lg:grid-cols-[360px_1fr]'
-            )}
-          >
+          {activeSubMenu === 'details' ? (
+            <div
+              className={cn(
+                'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:gap-10 lg:py-8 lg:pb-72',
+                showLivePreview
+                  ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,460px)]'
+                  : 'lg:grid-cols-[360px_1fr]'
+              )}
+            >
             {/* Left column */}
             <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
               <BannerUploadSquare
@@ -1463,52 +1485,6 @@ export const CreateEvent: React.FC = () => {
                 )}
               </div>
 
-              {/* Seating (optional) */}
-              <div className={cn(panelCn, 'mb-6 p-4')} style={cardStyle}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <Rows3 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: ui.textSubtle }} />
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: ui.text }}>
-                        Reserved seating (optional)
-                      </p>
-                      <p className="mt-0.5 text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
-                        Build a drag-and-drop style seating map with stage, seat blocks, tables/PODs, group holds, and pricing tiers.
-                      </p>
-                    </div>
-                  </div>
-                  <Toggle
-                    checked={seatingEnabled}
-                    onChange={setSeatingEnabled}
-                    label="Enable reserved seating builder"
-                    accent={ui.accent}
-                    offColor={ui.isDark ? 'rgba(255,255,255,0.25)' : '#d1d5db'}
-                  />
-                </div>
-
-                {seatingEnabled ? (
-                  <div className="mt-4 rounded-xl border p-2.5" style={cardMutedStyle}>
-                    <SeatingChartBuilder
-                      value={seatingChart}
-                      onChange={setSeatingChart}
-                      ui={{
-                        text: ui.text,
-                        textMuted: ui.textMuted,
-                        textSubtle: ui.textSubtle,
-                        borderColor: ui.borderColor,
-                        cardBg: ui.cardMutedBg,
-                        fieldBg: ui.fieldBg,
-                        accent: ui.accent,
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <p className="mt-3 text-xs" style={{ color: ui.textSubtle }}>
-                    Keep this off if your event uses open/general admission only.
-                  </p>
-                )}
-              </div>
-
               {/* Require approval */}
               <div
                 className="mb-6 flex items-center justify-between rounded-2xl border px-4 py-3.5 transition-[background,border-color] duration-700"
@@ -1622,7 +1598,68 @@ export const CreateEvent: React.FC = () => {
                 </aside>
               </>
             )}
-          </div>
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-8 lg:py-8">
+              <div className="rounded-2xl border p-5 sm:p-6" style={cardStyle}>
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <Rows3 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: ui.accent }} />
+                    <div>
+                      <p className="text-base font-semibold" style={{ color: ui.text }}>
+                        Seating customizer
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed" style={{ color: ui.textMuted }}>
+                        Full-screen seating workspace. Build your reserved seating layout with stage, seat blocks, tables/PODs, holds, and pricing tiers.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                      style={{ borderColor: ui.borderColor, color: seatingEnabled ? ui.accent : ui.textMuted }}
+                    >
+                      {seatingEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <Toggle
+                      checked={seatingEnabled}
+                      onChange={setSeatingEnabled}
+                      label="Enable seating customizer"
+                      accent={ui.accent}
+                      offColor={ui.isDark ? 'rgba(255,255,255,0.25)' : '#d1d5db'}
+                    />
+                  </div>
+                </div>
+
+                {seatingEnabled ? (
+                  <div className="rounded-xl border p-2.5" style={cardMutedStyle}>
+                    <SeatingChartBuilder
+                      value={seatingChart}
+                      onChange={setSeatingChart}
+                      ui={{
+                        text: ui.text,
+                        textMuted: ui.textMuted,
+                        textSubtle: ui.textSubtle,
+                        borderColor: ui.borderColor,
+                        cardBg: ui.cardMutedBg,
+                        fieldBg: ui.fieldBg,
+                        accent: ui.accent,
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed px-4 py-8 text-center" style={{ borderColor: ui.borderColor }}>
+                    <p className="text-sm font-medium" style={{ color: ui.text }}>
+                      Seating customizer is optional
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
+                      Turn it on when you need reserved seating. Keep it off for general admission events.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Floating landing design dock */}
