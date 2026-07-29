@@ -141,6 +141,8 @@ type CreateEventDraftV1 = {
 
 const CREATE_EVENT_DRAFT_VERSION = 1;
 const CREATE_EVENT_DRAFT_KEY_PREFIX = 'turnout:create-event-draft:';
+/** Temporary kill-switch — set to true to re-enable Seating customizer in Create Event. */
+const SHOW_SEATING_CUSTOMIZER = false;
 
 function createEventDraftKey(userId?: string): string {
   return `${CREATE_EVENT_DRAFT_KEY_PREFIX}${userId || 'anonymous'}`;
@@ -697,7 +699,7 @@ export const CreateEvent: React.FC = () => {
         dnsConfigured: data.useCustomDomain ? data.dnsConfigured : false,
         eventGalleryImages,
         arenaGalleryImages: eventGalleryImages,
-        seatingChart: seatingEnabled ? seatingChart : undefined,
+        seatingChart: SHOW_SEATING_CUSTOMIZER && seatingEnabled ? seatingChart : undefined,
       };
 
       const payloadTickets =
@@ -782,7 +784,7 @@ export const CreateEvent: React.FC = () => {
       fontFamily: design.fontFamily,
       eventGalleryImages,
       arenaGalleryImages: eventGalleryImages,
-      seatingChart: seatingEnabled ? seatingChart : undefined,
+      seatingChart: SHOW_SEATING_CUSTOMIZER && seatingEnabled ? seatingChart : undefined,
     };
     return {
       id: 'preview',
@@ -905,31 +907,33 @@ export const CreateEvent: React.FC = () => {
             </button>
           </div>
         </div>
-        <div className="mx-auto mt-4 flex w-full max-w-[1440px]">
-          <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
-            <button
-              type="button"
-              onClick={() => setActiveSubMenu('details')}
-              className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-              style={accentSegmentStyleFor(ui, activeSubMenu === 'details')}
-            >
-              Event details
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSubMenu('seating')}
-              className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
-              style={accentSegmentStyleFor(ui, activeSubMenu === 'seating')}
-            >
-              Seating customizer
-            </button>
+        {SHOW_SEATING_CUSTOMIZER ? (
+          <div className="mx-auto mt-4 flex w-full max-w-[1440px]">
+            <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
+              <button
+                type="button"
+                onClick={() => setActiveSubMenu('details')}
+                className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                style={accentSegmentStyleFor(ui, activeSubMenu === 'details')}
+              >
+                Event details
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubMenu('seating')}
+                className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                style={accentSegmentStyleFor(ui, activeSubMenu === 'seating')}
+              >
+                Seating customizer
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
       </header>
 
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {activeSubMenu === 'details' ? (
+          {!SHOW_SEATING_CUSTOMIZER || activeSubMenu === 'details' ? (
             <div
               className={cn(
                 'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:gap-10 lg:py-8 lg:pb-72',
