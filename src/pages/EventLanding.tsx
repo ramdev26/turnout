@@ -6,7 +6,7 @@ import { getLandingTemplateForEvent } from '../templates/templates';
 import { landingCssVars, normalizeLandingCustomization } from '../themes/eventThemes';
 import { loadLandingFont } from '../themes/landingFonts';
 import { formatLKRWhole } from '../utils/money';
-import { ticketRemaining } from '../components/landing/LandingShared';
+import { ticketPurchaseCap } from '../components/landing/LandingShared';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { saveCheckoutCart } from '../utils/checkoutCart';
 
@@ -61,7 +61,7 @@ export const EventLanding: React.FC = () => {
 
   const handleTicketChange = (ticketId: string, quantity: number) => {
     const ticket = tickets.find((t) => t.id === ticketId);
-    const max = ticket ? ticketRemaining(ticket) : 0;
+    const max = ticket ? ticketPurchaseCap(ticket) : 0;
     setSelectedTickets((prev) => ({
       ...prev,
       [ticketId]: Math.max(0, Math.min(quantity, max)),

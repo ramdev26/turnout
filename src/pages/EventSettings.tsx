@@ -86,6 +86,8 @@ function syncTicketEditorFromApi(list: EventTicket[]): {
           quantity,
           sold: t?.sold || 0,
           description: t?.description || '',
+          salesEndsAt: t?.salesEndsAt ?? null,
+          maxPerAttendee: t?.maxPerAttendee ?? null,
         },
       ],
     };
@@ -101,6 +103,8 @@ function syncTicketEditorFromApi(list: EventTicket[]): {
       quantity: t.quantity,
       sold: t.sold,
       description: t.description || '',
+      salesEndsAt: t.salesEndsAt ?? null,
+      maxPerAttendee: t.maxPerAttendee ?? null,
     })),
   };
 }
@@ -490,6 +494,8 @@ export const EventSettings: React.FC = () => {
         quantity: Math.max(1, t.quantity || 1),
         sold: t.sold || 0,
         description: t.description || '',
+        salesEndsAt: t.salesEndsAt ?? null,
+        maxPerAttendee: t.maxPerAttendee ?? null,
       }));
     }
     if (tickets.length > 0) return tickets;
@@ -802,6 +808,8 @@ export const EventSettings: React.FC = () => {
           : Math.max(keep?.quantity || 100, keep?.sold || 1),
         sold: keep?.sold || 0,
         description: keep?.description || '',
+        salesEndsAt: keep?.salesEndsAt ?? null,
+        maxPerAttendee: keep?.maxPerAttendee ?? null,
       },
     ]);
     setError(null);
@@ -818,6 +826,8 @@ export const EventSettings: React.FC = () => {
           price: 1500,
           quantity: 50,
           sold: 0,
+          salesEndsAt: null,
+          maxPerAttendee: null,
         },
         {
           key: newTicketDraftKey(),
@@ -825,6 +835,8 @@ export const EventSettings: React.FC = () => {
           price: 2500,
           quantity: 150,
           sold: 0,
+          salesEndsAt: null,
+          maxPerAttendee: null,
         },
       ]);
       if (previousId) {
@@ -898,6 +910,8 @@ export const EventSettings: React.FC = () => {
           price: ticketMode === 'free' ? 0 : Math.max(0, draft.price),
           quantity: Math.max(1, draft.quantity),
           description: draft.description || '',
+          salesEndsAt: draft.salesEndsAt || null,
+          maxPerAttendee: draft.maxPerAttendee ?? null,
         };
         if (draft.id) {
           await api.post(`/api/events/${eventId}/tickets/${draft.id}`, payload);
@@ -1400,6 +1414,8 @@ export const EventSettings: React.FC = () => {
                       price: 2500,
                       quantity: 50,
                       sold: 0,
+                      salesEndsAt: null,
+                      maxPerAttendee: null,
                     },
                   ]);
                 }}

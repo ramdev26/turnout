@@ -451,6 +451,10 @@ export interface Ticket {
   quantity: number;
   sold: number;
   description?: string;
+  /** ISO datetime when this tier stops selling (e.g. early bird). Null = no end. */
+  salesEndsAt?: string | null;
+  /** Max tickets one attendee can buy in a single order. Null = no per-person limit. */
+  maxPerAttendee?: number | null;
 }
 
 export type Speaker = {

@@ -22,6 +22,8 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  ticketPurchaseCap,
+  ticketSalesEnded,
   useCountdown,
 } from './LandingShared';
 import { VenueMapEmbed } from './VenueMapEmbed';
@@ -284,11 +286,16 @@ function SpotlightTicketRow({
   onChange: (qty: number) => void;
 }) {
   const remaining = ticketRemaining(ticket);
+  const cap = ticketPurchaseCap(ticket);
+  const salesEnded = ticketSalesEnded(ticket);
   const soldOut = remaining <= 0;
+  const unavailable = cap <= 0;
   const desc = (ticket.description || 'Full event access').split('\n')[0]?.trim() || 'Full event access';
+  const limitNote =
+    ticket.maxPerAttendee && ticket.maxPerAttendee > 0 ? ` · Max ${ticket.maxPerAttendee} per person` : '';
 
   return (
-    <div className={`sp-ticket${qty > 0 ? ' is-active' : ''}${soldOut ? ' is-soldout' : ''}`}>
+    <div className={`sp-ticket${qty > 0 ? ' is-active' : ''}${unavailable ? ' is-soldout' : ''}`}>
       <div className="sp-ticket-main">
         <div className="sp-ticket-icon">
           <Ticket className="h-4 w-4" />
@@ -297,21 +304,25 @@ function SpotlightTicketRow({
           <div className="sp-ticket-title-row">
             <h3 className="sp-ticket-name">{ticket.name}</h3>
             {soldOut ? <span className="sp-badge-sold">Sold out</span> : null}
-            {!soldOut && remaining <= 12 ? <span className="sp-badge-low">{remaining} left</span> : null}
+            {!soldOut && salesEnded ? <span className="sp-badge-sold">Sales ended</span> : null}
+            {!unavailable && remaining <= 12 ? <span className="sp-badge-low">{remaining} left</span> : null}
           </div>
-          <p className="sp-ticket-desc">{desc}</p>
+          <p className="sp-ticket-desc">
+            {desc}
+            {limitNote}
+          </p>
         </div>
         <p className="sp-ticket-price">{ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}</p>
       </div>
       <div className="sp-ticket-action">
         <div className="sp-stepper">
-          <button type="button" disabled={soldOut || qty <= 0} onClick={() => onChange(qty - 1)} aria-label="Decrease">
+          <button type="button" disabled={unavailable || qty <= 0} onClick={() => onChange(qty - 1)} aria-label="Decrease">
             −
           </button>
           <span>{qty}</span>
           <button
             type="button"
-            disabled={soldOut || qty >= remaining}
+            disabled={unavailable || qty >= cap}
             onClick={() => onChange(qty + 1)}
             aria-label="Increase"
           >
@@ -321,8 +332,8 @@ function SpotlightTicketRow({
         <button
           type="button"
           className="sp-ticket-add"
-          disabled={soldOut || qty >= remaining}
-          onClick={() => onChange(Math.min(remaining, qty + 1))}
+          disabled={unavailable || qty >= cap}
+          onClick={() => onChange(Math.min(cap, qty + 1))}
         >
           Add
         </button>

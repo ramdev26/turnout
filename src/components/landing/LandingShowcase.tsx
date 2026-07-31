@@ -22,6 +22,8 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  ticketPurchaseCap,
+  ticketSalesEnded,
   useCountdown,
 } from './LandingShared';
 import { EventPolicyLink } from './EventPolicyViewer';
@@ -299,7 +301,10 @@ function ShowcaseTickets({
     <div className="flex flex-col gap-3">
       {tickets.map((ticket) => {
         const remaining = ticketRemaining(ticket);
+        const cap = ticketPurchaseCap(ticket);
+        const salesEnded = ticketSalesEnded(ticket);
         const soldOut = remaining <= 0;
+        const unavailable = cap <= 0;
         const qty = selectedTickets[ticket.id] || 0;
         const selected = qty > 0;
         const { summary, perks } = ticketCopy(ticket);
@@ -326,6 +331,10 @@ function ShowcaseTickets({
                       <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
                         Sold out
                       </span>
+                    ) : salesEnded ? (
+                      <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                        Sales ended
+                      </span>
                     ) : remaining <= 12 ? (
                       <span
                         className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
@@ -337,6 +346,9 @@ function ShowcaseTickets({
                   </div>
                   <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {summary}
+                    {ticket.maxPerAttendee && ticket.maxPerAttendee > 0
+                      ? ` · Max ${ticket.maxPerAttendee} per person`
+                      : ''}
                   </p>
                   <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
                     {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
@@ -344,13 +356,13 @@ function ShowcaseTickets({
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 sm:pt-1">
-                <QtyButton disabled={soldOut || qty <= 0} onClick={() => onTicketChange(ticket.id, qty - 1)}>
+                <QtyButton disabled={unavailable || qty <= 0} onClick={() => onTicketChange(ticket.id, qty - 1)}>
                   −
                 </QtyButton>
                 <span className="w-8 text-center text-lg font-bold tabular-nums" style={{ color: 'var(--landing-text)' }}>
                   {qty}
                 </span>
-                <QtyButton disabled={soldOut || qty >= remaining} onClick={() => onTicketChange(ticket.id, qty + 1)}>
+                <QtyButton disabled={unavailable || qty >= cap} onClick={() => onTicketChange(ticket.id, qty + 1)}>
                   +
                 </QtyButton>
               </div>

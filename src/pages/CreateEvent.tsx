@@ -52,6 +52,8 @@ const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
   price: z.number().min(0, 'Price must be 0 or more'),
   quantity: z.number().min(1, 'At least 1 seat'),
+  salesEndsAt: z.string().nullable().optional(),
+  maxPerAttendee: z.number().int().min(1).nullable().optional(),
 });
 
 const eventSchema = z
@@ -285,7 +287,7 @@ export const CreateEvent: React.FC = () => {
       onlinePlatform: 'google_meet',
       onlineUrl: '',
       bannerUrl: '',
-      tickets: [{ name: 'General Admission', price: 0, quantity: 500 }],
+      tickets: [{ name: 'General Admission', price: 0, quantity: 500, salesEndsAt: null, maxPerAttendee: null }],
       requireApproval: false,
       useCustomDomain: false,
       customDomain: '',
@@ -506,6 +508,8 @@ export const CreateEvent: React.FC = () => {
         name: first?.name || 'General Admission',
         price: 0,
         quantity: freeUnlimited ? 500 : Math.max(1, first?.quantity || 100),
+        salesEndsAt: first?.salesEndsAt ?? null,
+        maxPerAttendee: first?.maxPerAttendee ?? null,
       },
     ]);
   };
@@ -516,8 +520,8 @@ export const CreateEvent: React.FC = () => {
     setTicketMode('paid');
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
-        { name: 'Early Bird', price: 1500, quantity: 50 },
-        { name: 'General Admission', price: 2500, quantity: 150 },
+        { name: 'Early Bird', price: 1500, quantity: 50, salesEndsAt: null, maxPerAttendee: null },
+        { name: 'General Admission', price: 2500, quantity: 150, salesEndsAt: null, maxPerAttendee: null },
       ]);
     }
   };
@@ -739,6 +743,8 @@ export const CreateEvent: React.FC = () => {
                 price: 0,
                 quantity: freeUnlimited ? 500 : Math.max(1, data.tickets[0]?.quantity || 100),
                 description: data.requireApproval ? 'Requires organizer approval' : undefined,
+                salesEndsAt: data.tickets[0]?.salesEndsAt || null,
+                maxPerAttendee: data.tickets[0]?.maxPerAttendee ?? null,
               },
             ]
           : data.tickets.map((ticket) => ({
@@ -746,6 +752,8 @@ export const CreateEvent: React.FC = () => {
               price: ticket.price,
               quantity: ticket.quantity,
               description: data.requireApproval ? 'Requires organizer approval' : undefined,
+              salesEndsAt: ticket.salesEndsAt || null,
+              maxPerAttendee: ticket.maxPerAttendee ?? null,
             }));
 
       const resolvedLocation =
@@ -878,6 +886,8 @@ export const CreateEvent: React.FC = () => {
       quantity: tier.quantity,
       sold: 0,
       description: requireApproval ? 'Requires organizer approval' : undefined,
+      salesEndsAt: tier.salesEndsAt ?? null,
+      maxPerAttendee: tier.maxPerAttendee ?? null,
     }));
   }, [requireApproval, ticketMode, tickets]);
 
@@ -1312,6 +1322,8 @@ export const CreateEvent: React.FC = () => {
                     name: tickets[index]?.name || '',
                     price: tickets[index]?.price || 0,
                     quantity: tickets[index]?.quantity || 0,
+                    salesEndsAt: tickets[index]?.salesEndsAt ?? null,
+                    maxPerAttendee: tickets[index]?.maxPerAttendee ?? null,
                   }))}
                   onChangeTier={(index, patch) => {
                     if (patch.name !== undefined) {
@@ -1326,12 +1338,20 @@ export const CreateEvent: React.FC = () => {
                         shouldValidate: true,
                       });
                     }
+                    if (patch.salesEndsAt !== undefined) {
+                      setValue(`tickets.${index}.salesEndsAt` as const, patch.salesEndsAt, { shouldDirty: true });
+                    }
+                    if (patch.maxPerAttendee !== undefined) {
+                      setValue(`tickets.${index}.maxPerAttendee` as const, patch.maxPerAttendee, { shouldDirty: true });
+                    }
                   }}
                   onAddTier={() =>
                     append({
                       name: `Tier ${fields.length + 1}`,
                       price: 2500,
                       quantity: 50,
+                      salesEndsAt: null,
+                      maxPerAttendee: null,
                     })
                   }
                   onRemoveTier={(index) => remove(index)}

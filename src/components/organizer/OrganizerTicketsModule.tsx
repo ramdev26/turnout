@@ -16,6 +16,10 @@ export type OrganizerTicketTierDraft = {
   quantity: number;
   sold?: number;
   description?: string;
+  /** ISO datetime when sales for this tier end. Null/empty = no end date. */
+  salesEndsAt?: string | null;
+  /** Max tickets one attendee can buy. Null = no per-person limit. */
+  maxPerAttendee?: number | null;
 };
 
 type OrganizerTicketsModuleProps = {
@@ -42,8 +46,9 @@ export function newTicketDraftKey(): string {
   return `tier-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function formatNumericText(value: number): string {
-  return Number.isFinite(value) ? String(value) : '';
+function formatNumericText(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '';
+  return String(value);
 }
 
 function parseNumericText(raw: string, allowDecimal: boolean): number | null {
@@ -53,20 +58,39 @@ function parseNumericText(raw: string, allowDecimal: boolean): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function toDatetimeLocalValue(iso?: string | null): string {
+  if (!iso?.trim()) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocalValue(local: string): string | null {
+  const raw = local.trim();
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 /** Text field without spinner arrows; empty is allowed while typing. */
 function TicketNumericInput({
   value,
   onValueChange,
   min = 0,
   allowDecimal = false,
+  nullable = false,
   className,
   style,
   placeholder,
 }: {
-  value: number;
-  onValueChange: (value: number) => void;
+  value: number | null | undefined;
+  onValueChange: (value: number | null) => void;
   min?: number;
   allowDecimal?: boolean;
+  /** When true, empty blur commits null instead of min. */
+  nullable?: boolean;
   className?: string;
   style?: React.CSSProperties;
   placeholder?: string;
@@ -80,8 +104,17 @@ function TicketNumericInput({
 
   const commit = (raw: string) => {
     const parsed = parseNumericText(raw, allowDecimal);
-    const next = parsed === null ? min : parsed;
-    const clamped = Math.max(min, next);
+    if (parsed === null) {
+      if (nullable) {
+        onValueChange(null);
+        setText('');
+        return;
+      }
+      onValueChange(min);
+      setText(formatNumericText(min));
+      return;
+    }
+    const clamped = Math.max(min, parsed);
     onValueChange(clamped);
     setText(formatNumericText(clamped));
   };
@@ -116,6 +149,59 @@ function TicketNumericInput({
         if (parsed !== null) onValueChange(Math.max(min, parsed));
       }}
     />
+  );
+}
+
+function TierSalesRulesFields({
+  tier,
+  index,
+  onChangeTier,
+  fieldClass,
+  fieldStyle,
+  ui,
+}: {
+  tier: OrganizerTicketTierDraft;
+  index: number;
+  onChangeTier: (index: number, patch: Partial<OrganizerTicketTierDraft>) => void;
+  fieldClass: string;
+  fieldStyle: React.CSSProperties;
+  ui: CreateThemeUI;
+}) {
+  return (
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div>
+        <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
+          Sales end (optional)
+        </label>
+        <input
+          type="datetime-local"
+          value={toDatetimeLocalValue(tier.salesEndsAt)}
+          onChange={(e) => onChangeTier(index, { salesEndsAt: fromDatetimeLocalValue(e.target.value) })}
+          className={fieldClass}
+          style={fieldStyle}
+        />
+        <p className="mt-1 text-[11px]" style={{ color: ui.textSubtle }}>
+          For early bird tiers — leave blank if sales stay open
+        </p>
+      </div>
+      <div>
+        <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
+          Max per attendee
+        </label>
+        <TicketNumericInput
+          value={tier.maxPerAttendee ?? null}
+          min={1}
+          nullable
+          onValueChange={(maxPerAttendee) => onChangeTier(index, { maxPerAttendee })}
+          className={fieldClass}
+          style={fieldStyle}
+          placeholder="No limit"
+        />
+        <p className="mt-1 text-[11px]" style={{ color: ui.textSubtle }}>
+          Limit how many of this tier one buyer can purchase
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -249,13 +335,23 @@ export function OrganizerTicketsModule({
               <TicketNumericInput
                 value={tiers[0]?.quantity ?? 100}
                 min={Math.max(1, tiers[0]?.sold || 1)}
-                onValueChange={(quantity) => onChangeTier(0, { quantity })}
+                onValueChange={(quantity) => onChangeTier(0, { quantity: quantity ?? 100 })}
                 className={fieldClass}
                 style={fieldStyle}
                 placeholder="100"
               />
             </div>
           )}
+          {tiers[0] ? (
+            <TierSalesRulesFields
+              tier={tiers[0]}
+              index={0}
+              onChangeTier={onChangeTier}
+              fieldClass={fieldClass}
+              fieldStyle={fieldStyle}
+              ui={ui}
+            />
+          ) : null}
         </div>
       ) : (
         <div className="space-y-3">
@@ -305,7 +401,7 @@ export function OrganizerTicketsModule({
                     value={tier.price}
                     min={0}
                     allowDecimal
-                    onValueChange={(price) => onChangeTier(index, { price })}
+                    onValueChange={(price) => onChangeTier(index, { price: price ?? 0 })}
                     className={fieldClass}
                     style={fieldStyle}
                     placeholder="0"
@@ -318,13 +414,21 @@ export function OrganizerTicketsModule({
                   <TicketNumericInput
                     value={tier.quantity}
                     min={Math.max(1, tier.sold || 1)}
-                    onValueChange={(quantity) => onChangeTier(index, { quantity })}
+                    onValueChange={(quantity) => onChangeTier(index, { quantity: quantity ?? 1 })}
                     className={fieldClass}
                     style={fieldStyle}
                     placeholder="50"
                   />
                 </div>
               </div>
+              <TierSalesRulesFields
+                tier={tier}
+                index={index}
+                onChangeTier={onChangeTier}
+                fieldClass={fieldClass}
+                fieldStyle={fieldStyle}
+                ui={ui}
+              />
             </div>
           ))}
 
