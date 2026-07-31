@@ -874,3 +874,43 @@
 .event-settings-desktop-preview .sp-rail {
   top: 4rem;
 }
+
+/* Spotlight Violet (template-9) — diagonal book-now CTAs */
+.landing-spotlight--violet {
+  --sp-accent: #612d87;
+  --sp-cta: #612d87;
+  --sp-on-accent: #ffffff;
+}
+
+.landing-spotlight--violet .sp-cta,
+.landing-page:has(.landing-spotlight--violet) .landing-showcase-btn-cta {
+  border-radius: 1.35rem 0 1.35rem 0;
+  background: #612d87;
+  color: #ffffff;
+  box-shadow: none;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+
+.landing-spotlight--violet .sp-cta:hover:not(:disabled),
+.landing-page:has(.landing-spotlight--violet) .landing-showcase-btn-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.landing-spotlight--violet .sp-ticket-add {
+  border-radius: 0.85rem 0 0.85rem 0;
+  background: #612d87;
+  color: #ffffff;
+  border-color: #612d87;
+}
+
+.landing-spotlight--violet .sp-featured {
+  color: #612d87;
+}
+
+.landing-spotlight--violet .sp-inline-link {
+  color: #612d87;
+}

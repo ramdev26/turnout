@@ -2,7 +2,13 @@ import type { LandingDisplayMode, LandingStyle } from '../types';
 import type { LandingFontKey } from './landingFonts';
 
 /** Layout templates that ship with curated design defaults. */
-export type LayoutTemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-8';
+export type LayoutTemplateId =
+  | 'template-2'
+  | 'template-5'
+  | 'template-6'
+  | 'template-7'
+  | 'template-8'
+  | 'template-9';
 
 export type TemplateDesignDefaults = {
   templateId: LayoutTemplateId;
@@ -42,6 +48,14 @@ export const TEMPLATE_DESIGN_DEFAULTS: Record<LayoutTemplateId, TemplateDesignDe
     landingStyle: 'minimal',
     displayMode: 'light',
   },
+  'template-9': {
+    templateId: 'template-9',
+    primaryColor: '#612d87',
+    secondaryColor: '#4a1f68',
+    fontFamily: 'manrope',
+    landingStyle: 'minimal',
+    displayMode: 'light',
+  },
   'template-6': {
     templateId: 'template-6',
     primaryColor: '#0A0A0A',
@@ -66,7 +80,8 @@ export function isLayoutTemplateId(id: string | undefined | null): id is LayoutT
     id === 'template-5' ||
     id === 'template-6' ||
     id === 'template-7' ||
-    id === 'template-8'
+    id === 'template-8' ||
+    id === 'template-9'
   );
 }
 
