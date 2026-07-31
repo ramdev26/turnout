@@ -16,7 +16,6 @@ import {
   Plus,
   Rows3,
   Ticket,
-  Trash2,
   Users,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
@@ -34,9 +33,9 @@ import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
-import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
 import { SeatingChartBuilder, createDefaultSeatingChart } from '../components/organizer/SeatingChartBuilder';
+import { OrganizerTicketsModule } from '../components/organizer/OrganizerTicketsModule';
 import { formatEventLocationDisplay, isValidMeetingUrl } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
@@ -243,7 +242,6 @@ export const CreateEvent: React.FC = () => {
   const [seatingEnabled, setSeatingEnabled] = useState(false);
   const [seatingChart, setSeatingChart] = useState<SeatingChartDesign>(() => createDefaultSeatingChart());
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
-  const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [activeSubMenu, setActiveSubMenu] = useState<'details' | 'seating'>('details');
   const [organizerBrand, setOrganizerBrand] = useState<{ name: string; logoUrl: string | null }>(() => ({
@@ -375,11 +373,6 @@ export const CreateEvent: React.FC = () => {
       cancelled = true;
     };
   }, [user]);
-
-  const totalSeats = useMemo(
-    () => tickets.reduce((sum, t) => sum + (Number.isFinite(t.quantity) ? t.quantity : 0), 0),
-    [tickets]
-  );
 
   useEffect(() => {
     if (hydratedDraftRef.current) return;
@@ -521,7 +514,6 @@ export const CreateEvent: React.FC = () => {
     // Always enter paid mode so organizers can configure tiers. If payout setup is
     // incomplete, show the gate and still block publish via onSubmit / API assert.
     setTicketMode('paid');
-    setShowPaidSetupGate(Boolean(paidEventReadiness && !paidEventReadiness.isReady));
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
         { name: 'Early Bird', price: 1500, quantity: 50 },
@@ -674,7 +666,6 @@ export const CreateEvent: React.FC = () => {
         return;
       }
       if (paidEventReadiness && !paidEventReadiness.isReady) {
-        setShowPaidSetupGate(true);
         setSubmitError(
           paidEventReadiness.gatewayMode === 'own_payhere'
             ? 'Connect your own gateway and add an account card in Organization → Payments before publishing a paid event.'
@@ -784,7 +775,6 @@ export const CreateEvent: React.FC = () => {
     } catch (error: any) {
       if (error?.error === 'paid_event_setup_required') {
         setPaidEventReadiness(error.readiness || paidEventReadiness);
-        setShowPaidSetupGate(true);
         setSubmitError(error?.message || 'Complete Organization setup before selling paid tickets.');
         return;
       }
@@ -1308,225 +1298,64 @@ export const CreateEvent: React.FC = () => {
 
               {/* Tickets */}
               <div className="mb-6">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                    Tickets
-                  </p>
-                  <div className="inline-flex rounded-xl border p-1" style={cardMutedStyle}>
-                    <button
-                      type="button"
-                      onClick={switchToFreeMode}
-                      className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
-                      style={
-                        ticketMode === 'free'
-                          ? accentButtonStyleFor(ui)
-                          : { color: ui.textMuted }
-                      }
-                    >
-                      Free
-                    </button>
-                    <button
-                      type="button"
-                      onClick={switchToPaidMode}
-                      className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
-                      style={
-                        ticketMode === 'paid'
-                          ? accentButtonStyleFor(ui)
-                          : { color: ui.textMuted }
-                      }
-                    >
-                      Paid
-                    </button>
-                  </div>
-                </div>
-
-                {ticketMode === 'paid' && paidEventReadiness && !paidEventReadiness.isReady ? (
-                  <div className="mb-4">
-                    <PaidEventSetupGate
-                      readiness={paidEventReadiness}
-                      onDismiss={() => {
-                        setShowPaidSetupGate(false);
-                        switchToFreeMode();
-                      }}
-                    />
-                  </div>
-                ) : null}
-
-                {ticketMode === 'free' ? (
-                  <div className="space-y-3 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardMutedStyle}>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                        Ticket name
-                      </label>
-                      <input
-                        {...register('tickets.0.name')}
-                        placeholder="General Admission"
-                        className={fieldClass}
-                        style={fieldStyle}
-                      />
-                    </div>
-                    <div
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3"
-                      style={cardStyle}
-                    >
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: ui.text }}>
-                          Capacity
-                        </p>
-                        <p className="text-xs" style={{ color: ui.textSubtle }}>
-                          {freeUnlimited ? 'Unlimited seats' : `${tickets[0]?.quantity || 0} seats`}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFreeUnlimited(true);
-                            setValue('tickets.0.quantity', 500, { shouldDirty: true });
-                          }}
-                          className="turnout-btn-accent rounded-lg px-3 py-1 text-xs font-semibold"
-                          style={{
-                            backgroundColor: freeUnlimited ? ui.accent : ui.accentSoft,
-                            color: freeUnlimited ? ui.accentOn : ui.textMuted,
-                          }}
-                        >
-                          Unlimited
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFreeUnlimited(false);
-                            setValue('tickets.0.quantity', 100, { shouldDirty: true });
-                          }}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold"
-                          style={{
-                            backgroundColor: !freeUnlimited ? ui.accent : ui.accentSoft,
-                            color: !freeUnlimited ? ui.accentOn : ui.textMuted,
-                          }}
-                        >
-                          Limited
-                        </button>
-                      </div>
-                    </div>
-                    {!freeUnlimited && (
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                          Seat quantity
-                        </label>
-                        <input
-                          {...register('tickets.0.quantity', { valueAsNumber: true })}
-                          type="number"
-                          min={1}
-                          className={fieldClass}
-                          style={fieldStyle}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {fields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className={cn(panelCn, 'p-4 shadow-sm')}
-                        style={cardStyle}
-                      >
-                        <div className="mb-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Ticket className="h-4 w-4" style={{ color: ui.textSubtle }} />
-                            <span className="text-sm font-semibold" style={{ color: ui.text }}>
-                              Tier {index + 1}
-                            </span>
-                          </div>
-                          {fields.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => remove(index)}
-                              className="rounded-lg p-1.5 text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
-                              aria-label="Remove tier"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="sm:col-span-1">
-                            <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Name
-                            </label>
-                            <input
-                              {...register(`tickets.${index}.name` as const)}
-                              placeholder="e.g. VIP, Early Bird"
-                              className={fieldClass}
-                              style={fieldStyle}
-                            />
-                            {errors.tickets?.[index]?.name && (
-                              <p className="mt-1 text-xs text-rose-600">{errors.tickets[index]?.name?.message}</p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Price (LKR)
-                            </label>
-                            <input
-                              {...register(`tickets.${index}.price` as const, { valueAsNumber: true })}
-                              type="number"
-                              min={0}
-                              className={fieldClass}
-                              style={fieldStyle}
-                            />
-                            {errors.tickets?.[index]?.price && (
-                              <p className="mt-1 text-xs text-rose-600">{errors.tickets[index]?.price?.message}</p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Seats
-                            </label>
-                            <input
-                              {...register(`tickets.${index}.quantity` as const, { valueAsNumber: true })}
-                              type="number"
-                              min={1}
-                              className={fieldClass}
-                              style={fieldStyle}
-                            />
-                            {errors.tickets?.[index]?.quantity && (
-                              <p className="mt-1 text-xs text-rose-600">{errors.tickets[index]?.quantity?.message}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        append({
-                          name: `Tier ${fields.length + 1}`,
-                          price: 2500,
-                          quantity: 50,
-                        })
-                      }
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm font-semibold transition hover:opacity-90"
-                      style={{ ...cardMutedStyle, color: ui.text }}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add ticket tier
-                    </button>
-
-                    <p className="text-xs" style={{ color: ui.textSubtle }}>
-                      Total capacity across tiers:{' '}
-                      <span className="font-semibold" style={{ color: ui.text }}>
-                        {totalSeats.toLocaleString()}
-                      </span>{' '}
-                      seats
-                    </p>
-                  </div>
-                )}
-
+                <OrganizerTicketsModule
+                  ticketMode={ticketMode}
+                  onSwitchFree={switchToFreeMode}
+                  onSwitchPaid={switchToPaidMode}
+                  freeUnlimited={freeUnlimited}
+                  onFreeUnlimitedChange={(unlimited) => {
+                    setFreeUnlimited(unlimited);
+                    setValue('tickets.0.quantity', unlimited ? 500 : 100, { shouldDirty: true });
+                  }}
+                  tiers={fields.map((field, index) => ({
+                    key: field.id,
+                    name: tickets[index]?.name || '',
+                    price: tickets[index]?.price || 0,
+                    quantity: tickets[index]?.quantity || 0,
+                  }))}
+                  onChangeTier={(index, patch) => {
+                    if (patch.name !== undefined) {
+                      setValue(`tickets.${index}.name` as const, patch.name, { shouldDirty: true, shouldValidate: true });
+                    }
+                    if (patch.price !== undefined) {
+                      setValue(`tickets.${index}.price` as const, patch.price, { shouldDirty: true, shouldValidate: true });
+                    }
+                    if (patch.quantity !== undefined) {
+                      setValue(`tickets.${index}.quantity` as const, patch.quantity, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                  }}
+                  onAddTier={() =>
+                    append({
+                      name: `Tier ${fields.length + 1}`,
+                      price: 2500,
+                      quantity: 50,
+                    })
+                  }
+                  onRemoveTier={(index) => remove(index)}
+                  paidEventReadiness={paidEventReadiness}
+                  onDismissPaidGate={switchToFreeMode}
+                  ui={ui}
+                />
                 {errors.tickets?.message && (
                   <p className="mt-2 text-xs text-rose-600">{errors.tickets.message}</p>
                 )}
+                {Array.isArray(errors.tickets) &&
+                  errors.tickets.map((tier, index) =>
+                    tier?.name || tier?.price || tier?.quantity ? (
+                      <p key={`ticket-err-${index}`} className="mt-1 text-xs text-rose-600">
+                        {[
+                          tier.name?.message ? `Ticket ${index + 1}: ${tier.name.message}` : null,
+                          tier.price?.message ? `Ticket ${index + 1}: ${tier.price.message}` : null,
+                          tier.quantity?.message ? `Ticket ${index + 1}: ${tier.quantity.message}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    ) : null
+                  )}
               </div>
 
               {/* Require approval */}

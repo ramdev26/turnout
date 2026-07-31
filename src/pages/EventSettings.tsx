@@ -11,9 +11,7 @@ import {
   CreditCard,
   Landmark,
   MapPin,
-  Plus,
   Ticket as TicketIcon,
-  Trash2,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
 import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, OrganizerProfile, Ticket as EventTicket } from '../types';
@@ -26,7 +24,11 @@ import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
 import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
-import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import {
+  OrganizerTicketsModule,
+  newTicketDraftKey,
+  type OrganizerTicketTierDraft,
+} from '../components/organizer/OrganizerTicketsModule';
 import {
   EventLocationMode,
   OnlineEventPlatform,
@@ -61,6 +63,46 @@ function normalizeBannerUrl(url: string): string {
   if (!url) return '';
   if (url.startsWith('http') || url.startsWith('/api/')) return url;
   return toApiUrl(url);
+}
+
+function syncTicketEditorFromApi(list: EventTicket[]): {
+  mode: 'free' | 'paid';
+  unlimited: boolean;
+  drafts: OrganizerTicketTierDraft[];
+} {
+  const isPaid = list.some((t) => t.price > 0) || list.length > 1;
+  if (!isPaid) {
+    const t = list[0];
+    const quantity = t?.quantity || 500;
+    return {
+      mode: 'free',
+      unlimited: !t || quantity >= 500,
+      drafts: [
+        {
+          key: t?.id || newTicketDraftKey(),
+          id: t?.id,
+          name: t?.name || 'General Admission',
+          price: 0,
+          quantity,
+          sold: t?.sold || 0,
+          description: t?.description || '',
+        },
+      ],
+    };
+  }
+  return {
+    mode: 'paid',
+    unlimited: false,
+    drafts: list.map((t) => ({
+      key: t.id,
+      id: t.id,
+      name: t.name,
+      price: t.price,
+      quantity: t.quantity,
+      sold: t.sold,
+      description: t.description || '',
+    })),
+  };
 }
 
 const statusLabel: Record<Event['status'], string> = {
@@ -165,7 +207,10 @@ export const EventSettings: React.FC = () => {
   const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
   const [savingTicket, setSavingTicket] = useState(false);
-  const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
+  const [ticketMode, setTicketMode] = useState<'free' | 'paid'>('free');
+  const [freeUnlimited, setFreeUnlimited] = useState(true);
+  const [ticketDrafts, setTicketDrafts] = useState<OrganizerTicketTierDraft[]>([]);
+  const [removedTicketIds, setRemovedTicketIds] = useState<string[]>([]);
   const [savingTicketDesign, setSavingTicketDesign] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     details: true,
@@ -195,7 +240,6 @@ export const EventSettings: React.FC = () => {
   const [ticketPdfAccentColor, setTicketPdfAccentColor] = useState('#10b981');
   const [ticketPdfBadgeText, setTicketPdfBadgeText] = useState('VIP ACCESS');
   const [ticketPdfFooterNote, setTicketPdfFooterNote] = useState('Please bring this ticket and a valid ID.');
-  const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantity: 100, description: '' });
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const [eventPolicyHtml, setEventPolicyHtml] = useState(DEFAULT_EVENT_POLICY_HTML);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -310,6 +354,11 @@ export const EventSettings: React.FC = () => {
         ),
       ]);
       setTickets(ticketsRes.tickets);
+      const synced = syncTicketEditorFromApi(ticketsRes.tickets);
+      setTicketMode(synced.mode);
+      setFreeUnlimited(synced.unlimited);
+      setTicketDrafts(synced.drafts);
+      setRemovedTicketIds([]);
       setAttendees(attendeesRes.attendees);
       setAttendeeStats(attendeesRes.stats ?? { total: attendeesRes.attendees.length, checkedIn: 0, pending: 0 });
     } catch (e: any) {
@@ -432,6 +481,17 @@ export const EventSettings: React.FC = () => {
   ]);
 
   const previewTickets = useMemo((): EventTicket[] => {
+    if (ticketDrafts.length > 0) {
+      return ticketDrafts.map((t, i) => ({
+        id: t.id || `draft-${i}`,
+        eventId: eventId || 'preview',
+        name: t.name.trim() || `Tier ${i + 1}`,
+        price: ticketMode === 'free' ? 0 : Math.max(0, t.price),
+        quantity: Math.max(1, t.quantity || 1),
+        sold: t.sold || 0,
+        description: t.description || '',
+      }));
+    }
     if (tickets.length > 0) return tickets;
     if (!eventId) return [];
     return [
@@ -439,13 +499,13 @@ export const EventSettings: React.FC = () => {
         id: 'preview-tier',
         eventId,
         name: 'General Admission',
-        price: 2500,
+        price: 0,
         quantity: 100,
         sold: 0,
         description: 'Add ticket tiers in settings to preview real pricing.',
       },
     ];
-  }, [eventId, tickets]);
+  }, [eventId, ticketDrafts, ticketMode, tickets]);
 
   const uploadBannerFile = async (file: File) => {
     setIsUploadingBanner(true);
@@ -704,28 +764,149 @@ export const EventSettings: React.FC = () => {
     if (!eventId) return;
     const res = await api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`);
     setTickets(res.tickets);
+    const synced = syncTicketEditorFromApi(res.tickets);
+    setTicketMode(synced.mode);
+    setFreeUnlimited(synced.unlimited);
+    setTicketDrafts(synced.drafts);
+    setRemovedTicketIds([]);
   };
 
-  const saveTicket = async () => {
-    if (!eventId || !ticketForm.name.trim()) {
-      setError('Ticket name is required');
+  const switchToFreeMode = () => {
+    const locked = ticketDrafts.filter((t) => (t.sold || 0) > 0);
+    if (locked.length > 1) {
+      setError('This event has sales on multiple ticket tiers. Free mode needs a single free tier.');
       return;
     }
-    if (ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
+    const keep = locked[0] || ticketDrafts[0];
+    const extrasWithSales = ticketDrafts.filter((t) => t.id && t.id !== keep?.id && (t.sold || 0) > 0);
+    if (extrasWithSales.length > 0) {
+      setError('Cannot switch to Free while other paid tiers still have sales.');
+      return;
+    }
+    const dropIds = ticketDrafts
+      .filter((t) => t.id && t.id !== keep?.id)
+      .map((t) => t.id!)
+      .filter(Boolean);
+    setRemovedTicketIds((prev) => Array.from(new Set([...prev, ...dropIds])));
+    setTicketMode('free');
+    const nextUnlimited = !keep || keep.quantity >= 500;
+    setFreeUnlimited(nextUnlimited);
+    setTicketDrafts([
+      {
+        key: keep?.key || newTicketDraftKey(),
+        id: keep?.id,
+        name: keep?.name || 'General Admission',
+        price: 0,
+        quantity: nextUnlimited
+          ? Math.max(500, keep?.sold || 0, keep?.quantity || 500)
+          : Math.max(keep?.quantity || 100, keep?.sold || 1),
+        sold: keep?.sold || 0,
+        description: keep?.description || '',
+      },
+    ]);
+    setError(null);
+  };
+
+  const switchToPaidMode = () => {
+    setTicketMode('paid');
+    if (ticketDrafts.length === 1 && (ticketDrafts[0]?.price || 0) <= 0 && (ticketDrafts[0]?.sold || 0) === 0) {
+      const previousId = ticketDrafts[0]?.id;
+      setTicketDrafts([
+        {
+          key: newTicketDraftKey(),
+          name: 'Early Bird',
+          price: 1500,
+          quantity: 50,
+          sold: 0,
+        },
+        {
+          key: newTicketDraftKey(),
+          name: 'General Admission',
+          price: 2500,
+          quantity: 150,
+          sold: 0,
+        },
+      ]);
+      if (previousId) {
+        setRemovedTicketIds((prev) => Array.from(new Set([...prev, previousId])));
+      }
+    } else if (ticketDrafts.length === 1 && (ticketDrafts[0]?.price || 0) <= 0) {
+      setTicketDrafts((prev) => prev.map((t, i) => (i === 0 ? { ...t, price: Math.max(1500, t.price) } : t)));
+    }
+  };
+
+  const saveTickets = async () => {
+    if (!eventId) return;
+    const activeDrafts =
+      ticketMode === 'free'
+        ? [
+            {
+              ...(ticketDrafts[0] || {
+                key: newTicketDraftKey(),
+                name: 'General Admission',
+                price: 0,
+                quantity: 500,
+                sold: 0,
+              }),
+              price: 0,
+              quantity: freeUnlimited
+                ? Math.max(500, ticketDrafts[0]?.sold || 0, ticketDrafts[0]?.quantity || 500)
+                : Math.max(1, ticketDrafts[0]?.quantity || 100, ticketDrafts[0]?.sold || 1),
+              name: (ticketDrafts[0]?.name || 'General Admission').trim() || 'General Admission',
+            },
+          ]
+        : ticketDrafts;
+
+    if (activeDrafts.some((t) => !t.name.trim())) {
+      setError('Each ticket tier needs a name.');
+      return;
+    }
+    if (ticketMode === 'paid' && !activeDrafts.some((t) => t.price > 0)) {
+      setError('Add at least one paid ticket tier with a price greater than 0.');
+      return;
+    }
+    if (ticketMode === 'paid' && paidEventReadiness && !paidEventReadiness.isReady) {
       setError('Complete business and payment setup in Organization settings before adding paid tickets.');
       return;
     }
+    for (const t of activeDrafts) {
+      if (t.quantity < (t.sold || 0)) {
+        setError(`“${t.name}” seats cannot be below sold count (${t.sold}).`);
+        return;
+      }
+    }
+
     setSavingTicket(true);
     setError(null);
     try {
-      if (editingTicketId) {
-        await api.post(`/api/events/${eventId}/tickets/${editingTicketId}`, ticketForm);
-      } else {
-        await api.post(`/api/events/${eventId}/tickets`, ticketForm);
+      for (const id of removedTicketIds) {
+        const stillActive = activeDrafts.some((t) => t.id === id);
+        if (stillActive) continue;
+        try {
+          await api.post(`/api/events/${eventId}/tickets/${id}/delete`);
+        } catch (e: any) {
+          if (e?.error === 'ticket_has_sales') {
+            throw new Error('A removed tier still has sales and cannot be deleted.');
+          }
+          throw e;
+        }
       }
+
+      for (const draft of activeDrafts) {
+        const payload = {
+          name: draft.name.trim(),
+          price: ticketMode === 'free' ? 0 : Math.max(0, draft.price),
+          quantity: Math.max(1, draft.quantity),
+          description: draft.description || '',
+        };
+        if (draft.id) {
+          await api.post(`/api/events/${eventId}/tickets/${draft.id}`, payload);
+        } else {
+          await api.post(`/api/events/${eventId}/tickets`, payload);
+        }
+      }
+
       await refreshTickets();
-      setEditingTicketId(null);
-      setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
       setFeedback('Tickets updated.');
     } catch (e: any) {
       if (e?.error === 'paid_event_setup_required') {
@@ -733,23 +914,9 @@ export const EventSettings: React.FC = () => {
         setError(e?.message || 'Complete Organization setup before selling paid tickets.');
         return;
       }
-      setError(e?.message || e?.error || 'Failed to save ticket');
+      setError(e?.message || e?.error || 'Failed to save tickets');
     } finally {
       setSavingTicket(false);
-    }
-  };
-
-  const deleteTicket = async (ticketId: string) => {
-    if (!eventId) return;
-    try {
-      await api.post(`/api/events/${eventId}/tickets/${ticketId}/delete`);
-      await refreshTickets();
-      if (editingTicketId === ticketId) {
-        setEditingTicketId(null);
-        setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
-      }
-    } catch (e: any) {
-      setError(e?.error || 'Failed to delete ticket');
     }
   };
 
@@ -1190,7 +1357,9 @@ export const EventSettings: React.FC = () => {
 
             <SettingsCollapsibleSection
               title="Tickets"
-              subtitle={`${tickets.length} tier${tickets.length === 1 ? '' : 's'} · ${soldTickets} sold`}
+              subtitle={`${ticketDrafts.length || tickets.length} tier${
+                (ticketDrafts.length || tickets.length) === 1 ? '' : 's'
+              } · ${soldTickets} sold`}
               icon={<TicketIcon className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
               open={isSectionOpen('tickets')}
               onToggle={() => toggleSection('tickets')}
@@ -1198,103 +1367,68 @@ export const EventSettings: React.FC = () => {
               cardStyle={cardStyle}
               ui={ui}
             >
-              <div className="space-y-3">
-                {tickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="rounded-xl border p-4"
-                    style={cardMutedStyle}
+              <OrganizerTicketsModule
+                ticketMode={ticketMode}
+                onSwitchFree={switchToFreeMode}
+                onSwitchPaid={switchToPaidMode}
+                freeUnlimited={freeUnlimited}
+                onFreeUnlimitedChange={setFreeUnlimited}
+                tiers={ticketDrafts}
+                onChangeTier={(index, patch) => {
+                  setTicketDrafts((prev) => {
+                    if (!prev[index]) {
+                      return [
+                        {
+                          key: newTicketDraftKey(),
+                          name: 'General Admission',
+                          price: 0,
+                          quantity: 500,
+                          sold: 0,
+                          ...patch,
+                        },
+                      ];
+                    }
+                    return prev.map((t, i) => (i === index ? { ...t, ...patch } : t));
+                  });
+                }}
+                onAddTier={() => {
+                  setTicketDrafts((prev) => [
+                    ...prev,
+                    {
+                      key: newTicketDraftKey(),
+                      name: `Tier ${prev.length + 1}`,
+                      price: 2500,
+                      quantity: 50,
+                      sold: 0,
+                    },
+                  ]);
+                }}
+                onRemoveTier={(index) => {
+                  setTicketDrafts((prev) => {
+                    const target = prev[index];
+                    if (!target || (target.sold || 0) > 0) return prev;
+                    if (target.id) {
+                      setRemovedTicketIds((ids) => Array.from(new Set([...ids, target.id!])));
+                    }
+                    return prev.filter((_, i) => i !== index);
+                  });
+                }}
+                paidEventReadiness={paidEventReadiness}
+                onDismissPaidGate={switchToFreeMode}
+                ui={ui}
+                showSold
+                footer={
+                  <button
+                    type="button"
+                    onClick={() => void saveTickets()}
+                    disabled={savingTicket}
+                    className="turnout-btn-accent inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+                    style={accentButtonStyleFor(ui)}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold" style={{ color: ui.text }}>
-                          {ticket.name}
-                        </p>
-                        <p className="text-sm" style={{ color: ui.textMuted }}>
-                          {formatLKR(ticket.price)} · {ticket.sold}/{ticket.quantity} sold
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTicketId(ticket.id);
-                            setTicketForm({
-                              name: ticket.name,
-                              price: ticket.price,
-                              quantity: ticket.quantity,
-                              description: ticket.description || '',
-                            });
-                          }}
-                          className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                          style={{ ...cardStyle, color: ui.text }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteTicket(ticket.id)}
-                          className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady ? (
-                <div className="mt-4">
-                  <PaidEventSetupGate readiness={paidEventReadiness} title="Paid ticket setup required" />
-                </div>
-              ) : null}
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <input
-                  placeholder="Tier name"
-                  value={ticketForm.name}
-                  onChange={(e) => setTicketForm((p) => ({ ...p, name: e.target.value }))}
-                  className={fieldClass}
-                  style={fieldStyle}
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="Price (LKR)"
-                  value={ticketForm.price}
-                  onChange={(e) => setTicketForm((p) => ({ ...p, price: Number(e.target.value) }))}
-                  className={fieldClass}
-                  style={fieldStyle}
-                />
-                <input
-                  type="number"
-                  min={1}
-                  placeholder="Quantity"
-                  value={ticketForm.quantity}
-                  onChange={(e) => setTicketForm((p) => ({ ...p, quantity: Number(e.target.value) }))}
-                  className={fieldClass}
-                  style={fieldStyle}
-                />
-                <input
-                  placeholder="Description (optional)"
-                  value={ticketForm.description}
-                  onChange={(e) => setTicketForm((p) => ({ ...p, description: e.target.value }))}
-                  className={fieldClass}
-                  style={fieldStyle}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={saveTicket}
-                disabled={savingTicket}
-                className="turnout-btn-accent mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                style={accentButtonStyleFor(ui)}
-              >
-                <Plus className="h-4 w-4" />
-                {savingTicket ? 'Saving…' : editingTicketId ? 'Update tier' : 'Add tier'}
-              </button>
+                    {savingTicket ? 'Saving…' : 'Save tickets'}
+                  </button>
+                }
+              />
             </SettingsCollapsibleSection>
 
             <SettingsCollapsibleSection
