@@ -73,9 +73,10 @@ return [
     'charset' => $env('DB_CHARSET', 'UTF8'),
   ],
   'payhere' => [
-    'sandbox' => strtolower($env('PAYHERE_SANDBOX', 'true')) !== 'false',
-    'merchant_id' => $env('PAYHERE_MERCHANT_ID', '1236076'),
-    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'MTk2NDI5Nzk5MzI3MzcwODk4NDkzNDA5OTcxNjMyMjgwODMxMjIyNQ=='),
+    // Live merchant by default; set PAYHERE_SANDBOX=true to force sandbox.
+    'sandbox' => strtolower($env('PAYHERE_SANDBOX', 'false')) === 'true',
+    'merchant_id' => $env('PAYHERE_MERCHANT_ID', '257283'),
+    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'MzA2MDE3NjA4Mjg4NjMwODg3MDI5NTcyMDI0NjQxMDM0MTc2NDM='),
     'notify_url' => $env('PAYHERE_NOTIFY_URL', 'https://app.bigturnout.co/api/payhere/notify'),
     'app_base_url' => $env('APP_BASE_URL', 'https://app.bigturnout.co'),
   ],

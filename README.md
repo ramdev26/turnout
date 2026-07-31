@@ -194,7 +194,7 @@ Turnout implements the official **PayHere JavaScript SDK** ([docs](https://suppo
 
 ### Credentials
 
-Sandbox defaults live in [`cpanel/api/config.vercel.php`](cpanel/api/config.vercel.php) (currently merchant `1236076`). Override with `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET`, and `PAYHERE_SANDBOX` on Vercel for production.
+Sandbox defaults live in [`cpanel/api/config.vercel.php`](cpanel/api/config.vercel.php). Override with `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET`, and `PAYHERE_SANDBOX` on Vercel (or in `.env`). Live mode uses `PAYHERE_SANDBOX=false`.
 
 In PayHere sandbox: **Settings → Domains & Credentials** → add your site host (e.g. `turnout-omega.vercel.app`, not `https://`) → wait for approval → copy the **Merchant Secret for that domain**. Secrets are per domain; a secret for `localhost` will not work on Vercel.
 
