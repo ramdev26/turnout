@@ -24,7 +24,14 @@ import {
   TicketsSection,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-8' | 'template-canvas';
+export type TemplateId =
+  | 'template-2'
+  | 'template-5'
+  | 'template-6'
+  | 'template-7'
+  | 'template-8'
+  | 'template-9'
+  | 'template-canvas';
 
 /** Layout templates organizers can pick in the design console (excludes custom canvas). */
 export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
@@ -38,6 +45,11 @@ export const LANDING_LAYOUT_TEMPLATES: {
   { id: 'template-8', name: 'Gather', description: 'Soft hosted-event card with split layout' },
   { id: 'template-6', name: 'Arena', description: 'Venue carousel with seating picker' },
   { id: 'template-7', name: 'Spotlight', description: 'Featured banner with sticky booking card' },
+  {
+    id: 'template-9',
+    name: 'Spotlight Violet',
+    description: 'Spotlight layout with violet book-now CTAs',
+  },
   { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
 ];
 
@@ -49,7 +61,8 @@ export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
     id === 'template-5' ||
     id === 'template-6' ||
     id === 'template-7' ||
-    id === 'template-8'
+    id === 'template-8' ||
+    id === 'template-9'
   ) {
     return id;
   }
@@ -299,6 +312,14 @@ const TemplateSpotlight: LandingTemplate = {
   render: (props) => <LandingSpotlightPage {...props} />,
 };
 
+const TemplateSpotlightViolet: LandingTemplate = {
+  id: 'template-9',
+  name: 'Spotlight Violet',
+  description: 'Spotlight layout with violet diagonal book-now CTAs.',
+  previewSeed: 'spotlight-violet',
+  render: (props) => <LandingSpotlightPage {...props} />,
+};
+
 const TemplateGather: LandingTemplate = {
   id: 'template-8',
   name: 'Gather',
@@ -312,6 +333,7 @@ export const landingTemplates: LandingTemplate[] = [
   TemplateGather,
   TemplateArena,
   TemplateSpotlight,
+  TemplateSpotlightViolet,
   TemplateClassic,
 ];
 

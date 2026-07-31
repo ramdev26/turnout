@@ -213,6 +213,73 @@
   }
 }
 
+.sp-countdown {
+  margin-top: 1.35rem;
+  animation: sp-countdown-in 0.55s ease-out both;
+}
+
+@keyframes sp-countdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sp-countdown-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sp-muted);
+}
+
+.sp-countdown-live {
+  margin-top: 0.55rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--sp-ink);
+}
+
+.sp-countdown-grid {
+  margin-top: 0.65rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.sp-countdown-cell {
+  text-align: center;
+  border-radius: 0.75rem;
+  background: var(--sp-soft);
+  border: 1px solid var(--sp-line);
+  padding: 0.75rem 0.25rem 0.65rem;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.sp-countdown-cell strong {
+  display: block;
+  font-size: clamp(1.25rem, 4.5cqi, 1.75rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--sp-ink);
+}
+
+.sp-countdown-cell span {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sp-muted);
+}
+
 .sp-org-label {
   font-size: 0.625rem;
   font-weight: 700;
@@ -233,11 +300,14 @@
   width: 2.35rem;
   height: 2.35rem;
   border-radius: 9999px;
+  flex-shrink: 0;
 }
 
 .sp-org-logo {
-  object-fit: cover;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--sp-surface, #fff) 92%, transparent);
   border: 1px solid var(--sp-line);
+  padding: 0.15rem;
 }
 
 .sp-org-mark {
@@ -873,4 +943,57 @@
 
 .event-settings-desktop-preview .sp-rail {
   top: 4rem;
+}
+
+/* Spotlight Violet (template-9) — diagonal book-now CTAs */
+.landing-spotlight--violet {
+  --sp-accent: #612d87;
+  --sp-cta: #612d87;
+  --sp-on-accent: #ffffff;
+}
+
+.landing-spotlight--violet .sp-cta,
+.landing-page:has(.landing-spotlight--violet) .landing-showcase-btn-cta {
+  border-radius: 1.35rem 0 1.35rem 0;
+  background: #612d87;
+  color: #ffffff;
+  box-shadow: none;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+
+.landing-spotlight--violet .sp-cta:hover:not(:disabled),
+.landing-page:has(.landing-spotlight--violet) .landing-showcase-btn-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.landing-spotlight--violet .sp-ticket-add {
+  border-radius: 0.85rem 0 0.85rem 0;
+  background: #612d87;
+  color: #ffffff;
+  border-color: #612d87;
+}
+
+.landing-spotlight--violet .sp-featured {
+  color: #612d87;
+}
+
+.landing-spotlight--violet .sp-countdown-cell {
+  background: color-mix(in srgb, #612d87 8%, #fff);
+  border-color: color-mix(in srgb, #612d87 22%, #e2e8f0);
+}
+
+.landing-spotlight--violet .sp-countdown-cell strong {
+  color: #612d87;
+}
+
+.landing-spotlight--violet .sp-rail-count strong {
+  color: #612d87;
+}
+
+.landing-spotlight--violet .sp-inline-link {
+  color: #612d87;
 }

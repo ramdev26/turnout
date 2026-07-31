@@ -4,11 +4,14 @@ import { CalendarDays, MapPin, Minus, Plus, Video } from 'lucide-react';
 import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import {
+  EventGalleryStrip,
   LandingFooter,
   LandingPageShell,
   LandingTopBar,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  ticketPurchaseCap,
+  ticketSalesEnded,
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
@@ -177,21 +180,33 @@ function GatherRegisterCard({
           <div className="gt-ticket-list">
             {tickets.map((ticket) => {
               const remaining = ticketRemaining(ticket);
+              const cap = ticketPurchaseCap(ticket);
+              const salesEnded = ticketSalesEnded(ticket);
               const qty = selectedTickets[ticket.id] || 0;
               const soldOut = remaining <= 0;
+              const unavailable = cap <= 0;
               return (
                 <div key={ticket.id} className="gt-ticket">
                   <div className="gt-ticket-info">
                     <p className="gt-ticket-name">{ticket.name}</p>
                     <p className="gt-ticket-price">
-                      {soldOut ? 'Sold out' : ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}
+                      {soldOut
+                        ? 'Sold out'
+                        : salesEnded
+                          ? 'Sales ended'
+                          : ticket.price <= 0
+                            ? 'Free'
+                            : formatLKRWhole(ticket.price)}
+                      {!unavailable && ticket.maxPerAttendee && ticket.maxPerAttendee > 0
+                        ? ` · Max ${ticket.maxPerAttendee}`
+                        : ''}
                     </p>
                   </div>
                   <div className="gt-qty">
                     <button
                       type="button"
                       className="gt-qty-btn"
-                      disabled={soldOut || qty <= 0}
+                      disabled={unavailable || qty <= 0}
                       onClick={() => onTicketChange(ticket.id, qty - 1)}
                       aria-label={`Decrease ${ticket.name}`}
                     >
@@ -201,7 +216,7 @@ function GatherRegisterCard({
                     <button
                       type="button"
                       className="gt-qty-btn"
-                      disabled={soldOut || qty >= remaining}
+                      disabled={unavailable || qty >= cap}
                       onClick={() => onTicketChange(ticket.id, qty + 1)}
                       aria-label={`Increase ${ticket.name}`}
                     >
@@ -296,6 +311,7 @@ export function LandingGatherPage(props: LandingTemplateProps) {
           {/* Desktop: left rail / Mobile: stacked order via CSS */}
           <aside className="gt-aside">
             <GatherHeroImage event={event} />
+            <EventGalleryStrip event={event} className="px-3" />
             <div className="gt-aside-desktop-only">
               <GatherHost event={event} />
               <GatherSidebarExtras event={event} tickets={tickets} />

@@ -14,19 +14,28 @@ import {
   Globe,
   MapPin,
   Plus,
+  Rows3,
   Ticket,
-  Trash2,
   Users,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { Event, EventCustomization, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
+import {
+  Event,
+  EventCustomization,
+  OrganizerPaidEventReadiness,
+  OrganizerProfile,
+  SeatingChartDesign,
+  Ticket as EventTicket,
+} from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
-import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { ArenaGalleryEditor } from '../components/organizer/ArenaGalleryEditor';
+import { SeatingChartBuilder, createDefaultSeatingChart } from '../components/organizer/SeatingChartBuilder';
+import { OrganizerTicketsModule } from '../components/organizer/OrganizerTicketsModule';
 import { formatEventLocationDisplay, isValidMeetingUrl } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
@@ -37,11 +46,14 @@ import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
+import { normalizeEventGalleryImages } from '../components/landing/arenaGallery';
 
 const ticketTierSchema = z.object({
   name: z.string().min(1, 'Tier name is required'),
   price: z.number().min(0, 'Price must be 0 or more'),
   quantity: z.number().min(1, 'At least 1 seat'),
+  salesEndsAt: z.string().nullable().optional(),
+  maxPerAttendee: z.number().int().min(1).nullable().optional(),
 });
 
 const eventSchema = z
@@ -118,6 +130,32 @@ const eventSchema = z
 
 type EventFormValues = z.infer<typeof eventSchema>;
 
+type CreateEventDraftV1 = {
+  version: 1;
+  savedAt: number;
+  form: EventFormValues;
+  ui: {
+    ticketMode: 'free' | 'paid';
+    freeUnlimited: boolean;
+    visibility: 'public' | 'private';
+    hasSchedule: boolean;
+    hasEnd: boolean;
+    eventGalleryImages: string[];
+    seatingEnabled: boolean;
+    seatingChart: SeatingChartDesign;
+  };
+  design: LandingDesignValue;
+};
+
+const CREATE_EVENT_DRAFT_VERSION = 1;
+const CREATE_EVENT_DRAFT_KEY_PREFIX = 'turnout:create-event-draft:';
+/** Temporary kill-switch — set to true to re-enable Seating customizer in Create Event. */
+const SHOW_SEATING_CUSTOMIZER = false;
+
+function createEventDraftKey(userId?: string): string {
+  return `${CREATE_EVENT_DRAFT_KEY_PREFIX}${userId || 'anonymous'}`;
+}
+
 function fieldClassFor(ui: CreateThemeUI): string {
   return cn(
     'w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2',
@@ -193,7 +231,9 @@ export const CreateEvent: React.FC = () => {
   const [freeUnlimited, setFreeUnlimited] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
+  const [eventGalleryImages, setEventGalleryImages] = useState<string[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
@@ -201,9 +241,15 @@ export const CreateEvent: React.FC = () => {
   const [hasSchedule, setHasSchedule] = useState(false);
   // End time is optional — most events only need a start.
   const [hasEnd, setHasEnd] = useState(false);
+  const [seatingEnabled, setSeatingEnabled] = useState(false);
+  const [seatingChart, setSeatingChart] = useState<SeatingChartDesign>(() => createDefaultSeatingChart());
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
-  const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
+  const [activeSubMenu, setActiveSubMenu] = useState<'details' | 'seating'>('details');
+  const [organizerBrand, setOrganizerBrand] = useState<{ name: string; logoUrl: string | null }>(() => ({
+    name: user?.displayName || 'Your organization',
+    logoUrl: null,
+  }));
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
@@ -224,6 +270,7 @@ export const CreateEvent: React.FC = () => {
     control,
     handleSubmit,
     setValue,
+    reset,
     setFocus,
     watch,
     formState: { errors },
@@ -240,7 +287,7 @@ export const CreateEvent: React.FC = () => {
       onlinePlatform: 'google_meet',
       onlineUrl: '',
       bannerUrl: '',
-      tickets: [{ name: 'General Admission', price: 0, quantity: 500 }],
+      tickets: [{ name: 'General Admission', price: 0, quantity: 500, salesEndsAt: null, maxPerAttendee: null }],
       requireApproval: false,
       useCustomDomain: false,
       customDomain: '',
@@ -252,9 +299,11 @@ export const CreateEvent: React.FC = () => {
   });
 
   const submitErrorRef = React.useRef<HTMLDivElement>(null);
+  const hydratedDraftRef = React.useRef(false);
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'tickets' });
 
   const title = watch('title');
+  const slug = watch('slug');
   const description = watch('description');
   const shortDescription = watch('shortDescription');
   const date = watch('date');
@@ -267,6 +316,11 @@ export const CreateEvent: React.FC = () => {
   const tickets = watch('tickets');
   const requireApproval = watch('requireApproval');
   const useCustomDomain = watch('useCustomDomain');
+  const customDomain = watch('customDomain');
+  const dnsProvider = watch('dnsProvider');
+  const dnsRecordType = watch('dnsRecordType');
+  const dnsRecordTarget = watch('dnsRecordTarget');
+  const dnsConfigured = watch('dnsConfigured');
 
   const ui = APP_FLOW_UI;
   const cardStyle = cardStyleFor(ui);
@@ -295,15 +349,156 @@ export const CreateEvent: React.FC = () => {
     })();
   }, [user]);
 
-  const totalSeats = useMemo(
-    () => tickets.reduce((sum, t) => sum + (Number.isFinite(t.quantity) ? t.quantity : 0), 0),
-    [tickets]
-  );
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ profile: OrganizerProfile }>('/api/me/organizer-workspace');
+        if (cancelled) return;
+        const orgName = (res.profile.organizationName || '').trim();
+        const logo = (res.profile.logoUrl || '').trim();
+        setOrganizerBrand({
+          name: orgName || res.profile.displayName || user.displayName || 'Your organization',
+          logoUrl: logo || null,
+        });
+      } catch {
+        if (!cancelled) {
+          setOrganizerBrand({
+            name: user.displayName || 'Your organization',
+            logoUrl: null,
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (hydratedDraftRef.current) return;
+    const storageKey = createEventDraftKey(user?.uid);
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        hydratedDraftRef.current = true;
+        return;
+      }
+      const parsed = JSON.parse(raw) as Partial<CreateEventDraftV1>;
+      if (parsed?.version !== CREATE_EVENT_DRAFT_VERSION || !parsed.form || !parsed.ui || !parsed.design) {
+        localStorage.removeItem(storageKey);
+        hydratedDraftRef.current = true;
+        return;
+      }
+
+      const safeGallery = normalizeEventGalleryImages(parsed.ui.eventGalleryImages);
+      reset(parsed.form as EventFormValues);
+      setTicketMode(parsed.ui.ticketMode === 'paid' ? 'paid' : 'free');
+      setFreeUnlimited(Boolean(parsed.ui.freeUnlimited));
+      setVisibility(parsed.ui.visibility === 'private' ? 'private' : 'public');
+      setHasSchedule(Boolean(parsed.ui.hasSchedule));
+      setHasEnd(Boolean(parsed.ui.hasEnd));
+      setEventGalleryImages(safeGallery);
+      setSeatingEnabled(Boolean(parsed.ui.seatingEnabled));
+      setSeatingChart(
+        parsed.ui.seatingChart && parsed.ui.seatingChart.version === 1
+          ? (parsed.ui.seatingChart as SeatingChartDesign)
+          : createDefaultSeatingChart()
+      );
+      setDesign(parsed.design as LandingDesignValue);
+    } catch {
+      // Ignore malformed local drafts and continue with defaults.
+    } finally {
+      hydratedDraftRef.current = true;
+    }
+  }, [reset, user?.uid]);
 
   const normalizeBannerUrl = (url: string) => {
     if (!url || /^https?:\/\//i.test(url) || url.startsWith('data:image/')) return url;
     return toApiUrl(url);
   };
+
+  useEffect(() => {
+    if (!hydratedDraftRef.current) return;
+    const storageKey = createEventDraftKey(user?.uid);
+    const payload: CreateEventDraftV1 = {
+      version: 1,
+      savedAt: Date.now(),
+      form: {
+        title,
+        slug,
+        description,
+        shortDescription,
+        date,
+        endDate,
+        locationMode,
+        location,
+        onlinePlatform,
+        onlineUrl,
+        bannerUrl,
+        tickets,
+        requireApproval,
+        useCustomDomain,
+        customDomain,
+        dnsProvider,
+        dnsRecordType,
+        dnsRecordTarget,
+        dnsConfigured,
+      },
+      ui: {
+        ticketMode,
+        freeUnlimited,
+        visibility,
+        hasSchedule,
+        hasEnd,
+        eventGalleryImages,
+        seatingEnabled,
+        seatingChart,
+      },
+      design,
+    };
+
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(payload));
+      } catch {
+        // Ignore storage quota or privacy-mode errors.
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    bannerUrl,
+    date,
+    description,
+    design,
+    endDate,
+    eventGalleryImages,
+    freeUnlimited,
+    hasEnd,
+    hasSchedule,
+    location,
+    locationMode,
+    onlinePlatform,
+    onlineUrl,
+    requireApproval,
+    slug,
+    customDomain,
+    dnsProvider,
+    dnsRecordType,
+    dnsRecordTarget,
+    dnsConfigured,
+    shortDescription,
+    seatingChart,
+    seatingEnabled,
+    ticketMode,
+    tickets,
+    title,
+    useCustomDomain,
+    user?.uid,
+    visibility,
+  ]);
 
   const switchToFreeMode = () => {
     setTicketMode('free');
@@ -313,6 +508,8 @@ export const CreateEvent: React.FC = () => {
         name: first?.name || 'General Admission',
         price: 0,
         quantity: freeUnlimited ? 500 : Math.max(1, first?.quantity || 100),
+        salesEndsAt: first?.salesEndsAt ?? null,
+        maxPerAttendee: first?.maxPerAttendee ?? null,
       },
     ]);
   };
@@ -321,11 +518,10 @@ export const CreateEvent: React.FC = () => {
     // Always enter paid mode so organizers can configure tiers. If payout setup is
     // incomplete, show the gate and still block publish via onSubmit / API assert.
     setTicketMode('paid');
-    setShowPaidSetupGate(Boolean(paidEventReadiness && !paidEventReadiness.isReady));
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
-        { name: 'Early Bird', price: 1500, quantity: 50 },
-        { name: 'General Admission', price: 2500, quantity: 150 },
+        { name: 'Early Bird', price: 1500, quantity: 50, salesEndsAt: null, maxPerAttendee: null },
+        { name: 'General Admission', price: 2500, quantity: 150, salesEndsAt: null, maxPerAttendee: null },
       ]);
     }
   };
@@ -357,6 +553,37 @@ export const CreateEvent: React.FC = () => {
       setBannerUploadError('Upload failed. Check your connection.');
     } finally {
       setIsUploadingBanner(false);
+    }
+  };
+
+  const uploadGalleryFile = async (file: File) => {
+    setBannerUploadError(null);
+    setIsUploadingGallery(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(toApiUrl('/api/uploads/banner'), {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const text = await res.text();
+      let data: { bannerUrl?: string; error?: string; message?: string } | null = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+      if (res.ok && data?.bannerUrl) {
+        const url = normalizeBannerUrl(data.bannerUrl);
+        setEventGalleryImages((prev) => normalizeEventGalleryImages([...prev, url]));
+        return;
+      }
+      setBannerUploadError(data?.message || 'Upload failed. Try again.');
+    } catch {
+      setBannerUploadError('Upload failed. Check your connection.');
+    } finally {
+      setIsUploadingGallery(false);
     }
   };
 
@@ -443,7 +670,6 @@ export const CreateEvent: React.FC = () => {
         return;
       }
       if (paidEventReadiness && !paidEventReadiness.isReady) {
-        setShowPaidSetupGate(true);
         setSubmitError(
           paidEventReadiness.gatewayMode === 'own_payhere'
             ? 'Connect your own gateway and add an account card in Organization → Payments before publishing a paid event.'
@@ -504,6 +730,9 @@ export const CreateEvent: React.FC = () => {
         dnsRecordType: data.useCustomDomain ? data.dnsRecordType : undefined,
         dnsRecordTarget: data.useCustomDomain ? (data.dnsRecordTarget || '').trim() : undefined,
         dnsConfigured: data.useCustomDomain ? data.dnsConfigured : false,
+        eventGalleryImages,
+        arenaGalleryImages: eventGalleryImages,
+        seatingChart: SHOW_SEATING_CUSTOMIZER && seatingEnabled ? seatingChart : undefined,
       };
 
       const payloadTickets =
@@ -514,6 +743,8 @@ export const CreateEvent: React.FC = () => {
                 price: 0,
                 quantity: freeUnlimited ? 500 : Math.max(1, data.tickets[0]?.quantity || 100),
                 description: data.requireApproval ? 'Requires organizer approval' : undefined,
+                salesEndsAt: data.tickets[0]?.salesEndsAt || null,
+                maxPerAttendee: data.tickets[0]?.maxPerAttendee ?? null,
               },
             ]
           : data.tickets.map((ticket) => ({
@@ -521,6 +752,8 @@ export const CreateEvent: React.FC = () => {
               price: ticket.price,
               quantity: ticket.quantity,
               description: data.requireApproval ? 'Requires organizer approval' : undefined,
+              salesEndsAt: ticket.salesEndsAt || null,
+              maxPerAttendee: ticket.maxPerAttendee ?? null,
             }));
 
       const resolvedLocation =
@@ -540,12 +773,16 @@ export const CreateEvent: React.FC = () => {
         tickets: payloadTickets,
       });
 
+      try {
+        localStorage.removeItem(createEventDraftKey(user?.uid));
+      } catch {
+        // Ignore storage errors on cleanup.
+      }
       window.open(`/e/${created.slug}`, '_blank', 'noopener,noreferrer');
       navigate('/dashboard');
     } catch (error: any) {
       if (error?.error === 'paid_event_setup_required') {
         setPaidEventReadiness(error.readiness || paidEventReadiness);
-        setShowPaidSetupGate(true);
         setSubmitError(error?.message || 'Complete Organization setup before selling paid tickets.');
         return;
       }
@@ -581,12 +818,16 @@ export const CreateEvent: React.FC = () => {
       primaryColor: design.primaryColor,
       secondaryColor: design.secondaryColor,
       fontFamily: design.fontFamily,
+      eventGalleryImages,
+      arenaGalleryImages: eventGalleryImages,
+      seatingChart: SHOW_SEATING_CUSTOMIZER && seatingEnabled ? seatingChart : undefined,
     };
     return {
       id: 'preview',
       slug: 'preview-event',
       organizerId: user?.uid || 'preview',
-      organizerName: user?.displayName || 'Your organization',
+      organizerName: organizerBrand.name,
+      organizerLogoUrl: organizerBrand.logoUrl,
       title: title.trim() || 'Your event title',
       description:
         (description || '').trim() ||
@@ -611,10 +852,14 @@ export const CreateEvent: React.FC = () => {
     locationMode,
     onlinePlatform,
     onlineUrl,
+    organizerBrand.logoUrl,
+    organizerBrand.name,
     shortDescription,
+    eventGalleryImages,
+    seatingChart,
+    seatingEnabled,
     themeId,
     title,
-    user?.displayName,
     user?.uid,
   ]);
 
@@ -641,6 +886,8 @@ export const CreateEvent: React.FC = () => {
       quantity: tier.quantity,
       sold: 0,
       description: requireApproval ? 'Requires organizer approval' : undefined,
+      salesEndsAt: tier.salesEndsAt ?? null,
+      maxPerAttendee: tier.maxPerAttendee ?? null,
     }));
   }, [requireApproval, ticketMode, tickets]);
 
@@ -700,28 +947,72 @@ export const CreateEvent: React.FC = () => {
             </button>
           </div>
         </div>
+        {SHOW_SEATING_CUSTOMIZER ? (
+          <div className="mx-auto mt-4 flex w-full max-w-[1440px]">
+            <div className="inline-flex rounded-xl border p-1" style={cardStyle}>
+              <button
+                type="button"
+                onClick={() => setActiveSubMenu('details')}
+                className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                style={accentSegmentStyleFor(ui, activeSubMenu === 'details')}
+              >
+                Event details
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubMenu('seating')}
+                className="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition"
+                style={accentSegmentStyleFor(ui, activeSubMenu === 'seating')}
+              >
+                Seating customizer
+              </button>
+            </div>
+          </div>
+        ) : null}
       </header>
 
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div
-            className={cn(
-              'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:gap-10 lg:py-8 lg:pb-72',
-              showLivePreview
-                ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,460px)]'
-                : 'lg:grid-cols-[360px_1fr]'
-            )}
-          >
+          {!SHOW_SEATING_CUSTOMIZER || activeSubMenu === 'details' ? (
+            <div
+              className={cn(
+                'mx-auto grid w-full max-w-[1440px] gap-8 px-4 py-6 pb-72 sm:px-8 lg:gap-10 lg:py-8 lg:pb-72',
+                showLivePreview
+                  ? 'lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,460px)]'
+                  : 'lg:grid-cols-[360px_1fr]'
+              )}
+            >
             {/* Left column */}
             <div className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
               <BannerUploadSquare
                 previewUrl={bannerUrl ? normalizeBannerUrl(bannerUrl) : undefined}
                 disabled={isUploadingBanner}
                 onFileSelect={(file) => void uploadBannerFile(file)}
+                onRemove={() => {
+                  setValue('bannerUrl', '', { shouldDirty: true, shouldValidate: true });
+                  setBannerUploadError(null);
+                }}
                 frameClassName={ui.bannerFrame}
                 placeholderClassName={ui.bannerPlaceholder}
               />
               {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
+              <ArenaGalleryEditor
+                images={eventGalleryImages}
+                disabled={isSubmitting}
+                uploading={isUploadingGallery}
+                onUpload={uploadGalleryFile}
+                onRemove={(index) => setEventGalleryImages((prev) => prev.filter((_, i) => i !== index))}
+                title="Event gallery"
+                description="Cover image is image 1. Add multiple visuals for all layouts."
+                emptyText="No extra images yet — add posters, venue shots, or sponsor creatives."
+                ui={{
+                  borderColor: ui.borderColor,
+                  text: ui.text,
+                  textMuted: ui.textMuted,
+                  textSubtle: ui.textSubtle,
+                  cardBg: ui.cardMutedBg,
+                }}
+              />
 
               <div className="rounded-2xl border p-4" style={cardMutedStyle}>
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
@@ -1017,225 +1308,74 @@ export const CreateEvent: React.FC = () => {
 
               {/* Tickets */}
               <div className="mb-6">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                    Tickets
-                  </p>
-                  <div className="inline-flex rounded-xl border p-1" style={cardMutedStyle}>
-                    <button
-                      type="button"
-                      onClick={switchToFreeMode}
-                      className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
-                      style={
-                        ticketMode === 'free'
-                          ? accentButtonStyleFor(ui)
-                          : { color: ui.textMuted }
-                      }
-                    >
-                      Free
-                    </button>
-                    <button
-                      type="button"
-                      onClick={switchToPaidMode}
-                      className="rounded-lg px-4 py-1.5 text-sm font-semibold transition"
-                      style={
-                        ticketMode === 'paid'
-                          ? accentButtonStyleFor(ui)
-                          : { color: ui.textMuted }
-                      }
-                    >
-                      Paid
-                    </button>
-                  </div>
-                </div>
-
-                {ticketMode === 'paid' && paidEventReadiness && !paidEventReadiness.isReady ? (
-                  <div className="mb-4">
-                    <PaidEventSetupGate
-                      readiness={paidEventReadiness}
-                      onDismiss={() => {
-                        setShowPaidSetupGate(false);
-                        switchToFreeMode();
-                      }}
-                    />
-                  </div>
-                ) : null}
-
-                {ticketMode === 'free' ? (
-                  <div className="space-y-3 rounded-2xl border p-4 transition-[background,border-color] duration-700" style={cardMutedStyle}>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                        Ticket name
-                      </label>
-                      <input
-                        {...register('tickets.0.name')}
-                        placeholder="General Admission"
-                        className={fieldClass}
-                        style={fieldStyle}
-                      />
-                    </div>
-                    <div
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3"
-                      style={cardStyle}
-                    >
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: ui.text }}>
-                          Capacity
-                        </p>
-                        <p className="text-xs" style={{ color: ui.textSubtle }}>
-                          {freeUnlimited ? 'Unlimited seats' : `${tickets[0]?.quantity || 0} seats`}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFreeUnlimited(true);
-                            setValue('tickets.0.quantity', 500, { shouldDirty: true });
-                          }}
-                          className="turnout-btn-accent rounded-lg px-3 py-1 text-xs font-semibold"
-                          style={{
-                            backgroundColor: freeUnlimited ? ui.accent : ui.accentSoft,
-                            color: freeUnlimited ? ui.accentOn : ui.textMuted,
-                          }}
-                        >
-                          Unlimited
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFreeUnlimited(false);
-                            setValue('tickets.0.quantity', 100, { shouldDirty: true });
-                          }}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold"
-                          style={{
-                            backgroundColor: !freeUnlimited ? ui.accent : ui.accentSoft,
-                            color: !freeUnlimited ? ui.accentOn : ui.textMuted,
-                          }}
-                        >
-                          Limited
-                        </button>
-                      </div>
-                    </div>
-                    {!freeUnlimited && (
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                          Seat quantity
-                        </label>
-                        <input
-                          {...register('tickets.0.quantity', { valueAsNumber: true })}
-                          type="number"
-                          min={1}
-                          className={fieldClass}
-                          style={fieldStyle}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {fields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className={cn(panelCn, 'p-4 shadow-sm')}
-                        style={cardStyle}
-                      >
-                        <div className="mb-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Ticket className="h-4 w-4" style={{ color: ui.textSubtle }} />
-                            <span className="text-sm font-semibold" style={{ color: ui.text }}>
-                              Tier {index + 1}
-                            </span>
-                          </div>
-                          {fields.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => remove(index)}
-                              className="rounded-lg p-1.5 text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
-                              aria-label="Remove tier"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="sm:col-span-1">
-                            <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Name
-                            </label>
-                            <input
-                              {...register(`tickets.${index}.name` as const)}
-                              placeholder="e.g. VIP, Early Bird"
-                              className={fieldClass}
-                              style={fieldStyle}
-                            />
-                            {errors.tickets?.[index]?.name && (
-                              <p className="mt-1 text-xs text-rose-600">{errors.tickets[index]?.name?.message}</p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Price (LKR)
-                            </label>
-                            <input
-                              {...register(`tickets.${index}.price` as const, { valueAsNumber: true })}
-                              type="number"
-                              min={0}
-                              className={fieldClass}
-                              style={fieldStyle}
-                            />
-                            {errors.tickets?.[index]?.price && (
-                              <p className="mt-1 text-xs text-rose-600">{errors.tickets[index]?.price?.message}</p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Seats
-                            </label>
-                            <input
-                              {...register(`tickets.${index}.quantity` as const, { valueAsNumber: true })}
-                              type="number"
-                              min={1}
-                              className={fieldClass}
-                              style={fieldStyle}
-                            />
-                            {errors.tickets?.[index]?.quantity && (
-                              <p className="mt-1 text-xs text-rose-600">{errors.tickets[index]?.quantity?.message}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        append({
-                          name: `Tier ${fields.length + 1}`,
-                          price: 2500,
-                          quantity: 50,
-                        })
-                      }
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm font-semibold transition hover:opacity-90"
-                      style={{ ...cardMutedStyle, color: ui.text }}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add ticket tier
-                    </button>
-
-                    <p className="text-xs" style={{ color: ui.textSubtle }}>
-                      Total capacity across tiers:{' '}
-                      <span className="font-semibold" style={{ color: ui.text }}>
-                        {totalSeats.toLocaleString()}
-                      </span>{' '}
-                      seats
-                    </p>
-                  </div>
-                )}
-
+                <OrganizerTicketsModule
+                  ticketMode={ticketMode}
+                  onSwitchFree={switchToFreeMode}
+                  onSwitchPaid={switchToPaidMode}
+                  freeUnlimited={freeUnlimited}
+                  onFreeUnlimitedChange={(unlimited) => {
+                    setFreeUnlimited(unlimited);
+                    setValue('tickets.0.quantity', unlimited ? 500 : 100, { shouldDirty: true });
+                  }}
+                  tiers={fields.map((field, index) => ({
+                    key: field.id,
+                    name: tickets[index]?.name || '',
+                    price: tickets[index]?.price || 0,
+                    quantity: tickets[index]?.quantity || 0,
+                    salesEndsAt: tickets[index]?.salesEndsAt ?? null,
+                    maxPerAttendee: tickets[index]?.maxPerAttendee ?? null,
+                  }))}
+                  onChangeTier={(index, patch) => {
+                    if (patch.name !== undefined) {
+                      setValue(`tickets.${index}.name` as const, patch.name, { shouldDirty: true, shouldValidate: true });
+                    }
+                    if (patch.price !== undefined) {
+                      setValue(`tickets.${index}.price` as const, patch.price, { shouldDirty: true, shouldValidate: true });
+                    }
+                    if (patch.quantity !== undefined) {
+                      setValue(`tickets.${index}.quantity` as const, patch.quantity, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                    if (patch.salesEndsAt !== undefined) {
+                      setValue(`tickets.${index}.salesEndsAt` as const, patch.salesEndsAt, { shouldDirty: true });
+                    }
+                    if (patch.maxPerAttendee !== undefined) {
+                      setValue(`tickets.${index}.maxPerAttendee` as const, patch.maxPerAttendee, { shouldDirty: true });
+                    }
+                  }}
+                  onAddTier={() =>
+                    append({
+                      name: `Tier ${fields.length + 1}`,
+                      price: 2500,
+                      quantity: 50,
+                      salesEndsAt: null,
+                      maxPerAttendee: null,
+                    })
+                  }
+                  onRemoveTier={(index) => remove(index)}
+                  paidEventReadiness={paidEventReadiness}
+                  onDismissPaidGate={switchToFreeMode}
+                  ui={ui}
+                />
                 {errors.tickets?.message && (
                   <p className="mt-2 text-xs text-rose-600">{errors.tickets.message}</p>
                 )}
+                {Array.isArray(errors.tickets) &&
+                  errors.tickets.map((tier, index) =>
+                    tier?.name || tier?.price || tier?.quantity ? (
+                      <p key={`ticket-err-${index}`} className="mt-1 text-xs text-rose-600">
+                        {[
+                          tier.name?.message ? `Ticket ${index + 1}: ${tier.name.message}` : null,
+                          tier.price?.message ? `Ticket ${index + 1}: ${tier.price.message}` : null,
+                          tier.quantity?.message ? `Ticket ${index + 1}: ${tier.quantity.message}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    ) : null
+                  )}
               </div>
 
               {/* Require approval */}
@@ -1351,7 +1491,68 @@ export const CreateEvent: React.FC = () => {
                 </aside>
               </>
             )}
-          </div>
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-8 lg:py-8">
+              <div className="rounded-2xl border p-5 sm:p-6" style={cardStyle}>
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <Rows3 className="mt-0.5 h-5 w-5 shrink-0" style={{ color: ui.accent }} />
+                    <div>
+                      <p className="text-base font-semibold" style={{ color: ui.text }}>
+                        Seating customizer
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed" style={{ color: ui.textMuted }}>
+                        Full-screen seating workspace. Build your reserved seating layout with stage, seat blocks, tables/PODs, holds, and pricing tiers.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                      style={{ borderColor: ui.borderColor, color: seatingEnabled ? ui.accent : ui.textMuted }}
+                    >
+                      {seatingEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <Toggle
+                      checked={seatingEnabled}
+                      onChange={setSeatingEnabled}
+                      label="Enable seating customizer"
+                      accent={ui.accent}
+                      offColor={ui.isDark ? 'rgba(255,255,255,0.25)' : '#d1d5db'}
+                    />
+                  </div>
+                </div>
+
+                {seatingEnabled ? (
+                  <div className="rounded-xl border p-2.5" style={cardMutedStyle}>
+                    <SeatingChartBuilder
+                      value={seatingChart}
+                      onChange={setSeatingChart}
+                      ui={{
+                        text: ui.text,
+                        textMuted: ui.textMuted,
+                        textSubtle: ui.textSubtle,
+                        borderColor: ui.borderColor,
+                        cardBg: ui.cardMutedBg,
+                        fieldBg: ui.fieldBg,
+                        accent: ui.accent,
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed px-4 py-8 text-center" style={{ borderColor: ui.borderColor }}>
+                    <p className="text-sm font-medium" style={{ color: ui.text }}>
+                      Seating customizer is optional
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
+                      Turn it on when you need reserved seating. Keep it off for general admission events.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Floating landing design dock */}

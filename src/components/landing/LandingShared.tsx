@@ -15,16 +15,13 @@ import { formatLKRWhole } from '../../utils/money';
 import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
 import { EventPolicyLink } from './EventPolicyViewer';
 import { isOnlineEvent } from '../../utils/eventLocation';
+import { resolveArenaCarouselSlides } from './arenaGallery';
 
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
   const raw = event.organizerLogoUrl?.trim() || '';
-  const logoUrl =
-    raw === ''
-      ? null
-      : raw.startsWith('http') || raw.startsWith('/api/')
-        ? raw
-        : toApiUrl(raw);
+  // Always normalize through toApiUrl so relative /api/... logos resolve when API is cross-origin.
+  const logoUrl = raw === '' ? null : toApiUrl(raw);
   return { name, logoUrl };
 }
 export function useCountdown(targetIso: string, active = true) {
@@ -66,8 +63,28 @@ export function ticketRemaining(ticket: EventTicket): number {
   return Math.max(0, ticket.quantity - ticket.sold);
 }
 
+export function ticketSalesEnded(ticket: EventTicket): boolean {
+  const raw = ticket.salesEndsAt?.trim();
+  if (!raw) return false;
+  const ends = new Date(raw).getTime();
+  return Number.isFinite(ends) && ends <= Date.now();
+}
+
+/** Max qty an attendee can select for this tier right now. */
+export function ticketPurchaseCap(ticket: EventTicket): number {
+  if (ticketSalesEnded(ticket)) return 0;
+  const remaining = ticketRemaining(ticket);
+  const maxPer = ticket.maxPerAttendee;
+  if (maxPer == null || !Number.isFinite(maxPer) || maxPer <= 0) return remaining;
+  return Math.min(remaining, Math.floor(maxPer));
+}
+
 export function isTicketSoldOut(ticket: EventTicket): boolean {
   return ticketRemaining(ticket) <= 0;
+}
+
+export function isTicketUnavailable(ticket: EventTicket): boolean {
+  return ticketPurchaseCap(ticket) <= 0;
 }
 
 export const landingShellStyle = (): React.CSSProperties => ({
@@ -118,9 +135,11 @@ export function LandingPageShell({
 export function LandingTopBar({
   event,
   onGetTickets,
+  ctaLabel = 'Get tickets',
 }: {
   event: Event;
   onGetTickets?: () => void;
+  ctaLabel?: string;
 }) {
   const scrollToTickets = () => {
     if (onGetTickets) {
@@ -153,7 +172,7 @@ export function LandingTopBar({
           </div>
         </div>
         <button type="button" onClick={scrollToTickets} className="landing-showcase-btn-cta shrink-0">
-          Get tickets
+          {ctaLabel}
         </button>
       </div>
     </header>
@@ -235,6 +254,27 @@ export function EventBanner({
         />
       )}
     </div>
+  );
+}
+
+export function EventGalleryStrip({ event, className = '' }: { event: Event; className?: string }) {
+  const extras = resolveArenaCarouselSlides(event).slice(1, 8);
+  if (extras.length === 0) return null;
+
+  return (
+    <section className={`mt-4 ${className}`.trim()} aria-label="Event gallery">
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {extras.map((url, index) => (
+          <div
+            key={`${url}-${index}`}
+            className="h-20 w-28 shrink-0 overflow-hidden rounded-lg border"
+            style={{ borderColor: 'var(--showcase-border)' }}
+          >
+            <img src={url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -441,7 +481,10 @@ export function TicketsList({
     <div className="flex flex-col gap-3">
       {tickets.map((ticket) => {
         const remaining = ticketRemaining(ticket);
+        const cap = ticketPurchaseCap(ticket);
+        const salesEnded = ticketSalesEnded(ticket);
         const soldOut = remaining <= 0;
+        const unavailable = cap <= 0;
         const qty = selectedTickets[ticket.id] || 0;
         const selected = qty > 0;
 
@@ -467,6 +510,10 @@ export function TicketsList({
                       <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
                         Sold out
                       </span>
+                    ) : salesEnded ? (
+                      <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                        Sales ended
+                      </span>
                     ) : remaining <= 12 ? (
                       <span
                         className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
@@ -478,6 +525,9 @@ export function TicketsList({
                   </div>
                   <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {ticket.description || 'Full event access'}
+                    {ticket.maxPerAttendee && ticket.maxPerAttendee > 0
+                      ? ` · Max ${ticket.maxPerAttendee} per person`
+                      : ''}
                   </p>
                   <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
                     {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
@@ -485,13 +535,13 @@ export function TicketsList({
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 sm:pt-1">
-                <QtyButton disabled={soldOut || qty <= 0} onClick={() => onTicketChange(ticket.id, qty - 1)}>
+                <QtyButton disabled={unavailable || qty <= 0} onClick={() => onTicketChange(ticket.id, qty - 1)}>
                   −
                 </QtyButton>
                 <span className="w-8 text-center text-lg font-bold tabular-nums" style={{ color: 'var(--landing-text)' }}>
                   {qty}
                 </span>
-                <QtyButton disabled={soldOut || qty >= remaining} onClick={() => onTicketChange(ticket.id, qty + 1)}>
+                <QtyButton disabled={unavailable || qty >= cap} onClick={() => onTicketChange(ticket.id, qty + 1)}>
                   +
                 </QtyButton>
               </div>
@@ -614,13 +664,14 @@ function TrustRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 export function LandingFooter({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
   const year = new Date().getFullYear();
+  const brandColor = event.templateId === 'template-9' ? '#612d87' : 'var(--showcase-accent)';
 
   return (
     <footer className="landing-showcase-footer relative z-10">
       <div className="landing-showcase-footer-inner">
         <p className="text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           Powered by{' '}
-          <span className="font-semibold" style={{ color: 'var(--showcase-accent)' }}>
+          <span className="font-semibold" style={{ color: brandColor }}>
             {brand.name}
           </span>{' '}
           © {year}

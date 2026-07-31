@@ -70,7 +70,9 @@ function ensure_core_schema_pgsql(PDO $pdo): void {
       price_cents INTEGER NOT NULL DEFAULT 0,
       quantity INTEGER NOT NULL,
       sold INTEGER NOT NULL DEFAULT 0,
-      description TEXT NULL
+      description TEXT NULL,
+      sales_ends_at TIMESTAMP NULL,
+      max_per_attendee INTEGER NULL
     )"
   );
   $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_event ON tickets(event_id)');

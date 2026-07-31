@@ -20,6 +20,8 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  ticketPurchaseCap,
+  ticketSalesEnded,
   useCountdown,
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
@@ -72,7 +74,10 @@ function ArenaHeader({ event }: { event: Event }) {
 }
 
 function ArenaCarousel({ event }: { event: Event }) {
-  const slides = useMemo(() => resolveArenaCarouselSlides(event), [event.bannerUrl, event.customization?.arenaGalleryImages]);
+  const slides = useMemo(
+    () => resolveArenaCarouselSlides(event),
+    [event.bannerUrl, event.customization?.eventGalleryImages, event.customization?.arenaGalleryImages]
+  );
   const [index, setIndex] = useState(0);
   const hasMultiple = slides.length > 1;
   const current = slides[index] ?? null;
@@ -276,12 +281,17 @@ function ArenaTicketCard({
   onChange: (qty: number) => void;
 }) {
   const remaining = ticketRemaining(ticket);
+  const cap = ticketPurchaseCap(ticket);
+  const salesEnded = ticketSalesEnded(ticket);
   const soldOut = remaining <= 0;
+  const unavailable = cap <= 0;
   const Icon = ticketIcon(ticket);
   const desc = (ticket.description || 'Full event access').split('\n')[0]?.trim() || 'Full event access';
+  const limitNote =
+    ticket.maxPerAttendee && ticket.maxPerAttendee > 0 ? ` · Max ${ticket.maxPerAttendee} per person` : '';
 
   const addOne = () => {
-    if (soldOut || qty >= remaining) return;
+    if (unavailable || qty >= cap) return;
     onChange(qty + 1);
   };
 
@@ -294,21 +304,26 @@ function ArenaTicketCard({
         </div>
         <div className="landing-arena-ticket-body">
           <h3 className="landing-arena-ticket-name">{ticket.name}</h3>
-          <p className="landing-arena-ticket-desc">{desc}</p>
+          <p className="landing-arena-ticket-desc">
+            {desc}
+            {limitNote}
+            {salesEnded && !soldOut ? ' · Sales ended' : ''}
+            {soldOut ? ' · Sold out' : ''}
+          </p>
           <p className="landing-arena-ticket-price">
             {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
           </p>
         </div>
       </div>
       <div className="landing-arena-ticket-bar">
-        <button type="button" className="landing-arena-qty-btn" disabled={soldOut || qty <= 0} onClick={() => onChange(qty - 1)} aria-label="Decrease">
+        <button type="button" className="landing-arena-qty-btn" disabled={unavailable || qty <= 0} onClick={() => onChange(qty - 1)} aria-label="Decrease">
           −
         </button>
         <span className="landing-arena-qty-value">{qty}</span>
-        <button type="button" className="landing-arena-qty-btn" disabled={soldOut || qty >= remaining} onClick={() => onChange(qty + 1)} aria-label="Increase">
+        <button type="button" className="landing-arena-qty-btn" disabled={unavailable || qty >= cap} onClick={() => onChange(qty + 1)} aria-label="Increase">
           +
         </button>
-        <button type="button" className="landing-arena-add-btn" disabled={soldOut || qty >= remaining} onClick={addOne}>
+        <button type="button" className="landing-arena-add-btn" disabled={unavailable || qty >= cap} onClick={addOne}>
           Add
         </button>
       </div>

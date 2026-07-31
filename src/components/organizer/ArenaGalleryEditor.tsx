@@ -4,6 +4,9 @@ import { cn } from '../../utils/cn';
 
 type ArenaGalleryEditorProps = {
   images: string[];
+  title?: string;
+  description?: string;
+  emptyText?: string;
   disabled?: boolean;
   uploading?: boolean;
   onUpload: (file: File) => void | Promise<void>;
@@ -19,6 +22,9 @@ type ArenaGalleryEditorProps = {
 
 export function ArenaGalleryEditor({
   images,
+  title = 'Event gallery',
+  description = 'Cover image is image 1. Add venue maps, seating charts, or more posters.',
+  emptyText = 'No extra images yet — add more visuals to showcase your event.',
   disabled = false,
   uploading = false,
   onUpload,
@@ -33,10 +39,10 @@ export function ArenaGalleryEditor({
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-            Arena carousel
+            {title}
           </p>
           <p className="mt-0.5 text-xs leading-relaxed" style={{ color: ui.textMuted }}>
-            Cover image is slide 1. Add venue maps, seating charts, or more posters.
+            {description}
           </p>
         </div>
         {canAdd ? (
@@ -81,7 +87,7 @@ export function ArenaGalleryEditor({
         </ul>
       ) : (
         <p className="mt-3 text-xs" style={{ color: ui.textMuted }}>
-          No extra slides yet — add seating layouts or promo art for the carousel.
+          {emptyText}
         </p>
       )}
 

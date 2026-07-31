@@ -318,8 +318,12 @@ export interface EventCustomization {
   ticketPdfFooterNote?: string;
   /** Extra questions asked for each ticket holder during checkout */
   checkoutFields?: CheckoutFieldDefinition[];
-  /** Extra carousel slides for Arena template (banner is always slide 1). */
+  /** Extra gallery images shared by all landing templates (banner is always image 1). */
+  eventGalleryImages?: string[];
+  /** Backward-compatible alias for older Arena-only clients. */
   arenaGalleryImages?: string[];
+  /** Optional interactive reserved seating chart configuration. */
+  seatingChart?: SeatingChartDesign;
   /** When true, attendees may pay via bank transfer (requires organizer bank details). */
   allowBankTransfer?: boolean;
   /** When false, PayHere/card checkout is disabled for this event. Defaults to true. */
@@ -385,6 +389,28 @@ export type SectionDesign = {
   blocks: SectionBlock[];
 };
 
+export type SeatingChartElementType = 'stage' | 'seat' | 'table' | 'group' | 'pricing';
+
+export type SeatingChartElement = {
+  id: string;
+  type: SeatingChartElementType;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  props: Record<string, any>;
+};
+
+export type SeatingChartDesign = {
+  version: 1;
+  canvas: {
+    width: number;
+    height: number;
+    background?: string;
+  };
+  elements: SeatingChartElement[];
+};
+
 export interface Event {
   id: string;
   slug: string;
@@ -425,6 +451,10 @@ export interface Ticket {
   quantity: number;
   sold: number;
   description?: string;
+  /** ISO datetime when this tier stops selling (e.g. early bird). Null = no end. */
+  salesEndsAt?: string | null;
+  /** Max tickets one attendee can buy in a single order. Null = no per-person limit. */
+  maxPerAttendee?: number | null;
 }
 
 export type Speaker = {
