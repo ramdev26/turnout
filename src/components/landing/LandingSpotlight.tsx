@@ -297,10 +297,12 @@ function SpotlightBookingRail({
   event,
   tickets,
   onGetTickets,
+  ctaLabel = 'Get Tickets',
 }: {
   event: Event;
   tickets: EventTicket[];
   onGetTickets: () => void;
+  ctaLabel?: string;
 }) {
   const tba = !!event.customization?.scheduleTba;
   const eventDate = new Date(event.date);
@@ -352,8 +354,8 @@ function SpotlightBookingRail({
         </div>
 
         <button type="button" className="sp-cta" onClick={onGetTickets}>
-          Get Tickets
-          <ArrowRight className="h-4 w-4" />
+          {ctaLabel}
+          {ctaLabel === 'BOOK NOW' ? null : <ArrowRight className="h-4 w-4" />}
         </button>
 
         <div className="sp-rail-org">
@@ -368,10 +370,12 @@ function SpotlightMobileBar({
   event,
   tickets,
   onGetTickets,
+  ctaLabel = 'Get Tickets',
 }: {
   event: Event;
   tickets: EventTicket[];
   onGetTickets: () => void;
+  ctaLabel?: string;
 }) {
   const tba = !!event.customization?.scheduleTba;
   const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
@@ -396,7 +400,7 @@ function SpotlightMobileBar({
           <p className="sp-mobilebar-price">{formatFromPrice(tickets)}</p>
         </div>
         <button type="button" className="sp-cta sp-cta--sm" onClick={onGetTickets}>
-          Get Tickets
+          {ctaLabel}
         </button>
       </div>
     </div>
@@ -417,6 +421,8 @@ export function LandingSpotlightPage({
   const desc = event.description?.trim() || '';
   const teaser = lead || (desc ? desc.slice(0, 140) : '');
   const category = resolveEventCategory(event.customization?.eventCategory);
+  const isViolet = event.templateId === 'template-9';
+  const ctaLabel = isViolet ? 'BOOK NOW' : 'Get Tickets';
 
   const hasSelection = useMemo(
     () => tickets.some((t) => (selectedTickets[t.id] || 0) > 0),
@@ -430,9 +436,9 @@ export function LandingSpotlightPage({
 
   return (
     <LandingPageShell event={event} showcase>
-      <LandingTopBar event={event} onGetTickets={handleGetTickets} />
+      <LandingTopBar event={event} onGetTickets={handleGetTickets} ctaLabel={ctaLabel} />
 
-      <div className="landing-spotlight">
+      <div className={`landing-spotlight${isViolet ? ' landing-spotlight--violet' : ''}`}>
         <SpotlightHeroBanner event={event} />
 
         <div className="sp-shell">
@@ -505,7 +511,7 @@ export function LandingSpotlightPage({
                         onClick={onCheckout}
                         disabled={isPurchasing}
                       >
-                        {isPurchasing ? 'Processing…' : 'Continue'}
+                        {isPurchasing ? 'Processing…' : isViolet ? 'BOOK NOW' : 'Continue'}
                         {!isPurchasing ? <ArrowRight className="h-4 w-4" /> : null}
                       </button>
                     </div>
@@ -514,11 +520,21 @@ export function LandingSpotlightPage({
               </div>
             </main>
 
-            <SpotlightBookingRail event={event} tickets={tickets} onGetTickets={handleGetTickets} />
+            <SpotlightBookingRail
+              event={event}
+              tickets={tickets}
+              onGetTickets={handleGetTickets}
+              ctaLabel={ctaLabel}
+            />
           </div>
         </div>
 
-        <SpotlightMobileBar event={event} tickets={tickets} onGetTickets={handleGetTickets} />
+        <SpotlightMobileBar
+          event={event}
+          tickets={tickets}
+          onGetTickets={handleGetTickets}
+          ctaLabel={ctaLabel}
+        />
         <div className="sp-mobilebar-spacer" aria-hidden />
       </div>
 
