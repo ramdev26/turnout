@@ -123,6 +123,36 @@ function SpotlightQuickFacts({ event }: { event: Event }) {
   );
 }
 
+function SpotlightCountdown({ event }: { event: Event }) {
+  const tba = !!event.customization?.scheduleTba;
+  const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
+
+  if (tba) return null;
+
+  return (
+    <section className="sp-countdown" aria-label="Countdown to event">
+      <p className="sp-countdown-label">{done ? 'Now live' : 'Countdown to opening'}</p>
+      {done ? (
+        <p className="sp-countdown-live">The event is live — reserve your tickets below.</p>
+      ) : (
+        <div className="sp-countdown-grid" aria-live="polite">
+          {[
+            { lbl: 'Days', val: days },
+            { lbl: 'Hours', val: hours },
+            { lbl: 'Mins', val: mins },
+            { lbl: 'Secs', val: secs },
+          ].map((u) => (
+            <div key={u.lbl} className="sp-countdown-cell">
+              <strong>{pad2(u.val)}</strong>
+              <span>{u.lbl}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function SpotlightOrganizer({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
   return (
@@ -477,6 +507,7 @@ export function LandingSpotlightPage({
               ) : null}
 
               <SpotlightQuickFacts event={event} />
+              <SpotlightCountdown event={event} />
 
               <div className="sp-org-mobile">
                 <SpotlightOrganizer event={event} />
