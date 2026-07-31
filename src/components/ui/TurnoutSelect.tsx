@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -68,34 +68,57 @@ export function TurnoutSelect({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(
+    null
+  );
   const theme = tone === 'dark' ? DARK : LIGHT;
 
   const selected = useMemo(() => options.find((o) => o.value === value) || null, [options, value]);
   const display = selected?.label || placeholder;
 
-  useEffect(() => {
-    if (!open || !rootRef.current) return;
-    const place = () => {
-      const rect = rootRef.current!.getBoundingClientRect();
-      const width = Math.max(rect.width, 180);
-      const maxHeight = 280;
-      const left =
-        align === 'end'
-          ? Math.min(window.innerWidth - width - 8, Math.max(8, rect.right - width))
-          : Math.min(window.innerWidth - width - 8, Math.max(8, rect.left));
-      const below = rect.bottom + 6;
-      const top = below + maxHeight > window.innerHeight - 8 ? Math.max(8, rect.top - maxHeight - 6) : below;
-      setPanelPos({ top, left, width });
-    };
-    place();
-    window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
+  const placePanel = () => {
+    if (!rootRef.current) return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const width = Math.max(rect.width, 180);
+    const gap = 6;
+    const viewportPad = 8;
+    const measured = panelRef.current?.offsetHeight;
+    const estimated =
+      measured && measured > 0
+        ? measured
+        : Math.min(280, Math.max(44, options.length * 44 + 12));
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPad;
+    const spaceAbove = rect.top - viewportPad;
+    const openBelow = spaceBelow >= Math.min(estimated, 96) || spaceBelow >= spaceAbove;
+    const maxHeight = Math.min(280, openBelow ? Math.max(96, spaceBelow) : Math.max(96, spaceAbove));
+    const heightForPlace = Math.min(estimated, maxHeight);
+    const top = openBelow
+      ? rect.bottom + gap
+      : Math.max(viewportPad, rect.top - heightForPlace - gap);
+    const left =
+      align === 'end'
+        ? Math.min(window.innerWidth - width - viewportPad, Math.max(viewportPad, rect.right - width))
+        : Math.min(window.innerWidth - width - viewportPad, Math.max(viewportPad, rect.left));
+    setPanelPos({ top, left, width, maxHeight });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelPos(null);
+      return;
+    }
+    placePanel();
+    // Re-measure after the portal paints so tiny menus (Yes/No) sit under the field.
+    const raf = window.requestAnimationFrame(() => placePanel());
+    window.addEventListener('resize', placePanel);
+    window.addEventListener('scroll', placePanel, true);
     return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', placePanel);
+      window.removeEventListener('scroll', placePanel, true);
     };
-  }, [open, align]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, align, options.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -152,11 +175,12 @@ export function TurnoutSelect({
               ref={panelRef}
               data-turnout-picker="select"
               role="listbox"
-              className="fixed z-[10050] max-h-[280px] overflow-y-auto rounded-xl p-1.5 shadow-2xl"
+              className="fixed z-[10050] overflow-y-auto rounded-xl p-1.5 shadow-2xl"
               style={{
                 top: panelPos.top,
                 left: panelPos.left,
                 width: panelPos.width,
+                maxHeight: panelPos.maxHeight,
                 background: theme.panel,
                 border: `1px solid ${theme.border}`,
                 color: theme.text,

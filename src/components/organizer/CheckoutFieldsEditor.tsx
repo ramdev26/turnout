@@ -1,7 +1,7 @@
 import React from 'react';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import type { CheckoutFieldDefinition, CheckoutFieldOption, CheckoutFieldType } from '../../types';
-import { CHECKOUT_FIELD_TYPES, slugifyCheckoutFieldKey } from '../../utils/checkoutFields';
+import { CHECKOUT_FIELD_TYPES, CHECKOUT_FIELD_LABEL_MAX, slugifyCheckoutFieldKey } from '../../utils/checkoutFields';
 import type { CreateThemeUI } from '../../themes/eventThemes';
 import { TurnoutSelect } from '../ui/TurnoutSelect';
 
@@ -127,13 +127,18 @@ export function CheckoutFieldsEditor({ fields, onChange, ui, fieldClass, fieldSt
                 <span className="text-xs font-semibold" style={{ color: ui.textSubtle }}>
                   Question label
                 </span>
-                <input
+                <textarea
                   value={field.label}
-                  onChange={(e) => update(field.id, { label: e.target.value })}
-                  placeholder="e.g. Meal preference"
+                  onChange={(e) => update(field.id, { label: e.target.value.slice(0, CHECKOUT_FIELD_LABEL_MAX) })}
+                  placeholder="e.g. Do you agree to the event terms?"
+                  rows={2}
+                  maxLength={CHECKOUT_FIELD_LABEL_MAX}
                   className={fieldClass}
                   style={fieldStyle}
                 />
+                <span className="text-[11px]" style={{ color: ui.textSubtle }}>
+                  {field.label.length}/{CHECKOUT_FIELD_LABEL_MAX} characters
+                </span>
               </label>
               <label className="flex flex-col gap-1.5">
                 <span className="text-xs font-semibold" style={{ color: ui.textSubtle }}>

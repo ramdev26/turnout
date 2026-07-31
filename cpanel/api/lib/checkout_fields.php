@@ -18,6 +18,7 @@ function normalize_checkout_field_options(mixed $raw): array {
   if (!is_array($raw)) return [];
   $out = [];
   $seen = [];
+  $optionLabelMax = 120;
   foreach ($raw as $opt) {
     if (!is_array($opt)) continue;
     $label = trim((string)($opt['label'] ?? ''));
@@ -35,7 +36,7 @@ function normalize_checkout_field_options(mixed $raw): array {
     if ($id === '') $id = 'opt_' . $value;
     $out[] = [
       'id' => mb_substr($id, 0, 64),
-      'label' => mb_substr($label, 0, 80),
+      'label' => mb_substr($label, 0, $optionLabelMax),
       'value' => $value,
     ];
     if (count($out) >= 24) break;
@@ -48,6 +49,7 @@ function normalize_checkout_fields(mixed $raw): array {
   if (!is_array($raw)) return [];
   $out = [];
   $seen = [];
+  $labelMax = 240;
   foreach ($raw as $f) {
     if (!is_array($f)) continue;
     $label = trim((string)($f['label'] ?? ''));
@@ -61,7 +63,7 @@ function normalize_checkout_fields(mixed $raw): array {
     $type = normalize_checkout_field_type($f['type'] ?? 'text');
     $row = [
       'id' => mb_substr($id, 0, 64),
-      'label' => mb_substr($label, 0, 80),
+      'label' => mb_substr($label, 0, $labelMax),
       'key' => $key,
       'required' => !empty($f['required']),
       'type' => $type,

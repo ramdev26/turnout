@@ -8,6 +8,10 @@ export const CHECKOUT_FIELD_TYPES: { id: CheckoutFieldType; label: string; hint:
   { id: 'radio', label: 'Radio buttons', hint: 'Pick one option' },
 ];
 
+/** Full consent / policy questions need more than a short field title. */
+export const CHECKOUT_FIELD_LABEL_MAX = 240;
+export const CHECKOUT_FIELD_OPTION_LABEL_MAX = 120;
+
 const ALLOWED_TYPES = new Set<CheckoutFieldType>(['text', 'textarea', 'number', 'select', 'radio']);
 
 export function slugifyCheckoutFieldKey(label: string): string {
@@ -33,7 +37,7 @@ function normalizeCheckoutFieldOptions(raw: unknown): CheckoutFieldOption[] | un
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const row = item as Partial<CheckoutFieldOption>;
-    const label = String(row.label ?? '').trim().slice(0, 80);
+    const label = String(row.label ?? '').trim().slice(0, CHECKOUT_FIELD_OPTION_LABEL_MAX);
     let value = String(row.value ?? '').trim().slice(0, 80);
     if (!label) continue;
     if (!value) value = slugifyCheckoutFieldKey(label);
@@ -68,7 +72,7 @@ export function normalizeCheckoutFields(raw: unknown): CheckoutFieldDefinition[]
     if (needsOptions && (!options || options.length < 1)) continue;
     const def: CheckoutFieldDefinition = {
       id: String(row.id ?? `cf_${key}`),
-      label: label.slice(0, 80),
+      label: label.slice(0, CHECKOUT_FIELD_LABEL_MAX),
       key,
       required: !!row.required,
       type,

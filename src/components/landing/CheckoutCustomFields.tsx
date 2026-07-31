@@ -28,9 +28,12 @@ export function CheckoutCustomFields({ fields, values, onChange, idPrefix = 'cf'
         const inputId = `${idPrefix}-${field.key}`;
         const value = values[field.key] ?? '';
         const label = (
-          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+          <span
+            className="text-sm font-semibold leading-snug whitespace-normal break-words"
+            style={{ color: 'var(--landing-text)' }}
+          >
             {field.label}
-            {field.required ? ' *' : ''}
+            {field.required ? <span style={{ color: 'var(--landing-text-muted)' }}> *</span> : null}
           </span>
         );
 
@@ -97,9 +100,12 @@ export function CheckoutCustomFields({ fields, values, onChange, idPrefix = 'cf'
         if (type === 'radio') {
           return (
             <fieldset key={field.id} className="flex flex-col gap-2">
-              <legend className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+              <legend
+                className="text-sm font-semibold leading-snug whitespace-normal break-words"
+                style={{ color: 'var(--landing-text)' }}
+              >
                 {field.label}
-                {field.required ? ' *' : ''}
+                {field.required ? <span style={{ color: 'var(--landing-text-muted)' }}> *</span> : null}
               </legend>
               <div className="space-y-2">
                 {(field.options || []).map((opt) => {
