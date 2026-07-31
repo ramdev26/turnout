@@ -119,9 +119,11 @@ export function LandingPageShell({
 export function LandingTopBar({
   event,
   onGetTickets,
+  ctaLabel = 'Get tickets',
 }: {
   event: Event;
   onGetTickets?: () => void;
+  ctaLabel?: string;
 }) {
   const scrollToTickets = () => {
     if (onGetTickets) {
@@ -154,7 +156,7 @@ export function LandingTopBar({
           </div>
         </div>
         <button type="button" onClick={scrollToTickets} className="landing-showcase-btn-cta shrink-0">
-          Get tickets
+          {ctaLabel}
         </button>
       </div>
     </header>
