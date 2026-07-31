@@ -638,13 +638,14 @@ function TrustRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 export function LandingFooter({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
   const year = new Date().getFullYear();
+  const brandColor = event.templateId === 'template-9' ? '#612d87' : 'var(--showcase-accent)';
 
   return (
     <footer className="landing-showcase-footer relative z-10">
       <div className="landing-showcase-footer-inner">
         <p className="text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           Powered by{' '}
-          <span className="font-semibold" style={{ color: 'var(--showcase-accent)' }}>
+          <span className="font-semibold" style={{ color: brandColor }}>
             {brand.name}
           </span>{' '}
           © {year}
