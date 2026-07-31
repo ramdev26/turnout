@@ -339,3 +339,23 @@ CREATE TABLE IF NOT EXISTS organizer_invites (
   CONSTRAINT fk_invite_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE IF NOT EXISTS event_page_visits (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id BIGINT UNSIGNED NOT NULL,
+  visitor_key VARCHAR(64) NOT NULL,
+  source VARCHAR(120) NOT NULL DEFAULT 'Direct',
+  referrer TEXT NULL,
+  referrer_host VARCHAR(255) NULL,
+  utm_source VARCHAR(120) NULL,
+  utm_medium VARCHAR(120) NULL,
+  utm_campaign VARCHAR(160) NULL,
+  path VARCHAR(255) NULL,
+  user_agent VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_epv_event_created (event_id, created_at),
+  KEY idx_epv_event_visitor (event_id, visitor_key),
+  KEY idx_epv_event_source (event_id, source),
+  CONSTRAINT fk_epv_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

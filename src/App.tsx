@@ -19,6 +19,7 @@ import { api } from './api/client';
 import { parseAuthPayload } from './api/authResponse';
 import { clearAuthToken, getAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
+import { EventAnalytics } from './pages/EventAnalytics';
 import { CheckInManager } from './pages/CheckInManager';
 import { StaffCheckInScanner } from './pages/StaffCheckInScanner';
 import { AttendeeLogin } from './pages/AttendeeLogin';
@@ -423,6 +424,14 @@ export default function App() {
             element={
               <RequireOrganizer>
                 <EventSettings />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/dashboard/events/:eventId/analytics"
+            element={
+              <RequireOrganizer>
+                <EventAnalytics />
               </RequireOrganizer>
             }
           />

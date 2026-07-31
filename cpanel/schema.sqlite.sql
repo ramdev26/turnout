@@ -292,3 +292,23 @@ CREATE TABLE IF NOT EXISTS organizer_invites (
 CREATE INDEX IF NOT EXISTS idx_team_member ON organizer_team_members(member_user_id);
 CREATE INDEX IF NOT EXISTS idx_invites_owner ON organizer_invites(owner_user_id, status);
 
+
+CREATE TABLE IF NOT EXISTS event_page_visits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  visitor_key TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'Direct',
+  referrer TEXT NULL,
+  referrer_host TEXT NULL,
+  utm_source TEXT NULL,
+  utm_medium TEXT NULL,
+  utm_campaign TEXT NULL,
+  path TEXT NULL,
+  user_agent TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_epv_event_created ON event_page_visits(event_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_epv_event_visitor ON event_page_visits(event_id, visitor_key);
+CREATE INDEX IF NOT EXISTS idx_epv_event_source ON event_page_visits(event_id, source);
