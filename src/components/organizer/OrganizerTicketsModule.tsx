@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Ticket, Trash2 } from 'lucide-react';
 import type { OrganizerPaidEventReadiness } from '../../types';
 import type { CreateThemeUI } from '../../themes/eventThemes';
@@ -40,6 +40,83 @@ type OrganizerTicketsModuleProps = {
 
 export function newTicketDraftKey(): string {
   return `tier-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatNumericText(value: number): string {
+  return Number.isFinite(value) ? String(value) : '';
+}
+
+function parseNumericText(raw: string, allowDecimal: boolean): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed === '.') return null;
+  const n = allowDecimal ? Number(trimmed) : Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Text field without spinner arrows; empty is allowed while typing. */
+function TicketNumericInput({
+  value,
+  onValueChange,
+  min = 0,
+  allowDecimal = false,
+  className,
+  style,
+  placeholder,
+}: {
+  value: number;
+  onValueChange: (value: number) => void;
+  min?: number;
+  allowDecimal?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+  placeholder?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [text, setText] = useState(() => formatNumericText(value));
+
+  useEffect(() => {
+    if (!focused) setText(formatNumericText(value));
+  }, [value, focused]);
+
+  const commit = (raw: string) => {
+    const parsed = parseNumericText(raw, allowDecimal);
+    const next = parsed === null ? min : parsed;
+    const clamped = Math.max(min, next);
+    onValueChange(clamped);
+    setText(formatNumericText(clamped));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode={allowDecimal ? 'decimal' : 'numeric'}
+      pattern={allowDecimal ? '[0-9]*[.]?[0-9]*' : '[0-9]*'}
+      placeholder={placeholder}
+      className={cn(className, 'tabular-nums')}
+      style={style}
+      value={text}
+      onFocus={(e) => {
+        setFocused(true);
+        e.target.select();
+      }}
+      onBlur={() => {
+        setFocused(false);
+        commit(text);
+      }}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === '') {
+          setText('');
+          return;
+        }
+        const ok = allowDecimal ? /^\d*\.?\d*$/.test(raw) : /^\d*$/.test(raw);
+        if (!ok) return;
+        setText(raw);
+        const parsed = parseNumericText(raw, allowDecimal);
+        if (parsed !== null) onValueChange(Math.max(min, parsed));
+      }}
+    />
+  );
 }
 
 export function OrganizerTicketsModule({
@@ -169,13 +246,13 @@ export function OrganizerTicketsModule({
               <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
                 Seat quantity
               </label>
-              <input
-                type="number"
-                min={Math.max(1, tiers[0]?.sold || 1)}
+              <TicketNumericInput
                 value={tiers[0]?.quantity ?? 100}
-                onChange={(e) => onChangeTier(0, { quantity: Number(e.target.value) })}
+                min={Math.max(1, tiers[0]?.sold || 1)}
+                onValueChange={(quantity) => onChangeTier(0, { quantity })}
                 className={fieldClass}
                 style={fieldStyle}
+                placeholder="100"
               />
             </div>
           )}
@@ -224,26 +301,27 @@ export function OrganizerTicketsModule({
                   <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
                     Price (LKR)
                   </label>
-                  <input
-                    type="number"
-                    min={0}
+                  <TicketNumericInput
                     value={tier.price}
-                    onChange={(e) => onChangeTier(index, { price: Number(e.target.value) })}
+                    min={0}
+                    allowDecimal
+                    onValueChange={(price) => onChangeTier(index, { price })}
                     className={fieldClass}
                     style={fieldStyle}
+                    placeholder="0"
                   />
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
                     Seats
                   </label>
-                  <input
-                    type="number"
-                    min={Math.max(1, tier.sold || 1)}
+                  <TicketNumericInput
                     value={tier.quantity}
-                    onChange={(e) => onChangeTier(index, { quantity: Number(e.target.value) })}
+                    min={Math.max(1, tier.sold || 1)}
+                    onValueChange={(quantity) => onChangeTier(index, { quantity })}
                     className={fieldClass}
                     style={fieldStyle}
+                    placeholder="50"
                   />
                 </div>
               </div>
