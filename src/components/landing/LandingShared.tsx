@@ -20,12 +20,8 @@ import { resolveArenaCarouselSlides } from './arenaGallery';
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
   const raw = event.organizerLogoUrl?.trim() || '';
-  const logoUrl =
-    raw === ''
-      ? null
-      : raw.startsWith('http') || raw.startsWith('/api/')
-        ? raw
-        : toApiUrl(raw);
+  // Always normalize through toApiUrl so relative /api/... logos resolve when API is cross-origin.
+  const logoUrl = raw === '' ? null : toApiUrl(raw);
   return { name, logoUrl };
 }
 export function useCountdown(targetIso: string, active = true) {

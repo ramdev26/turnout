@@ -20,7 +20,14 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { Event, EventCustomization, OrganizerPaidEventReadiness, SeatingChartDesign, Ticket as EventTicket } from '../types';
+import {
+  Event,
+  EventCustomization,
+  OrganizerPaidEventReadiness,
+  OrganizerProfile,
+  SeatingChartDesign,
+  Ticket as EventTicket,
+} from '../types';
 import { api, toApiUrl } from '../api/client';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { EventLocationFields } from '../components/ui/EventLocationFields';
@@ -239,6 +246,10 @@ export const CreateEvent: React.FC = () => {
   const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [activeSubMenu, setActiveSubMenu] = useState<'details' | 'seating'>('details');
+  const [organizerBrand, setOrganizerBrand] = useState<{ name: string; logoUrl: string | null }>(() => ({
+    name: user?.displayName || 'Your organization',
+    logoUrl: null,
+  }));
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
@@ -336,6 +347,33 @@ export const CreateEvent: React.FC = () => {
         setPaidEventReadiness(null);
       }
     })();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ profile: OrganizerProfile }>('/api/me/organizer-workspace');
+        if (cancelled) return;
+        const orgName = (res.profile.organizationName || '').trim();
+        const logo = (res.profile.logoUrl || '').trim();
+        setOrganizerBrand({
+          name: orgName || res.profile.displayName || user.displayName || 'Your organization',
+          logoUrl: logo || null,
+        });
+      } catch {
+        if (!cancelled) {
+          setOrganizerBrand({
+            name: user.displayName || 'Your organization',
+            logoUrl: null,
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const totalSeats = useMemo(
@@ -790,7 +828,8 @@ export const CreateEvent: React.FC = () => {
       id: 'preview',
       slug: 'preview-event',
       organizerId: user?.uid || 'preview',
-      organizerName: user?.displayName || 'Your organization',
+      organizerName: organizerBrand.name,
+      organizerLogoUrl: organizerBrand.logoUrl,
       title: title.trim() || 'Your event title',
       description:
         (description || '').trim() ||
@@ -815,13 +854,14 @@ export const CreateEvent: React.FC = () => {
     locationMode,
     onlinePlatform,
     onlineUrl,
+    organizerBrand.logoUrl,
+    organizerBrand.name,
     shortDescription,
     eventGalleryImages,
     seatingChart,
     seatingEnabled,
     themeId,
     title,
-    user?.displayName,
     user?.uid,
   ]);
 

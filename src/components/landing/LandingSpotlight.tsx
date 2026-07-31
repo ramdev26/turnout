@@ -130,9 +130,16 @@ function SpotlightOrganizer({ event }: { event: Event }) {
       <p className="sp-org-label">Organized by</p>
       <div className="sp-org-row">
         {brand.logoUrl ? (
-          <img src={brand.logoUrl} alt="" className="sp-org-logo" referrerPolicy="no-referrer" />
+          <img
+            src={brand.logoUrl}
+            alt={`${brand.name} logo`}
+            className="sp-org-logo"
+            referrerPolicy="no-referrer"
+          />
         ) : (
-          <span className="sp-org-mark">{brand.name.charAt(0).toUpperCase()}</span>
+          <span className="sp-org-mark" aria-hidden>
+            {brand.name.charAt(0).toUpperCase()}
+          </span>
         )}
         <p className="sp-org-name">{brand.name}</p>
       </div>

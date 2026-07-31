@@ -16,7 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
+import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, OrganizerProfile, Ticket as EventTicket } from '../types';
 import { normalizeCheckoutFields } from '../utils/checkoutFields';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
@@ -201,6 +201,10 @@ export const EventSettings: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
+  const [organizerBrand, setOrganizerBrand] = useState<{ name: string; logoUrl: string | null }>({
+    name: '',
+    logoUrl: null,
+  });
 
   const ui = APP_FLOW_UI;
   const cardStyle = cardStyleFor(ui);
@@ -330,6 +334,27 @@ export const EventSettings: React.FC = () => {
     })();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ profile: OrganizerProfile }>('/api/me/organizer-workspace');
+        if (cancelled) return;
+        const orgName = (res.profile.organizationName || '').trim();
+        const logo = (res.profile.logoUrl || '').trim();
+        setOrganizerBrand({
+          name: orgName || res.profile.displayName || '',
+          logoUrl: logo || null,
+        });
+      } catch {
+        if (!cancelled) setOrganizerBrand({ name: '', logoUrl: null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const publicUrl = useMemo(() => (slug ? `/e/${slug}` : ''), [slug]);
   const staffCheckInUrl = useMemo(
     () => (eventId ? absoluteAppUrl(`/staff/checkin/${eventId}`) : ''),
@@ -370,6 +395,8 @@ export const EventSettings: React.FC = () => {
       slug: slug || event.slug,
       templateId: design.templateId,
       status: 'published',
+      organizerName: event.organizerName?.trim() || organizerBrand.name || event.organizerName,
+      organizerLogoUrl: event.organizerLogoUrl?.trim() || organizerBrand.logoUrl || event.organizerLogoUrl,
       customization: {
         ...event.customization,
         ...baseCustomization,
@@ -395,6 +422,8 @@ export const EventSettings: React.FC = () => {
     locationMode,
     onlinePlatform,
     onlineUrl,
+    organizerBrand.logoUrl,
+    organizerBrand.name,
     scheduleTba,
     shortDescription,
     slug,

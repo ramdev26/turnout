@@ -233,11 +233,14 @@
   width: 2.35rem;
   height: 2.35rem;
   border-radius: 9999px;
+  flex-shrink: 0;
 }
 
 .sp-org-logo {
-  object-fit: cover;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--sp-surface, #fff) 92%, transparent);
   border: 1px solid var(--sp-line);
+  padding: 0.15rem;
 }
 
 .sp-org-mark {
