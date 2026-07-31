@@ -9,6 +9,7 @@ import { formatLKRWhole } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { saveCheckoutCart } from '../utils/checkoutCart';
+import { trackEventPageVisit } from '../utils/eventVisitTracking';
 
 export const EventLanding: React.FC = () => {
   const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
@@ -57,6 +58,11 @@ export const EventLanding: React.FC = () => {
     if (!event) return;
     document.title = event.title;
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
+  }, [event]);
+
+  useEffect(() => {
+    if (!event || event.status !== 'published') return;
+    trackEventPageVisit(event.id);
   }, [event]);
 
   const handleTicketChange = (ticketId: string, quantity: number) => {

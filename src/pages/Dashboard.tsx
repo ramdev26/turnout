@@ -245,13 +245,22 @@ export const Dashboard: React.FC = () => {
                         View Page
                         <ExternalLink className="h-3 w-3" />
                       </Link>
-                      <Link
-                        to={`/dashboard/events/${event.id}/settings`}
-                        className="text-sm font-semibold"
-                        style={{ color: ui.textMuted }}
-                      >
-                        Settings →
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Link
+                          to={`/dashboard/events/${event.id}/analytics`}
+                          className="text-sm font-semibold"
+                          style={{ color: ui.textMuted }}
+                        >
+                          Analytics
+                        </Link>
+                        <Link
+                          to={`/dashboard/events/${event.id}/settings`}
+                          className="text-sm font-semibold"
+                          style={{ color: ui.textMuted }}
+                        >
+                          Settings →
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>

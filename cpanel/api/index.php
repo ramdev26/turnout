@@ -21,6 +21,7 @@ require __DIR__ . '/lib/admin_analytics.php';
 require __DIR__ . '/lib/core_schema.php';
 require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
+require __DIR__ . '/lib/event_analytics.php';
 
 set_cors_headers_for_same_domain();
 
@@ -872,6 +873,7 @@ run_boot_schema_guard('ensure_attendees_custom_fields_column', static fn () => e
 run_boot_schema_guard('ensure_organizer_workspace_tables', static fn () => ensure_organizer_workspace_tables(db()));
 run_boot_schema_guard('ensure_organizer_payment_tables', static fn () => ensure_organizer_payment_tables(db()));
 run_boot_schema_guard('ensure_event_reminders_table', static fn () => ensure_event_reminders_table(db()));
+run_boot_schema_guard('ensure_event_analytics_tables', static fn () => ensure_event_analytics_tables(db()));
 enforce_write_request_integrity($path, $method);
 
 if ($path === '/health' && $method === 'GET') {
@@ -4157,6 +4159,33 @@ if (preg_match('#^/public/events/(\\d+)/sessions$#', $path, $m) && $method === '
     ];
   }
   json_response(200, ['sessions' => $sessions]);
+}
+
+// ---- Event page analytics ----
+if (preg_match('#^/events/(\\d+)/analytics/visit$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  $result = record_event_page_visit($pdo, $eventId, $body);
+  if (empty($result['ok']) && ($result['error'] ?? '') === 'event_not_found') {
+    json_response((int)($result['status'] ?? 404), ['error' => 'event_not_found']);
+  }
+  json_response(200, $result);
+}
+
+if (preg_match('#^/events/(\\d+)/analytics$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  $days = event_analytics_days(isset($_GET['days']) ? (int)$_GET['days'] : null);
+  $titleStmt = $pdo->prepare('SELECT title FROM events WHERE id = ? LIMIT 1');
+  $titleStmt->execute([$eventId]);
+  $title = (string)($titleStmt->fetchColumn() ?: '');
+  $payload = build_event_analytics_payload($pdo, $eventId, $days);
+  $payload['eventId'] = (string)$eventId;
+  $payload['eventTitle'] = $title;
+  json_response(200, $payload);
 }
 
 // ---- Attendees + Check-in ----
