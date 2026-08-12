@@ -26,6 +26,7 @@ type AdminOrganizerRow = {
   displayName: string;
   email: string;
   status: string;
+  emailVerified?: boolean;
   organizationName: string;
   phone: string | null;
   businessAddress: string | null;
@@ -50,7 +51,7 @@ type AdminOrganizerRow = {
 };
 
 type OrganizerDetail = {
-  user: { id: string; email: string; displayName: string; status: string; createdAt: string };
+  user: { id: string; email: string; displayName: string; status: string; emailVerified?: boolean; createdAt: string };
   profile: OrganizerProfile;
   readiness: OrganizerPaidEventReadiness;
   commission: {
@@ -165,6 +166,7 @@ export const AdminOrganizers: React.FC = () => {
   const [commissionMode, setCommissionMode] = useState<'percentage' | 'flat_per_ticket'>('percentage');
   const [commissionValue, setCommissionValue] = useState<string>('10');
   const [savingCommission, setSavingCommission] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
   const load = useCallback(
     async (opts?: { background?: boolean }) => {
@@ -275,6 +277,30 @@ export const AdminOrganizers: React.FC = () => {
     }
   };
 
+  const allowOrganizerAccess = async (organizerId: string, email: string) => {
+    if (
+      !window.confirm(
+        `Allow ${email} to sign in without the verification email?\n\nUse this when they cannot access their OTP / inbox.`
+      )
+    ) {
+      return;
+    }
+    setVerifyingId(organizerId);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await api.post<{ message?: string }>(`/api/admin/users/${organizerId}/verify-email`, {});
+      setMessage(res.message || 'Organizer can sign in now.');
+      await load({ background: true });
+      if (selectedId === organizerId) await loadDetail(organizerId);
+    } catch (e: unknown) {
+      const err = e as { error?: string; message?: string };
+      setError(err?.message || err?.error || 'Could not verify organizer email');
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
   return (
     <AdminShell
       title="Organizers"
@@ -347,9 +373,15 @@ export const AdminOrganizers: React.FC = () => {
                         <div className="min-w-0">
                           <p className="truncate text-base font-semibold" style={{ color: ui.text }}>
                             {o.organizationName || o.displayName}
+                            {o.emailVerified === false ? (
+                              <span className="ml-2 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">
+                                Unverified
+                              </span>
+                            ) : null}
                           </p>
                           <p className="mt-0.5 truncate text-sm" style={{ color: ui.textMuted }}>
                             {o.email}
+                            {o.emailVerified === false ? ' · cannot sign in yet' : ''}
                           </p>
                           <p className="mt-2 text-xs" style={{ color: ui.textSubtle }}>
                             {o.eventsCount} event{o.eventsCount === 1 ? '' : 's'} · Setup {done}/{checks.length} ·{' '}
@@ -403,9 +435,22 @@ export const AdminOrganizers: React.FC = () => {
                       {detail.user.status}
                     </span>
                     <span className="rounded-full border px-2.5 py-1" style={cardMutedStyleFor(ui)}>
+                      Email: {detail.user.emailVerified === false ? 'Unverified' : 'Verified'}
+                    </span>
+                    <span className="rounded-full border px-2.5 py-1" style={cardMutedStyleFor(ui)}>
                       Gateway: {detail.readiness.gatewayMode === 'own_payhere' ? 'Own PayHere' : 'Turnout'}
                     </span>
                   </div>
+
+                  {detail.user.emailVerified === false ? (
+                    <FlowButton
+                      className="mt-4 w-full"
+                      disabled={verifyingId === detail.user.id}
+                      onClick={() => void allowOrganizerAccess(detail.user.id, detail.user.email)}
+                    >
+                      {verifyingId === detail.user.id ? 'Allowing…' : 'Allow access (skip email verify)'}
+                    </FlowButton>
+                  ) : null}
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div className="rounded-xl border px-3 py-3" style={cardMutedStyleFor(ui)}>

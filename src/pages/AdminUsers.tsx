@@ -10,6 +10,7 @@ type AdminUser = {
   displayName: string;
   role: 'organizer' | 'attendee' | 'super_admin';
   status: 'active' | 'suspended' | 'banned';
+  emailVerified?: boolean;
 };
 
 type UserDetailResponse = {
@@ -24,9 +25,12 @@ export const AdminUsers: React.FC = () => {
   const [q, setQ] = useState('');
   const [role, setRole] = useState<'all' | AdminUser['role']>('all');
   const [status, setStatus] = useState<'all' | AdminUser['status']>('all');
+  const [verified, setVerified] = useState<'all' | 'verified' | 'unverified'>('all');
   const [selected, setSelected] = useState<UserDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const ui = APP_FLOW_UI;
 
   const load = async () => {
@@ -36,6 +40,8 @@ export const AdminUsers: React.FC = () => {
       if (q.trim() !== '') params.set('q', q.trim());
       if (role !== 'all') params.set('role', role);
       if (status !== 'all') params.set('status', status);
+      if (verified === 'verified') params.set('verified', '1');
+      if (verified === 'unverified') params.set('verified', '0');
       const res = await api.get<{ users: AdminUser[] }>(`/api/admin/users?${params.toString()}`);
       setUsers(res.users);
     } catch (e: unknown) {
@@ -59,18 +65,47 @@ export const AdminUsers: React.FC = () => {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (!message) return;
+    const t = window.setTimeout(() => setMessage(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [message]);
+
   const setUserStatus = async (userId: string, next: AdminUser['status']) => {
     await api.post(`/api/admin/users/${userId}/status`, { status: next });
     await load();
     if (selected?.user.id === userId) await loadDetail(userId);
   };
 
+  const verifyEmail = async (userId: string, email: string) => {
+    if (
+      !window.confirm(
+        `Allow ${email} to sign in without the verification email?\n\nUse this when a busy organizer cannot access their OTP / inbox.`
+      )
+    ) {
+      return;
+    }
+    setBusyId(userId);
+    setError(null);
+    try {
+      const res = await api.post<{ ok?: boolean; message?: string }>(`/api/admin/users/${userId}/verify-email`, {});
+      setMessage(res.message || 'Email verified. They can sign in now.');
+      await load();
+      if (selected?.user.id === userId) await loadDetail(userId);
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Could not verify email');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const selectStyle = { borderColor: ui.borderColor, background: ui.fieldBg, color: ui.text };
 
   return (
-    <AdminShell title="User Management" subtitle="Search users, suspend or ban accounts, change roles, and force password resets.">
+    <AdminShell title="User Management" subtitle="Search users, verify stuck signups, suspend or ban accounts, change roles, and force password resets.">
       <FlowCard>
-        <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <FlowInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search users…" />
           <select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="rounded-xl border px-3 py-2 text-sm outline-none" style={selectStyle}>
             <option value="all">All roles</option>
@@ -84,9 +119,20 @@ export const AdminUsers: React.FC = () => {
             <option value="suspended">Suspended</option>
             <option value="banned">Banned</option>
           </select>
+          <select
+            value={verified}
+            onChange={(e) => setVerified(e.target.value as typeof verified)}
+            className="rounded-xl border px-3 py-2 text-sm outline-none"
+            style={selectStyle}
+          >
+            <option value="all">All verification</option>
+            <option value="unverified">Unverified (stuck signup)</option>
+            <option value="verified">Verified</option>
+          </select>
           <FlowButton onClick={() => void load()}>Search</FlowButton>
         </div>
         {error && <FlowAlert variant="error">{error}</FlowAlert>}
+        {message && <FlowAlert variant="success">{message}</FlowAlert>}
         {loading && <div className="text-sm" style={{ color: ui.textMuted }}>Loading users…</div>}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -99,12 +145,23 @@ export const AdminUsers: React.FC = () => {
                     <span className="text-xs font-normal" style={{ color: ui.textMuted }}>
                       ({u.role})
                     </span>
+                    {u.emailVerified === false ? (
+                      <span className="ml-2 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">
+                        Unverified
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-xs" style={{ color: ui.textMuted }}>
                     {u.email} · {u.status}
+                    {u.emailVerified === false ? ' · awaiting email verification' : ''}
                   </div>
                 </button>
                 <div className="mt-2 flex flex-wrap gap-2">
+                  {u.emailVerified === false ? (
+                    <FlowButton disabled={busyId === u.id} onClick={() => void verifyEmail(u.id, u.email)}>
+                      {busyId === u.id ? 'Allowing…' : 'Allow access'}
+                    </FlowButton>
+                  ) : null}
                   {u.status === 'active' ? (
                     <>
                       <FlowButton variant="secondary" onClick={() => void setUserStatus(u.id, 'suspended')}>
@@ -162,6 +219,20 @@ export const AdminUsers: React.FC = () => {
                   {selected.user.displayName}
                 </p>
                 <p>{selected.user.email}</p>
+                <p>
+                  Email:{' '}
+                  <span style={{ color: selected.user.emailVerified === false ? '#fbbf24' : ui.text }}>
+                    {selected.user.emailVerified === false ? 'Not verified' : 'Verified'}
+                  </span>
+                </p>
+                {selected.user.emailVerified === false ? (
+                  <FlowButton
+                    disabled={busyId === selected.user.id}
+                    onClick={() => void verifyEmail(selected.user.id, selected.user.email)}
+                  >
+                    {busyId === selected.user.id ? 'Allowing…' : 'Allow access'}
+                  </FlowButton>
+                ) : null}
                 <p>Joined {new Date(selected.user.createdAt).toLocaleDateString()}</p>
                 <p>Events: {selected.user.stats.eventsCount}</p>
                 <p>Orders: {selected.user.stats.ordersCount}</p>

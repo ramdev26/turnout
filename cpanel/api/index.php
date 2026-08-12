@@ -4776,10 +4776,12 @@ if ($path === '/admin/summary' && $method === 'GET') {
 if ($path === '/admin/users' && $method === 'GET') {
   require_super_admin_user_id();
   $pdo = db();
+  ensure_email_verification_support($pdo);
   $q = trim((string)($_GET['q'] ?? ''));
   $role = trim((string)($_GET['role'] ?? ''));
   $status = trim((string)($_GET['status'] ?? ''));
-  $sql = 'SELECT id, email, display_name, role, is_blocked, status, force_password_reset, created_at FROM users WHERE 1=1';
+  $verifiedFilter = strtolower(trim((string)($_GET['verified'] ?? '')));
+  $sql = 'SELECT id, email, display_name, role, is_blocked, status, force_password_reset, email_verified_at, created_at FROM users WHERE 1=1';
   $params = [];
   if ($q !== '') {
     $sql .= ' AND (LOWER(email) LIKE ? OR LOWER(display_name) LIKE ?)';
@@ -4795,6 +4797,11 @@ if ($path === '/admin/users' && $method === 'GET') {
     $sql .= ' AND status = ?';
     $params[] = $status;
   }
+  if ($verifiedFilter === '0' || $verifiedFilter === 'unverified' || $verifiedFilter === 'false') {
+    $sql .= " AND (email_verified_at IS NULL OR email_verified_at = '' OR email_verified_at = '0000-00-00 00:00:00')";
+  } elseif ($verifiedFilter === '1' || $verifiedFilter === 'verified' || $verifiedFilter === 'true') {
+    $sql .= " AND email_verified_at IS NOT NULL AND email_verified_at <> '' AND email_verified_at <> '0000-00-00 00:00:00'";
+  }
   $sql .= ' ORDER BY created_at DESC LIMIT 500';
   $stmt = $pdo->prepare($sql);
   $stmt->execute($params);
@@ -4808,6 +4815,7 @@ if ($path === '/admin/users' && $method === 'GET') {
       'isBlocked' => (int)($u['is_blocked'] ?? 0) === 1,
       'status' => (string)($u['status'] ?? 'active'),
       'forcePasswordReset' => boolish($u['force_password_reset'] ?? 0),
+      'emailVerified' => user_email_is_verified($u),
       'createdAt' => gmdate('c', strtotime($u['created_at'])),
     ];
   }
@@ -4849,11 +4857,48 @@ if (preg_match('#^/admin/users/(\\d+)/force-password-reset$#', $path, $m) && $me
   json_response(200, ['ok' => true]);
 }
 
+if (preg_match('#^/admin/users/(\\d+)/verify-email$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $userId = (int)$m[1];
+  $pdo = db();
+  ensure_email_verification_support($pdo);
+  $stmt = $pdo->prepare('SELECT id, email, email_verified_at, role, status FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$userId]);
+  $user = $stmt->fetch();
+  if (!$user) json_response(404, ['error' => 'user_not_found']);
+
+  $already = user_email_is_verified($user);
+  if (!$already) {
+    admin_force_verify_user_email($pdo, $userId);
+  }
+  write_log(
+    $pdo,
+    $adminId,
+    'super_admin',
+    'admin.user.verify_email',
+    'user',
+    (string)$userId,
+    [
+      'email' => (string)($user['email'] ?? ''),
+      'role' => (string)($user['role'] ?? ''),
+      'alreadyVerified' => $already,
+    ]
+  );
+  json_response(200, [
+    'ok' => true,
+    'emailVerified' => true,
+    'message' => $already
+      ? 'Email was already verified. They can sign in.'
+      : 'Email verified. They can sign in now without the verification email.',
+  ]);
+}
+
 if (preg_match('#^/admin/users/(\\d+)$#', $path, $m) && $method === 'GET') {
   require_super_admin_user_id();
   $userId = (int)$m[1];
   $pdo = db();
-  $u = $pdo->prepare('SELECT id, email, display_name, role, status, created_at FROM users WHERE id = ? LIMIT 1');
+  ensure_email_verification_support($pdo);
+  $u = $pdo->prepare('SELECT id, email, display_name, role, status, email_verified_at, created_at FROM users WHERE id = ? LIMIT 1');
   $u->execute([$userId]);
   $user = $u->fetch();
   if (!$user) json_response(404, ['error' => 'user_not_found']);
@@ -4869,6 +4914,7 @@ if (preg_match('#^/admin/users/(\\d+)$#', $path, $m) && $method === 'GET') {
     'displayName' => $user['display_name'],
     'role' => $user['role'],
     'status' => $user['status'],
+    'emailVerified' => user_email_is_verified($user),
     'createdAt' => gmdate('c', strtotime($user['created_at'])),
     'stats' => [
       'eventsCount' => (int)($s['events_count'] ?? 0),
@@ -5153,7 +5199,8 @@ if ($path === '/admin/organizers' && $method === 'GET') {
   ensure_finance_tables($pdo);
   ensure_organizer_profile_paid_event_columns($pdo);
   $q = trim((string)($_GET['q'] ?? ''));
-  $sql = "SELECT u.id, u.display_name, u.email, u.status, u.created_at FROM users u WHERE u.role = 'organizer'";
+  ensure_email_verification_support($pdo);
+  $sql = "SELECT u.id, u.display_name, u.email, u.status, u.email_verified_at, u.created_at FROM users u WHERE u.role = 'organizer'";
   $params = [];
   if ($q !== '') {
     $sql .= ' AND (LOWER(u.display_name) LIKE ? OR LOWER(u.email) LIKE ? OR LOWER(COALESCE((SELECT organization_name FROM organizer_profiles p WHERE p.user_id = u.id LIMIT 1), \'\')) LIKE ?)';
@@ -5190,6 +5237,7 @@ if ($path === '/admin/organizers' && $method === 'GET') {
       'displayName' => (string)$u['display_name'],
       'email' => (string)$u['email'],
       'status' => (string)$u['status'],
+      'emailVerified' => user_email_is_verified($u),
       'createdAt' => gmdate('c', strtotime($u['created_at'])),
       'organizationName' => $profile['organizationName'],
       'phone' => $profile['phone'],
@@ -5222,7 +5270,8 @@ if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') 
   $pdo = db();
   ensure_finance_tables($pdo);
   ensure_organizer_profile_paid_event_columns($pdo);
-  $u = $pdo->prepare('SELECT id, email, display_name, role, status, created_at FROM users WHERE id = ? AND role = ? LIMIT 1');
+  ensure_email_verification_support($pdo);
+  $u = $pdo->prepare('SELECT id, email, display_name, role, status, email_verified_at, created_at FROM users WHERE id = ? AND role = ? LIMIT 1');
   $u->execute([$organizerId, 'organizer']);
   $user = $u->fetch();
   if (!$user) json_response(404, ['error' => 'organizer_not_found']);
@@ -5277,6 +5326,7 @@ if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') 
       'email' => (string)$user['email'],
       'displayName' => (string)$user['display_name'],
       'status' => (string)$user['status'],
+      'emailVerified' => user_email_is_verified($user),
       'createdAt' => gmdate('c', strtotime($user['created_at'])),
     ],
     'profile' => organizer_profile_api_shape($pdo, $organizerId),
