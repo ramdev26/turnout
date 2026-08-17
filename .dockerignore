@@ -1,0 +1,22 @@
+.git
+.github
+.cursor
+node_modules
+dist
+coverage
+android
+android/sdk
+cpanel/api/data
+cpanel/api/config.php
+cpanel/api/uploads
+*.sqlite
+*.log
+*.zip
+.vercel
+.env
+.env.local
+.env*.local
+deploy/aws/.env
+README.md
+LANDING PAGE.html
+metadata.json
