@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Turnout (React + PHP + MySQL) on a single EC2 host with Docker.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge]
+    Description: t3.medium or larger is recommended for the first Docker image build.
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+  GitRepo:
+    Type: String
+    Default: https://github.com/ramdev26/turnout.git
+
+  GitBranch:
+    Type: String
+    Default: main
+
+  DbPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: MySQL password for the turnout user.
+
+  DbRootPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: MySQL root password.
+
+  SessionTokenSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 24
+    Description: Long random string used to sign auth tokens.
+
+  KeyName:
+    Type: String
+    Default: ""
+    Description: Optional EC2 key pair name for SSH. Leave empty to use SSM Session Manager only.
+
+  PayHereSandbox:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+
+  PayHereMerchantId:
+    Type: String
+    Default: ""
+
+  PayHereMerchantSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
+
+Resources:
+  TurnoutRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  TurnoutInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref TurnoutRole
+
+  TurnoutSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Turnout HTTP/HTTPS and optional SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - !If
+          - HasKeyName
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+          - !Ref AWS::NoValue
+
+  TurnoutInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref TurnoutInstanceProfile
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      SecurityGroupIds:
+        - !Ref TurnoutSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 30
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: turnout-aws
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            set -euxo pipefail
+            dnf update -y
+            dnf install -y docker git
+            systemctl enable --now docker
+            usermod -aG docker ec2-user
+            mkdir -p /usr/local/lib/docker/cli-plugins
+            curl -fsSL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64" \
+              -o /usr/local/lib/docker/cli-plugins/docker-compose
+            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+            mkdir -p /opt/turnout
+            git clone --depth 1 --branch "${GitBranch}" "${GitRepo}" /opt/turnout
+
+            PUBLIC_IP="$(curl -fsS http://169.254.169.254/latest/meta-data/public-ipv4 || true)"
+            if [ -z "$PUBLIC_IP" ]; then
+              APP_URL="http://localhost"
+              PLATFORM_HOSTS="localhost,127.0.0.1"
+            else
+              APP_URL="http://${!PUBLIC_IP}"
+              PLATFORM_HOSTS="${!PUBLIC_IP},localhost,127.0.0.1"
+            fi
+
+            cat > /opt/turnout/deploy/aws/.env <<ENVEOF
+            APP_BASE_URL=${!APP_URL}
+            PLATFORM_HOSTS=${!PLATFORM_HOSTS}
+            DB_DRIVER=mysql
+            DB_HOST=db
+            DB_NAME=turnout
+            DB_USER=turnout
+            DB_PASS=${DbPassword}
+            DB_ROOT_PASS=${DbRootPassword}
+            DB_CHARSET=utf8mb4
+            SESSION_TOKEN_SECRET=${SessionTokenSecret}
+            SESSION_COOKIE_SECURE=false
+            APP_DEV_MODE=false
+            APP_DEBUG=false
+            PAYHERE_SANDBOX=${PayHereSandbox}
+            PAYHERE_MERCHANT_ID=${PayHereMerchantId}
+            PAYHERE_MERCHANT_SECRET=${PayHereMerchantSecret}
+            PAYHERE_NOTIFY_URL=${!APP_URL}/api/payhere/notify
+            MAIL_ENABLED=false
+            ENVEOF
+
+            cd /opt/turnout/deploy/aws
+            docker compose --env-file .env up -d --build
+            echo "Turnout started at ${!APP_URL}" > /opt/turnout/DEPLOY.txt
+          - GitRepo: !Ref GitRepo
+            GitBranch: !Ref GitBranch
+            DbPassword: !Ref DbPassword
+            DbRootPassword: !Ref DbRootPassword
+            SessionTokenSecret: !Ref SessionTokenSecret
+            PayHereSandbox: !Ref PayHereSandbox
+            PayHereMerchantId: !Ref PayHereMerchantId
+            PayHereMerchantSecret: !Ref PayHereMerchantSecret
+
+Outputs:
+  PublicIp:
+    Description: Open this IP in a browser (http://IP)
+    Value: !GetAtt TurnoutInstance.PublicIp
+  PublicDns:
+    Description: EC2 public DNS name
+    Value: !GetAtt TurnoutInstance.PublicDnsName
+  InstanceId:
+    Description: Connect with AWS Systems Manager if you did not set a key pair
+    Value: !Ref TurnoutInstance
