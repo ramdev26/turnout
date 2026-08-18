@@ -79,6 +79,8 @@ export type BankTransferDetails = {
   swiftCode?: string | null;
 };
 
+export type OrganizerGatewayReviewStatus = 'none' | 'pending' | 'approved' | 'rejected';
+
 export type OrganizerProfile = {
   ownerUserId?: string;
   displayName: string;
@@ -103,12 +105,16 @@ export type OrganizerProfile = {
   bankSwiftCode?: string | null;
   bankStatementDocUrl?: string | null;
   bankStatementDocUploaded?: boolean;
+  gatewayReviewStatus?: OrganizerGatewayReviewStatus;
+  gatewayReviewNote?: string | null;
   /** Organization Terms & Conditions (HTML). */
   termsHtml?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
   needsBusinessDetails: boolean;
+  needsKycDocuments?: boolean;
+  needsGatewayApproval?: boolean;
   needsBankDetails: boolean;
   needsOwnPayhereCredentials: boolean;
   needsBillingCard: boolean;
@@ -117,6 +123,7 @@ export type OrganizerPaidEventRequirements = {
 export type OrganizerPaidEventReadiness = {
   isReady: boolean;
   gatewayMode: OrganizerGatewayMode;
+  gatewayReviewStatus?: OrganizerGatewayReviewStatus;
   requirements: OrganizerPaidEventRequirements;
   missing: string[];
   setupUrl: string;

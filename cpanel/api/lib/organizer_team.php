@@ -282,6 +282,8 @@ function load_organizer_profile_row(PDO $pdo, int $ownerUserId): array {
       'bank_swift_code' => null,
       'business_registration_doc_url' => null,
       'bank_statement_doc_url' => null,
+      'turnout_gateway_status' => 'none',
+      'turnout_gateway_review_note' => null,
     ];
   }
   return $row;
@@ -290,6 +292,7 @@ function load_organizer_profile_row(PDO $pdo, int $ownerUserId): array {
 function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
   $user = load_user_profile($ownerUserId);
   ensure_organizer_profile_paid_event_columns($pdo);
+  ensure_organizer_gateway_review_columns($pdo);
   $row = load_organizer_profile_row($pdo, $ownerUserId);
   return [
     'ownerUserId' => (string)$ownerUserId,
@@ -317,6 +320,8 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
     'bankSwiftCode' => trim((string)($row['bank_swift_code'] ?? '')) ?: null,
     'bankStatementDocUrl' => trim((string)($row['bank_statement_doc_url'] ?? '')) ?: null,
     'bankStatementDocUploaded' => trim((string)($row['bank_statement_doc_url'] ?? '')) !== '',
+    'gatewayReviewStatus' => organizer_gateway_review_status($row),
+    'gatewayReviewNote' => trim((string)($row['turnout_gateway_review_note'] ?? '')) ?: null,
     'termsHtml' => trim((string)($row['terms_html'] ?? '')) ?: null,
   ];
 }
