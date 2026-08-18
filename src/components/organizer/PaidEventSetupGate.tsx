@@ -77,18 +77,38 @@ export const PaidEventSetupGate: React.FC<Props> = ({
             {title}
           </h3>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Free events can go live right away. Before publishing a paid event, finish payment setup in Organization →
-            Payments.
+            Free events can go live right away. Before publishing a paid event on Turnout Pay, add payout details,
+            upload KYC documents, and wait for Turnout to approve them.
           </p>
 
           <div className="mt-4 space-y-2">
             {gatewayMode === 'turnout' ? (
-              <RequirementRow
-                done={bankDone}
-                icon={<Landmark className="h-4 w-4" />}
-                label="Bank account for payouts"
-                detail="Account holder name, bank name, branch, and account number."
-              />
+              <>
+                <RequirementRow
+                  done={bankDone}
+                  icon={<Landmark className="h-4 w-4" />}
+                  label="Bank account for payouts"
+                  detail="Account holder name, bank name, branch, and account number."
+                />
+                <RequirementRow
+                  done={!requirements.needsKycDocuments}
+                  icon={<ShieldCheck className="h-4 w-4" />}
+                  label="Business documents"
+                  detail="Upload business registration and a recent bank statement."
+                />
+                <RequirementRow
+                  done={!requirements.needsGatewayApproval}
+                  icon={<AlertCircle className="h-4 w-4" />}
+                  label="Turnout approval"
+                  detail={
+                    readiness.gatewayReviewStatus === 'pending'
+                      ? 'Documents are in review. Paid events stay locked until approved.'
+                      : readiness.gatewayReviewStatus === 'rejected'
+                        ? 'Application was not approved. Update documents and resubmit.'
+                        : 'Submit documents so Turnout can review and unlock the gateway.'
+                  }
+                />
+              </>
             ) : (
               <>
                 <RequirementRow

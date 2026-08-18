@@ -78,6 +78,7 @@ export const AdminSettings: React.FC = () => {
             { key: 'platform_logo_url', label: 'Logo URL', placeholder: 'https://...' },
             { key: 'commission_pct', label: 'Commission %', placeholder: '10' },
             { key: 'email_from', label: 'Email From', placeholder: 'admin@bigturnout.co' },
+            { key: 'admin_notify_email', label: 'Ops notify email', placeholder: 'ops@bigturnout.co' },
           ].map(({ key, label, placeholder }) => (
             <label key={key} className="flex flex-col gap-1.5">
               <FlowLabel>{label}</FlowLabel>

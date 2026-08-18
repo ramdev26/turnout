@@ -509,5 +509,12 @@ function handle_organizer_doc_upload_post(string $kind): void {
   $pdo = db();
   $field = $kind === 'br' ? 'business_registration_doc_url' : 'bank_statement_doc_url';
   upsert_organizer_profile_paid_event_fields($pdo, $uid, [$field => $docUrl]);
-  json_response(201, ['ok' => true, 'documentUrl' => $docUrl, 'kind' => $kind]);
+  $reviewStatus = refresh_turnout_gateway_review_after_docs($pdo, $uid);
+  notify_admins_gateway_documents($pdo, $uid, $kind);
+  json_response(201, [
+    'ok' => true,
+    'documentUrl' => $docUrl,
+    'kind' => $kind,
+    'gatewayReviewStatus' => $reviewStatus,
+  ]);
 }

@@ -21,6 +21,7 @@ require __DIR__ . '/lib/admin_analytics.php';
 require __DIR__ . '/lib/core_schema.php';
 require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
+require __DIR__ . '/lib/admin_notify.php';
 
 set_cors_headers_for_same_domain();
 
@@ -871,6 +872,7 @@ run_boot_schema_guard('ensure_events_custom_domain_column', static fn () => ensu
 run_boot_schema_guard('ensure_attendees_custom_fields_column', static fn () => ensure_attendees_custom_fields_column(db()));
 run_boot_schema_guard('ensure_organizer_workspace_tables', static fn () => ensure_organizer_workspace_tables(db()));
 run_boot_schema_guard('ensure_organizer_payment_tables', static fn () => ensure_organizer_payment_tables(db()));
+run_boot_schema_guard('ensure_organizer_gateway_review_columns', static fn () => ensure_organizer_gateway_review_columns(db()));
 run_boot_schema_guard('ensure_event_reminders_table', static fn () => ensure_event_reminders_table(db()));
 enforce_write_request_integrity($path, $method);
 
@@ -1601,6 +1603,8 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     upsert_organizer_terms_html($pdo, $uid, (string)$body['termsHtml']);
   }
 
+  refresh_turnout_gateway_review_after_docs($pdo, $uid);
+
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
 }
 
@@ -1737,6 +1741,8 @@ if (
       }
       upsert_organizer_profile_paid_event_fields($pdo, $ownerUserId, $bankFields);
     }
+
+    refresh_turnout_gateway_review_after_docs($pdo, $ownerUserId);
 
     json_response(200, [
       'ok' => true,
@@ -2501,6 +2507,7 @@ if ($path === '/events' && $method === 'POST') {
     json_response(400, ['error' => 'event_create_failed']);
   }
 
+  notify_admins_event_published($pdo, $eventId);
   json_response(201, ['eventId' => (string)$eventId, 'slug' => $slug]);
 }
 
@@ -2782,15 +2789,19 @@ if (preg_match('#^/events/(\\d+)/status$#', $path, $m) && $method === 'POST') {
   }
 
   $pdo = db();
-  $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
+  $stmt = $pdo->prepare('SELECT organizer_user_id, status FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
+  $previous = (string)($row['status'] ?? '');
 
   $upd = $pdo->prepare('UPDATE events SET status = ? WHERE id = ?');
   $upd->execute([$status, $eventId]);
   write_log($pdo, $uid, 'organizer', 'event.status_changed', 'event', (string)$eventId, ['status' => $status]);
+  if ($status === 'published' && $previous !== 'published') {
+    notify_admins_event_published($pdo, $eventId);
+  }
   json_response(200, ['ok' => true, 'status' => $status]);
 }
 
@@ -4930,9 +4941,16 @@ if (preg_match('#^/admin/events/(\\d+)/status$#', $path, $m) && $method === 'POS
   $body = read_json_body();
   $status = (string)($body['status'] ?? '');
   if (!in_array($status, ['draft', 'published', 'cancelled', 'blocked'], true)) json_response(400, ['error' => 'invalid_status']);
-  $upd = db()->prepare('UPDATE events SET status = ? WHERE id = ?');
+  $pdo = db();
+  $prevStmt = $pdo->prepare('SELECT status FROM events WHERE id = ? LIMIT 1');
+  $prevStmt->execute([$eventId]);
+  $previous = (string)($prevStmt->fetchColumn() ?: '');
+  $upd = $pdo->prepare('UPDATE events SET status = ? WHERE id = ?');
   $upd->execute([$status, $eventId]);
-  write_log(db(), $adminId, 'super_admin', 'admin.event.status_changed', 'event', (string)$eventId, ['status' => $status]);
+  write_log($pdo, $adminId, 'super_admin', 'admin.event.status_changed', 'event', (string)$eventId, ['status' => $status]);
+  if ($status === 'published' && $previous !== 'published') {
+    notify_admins_event_published($pdo, $eventId);
+  }
   json_response(200, ['ok' => true]);
 }
 
@@ -5204,6 +5222,7 @@ if ($path === '/admin/organizers' && $method === 'GET') {
       'bankAccountNumberLast4' => $profile['bankAccountNumberLast4'],
       'paidEventReady' => (bool)($readiness['isReady'] ?? false),
       'gatewayMode' => (string)($readiness['gatewayMode'] ?? 'turnout'),
+      'gatewayReviewStatus' => (string)($readiness['gatewayReviewStatus'] ?? 'none'),
       'commissionMode' => (string)($commission['mode'] ?? 'percentage'),
       'commissionValue' => (float)($commission['value'] ?? get_platform_commission_pct($pdo)),
       'eventsCount' => (int)($b['events_count'] ?? 0),
@@ -5313,6 +5332,37 @@ if (preg_match('#^/admin/organizers/(\d+)/commission$#', $path, $m) && $method =
   ]);
 
   json_response(200, ['commission' => $commission]);
+}
+
+if (preg_match('#^/admin/organizers/(\\d+)/gateway-review$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $organizerId = (int)$m[1];
+  $pdo = db();
+  $exists = $pdo->prepare('SELECT id, email, display_name FROM users WHERE id = ? AND role = ? LIMIT 1');
+  $exists->execute([$organizerId, 'organizer']);
+  $org = $exists->fetch();
+  if (!$org) json_response(404, ['error' => 'organizer_not_found']);
+
+  $body = read_json_body();
+  $status = strtolower(trim((string)($body['status'] ?? '')));
+  $note = trim((string)($body['note'] ?? ''));
+  if (!in_array($status, ['approved', 'rejected', 'pending'], true)) {
+    json_response(400, ['error' => 'invalid_gateway_review_status']);
+  }
+  set_organizer_gateway_review_status($pdo, $organizerId, $status, $note);
+  write_log($pdo, $adminId, 'super_admin', 'admin.organizer.gateway_review', 'user', (string)$organizerId, [
+    'status' => $status,
+    'note' => $note,
+  ]);
+  if ($status === 'approved' || $status === 'rejected') {
+    notify_organizer_gateway_review($pdo, $organizerId, $status, $note);
+  }
+  json_response(200, [
+    'ok' => true,
+    'gatewayReviewStatus' => $status,
+    'readiness' => organizer_paid_event_readiness_api_shape($pdo, $organizerId),
+    'profile' => organizer_profile_api_shape($pdo, $organizerId),
+  ]);
 }
 
 if ($path === '/admin/organizers/balances' && $method === 'GET') {
@@ -5504,7 +5554,7 @@ if ($path === '/admin/settings' && $method === 'POST') {
   $pdo = db();
   ensure_finance_tables($pdo);
   $body = read_json_body();
-  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'email_from', 'maintenance_mode'];
+  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'email_from', 'admin_notify_email', 'maintenance_mode'];
   foreach ($allowed as $key) {
     if (!array_key_exists($key, $body)) continue;
     $value = (string)$body[$key];

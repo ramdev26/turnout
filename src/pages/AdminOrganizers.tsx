@@ -26,6 +26,7 @@ type AdminOrganizerRow = {
   displayName: string;
   email: string;
   status: string;
+  gatewayReviewStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   organizationName: string;
   phone: string | null;
   businessAddress: string | null;
@@ -82,6 +83,7 @@ const MISSING_LABELS: Record<string, string> = {
   phone: 'Phone number',
   business_registration_doc: 'Business registration document',
   bank_statement_doc: 'Bank statement document',
+  gateway_approval: 'Turnout Pay admin approval',
   bank_account_holder_name: 'Account holder name',
   bank_name: 'Bank name',
   bank_branch: 'Bank branch',
@@ -101,13 +103,18 @@ function commissionSummary(mode?: string, value?: number): string {
 
 function setupChecks(row: Pick<
   AdminOrganizerRow,
-  'bankAccountConfigured' | 'businessRegistrationDocUploaded' | 'bankStatementDocUploaded' | 'paidEventReady'
+  | 'bankAccountConfigured'
+  | 'businessRegistrationDocUploaded'
+  | 'bankStatementDocUploaded'
+  | 'paidEventReady'
+  | 'gatewayReviewStatus'
 >) {
   return [
     { key: 'paid', label: 'Paid events ready', ok: row.paidEventReady },
     { key: 'bank', label: 'Bank account', ok: row.bankAccountConfigured },
     { key: 'br', label: 'BR document', ok: row.businessRegistrationDocUploaded },
     { key: 'stmt', label: 'Bank statement', ok: row.bankStatementDocUploaded },
+    { key: 'review', label: 'Gateway approved', ok: row.gatewayReviewStatus === 'approved' },
   ];
 }
 
@@ -165,6 +172,8 @@ export const AdminOrganizers: React.FC = () => {
   const [commissionMode, setCommissionMode] = useState<'percentage' | 'flat_per_ticket'>('percentage');
   const [commissionValue, setCommissionValue] = useState<string>('10');
   const [savingCommission, setSavingCommission] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewNote, setReviewNote] = useState('');
 
   const load = useCallback(
     async (opts?: { background?: boolean }) => {
@@ -198,6 +207,7 @@ export const AdminOrganizers: React.FC = () => {
       setSelectedId(organizerId);
       setCommissionMode(res.commission.mode);
       setCommissionValue(String(res.commission.value ?? ''));
+      setReviewNote(res.profile.gatewayReviewNote || '');
     } catch (e: unknown) {
       const err = e as { error?: string };
       setError(err?.error || 'Failed to load organizer details');
@@ -272,6 +282,26 @@ export const AdminOrganizers: React.FC = () => {
       setError(err?.message || err?.error || 'Failed to update commission');
     } finally {
       setSavingCommission(false);
+    }
+  };
+
+  const reviewGateway = async (organizerId: string, status: 'approved' | 'rejected') => {
+    setReviewing(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await api.post(`/api/admin/organizers/${organizerId}/gateway-review`, {
+        status,
+        note: reviewNote.trim(),
+      });
+      setMessage(status === 'approved' ? 'Turnout Pay approved. Organizer can sell paid tickets.' : 'Application rejected.');
+      await load({ background: true });
+      if (selectedId === organizerId) await loadDetail(organizerId);
+    } catch (e: unknown) {
+      const err = e as { error?: string; message?: string };
+      setError(err?.message || err?.error || 'Could not update gateway review');
+    } finally {
+      setReviewing(false);
     }
   };
 
@@ -354,6 +384,8 @@ export const AdminOrganizers: React.FC = () => {
                           <p className="mt-2 text-xs" style={{ color: ui.textSubtle }}>
                             {o.eventsCount} event{o.eventsCount === 1 ? '' : 's'} · Setup {done}/{checks.length} ·{' '}
                             {commissionSummary(o.commissionMode, o.commissionValue)}
+                            {o.gatewayReviewStatus === 'pending' ? ' · KYC pending' : ''}
+                            {o.gatewayReviewStatus === 'approved' ? ' · gateway approved' : ''}
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
@@ -405,6 +437,9 @@ export const AdminOrganizers: React.FC = () => {
                     <span className="rounded-full border px-2.5 py-1" style={cardMutedStyleFor(ui)}>
                       Gateway: {detail.readiness.gatewayMode === 'own_payhere' ? 'Own PayHere' : 'Turnout'}
                     </span>
+                    <span className="rounded-full border px-2.5 py-1 capitalize" style={cardMutedStyleFor(ui)}>
+                      Review: {detail.readiness.gatewayReviewStatus || detail.profile.gatewayReviewStatus || 'none'}
+                    </span>
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
@@ -435,6 +470,42 @@ export const AdminOrganizers: React.FC = () => {
                     </FlowButton>
                   ) : null}
                 </FlowCard>
+
+                <DetailSection title="Turnout Pay approval" icon={<AlertCircle className="h-4 w-4" />}>
+                  <p className="mb-3 text-sm" style={{ color: ui.textMuted }}>
+                    Uploading BR + bank statement does not unlock paid events. Approve only after you have reviewed the
+                    documents.
+                  </p>
+                  <p className="mb-3 text-sm" style={{ color: ui.text }}>
+                    Status:{' '}
+                    <strong>
+                      {detail.readiness.gatewayReviewStatus || detail.profile.gatewayReviewStatus || 'none'}
+                    </strong>
+                  </p>
+                  <label className="flex flex-col gap-1.5">
+                    <FlowLabel>Review note (optional)</FlowLabel>
+                    <FlowInput
+                      value={reviewNote}
+                      onChange={(e) => setReviewNote(e.target.value)}
+                      placeholder="Reason if rejecting"
+                    />
+                  </label>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <FlowButton
+                      disabled={reviewing}
+                      onClick={() => void reviewGateway(detail.user.id, 'approved')}
+                    >
+                      {reviewing ? 'Saving…' : 'Approve gateway'}
+                    </FlowButton>
+                    <FlowButton
+                      variant="secondary"
+                      disabled={reviewing}
+                      onClick={() => void reviewGateway(detail.user.id, 'rejected')}
+                    >
+                      Reject
+                    </FlowButton>
+                  </div>
+                </DetailSection>
 
                 <DetailSection title="Platform commission" icon={<Percent className="h-4 w-4" />}>
                   <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>

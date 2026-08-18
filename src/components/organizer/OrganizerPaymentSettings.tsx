@@ -606,9 +606,9 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
 
     await postSettings(
       body,
-      readiness?.isReady || gatewayMode === 'own_payhere'
-        ? 'Payout bank account saved.'
-        : 'Payout bank account saved. You can publish paid events now.'
+      readiness?.isReady
+        ? 'Payout bank account saved. You can publish paid events.'
+        : 'Payout bank account saved. Upload KYC documents and wait for Turnout approval before paid events.'
     );
   };
 

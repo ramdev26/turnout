@@ -104,6 +104,8 @@ export const OrganizerAccount: React.FC = () => {
           businessRegistrationDocUploaded: !!res.profile.businessRegistrationDocUploaded,
           bankStatementDocUrl: res.profile.bankStatementDocUrl || '',
           bankStatementDocUploaded: !!res.profile.bankStatementDocUploaded,
+          gatewayReviewStatus: res.profile.gatewayReviewStatus || 'none',
+          gatewayReviewNote: res.profile.gatewayReviewNote || null,
           termsHtml: res.profile.termsHtml || null,
         });
         setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
@@ -176,6 +178,7 @@ export const OrganizerAccount: React.FC = () => {
           ...p,
           businessRegistrationDocUrl: String(data.documentUrl),
           businessRegistrationDocUploaded: true,
+          gatewayReviewStatus: data.gatewayReviewStatus || p.gatewayReviewStatus,
         }));
         setFeedback('Business registration document uploaded.');
       } else {
@@ -183,6 +186,7 @@ export const OrganizerAccount: React.FC = () => {
           ...p,
           bankStatementDocUrl: String(data.documentUrl),
           bankStatementDocUploaded: true,
+          gatewayReviewStatus: data.gatewayReviewStatus || p.gatewayReviewStatus,
         }));
         setFeedback('Latest bank statement uploaded.');
       }
@@ -414,11 +418,27 @@ export const OrganizerAccount: React.FC = () => {
 
           <div className="mt-8 border-t pt-6" style={{ borderColor: ui.borderColor }}>
             <h3 className="text-base font-semibold" style={{ color: ui.text }}>
-              Business details for paid events
+              Business documents for Turnout Pay
             </h3>
             <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-              Optional for setup, but recommended before you run paid events.
+              Upload your business registration and a recent bank statement. Turnout reviews these before unlocking
+              paid events on our gateway.
             </p>
+            {profile.gatewayReviewStatus === 'pending' ? (
+              <FlowAlert variant="info">
+                Documents submitted. Turnout Pay stays locked until an admin approves them.
+              </FlowAlert>
+            ) : null}
+            {profile.gatewayReviewStatus === 'approved' ? (
+              <FlowAlert variant="success">Turnout Pay documents are approved.</FlowAlert>
+            ) : null}
+            {profile.gatewayReviewStatus === 'rejected' ? (
+              <FlowAlert variant="error">
+                {profile.gatewayReviewNote
+                  ? `Not approved: ${profile.gatewayReviewNote}`
+                  : 'Not approved yet. Upload updated documents to resubmit.'}
+              </FlowAlert>
+            ) : null}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 sm:col-span-2">
                 <FlowLabel>Business address</FlowLabel>

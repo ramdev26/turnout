@@ -21,6 +21,9 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'business_registration_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'bank_statement_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'turnout_gateway_status' => $driver === 'pgsql' ? "VARCHAR(16) NOT NULL DEFAULT 'none'" : "VARCHAR(16) NOT NULL DEFAULT 'none'",
+    'turnout_gateway_reviewed_at' => $driver === 'pgsql' ? 'TIMESTAMP NULL' : ($driver === 'sqlite' ? 'TEXT NULL' : 'DATETIME NULL'),
+    'turnout_gateway_review_note' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
   ];
 
   if ($driver === 'sqlite') {
@@ -55,6 +58,88 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     }
   }
   $checked = true;
+}
+
+function ensure_organizer_gateway_review_columns(PDO $pdo): void {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  static $backfilled = false;
+  if ($backfilled) return;
+  $backfilled = true;
+  try {
+    $flagStmt = $pdo->prepare('SELECT setting_value FROM global_settings WHERE setting_key = ? LIMIT 1');
+    $flagStmt->execute(['turnout_gateway_review_backfilled']);
+    if ($flagStmt->fetch()) return;
+
+    $pdo->exec(
+      "UPDATE organizer_profiles
+       SET turnout_gateway_status = 'approved'
+       WHERE (turnout_gateway_status IS NULL OR TRIM(turnout_gateway_status) IN ('', 'none'))
+         AND TRIM(COALESCE(bank_account_number, '')) <> ''"
+    );
+    try {
+      $ins = $pdo->prepare('INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?)');
+      $ins->execute(['turnout_gateway_review_backfilled', '1']);
+    } catch (Throwable $e) {
+      try {
+        $ins2 = $pdo->prepare(
+          'INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON CONFLICT(setting_key) DO NOTHING'
+        );
+        $ins2->execute(['turnout_gateway_review_backfilled', '1']);
+      } catch (Throwable $e2) {
+        $pdo->prepare(
+          'INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)'
+        )->execute(['turnout_gateway_review_backfilled', '1']);
+      }
+    }
+  } catch (Throwable $e) {
+    error_log('[turnout] gateway review backfill: ' . $e->getMessage());
+  }
+}
+
+function organizer_gateway_review_status(array $profileRow): string {
+  $status = strtolower(trim((string)($profileRow['turnout_gateway_status'] ?? 'none')));
+  if (in_array($status, ['none', 'pending', 'approved', 'rejected'], true)) {
+    return $status;
+  }
+  return 'none';
+}
+
+function organizer_kyc_documents_complete(array $profileRow): bool {
+  return trim((string)($profileRow['business_registration_doc_url'] ?? '')) !== ''
+    && trim((string)($profileRow['bank_statement_doc_url'] ?? '')) !== '';
+}
+
+function set_organizer_gateway_review_status(PDO $pdo, int $userId, string $status, string $note = ''): void {
+  ensure_organizer_gateway_review_columns($pdo);
+  if (!in_array($status, ['none', 'pending', 'approved', 'rejected'], true)) {
+    return;
+  }
+  $note = mb_substr(trim($note), 0, 2000);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $reviewedAt = in_array($status, ['approved', 'rejected'], true);
+  if ($driver === 'sqlite') {
+    $sql = $reviewedAt
+      ? "UPDATE organizer_profiles SET turnout_gateway_status = ?, turnout_gateway_review_note = ?, turnout_gateway_reviewed_at = datetime('now') WHERE user_id = ?"
+      : 'UPDATE organizer_profiles SET turnout_gateway_status = ?, turnout_gateway_review_note = ?, turnout_gateway_reviewed_at = NULL WHERE user_id = ?';
+  } else {
+    $sql = $reviewedAt
+      ? 'UPDATE organizer_profiles SET turnout_gateway_status = ?, turnout_gateway_review_note = ?, turnout_gateway_reviewed_at = CURRENT_TIMESTAMP WHERE user_id = ?'
+      : 'UPDATE organizer_profiles SET turnout_gateway_status = ?, turnout_gateway_review_note = ?, turnout_gateway_reviewed_at = NULL WHERE user_id = ?';
+  }
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute([$status, $note !== '' ? $note : null, $userId]);
+}
+
+function refresh_turnout_gateway_review_after_docs(PDO $pdo, int $userId): string {
+  ensure_organizer_gateway_review_columns($pdo);
+  $row = load_organizer_profile_row($pdo, $userId);
+  $status = organizer_gateway_review_status($row);
+  if ($status === 'approved') return $status;
+  if (organizer_kyc_documents_complete($row) && $status !== 'pending') {
+    set_organizer_gateway_review_status($pdo, $userId, 'pending');
+    return 'pending';
+  }
+  return $status;
 }
 
 function organizer_business_details_complete(array $profileRow): bool {
@@ -121,24 +206,26 @@ function tickets_include_paid_price(array $tickets): bool {
 
 function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
   ensure_organizer_profile_paid_event_columns($pdo);
+  ensure_organizer_gateway_review_columns($pdo);
   $profileRow = load_organizer_profile_row($pdo, $ownerUserId);
   $paymentRow = organizer_payment_settings_row($pdo, $ownerUserId);
   $gatewayMode = normalize_organizer_gateway_mode((string)($paymentRow['gateway_mode'] ?? 'turnout'));
+  $reviewStatus = organizer_gateway_review_status($profileRow);
 
-  $businessIncomplete = !organizer_business_details_complete($profileRow);
-  // Temporarily do not block paid events on business details.
-  $needsBusiness = false;
+  $docsComplete = organizer_kyc_documents_complete($profileRow);
+  $needsKycDocuments = $gatewayMode === 'turnout' && $reviewStatus !== 'approved' && !$docsComplete;
+  $needsGatewayApproval = $gatewayMode === 'turnout' && $reviewStatus !== 'approved';
   $needsBank = $gatewayMode === 'turnout' && !organizer_bank_details_complete($profileRow);
   $needsOwnPayhere = $gatewayMode === 'own_payhere' && !organizer_own_payhere_is_configured($paymentRow);
   $needsBillingCard = $gatewayMode === 'own_payhere' && !organizer_billing_is_active($paymentRow);
 
   $missing = [];
-  if ($businessIncomplete) {
-    if (trim((string)($profileRow['organization_name'] ?? '')) === '') $missing[] = 'organization_name';
-    if (trim((string)($profileRow['business_address'] ?? '')) === '') $missing[] = 'business_address';
-    if (trim((string)($profileRow['phone'] ?? '')) === '') $missing[] = 'phone';
+  if ($needsKycDocuments) {
     if (trim((string)($profileRow['business_registration_doc_url'] ?? '')) === '') $missing[] = 'business_registration_doc';
     if (trim((string)($profileRow['bank_statement_doc_url'] ?? '')) === '') $missing[] = 'bank_statement_doc';
+  }
+  if ($needsGatewayApproval && $docsComplete) {
+    $missing[] = 'gateway_approval';
   }
   if ($needsBank) {
     if (trim((string)($profileRow['bank_account_holder_name'] ?? '')) === '') $missing[] = 'bank_account_holder_name';
@@ -147,14 +234,16 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
     if (trim((string)($profileRow['bank_account_number'] ?? '')) === '') $missing[] = 'bank_account_number';
   }
 
-  // Business details stay optional. Own-gateway organizers must complete credentials + account card.
-  $isReady = !$needsBank && !$needsOwnPayhere && !$needsBillingCard;
+  $isReady = !$needsBank && !$needsKycDocuments && !$needsGatewayApproval && !$needsOwnPayhere && !$needsBillingCard;
 
   return [
     'isReady' => $isReady,
     'gatewayMode' => $gatewayMode,
+    'gatewayReviewStatus' => $reviewStatus,
     'requirements' => [
-      'needsBusinessDetails' => $needsBusiness,
+      'needsBusinessDetails' => $needsKycDocuments,
+      'needsKycDocuments' => $needsKycDocuments,
+      'needsGatewayApproval' => $needsGatewayApproval,
       'needsBankDetails' => $needsBank,
       'needsOwnPayhereCredentials' => $needsOwnPayhere,
       'needsBillingCard' => $needsBillingCard,
@@ -178,7 +267,7 @@ function assert_organizer_can_sell_paid_tickets(PDO $pdo, int $ownerUserId, floa
 
   $hint = ($readiness['gatewayMode'] ?? '') === 'own_payhere'
     ? 'Connect your own gateway and add an account card in Organization → Payments before selling paid tickets.'
-    : 'Add your bank payout details in Organization → Payments before selling paid tickets.';
+    : 'Finish Turnout Pay setup: add payout bank details, upload BR + bank statement, and wait for Turnout to approve your documents.';
 
   json_response(400, [
     'error' => 'paid_event_setup_required',
