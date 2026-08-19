@@ -139,16 +139,18 @@
   }
 
   .landing-arena-nova .landing-arena-carousel-stage {
-    min-height: 250px;
-    max-height: 320px;
+    min-height: 0;
+    max-height: none;
+    height: auto;
     padding: 0;
+    overflow: visible;
   }
 
   .landing-arena-nova .landing-arena-carousel-img {
     width: 100%;
-    height: 100%;
-    max-height: none;
-    object-fit: contain;
+    height: auto;
+    max-height: none !important;
+    object-fit: contain !important;
     border-radius: 0;
   }
 }
