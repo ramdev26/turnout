@@ -2,6 +2,11 @@
 
 .landing-arena-nova .landing-arena-header-label {
   font-weight: 700;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .landing-arena-nova .landing-arena-nova-map-wrap {
@@ -36,6 +41,10 @@
   .landing-arena-nova .landing-arena-header-inner {
     min-height: 3.5rem;
     padding: 0.75rem 0.9rem;
+  }
+
+  .landing-arena-nova .landing-arena-header-label {
+    font-size: 0.82rem;
   }
 
   .landing-arena-nova .landing-arena-content-col {
