@@ -52,7 +52,7 @@ function popularTicketId(tickets: EventTicket[]): string | null {
 
 function ArenaNovaHeader({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
-  const shortName = brand.name.split(/\s+/)[0]?.toUpperCase() || 'EVENT';
+  const fullName = brand.name.trim() || 'Organizer';
 
   return (
     <header className="landing-arena-header">
@@ -61,11 +61,13 @@ function ArenaNovaHeader({ event }: { event: Event }) {
           {brand.logoUrl ? (
             <img src={brand.logoUrl} alt="" className="landing-arena-header-logo" referrerPolicy="no-referrer" />
           ) : (
-            <span className="landing-arena-header-mark">{shortName.slice(0, 3)}</span>
+            <span className="landing-arena-header-mark landing-arena-header-mark--name" aria-hidden>
+              {fullName.charAt(0).toUpperCase()}
+            </span>
           )}
           <span className="landing-arena-header-divider" aria-hidden />
           <span className="landing-arena-header-label" title={brand.name}>
-            {brand.name}
+            {fullName}
           </span>
         </div>
       </div>
