@@ -866,7 +866,7 @@ export const EventSettings: React.FC = () => {
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-            {design.templateId === 'template-6' ? (
+            {design.templateId === 'template-6' || design.templateId === 'template-10' ? (
               <ArenaGalleryEditor
                 images={arenaGalleryImages}
                 disabled={savingBranding}
