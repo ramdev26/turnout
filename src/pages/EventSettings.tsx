@@ -218,6 +218,8 @@ export const EventSettings: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
+  const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
+  const [eventStats, setEventStats] = useState({ soldTickets: 0, totalRevenue: 0 });
 
   const ui = APP_FLOW_UI;
   const cardStyle = cardStyleFor(ui);
@@ -314,15 +316,20 @@ export const EventSettings: React.FC = () => {
       setAllowPayhere(payhereOn);
       setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer || !!pm?.bankTransfer);
 
-      const [ticketsRes, attendeesRes] = await Promise.all([
+      const [ticketsRes, attendeesRes, statsRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
         api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number; pending: number } }>(
           `/api/events/${eventId}/attendees?limit=1`
         ),
+        api.get<{ stats: { soldTickets: number; totalRevenue: number } }>(`/api/events/${eventId}/stats`),
       ]);
       setTickets(ticketsRes.tickets);
       setAttendees(attendeesRes.attendees);
       setAttendeeStats(attendeesRes.stats ?? { total: attendeesRes.attendees.length, checkedIn: 0, pending: 0 });
+      setEventStats({
+        soldTickets: statsRes.stats.soldTickets,
+        totalRevenue: statsRes.stats.totalRevenue,
+      });
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to load event');
     } finally {
@@ -350,9 +357,8 @@ export const EventSettings: React.FC = () => {
     () => (eventId ? absoluteAppUrl(`/staff/checkin/${eventId}`) : ''),
     [eventId]
   );
-  const soldTickets = useMemo(() => tickets.reduce((sum, t) => sum + t.sold, 0), [tickets]);
-  const totalRevenue = useMemo(() => tickets.reduce((sum, t) => sum + t.sold * t.price, 0), [tickets]);
-  const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
+  const soldTickets = eventStats.soldTickets;
+  const totalRevenue = eventStats.totalRevenue;
   const checkedInCount = attendeeStats.checkedIn;
   const attendeeTotal = attendeeStats.total;
   const readinessScore = useMemo(() => {
@@ -685,8 +691,15 @@ export const EventSettings: React.FC = () => {
 
   const refreshTickets = async () => {
     if (!eventId) return;
-    const res = await api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`);
-    setTickets(res.tickets);
+    const [ticketsRes, statsRes] = await Promise.all([
+      api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
+      api.get<{ stats: { soldTickets: number; totalRevenue: number } }>(`/api/events/${eventId}/stats`),
+    ]);
+    setTickets(ticketsRes.tickets);
+    setEventStats({
+      soldTickets: statsRes.stats.soldTickets,
+      totalRevenue: statsRes.stats.totalRevenue,
+    });
   };
 
   const saveTicket = async () => {

@@ -2486,6 +2486,143 @@ if ($path === '/payhere/notify' && $method === 'POST') {
 
 // Demo seed route removed for production hardening.
 
+/** Actual paid order totals for an event (early bird / bulk offers included). */
+function event_paid_revenue_cents(PDO $pdo, int $eventId): int {
+  $stmt = $pdo->prepare("SELECT COALESCE(SUM(total_amount_cents), 0) FROM orders WHERE event_id = ? AND status = 'paid'");
+  $stmt->execute([$eventId]);
+  return (int)$stmt->fetchColumn();
+}
+
+function event_stats_api_shape(PDO $pdo, int $eventId): array {
+  $attendeeStats = fetch_attendee_stats($pdo, $eventId);
+  $ticketStmt = $pdo->prepare(
+    'SELECT COALESCE(SUM(sold), 0) AS sold_tickets, COALESCE(SUM(quantity), 0) AS total_capacity
+     FROM tickets WHERE event_id = ?'
+  );
+  $ticketStmt->execute([$eventId]);
+  $ticketRow = $ticketStmt->fetch() ?: ['sold_tickets' => 0, 'total_capacity' => 0];
+
+  return [
+    'eventId' => (string)$eventId,
+    'soldTickets' => (int)$ticketRow['sold_tickets'],
+    'totalRevenue' => event_paid_revenue_cents($pdo, $eventId) / 100,
+    'totalCapacity' => (int)$ticketRow['total_capacity'],
+    'attendeeTotal' => (int)($attendeeStats['total'] ?? 0),
+    'checkedInCount' => (int)($attendeeStats['checkedIn'] ?? 0),
+  ];
+}
+
+/**
+ * Bulk dashboard stats for organizer events — revenue from paid orders, not list prices.
+ *
+ * @param list<int> $eventIds
+ * @return array<string, array<string, mixed>>
+ */
+function organizer_event_stats_map(PDO $pdo, array $eventIds): array {
+  $eventIds = array_values(array_unique(array_filter(array_map('intval', $eventIds), static fn (int $id) => $id > 0)));
+  if ($eventIds === []) {
+    return [];
+  }
+
+  $placeholders = implode(',', array_fill(0, count($eventIds), '?'));
+
+  $revenueByEvent = [];
+  $revStmt = $pdo->prepare(
+    "SELECT event_id, COALESCE(SUM(total_amount_cents), 0) AS revenue_cents
+     FROM orders
+     WHERE event_id IN ($placeholders) AND status = 'paid'
+     GROUP BY event_id"
+  );
+  $revStmt->execute($eventIds);
+  while ($row = $revStmt->fetch()) {
+    $revenueByEvent[(int)$row['event_id']] = (int)$row['revenue_cents'];
+  }
+
+  $ticketByEvent = [];
+  $ticketStmt = $pdo->prepare(
+    "SELECT event_id, COALESCE(SUM(sold), 0) AS sold_tickets, COALESCE(SUM(quantity), 0) AS total_capacity
+     FROM tickets
+     WHERE event_id IN ($placeholders)
+     GROUP BY event_id"
+  );
+  $ticketStmt->execute($eventIds);
+  while ($row = $ticketStmt->fetch()) {
+    $ticketByEvent[(int)$row['event_id']] = [
+      'soldTickets' => (int)$row['sold_tickets'],
+      'totalCapacity' => (int)$row['total_capacity'],
+    ];
+  }
+
+  $attendeeByEvent = [];
+  $attStmt = $pdo->prepare(
+    "SELECT event_id,
+            COUNT(*) AS attendee_total,
+            SUM(CASE WHEN checked_in_at IS NOT NULL THEN 1 ELSE 0 END) AS checked_in_count
+     FROM attendees
+     WHERE event_id IN ($placeholders)
+     GROUP BY event_id"
+  );
+  $attStmt->execute($eventIds);
+  while ($row = $attStmt->fetch()) {
+    $attendeeByEvent[(int)$row['event_id']] = [
+      'attendeeTotal' => (int)$row['attendee_total'],
+      'checkedInCount' => (int)$row['checked_in_count'],
+    ];
+  }
+
+  $map = [];
+  foreach ($eventIds as $eventId) {
+    $tickets = $ticketByEvent[$eventId] ?? ['soldTickets' => 0, 'totalCapacity' => 0];
+    $attendees = $attendeeByEvent[$eventId] ?? ['attendeeTotal' => 0, 'checkedInCount' => 0];
+    $map[(string)$eventId] = [
+      'eventId' => (string)$eventId,
+      'soldTickets' => (int)$tickets['soldTickets'],
+      'totalRevenue' => ((int)($revenueByEvent[$eventId] ?? 0)) / 100,
+      'totalCapacity' => (int)$tickets['totalCapacity'],
+      'attendeeTotal' => (int)$attendees['attendeeTotal'],
+      'checkedInCount' => (int)$attendees['checkedInCount'],
+    ];
+  }
+
+  return $map;
+}
+
+function organizer_earnings_api_shape(PDO $pdo, int $organizerUserId): array {
+  ensure_finance_tables($pdo);
+
+  $sumStmt = $pdo->prepare(
+    "SELECT
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
+     FROM events e
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE e.organizer_user_id = ?"
+  );
+  $sumStmt->execute([$organizerUserId]);
+  $sum = $sumStmt->fetch() ?: ['gross_cents' => 0, 'fee_cents' => 0, 'net_cents' => 0];
+
+  $payoutStmt = $pdo->prepare(
+    "SELECT COALESCE(SUM(total_amount_cents), 0) AS paid_cents
+     FROM payouts
+     WHERE organizer_id = ? AND status IN ('processing', 'completed')"
+  );
+  $payoutStmt->execute([$organizerUserId]);
+  $paidOutCents = (int)(($payoutStmt->fetch()['paid_cents'] ?? 0));
+
+  $grossCents = (int)($sum['gross_cents'] ?? 0);
+  $feeCents = (int)($sum['fee_cents'] ?? 0);
+  $netCents = (int)($sum['net_cents'] ?? 0);
+
+  return [
+    'grossRevenue' => $grossCents / 100,
+    'platformFees' => $feeCents / 100,
+    'netEarnings' => $netCents / 100,
+    'paidOut' => $paidOutCents / 100,
+    'availableBalance' => max(0, $netCents - $paidOutCents) / 100,
+  ];
+}
+
 // ---- Events ----
 if ($path === '/events' && $method === 'GET') {
   $uid = require_organizer_user_id();
@@ -3273,6 +3410,15 @@ if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'PO
   $upd->execute([json_encode($customization, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $eventId]);
 
   json_response(200, ['customization' => $customization]);
+}
+
+if (preg_match('#^/events/(\\d+)/stats$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  deny_unless_event_row_access($pdo, $row, $uid, 'viewer');
+  json_response(200, ['stats' => event_stats_api_shape($pdo, $eventId)]);
 }
 
 if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'GET') {
@@ -5845,22 +5991,41 @@ if ($path === '/admin/events/override' && $method === 'POST') {
   json_response(200, ['ok' => true]);
 }
 
+if ($path === '/organizer/dashboard-stats' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ownerIds = organizer_accessible_owner_ids($pdo, $uid);
+  $placeholders = implode(',', array_fill(0, count($ownerIds), '?'));
+  $stmt = $pdo->prepare("SELECT id FROM events WHERE organizer_user_id IN ($placeholders) ORDER BY created_at DESC");
+  $stmt->execute($ownerIds);
+  $eventIds = [];
+  while ($row = $stmt->fetch()) {
+    $eventIds[] = (int)$row['id'];
+  }
+
+  $byEvent = organizer_event_stats_map($pdo, $eventIds);
+  $totals = [
+    'soldTickets' => 0,
+    'totalRevenue' => 0.0,
+    'checkedInCount' => 0,
+  ];
+  foreach ($byEvent as $stats) {
+    $totals['soldTickets'] += (int)($stats['soldTickets'] ?? 0);
+    $totals['totalRevenue'] += (float)($stats['totalRevenue'] ?? 0);
+    $totals['checkedInCount'] += (int)($stats['checkedInCount'] ?? 0);
+  }
+
+  json_response(200, [
+    'totals' => $totals,
+    'byEvent' => $byEvent,
+    'earnings' => organizer_earnings_api_shape($pdo, $uid),
+  ]);
+}
+
 if ($path === '/organizer/earnings' && $method === 'GET') {
   $uid = require_organizer_user_id();
   $pdo = db();
   ensure_finance_tables($pdo);
-
-  $sumStmt = $pdo->prepare(
-    "SELECT
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
-     FROM events e
-     LEFT JOIN transactions t ON t.event_id = e.id
-     WHERE e.organizer_user_id = ?"
-  );
-  $sumStmt->execute([$uid]);
-  $sum = $sumStmt->fetch();
 
   $payoutStmt = $pdo->prepare(
     "SELECT id, organizer_id, total_amount_cents, status, method, reference, notes, created_at, completed_at
@@ -5871,9 +6036,7 @@ if ($path === '/organizer/earnings' && $method === 'GET') {
   );
   $payoutStmt->execute([$uid]);
   $payouts = [];
-  $paidOutCents = 0;
   while ($r = $payoutStmt->fetch()) {
-    if (in_array((string)$r['status'], ['processing', 'completed'], true)) $paidOutCents += (int)$r['total_amount_cents'];
     $payouts[] = [
       'id' => (string)$r['id'],
       'organizerId' => (string)$r['organizer_id'],
@@ -5887,20 +6050,10 @@ if ($path === '/organizer/earnings' && $method === 'GET') {
     ];
   }
 
-  $grossCents = (int)($sum['gross_cents'] ?? 0);
-  $feeCents = (int)($sum['fee_cents'] ?? 0);
-  $netCents = (int)($sum['net_cents'] ?? 0);
-  $availableCents = max(0, $netCents - $paidOutCents);
-
   json_response(200, [
-    'earnings' => [
-      'grossRevenue' => $grossCents / 100,
-      'platformFees' => $feeCents / 100,
-      'netEarnings' => $netCents / 100,
-      'paidOut' => $paidOutCents / 100,
-      'availableBalance' => $availableCents / 100,
+    'earnings' => array_merge(organizer_earnings_api_shape($pdo, $uid), [
       'payoutHistory' => $payouts,
-    ],
+    ]),
   ]);
 }
 

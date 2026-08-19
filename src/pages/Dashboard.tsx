@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { Attendee, Event, Ticket } from '../types';
+import { Event } from '../types';
 import { Plus, Calendar, MapPin, Users, DollarSign, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { api } from '../api/client';
@@ -39,46 +39,22 @@ export const Dashboard: React.FC = () => {
     const fetchEvents = async () => {
       if (!user) return;
       try {
-        const res = await api.get<{ events: Event[] }>('/api/events');
-        setEvents(res.events);
-
-        const insightPairs = await Promise.all(
-          res.events.map(async (event) => {
-            const [ticketsRes, attendeesRes] = await Promise.all([
-              api.get<{ tickets: Ticket[] }>(`/api/events/${event.id}/tickets`),
-              api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number } }>(
-                `/api/events/${event.id}/attendees?limit=1`
-              ),
-            ]);
-
-            const soldTickets = ticketsRes.tickets.reduce((sum, t) => sum + t.sold, 0);
-            const totalRevenue = ticketsRes.tickets.reduce((sum, t) => sum + t.sold * t.price, 0);
-            const totalCapacity = ticketsRes.tickets.reduce((sum, t) => sum + t.quantity, 0);
-            const attendeeTotal = attendeesRes.stats?.total ?? attendeesRes.attendees.length;
-            const checkedInCount = attendeesRes.stats?.checkedIn ?? 0;
-
-            return [
-              event.id,
-              {
-                eventId: event.id,
-                soldTickets,
-                totalRevenue,
-                totalCapacity,
-                attendeeTotal,
-                checkedInCount,
-              } as EventInsights,
-            ] as const;
-          })
-        );
-        setInsightsByEvent(Object.fromEntries(insightPairs));
-        try {
-          const earningsRes = await api.get<{
-            earnings: { grossRevenue: number; platformFees: number; netEarnings: number; availableBalance: number };
-          }>('/api/organizer/earnings');
-          setEarnings(earningsRes.earnings);
-        } catch {
-          setEarnings(null);
-        }
+        const [eventsRes, statsRes] = await Promise.all([
+          api.get<{ events: Event[] }>('/api/events'),
+          api.get<{
+            totals: { soldTickets: number; totalRevenue: number; checkedInCount: number };
+            byEvent: Record<string, EventInsights>;
+            earnings: {
+              grossRevenue: number;
+              platformFees: number;
+              netEarnings: number;
+              availableBalance: number;
+            };
+          }>('/api/organizer/dashboard-stats'),
+        ]);
+        setEvents(eventsRes.events);
+        setInsightsByEvent(statsRes.byEvent);
+        setEarnings(statsRes.earnings);
       } catch (error) {
         console.error('Error fetching events:', error);
       } finally {
@@ -104,16 +80,20 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  const totals = events.reduce(
-    (acc, event) => {
-      const eventInsight = insightsByEvent[event.id];
-      if (!eventInsight) return acc;
-      acc.soldTickets += eventInsight.soldTickets;
-      acc.totalRevenue += eventInsight.totalRevenue;
-      acc.checkedInCount += eventInsight.checkedInCount;
-      return acc;
-    },
-    { soldTickets: 0, totalRevenue: 0, checkedInCount: 0 }
+  const totals = useMemo(
+    () =>
+      events.reduce(
+        (acc, event) => {
+          const eventInsight = insightsByEvent[event.id];
+          if (!eventInsight) return acc;
+          acc.soldTickets += eventInsight.soldTickets;
+          acc.totalRevenue += eventInsight.totalRevenue;
+          acc.checkedInCount += eventInsight.checkedInCount;
+          return acc;
+        },
+        { soldTickets: 0, totalRevenue: 0, checkedInCount: 0 }
+      ),
+    [events, insightsByEvent]
   );
   const now = Date.now();
   const upcomingEvents = events.filter((e) => new Date(e.date).getTime() > now).length;
