@@ -114,7 +114,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
       orderItems.map((it) => ({
         name: it.name,
         qty: it.quantity,
-        total: it.price * it.quantity,
+        total: it.lineTotal ?? it.price * it.quantity,
       })),
     [orderItems]
   );

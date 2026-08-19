@@ -109,14 +109,7 @@ function organizer_profile_bank_api_fields(array $profileRow): array {
 
 /** @param list<array<string, mixed>> $tickets */
 function tickets_include_paid_price(array $tickets): bool {
-  foreach ($tickets as $ticket) {
-    if (!is_array($ticket)) continue;
-    $price = array_key_exists('price', $ticket)
-      ? (float)$ticket['price']
-      : ((int)($ticket['price_cents'] ?? 0) / 100);
-    if ($price > 0) return true;
-  }
-  return false;
+  return tickets_include_paid_or_early_bird_price($tickets);
 }
 
 function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {

@@ -101,9 +101,14 @@ function mark_order_policy_acceptance(PDO $pdo, int $orderId): void {
 }
 
 function normalize_order_items_from_db(PDO $pdo, int $eventId, array $items): array {
+  ensure_ticket_early_bird_columns($pdo);
   $totalCents = 0;
   $normalizedItems = [];
-  $ticketStmt = $pdo->prepare('SELECT id, name, price_cents, quantity, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  $nowTs = time();
+  $ticketStmt = $pdo->prepare(
+    'SELECT id, name, price_cents, quantity, sold, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold
+     FROM tickets WHERE id = ? AND event_id = ? LIMIT 1'
+  );
   foreach ($items as $it) {
     if (!is_array($it)) continue;
     $ticketId = (int)($it['ticketId'] ?? 0);
@@ -122,26 +127,49 @@ function normalize_order_items_from_db(PDO $pdo, int $eventId, array $items): ar
       ]);
     }
 
-    $priceCents = (int)$ticket['price_cents'];
-    $totalCents += ($priceCents * $qty);
-    $normalizedItems[] = [
-      'ticketId' => (string)$ticketId,
-      'name' => (string)$ticket['name'],
-      'quantity' => $qty,
-      'price' => $priceCents / 100,
-    ];
+    $split = ticket_split_early_bird_quantity($ticket, $qty, $nowTs);
+    $ticketName = (string)$ticket['name'];
+
+    if ($split['earlyBirdQty'] > 0) {
+      $ebCents = (int)$ticket['early_bird_price_cents'];
+      $totalCents += $ebCents * $split['earlyBirdQty'];
+      $normalizedItems[] = [
+        'ticketId' => (string)$ticketId,
+        'name' => $ticketName . ' (Early bird)',
+        'quantity' => $split['earlyBirdQty'],
+        'price' => $ebCents / 100,
+        'pricingTier' => 'early_bird',
+      ];
+    }
+    if ($split['regularQty'] > 0) {
+      $regCents = (int)$ticket['price_cents'];
+      $totalCents += $regCents * $split['regularQty'];
+      $normalizedItems[] = [
+        'ticketId' => (string)$ticketId,
+        'name' => $ticketName,
+        'quantity' => $split['regularQty'],
+        'price' => $regCents / 100,
+        'pricingTier' => 'standard',
+      ];
+    }
   }
   if (count($normalizedItems) < 1) json_response(400, ['error' => 'invalid_order_items']);
   return ['totalCents' => $totalCents, 'items' => $normalizedItems];
 }
 
 function increment_ticket_sold_counts(PDO $pdo, array $normalizedItems): void {
+  ensure_ticket_early_bird_columns($pdo);
   $inc = $pdo->prepare('UPDATE tickets SET sold = sold + ? WHERE id = ?');
+  $incEarly = $pdo->prepare('UPDATE tickets SET early_bird_sold = early_bird_sold + ? WHERE id = ?');
   foreach ($normalizedItems as $it) {
     if (!is_array($it)) continue;
     $tid = (int)($it['ticketId'] ?? 0);
     $qty = (int)($it['quantity'] ?? 0);
-    if ($tid > 0 && $qty > 0) $inc->execute([$qty, $tid]);
+    if ($tid <= 0 || $qty <= 0) continue;
+    $inc->execute([$qty, $tid]);
+    if (($it['pricingTier'] ?? '') === 'early_bird') {
+      $incEarly->execute([$qty, $tid]);
+    }
   }
 }
 
