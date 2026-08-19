@@ -877,8 +877,15 @@ function payhere_cfg(): array {
   // Merchant secrets are domain-specific in PayHere. Prefer configured APP_BASE_URL
   // (must match an approved domain in PayHere Integrations) over preview hostnames.
   $configuredBase = rtrim((string)($p['app_base_url'] ?? ''), '/');
+  // PayHere account is approved on apex domain; normalize legacy app subdomain to apex.
+  if (preg_match('#^https://app\.bigturnout\.co$#i', $configuredBase)) {
+    $configuredBase = 'https://bigturnout.co';
+  }
   $requestBase = rtrim(payhere_request_base_url(), '/');
   $appBase = $configuredBase !== '' ? $configuredBase : $requestBase;
+  if ($appBase === '') {
+    $appBase = 'https://bigturnout.co';
+  }
   if ($appBase === '') {
     json_response(500, ['error' => 'payhere_missing_app_base_url']);
   }
