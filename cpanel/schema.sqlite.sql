@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS tickets (
   quantity INTEGER NOT NULL,
   sold INTEGER NOT NULL DEFAULT 0,
   description TEXT NULL,
+  early_bird_price_cents INTEGER NULL,
+  early_bird_end_at TEXT NULL,
+  early_bird_limit INTEGER NULL,
+  early_bird_sold INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );
 

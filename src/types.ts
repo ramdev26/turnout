@@ -417,14 +417,25 @@ export interface Event {
   createdAt: string;
 }
 
+export interface TicketEarlyBird {
+  price: number;
+  endAt: string | null;
+  limit: number;
+  sold: number;
+  remaining: number;
+  active: boolean;
+}
+
 export interface Ticket {
   id: string;
   eventId: string;
   name: string;
   price: number;
+  effectivePrice?: number;
   quantity: number;
   sold: number;
   description?: string;
+  earlyBird?: TicketEarlyBird | null;
 }
 
 export type Speaker = {
@@ -479,6 +490,8 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  /** Client-side cart line total when early bird splits apply. */
+  lineTotal?: number;
 }
 
 export interface Order {

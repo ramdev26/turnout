@@ -11,6 +11,7 @@ require __DIR__ . '/lib/checkin.php';
 require __DIR__ . '/lib/checkout_fields.php';
 require __DIR__ . '/lib/arena_gallery.php';
 require __DIR__ . '/lib/organizer_team.php';
+require __DIR__ . '/lib/tickets.php';
 require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
 require __DIR__ . '/lib/bank_transfer.php';
@@ -2469,7 +2470,11 @@ if ($path === '/events' && $method === 'POST') {
     ]);
     $eventId = (int)$pdo->lastInsertId();
 
-    $ticketIns = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, ?, ?)');
+    $ticketIns = $pdo->prepare(
+      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)'
+    );
+    ensure_ticket_early_bird_columns($pdo);
     foreach ($tickets as $t) {
       if (!is_array($t)) continue;
       $name = trim((string)($t['name'] ?? ''));
@@ -2479,7 +2484,10 @@ if ($path === '/events' && $method === 'POST') {
       if ($name === '' || $quantity < 1) {
         throw new Exception('invalid_ticket');
       }
-      $ticketIns->execute([$eventId, $name, (int)round($price * 100), $quantity, 0, $desc]);
+      $earlyBird = parse_early_bird_fields_from_body($t);
+      validate_ticket_early_bird($price, $earlyBird, $quantity);
+      [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
+      $ticketIns->execute([$eventId, $name, (int)round($price * 100), $quantity, 0, $desc, $ebPriceCents, $ebEndAt, $ebLimit]);
     }
 
     write_log($pdo, $uid, 'organizer', 'event.created', 'event', (string)$eventId, ['title' => $title]);
@@ -2515,7 +2523,10 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
-  $ticketsStmt = $pdo->prepare('SELECT name, price_cents, quantity, description FROM tickets WHERE event_id = ? ORDER BY id ASC');
+  $ticketsStmt = $pdo->prepare(
+    'SELECT name, price_cents, quantity, description, early_bird_price_cents, early_bird_end_at, early_bird_limit
+     FROM tickets WHERE event_id = ? ORDER BY id ASC'
+  );
   $ticketsStmt->execute([$eventId]);
   $sourceTickets = $ticketsStmt->fetchAll();
 
@@ -2547,9 +2558,22 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
     ]);
     $newEventId = (int)$pdo->lastInsertId();
 
-    $insTicket = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
+    ensure_ticket_early_bird_columns($pdo);
+    $insTicket = $pdo->prepare(
+      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold)
+       VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0)'
+    );
     foreach ($sourceTickets as $t) {
-      $insTicket->execute([$newEventId, $t['name'], (int)$t['price_cents'], (int)$t['quantity'], $t['description']]);
+      $insTicket->execute([
+        $newEventId,
+        $t['name'],
+        (int)$t['price_cents'],
+        (int)$t['quantity'],
+        $t['description'],
+        $t['early_bird_price_cents'] ?? null,
+        $t['early_bird_end_at'] ?? null,
+        $t['early_bird_limit'] ?? null,
+      ]);
     }
     $pdo->commit();
   } catch (Exception $e) {
@@ -3136,21 +3160,14 @@ if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'PO
 if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
   $pdo = db();
+  ensure_ticket_early_bird_columns($pdo);
   $row = load_event_row_or_404($pdo, $eventId);
   if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
   $stmt = $pdo->prepare('SELECT * FROM tickets WHERE event_id = ? ORDER BY id ASC');
   $stmt->execute([$eventId]);
   $tickets = [];
   while ($row = $stmt->fetch()) {
-    $tickets[] = [
-      'id' => (string)$row['id'],
-      'eventId' => (string)$row['event_id'],
-      'name' => $row['name'],
-      'price' => ((int)$row['price_cents']) / 100,
-      'quantity' => (int)$row['quantity'],
-      'sold' => (int)$row['sold'],
-      'description' => $row['description'],
-    ];
+    $tickets[] = ticket_to_api_shape($row);
   }
   json_response(200, ['tickets' => $tickets]);
 }
@@ -3170,28 +3187,27 @@ if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'POST') {
   if ($quantity < 1) json_response(400, ['error' => 'invalid_ticket_quantity']);
 
   $pdo = db();
+  ensure_ticket_early_bird_columns($pdo);
   $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
-  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], $price);
+  $earlyBird = parse_early_bird_fields_from_body($body);
+  validate_ticket_early_bird($price, $earlyBird, $quantity);
+  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], max($price, ($earlyBird['priceCents'] ?? 0) / 100));
 
-  $ins = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
-  $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null]);
+  [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
+  $ins = $pdo->prepare(
+    'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0)'
+  );
+  $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null, $ebPriceCents, $ebEndAt, $ebLimit]);
   $ticketId = (int)$pdo->lastInsertId();
 
-  json_response(201, [
-    'ticket' => [
-      'id' => (string)$ticketId,
-      'eventId' => (string)$eventId,
-      'name' => $name,
-      'price' => $price,
-      'quantity' => $quantity,
-      'sold' => 0,
-      'description' => $description,
-    ],
-  ]);
+  $created = $pdo->prepare('SELECT * FROM tickets WHERE id = ? LIMIT 1');
+  $created->execute([$ticketId]);
+  json_response(201, ['ticket' => ticket_to_api_shape($created->fetch())]);
 }
 
 if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'POST') {
@@ -3210,33 +3226,41 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'P
   if ($quantity < 1) json_response(400, ['error' => 'invalid_ticket_quantity']);
 
   $pdo = db();
+  ensure_ticket_early_bird_columns($pdo);
   $owner = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
   $owner->execute([$eventId]);
   $row = $owner->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
-  $existing = $pdo->prepare('SELECT id, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  $existing = $pdo->prepare('SELECT * FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
   $existing->execute([$ticketId, $eventId]);
   $ticket = $existing->fetch();
   if (!$ticket) json_response(404, ['error' => 'ticket_not_found']);
   if ($quantity < (int)$ticket['sold']) json_response(400, ['error' => 'quantity_below_sold']);
-  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], $price);
+  $earlyBird = parse_early_bird_fields_from_body($body);
+  validate_ticket_early_bird($price, $earlyBird, $quantity, (int)($ticket['early_bird_sold'] ?? 0));
+  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], max($price, ($earlyBird['priceCents'] ?? 0) / 100));
 
-  $upd = $pdo->prepare('UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ? WHERE id = ? AND event_id = ?');
-  $upd->execute([$name, (int)round($price * 100), $quantity, $description !== '' ? $description : null, $ticketId, $eventId]);
-
-  json_response(200, [
-    'ticket' => [
-      'id' => (string)$ticketId,
-      'eventId' => (string)$eventId,
-      'name' => $name,
-      'price' => $price,
-      'quantity' => $quantity,
-      'sold' => (int)$ticket['sold'],
-      'description' => $description,
-    ],
+  [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
+  $upd = $pdo->prepare(
+    'UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ?, early_bird_price_cents = ?, early_bird_end_at = ?, early_bird_limit = ? WHERE id = ? AND event_id = ?'
+  );
+  $upd->execute([
+    $name,
+    (int)round($price * 100),
+    $quantity,
+    $description !== '' ? $description : null,
+    $ebPriceCents,
+    $ebEndAt,
+    $ebLimit,
+    $ticketId,
+    $eventId,
   ]);
+
+  $updated = $pdo->prepare('SELECT * FROM tickets WHERE id = ? LIMIT 1');
+  $updated->execute([$ticketId]);
+  json_response(200, ['ticket' => ticket_to_api_shape($updated->fetch())]);
 }
 
 if (preg_match('#^/events/(\\d+)/tickets/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
