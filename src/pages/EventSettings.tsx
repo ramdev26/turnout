@@ -52,7 +52,10 @@ import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '..
 import { TurnoutColorPicker } from '../components/ui/TurnoutColorPicker';
 import { DEFAULT_EVENT_POLICY_HTML, resolveEventPolicyHtml } from '../utils/eventPolicy';
 import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
+import { TicketBulkOffersFields } from '../components/organizer/TicketBulkOffersFields';
 import {
+  bulkOffersFromTicket,
+  bulkOffersPayloadFromForm,
   defaultTicketEarlyBirdForm,
   earlyBirdFromTicket,
   earlyBirdPayloadFromForm,
@@ -208,6 +211,7 @@ export const EventSettings: React.FC = () => {
     quantity: 100,
     description: '',
     ...defaultTicketEarlyBirdForm(),
+    bulkOffers: [] as { qty: number; price: number }[],
   });
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const [eventPolicyHtml, setEventPolicyHtml] = useState(DEFAULT_EVENT_POLICY_HTML);
@@ -690,7 +694,8 @@ export const EventSettings: React.FC = () => {
       setError('Ticket name is required');
       return;
     }
-    const paidAmount = Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0);
+    const maxBulkPrice = ticketForm.bulkOffers.reduce((max, offer) => Math.max(max, Number(offer.price) || 0), 0);
+    const paidAmount = Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0, maxBulkPrice);
     if (paidAmount > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
       setError('Complete business and payment setup in Organization settings before adding paid tickets.');
       return;
@@ -716,6 +721,7 @@ export const EventSettings: React.FC = () => {
         quantity: ticketForm.quantity,
         description: ticketForm.description,
         ...earlyBirdPayloadFromForm(ticketForm),
+        ...bulkOffersPayloadFromForm(ticketForm.bulkOffers),
       };
       if (editingTicketId) {
         await api.post(`/api/events/${eventId}/tickets/${editingTicketId}`, payload);
@@ -724,7 +730,7 @@ export const EventSettings: React.FC = () => {
       }
       await refreshTickets();
       setEditingTicketId(null);
-      setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm() });
+      setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm(), bulkOffers: [] });
       setFeedback('Tickets updated.');
     } catch (e: any) {
       if (e?.error === 'paid_event_setup_required') {
@@ -745,7 +751,7 @@ export const EventSettings: React.FC = () => {
       await refreshTickets();
       if (editingTicketId === ticketId) {
         setEditingTicketId(null);
-        setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm() });
+        setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm(), bulkOffers: [] });
       }
     } catch (e: any) {
       setError(e?.error || 'Failed to delete ticket');
@@ -1219,6 +1225,11 @@ export const EventSettings: React.FC = () => {
                           ) : null}
                           {' · '}
                           {ticket.sold}/{ticket.quantity} sold
+                          {ticket.bulkOffers && ticket.bulkOffers.length > 0 ? (
+                            <span className="block text-xs" style={{ color: ui.textSubtle }}>
+                              {ticket.bulkOffers.map((o) => `${o.qty} for ${formatLKR(o.price)}`).join(' · ')}
+                            </span>
+                          ) : null}
                           {ticket.earlyBird ? (
                             <span className="block text-xs" style={{ color: ui.textSubtle }}>
                               Early bird: {ticket.earlyBird.sold}/{ticket.earlyBird.limit} sold
@@ -1237,6 +1248,7 @@ export const EventSettings: React.FC = () => {
                               quantity: ticket.quantity,
                               description: ticket.description || '',
                               ...earlyBirdFromTicket(ticket),
+                              bulkOffers: bulkOffersFromTicket(ticket),
                             });
                           }}
                           className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
@@ -1312,6 +1324,12 @@ export const EventSettings: React.FC = () => {
                   earlyBirdLimit: ticketForm.earlyBirdLimit,
                 }}
                 onChange={(patch) => setTicketForm((p) => ({ ...p, ...patch }))}
+              />
+              <TicketBulkOffersFields
+                ui={ui}
+                standardPrice={ticketForm.price}
+                offers={ticketForm.bulkOffers}
+                onChange={(next) => setTicketForm((p) => ({ ...p, bulkOffers: next }))}
               />
               <button
                 type="button"

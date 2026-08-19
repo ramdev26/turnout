@@ -11,13 +11,30 @@ export function ticketEffectivePrice(ticket: Ticket): number {
 /** Mirrors server checkout split when a cart spans early-bird and standard inventory. */
 export function ticketLineTotal(ticket: Ticket, quantity: number): number {
   if (quantity <= 0) return 0;
+  const applyBulk = (qty: number, unitPrice: number): number => {
+    const offers = (ticket.bulkOffers || [])
+      .filter((o) => o.qty >= 2 && o.price > 0)
+      .map((o) => ({ qty: o.qty, price: o.price }));
+    if (offers.length === 0) return qty * unitPrice;
+    const dp = Array.from({ length: qty + 1 }, () => Number.POSITIVE_INFINITY);
+    dp[0] = 0;
+    for (let i = 1; i <= qty; i += 1) {
+      dp[i] = Math.min(dp[i], dp[i - 1] + unitPrice);
+      for (const offer of offers) {
+        if (offer.qty <= i) {
+          dp[i] = Math.min(dp[i], dp[i - offer.qty] + offer.price);
+        }
+      }
+    }
+    return dp[qty];
+  };
   const earlyBird = ticket.earlyBird;
   if (earlyBird?.active && earlyBird.remaining > 0) {
     const earlyQty = Math.min(quantity, earlyBird.remaining);
     const regularQty = quantity - earlyQty;
-    return earlyQty * earlyBird.price + regularQty * ticket.price;
+    return applyBulk(earlyQty, earlyBird.price) + applyBulk(regularQty, ticket.price);
   }
-  return quantity * ticketEffectivePrice(ticket);
+  return applyBulk(quantity, ticketEffectivePrice(ticket));
 }
 
 export function ticketHasEarlyBirdOffer(ticket: Ticket): boolean {
@@ -61,12 +78,19 @@ export type TicketEarlyBirdForm = {
   earlyBirdLimit: number;
 };
 
+export type TicketBulkOfferForm = {
+  qty: number;
+  price: number;
+};
+
 export const defaultTicketEarlyBirdForm = (): TicketEarlyBirdForm => ({
   earlyBirdEnabled: false,
   earlyBirdPrice: 0,
   earlyBirdEndAt: '',
   earlyBirdLimit: 25,
 });
+
+export const defaultTicketBulkOffersForm = (): TicketBulkOfferForm[] => [];
 
 export function earlyBirdFromTicket(ticket: Ticket): TicketEarlyBirdForm {
   const eb = ticket.earlyBird;
@@ -76,6 +100,10 @@ export function earlyBirdFromTicket(ticket: Ticket): TicketEarlyBirdForm {
     earlyBirdEndAt: toDatetimeLocalValue(eb?.endAt),
     earlyBirdLimit: eb?.limit ?? 25,
   };
+}
+
+export function bulkOffersFromTicket(ticket: Ticket): TicketBulkOfferForm[] {
+  return (ticket.bulkOffers || []).map((o) => ({ qty: o.qty, price: o.price }));
 }
 
 export function defaultEarlyBirdEndLocal(daysFromNow = 14): string {
@@ -95,4 +123,11 @@ export function earlyBirdPayloadFromForm(form: TicketEarlyBirdForm): Record<stri
     earlyBirdEndAt: datetimeLocalToIso(form.earlyBirdEndAt),
     earlyBirdLimit: form.earlyBirdLimit,
   };
+}
+
+export function bulkOffersPayloadFromForm(offers: TicketBulkOfferForm[]): { bulkOffers: TicketBulkOfferForm[] } {
+  const normalized = offers
+    .map((o) => ({ qty: Number(o.qty) || 0, price: Number(o.price) || 0 }))
+    .filter((o) => o.qty > 0 && o.price > 0);
+  return { bulkOffers: normalized };
 }

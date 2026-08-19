@@ -426,6 +426,11 @@ export interface TicketEarlyBird {
   active: boolean;
 }
 
+export interface TicketBulkOffer {
+  qty: number;
+  price: number;
+}
+
 export interface Ticket {
   id: string;
   eventId: string;
@@ -436,6 +441,7 @@ export interface Ticket {
   sold: number;
   description?: string;
   earlyBird?: TicketEarlyBird | null;
+  bulkOffers?: TicketBulkOffer[];
 }
 
 export type Speaker = {

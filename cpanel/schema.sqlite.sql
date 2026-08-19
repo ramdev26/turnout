@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   early_bird_end_at TEXT NULL,
   early_bird_limit INTEGER NULL,
   early_bird_sold INTEGER NOT NULL DEFAULT 0,
+  bulk_offers_json TEXT NULL,
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );
 

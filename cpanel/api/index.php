@@ -2471,8 +2471,8 @@ if ($path === '/events' && $method === 'POST') {
     $eventId = (int)$pdo->lastInsertId();
 
     $ticketIns = $pdo->prepare(
-      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)'
+      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold, bulk_offers_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)'
     );
     ensure_ticket_early_bird_columns($pdo);
     foreach ($tickets as $t) {
@@ -2486,8 +2486,21 @@ if ($path === '/events' && $method === 'POST') {
       }
       $earlyBird = parse_early_bird_fields_from_body($t);
       validate_ticket_early_bird($price, $earlyBird, $quantity);
+      $bulkOffers = parse_bulk_offers_from_body($t);
+      validate_ticket_bulk_offers($price, $bulkOffers);
       [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
-      $ticketIns->execute([$eventId, $name, (int)round($price * 100), $quantity, 0, $desc, $ebPriceCents, $ebEndAt, $ebLimit]);
+      $ticketIns->execute([
+        $eventId,
+        $name,
+        (int)round($price * 100),
+        $quantity,
+        0,
+        $desc,
+        $ebPriceCents,
+        $ebEndAt,
+        $ebLimit,
+        bulk_offers_json_from_list($bulkOffers),
+      ]);
     }
 
     write_log($pdo, $uid, 'organizer', 'event.created', 'event', (string)$eventId, ['title' => $title]);
@@ -2524,7 +2537,7 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $ticketsStmt = $pdo->prepare(
-    'SELECT name, price_cents, quantity, description, early_bird_price_cents, early_bird_end_at, early_bird_limit
+    'SELECT name, price_cents, quantity, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, bulk_offers_json
      FROM tickets WHERE event_id = ? ORDER BY id ASC'
   );
   $ticketsStmt->execute([$eventId]);
@@ -2560,8 +2573,8 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
 
     ensure_ticket_early_bird_columns($pdo);
     $insTicket = $pdo->prepare(
-      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold)
-       VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0)'
+      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold, bulk_offers_json)
+       VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?)'
     );
     foreach ($sourceTickets as $t) {
       $insTicket->execute([
@@ -2573,6 +2586,7 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
         $t['early_bird_price_cents'] ?? null,
         $t['early_bird_end_at'] ?? null,
         $t['early_bird_limit'] ?? null,
+        $t['bulk_offers_json'] ?? null,
       ]);
     }
     $pdo->commit();
@@ -3198,11 +3212,23 @@ if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'POST') {
   assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], max($price, ($earlyBird['priceCents'] ?? 0) / 100));
 
   [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
+  $bulkOffers = parse_bulk_offers_from_body($body);
+  validate_ticket_bulk_offers($price, $bulkOffers);
   $ins = $pdo->prepare(
-    'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0)'
+    'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold, bulk_offers_json)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?)'
   );
-  $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null, $ebPriceCents, $ebEndAt, $ebLimit]);
+  $ins->execute([
+    $eventId,
+    $name,
+    (int)round($price * 100),
+    $quantity,
+    $description !== '' ? $description : null,
+    $ebPriceCents,
+    $ebEndAt,
+    $ebLimit,
+    bulk_offers_json_from_list($bulkOffers),
+  ]);
   $ticketId = (int)$pdo->lastInsertId();
 
   $created = $pdo->prepare('SELECT * FROM tickets WHERE id = ? LIMIT 1');
@@ -3240,11 +3266,13 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'P
   if ($quantity < (int)$ticket['sold']) json_response(400, ['error' => 'quantity_below_sold']);
   $earlyBird = parse_early_bird_fields_from_body($body);
   validate_ticket_early_bird($price, $earlyBird, $quantity, (int)($ticket['early_bird_sold'] ?? 0));
+  $bulkOffers = parse_bulk_offers_from_body($body);
+  validate_ticket_bulk_offers($price, $bulkOffers);
   assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], max($price, ($earlyBird['priceCents'] ?? 0) / 100));
 
   [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
   $upd = $pdo->prepare(
-    'UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ?, early_bird_price_cents = ?, early_bird_end_at = ?, early_bird_limit = ? WHERE id = ? AND event_id = ?'
+    'UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ?, early_bird_price_cents = ?, early_bird_end_at = ?, early_bird_limit = ?, bulk_offers_json = ? WHERE id = ? AND event_id = ?'
   );
   $upd->execute([
     $name,
@@ -3254,6 +3282,7 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'P
     $ebPriceCents,
     $ebEndAt,
     $ebLimit,
+    bulk_offers_json_from_list($bulkOffers),
     $ticketId,
     $eventId,
   ]);

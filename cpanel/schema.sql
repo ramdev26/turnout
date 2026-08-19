@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   early_bird_end_at DATETIME NULL,
   early_bird_limit INT UNSIGNED NULL,
   early_bird_sold INT UNSIGNED NOT NULL DEFAULT 0,
+  bulk_offers_json TEXT NULL,
   PRIMARY KEY (id),
   KEY idx_tickets_event (event_id),
   CONSTRAINT fk_tickets_event FOREIGN KEY (event_id) REFERENCES events(id)

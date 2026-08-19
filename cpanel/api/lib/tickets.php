@@ -14,6 +14,7 @@ function ensure_ticket_early_bird_columns(PDO $pdo): void {
     'early_bird_end_at' => $driver === 'pgsql' ? 'TIMESTAMP NULL' : ($driver === 'sqlite' ? 'TEXT NULL' : 'DATETIME NULL'),
     'early_bird_limit' => $driver === 'pgsql' ? 'INTEGER NULL' : 'INT NULL',
     'early_bird_sold' => $driver === 'pgsql' ? 'INTEGER NOT NULL DEFAULT 0' : 'INT NOT NULL DEFAULT 0',
+    'bulk_offers_json' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
   ];
 
   if ($driver === 'sqlite') {
@@ -212,6 +213,7 @@ function ticket_to_api_shape(array $row, ?int $nowTs = null): array {
   if ($eb !== null) {
     $shape['earlyBird'] = $eb;
   }
+  $shape['bulkOffers'] = ticket_bulk_offers_from_row($row);
   return $shape;
 }
 
@@ -224,6 +226,73 @@ function ticket_early_bird_db_values(array $earlyBird): array {
     $earlyBird['endAt'],
     $earlyBird['limit'],
   ];
+}
+
+function parse_bulk_offers_from_body(array $body): array {
+  $raw = $body['bulkOffers'] ?? [];
+  if (!is_array($raw)) return [];
+  $out = [];
+  foreach ($raw as $offer) {
+    if (!is_array($offer)) continue;
+    $qty = (int)($offer['qty'] ?? 0);
+    $price = (float)($offer['price'] ?? 0);
+    if ($qty <= 0 || $price <= 0) continue;
+    $out[] = [
+      'qty' => $qty,
+      'priceCents' => (int)round($price * 100),
+    ];
+  }
+  return $out;
+}
+
+function validate_ticket_bulk_offers(float $regularPrice, array $bulkOffers): void {
+  if ($bulkOffers === []) return;
+  if ($regularPrice <= 0) {
+    json_response(400, [
+      'error' => 'bulk_offers_require_paid_tier',
+      'message' => 'Bulk offers are only available on paid ticket tiers.',
+    ]);
+  }
+
+  $seenQty = [];
+  foreach ($bulkOffers as $offer) {
+    $qty = (int)($offer['qty'] ?? 0);
+    $priceCents = (int)($offer['priceCents'] ?? 0);
+    if ($qty < 2) {
+      json_response(400, ['error' => 'invalid_bulk_offer_qty', 'message' => 'Bulk offer quantity must be at least 2.']);
+    }
+    if ($priceCents <= 0) {
+      json_response(400, ['error' => 'invalid_bulk_offer_price']);
+    }
+    if (isset($seenQty[$qty])) {
+      json_response(400, ['error' => 'duplicate_bulk_offer_qty', 'message' => 'Each bulk offer quantity can appear only once.']);
+    }
+    $seenQty[$qty] = true;
+  }
+}
+
+function bulk_offers_json_from_list(array $offers): ?string {
+  if ($offers === []) return null;
+  return json_encode(array_map(static function (array $offer): array {
+    return ['qty' => (int)$offer['qty'], 'price_cents' => (int)$offer['priceCents']];
+  }, $offers), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+}
+
+function ticket_bulk_offers_from_row(array $row): array {
+  $raw = trim((string)($row['bulk_offers_json'] ?? ''));
+  if ($raw === '') return [];
+  $decoded = json_decode($raw, true);
+  if (!is_array($decoded)) return [];
+  $out = [];
+  foreach ($decoded as $offer) {
+    if (!is_array($offer)) continue;
+    $qty = (int)($offer['qty'] ?? 0);
+    $priceCents = (int)($offer['price_cents'] ?? 0);
+    if ($qty <= 0 || $priceCents <= 0) continue;
+    $out[] = ['qty' => $qty, 'price' => $priceCents / 100];
+  }
+  usort($out, static fn(array $a, array $b): int => $a['qty'] <=> $b['qty']);
+  return $out;
 }
 
 /** @param list<array<string, mixed>> $tickets */
@@ -239,6 +308,14 @@ function tickets_include_paid_or_early_bird_price(array $tickets): bool {
     if (array_key_exists('earlyBirdPrice', $ticket) && (float)$ticket['earlyBirdPrice'] > 0) return true;
     if (!empty($ticket['earlyBirdEnabled']) && isset($ticket['earlyBirdPrice']) && (float)$ticket['earlyBirdPrice'] > 0) {
       return true;
+    }
+    $bulk = $ticket['bulkOffers'] ?? null;
+    if (is_array($bulk)) {
+      foreach ($bulk as $offer) {
+        if (is_array($offer) && (float)($offer['price'] ?? 0) > 0) {
+          return true;
+        }
+      }
     }
   }
   return false;
