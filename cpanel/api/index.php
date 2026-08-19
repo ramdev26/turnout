@@ -821,6 +821,53 @@ function payhere_cfg(): array {
   $cfg = get_config();
   $p = is_array($cfg['payhere'] ?? null) ? $cfg['payhere'] : [];
 
+  // Allow super-admin to override platform PayHere credentials at runtime.
+  // Secrets are stored encrypted in global_settings.
+  try {
+    $pdo = db();
+    ensure_finance_tables($pdo);
+    $stmt = $pdo->prepare(
+      'SELECT setting_key, setting_value
+       FROM global_settings
+       WHERE setting_key IN (?, ?, ?, ?)'
+    );
+    $stmt->execute([
+      'payhere_merchant_id',
+      'payhere_merchant_secret_enc',
+      'payhere_sandbox',
+      'payhere_app_base_url',
+    ]);
+    $overrides = [];
+    while ($row = $stmt->fetch()) {
+      $overrides[(string)$row['setting_key']] = (string)$row['setting_value'];
+    }
+
+    $overrideMerchantId = trim((string)($overrides['payhere_merchant_id'] ?? ''));
+    if ($overrideMerchantId !== '') {
+      $p['merchant_id'] = $overrideMerchantId;
+    }
+
+    $overrideSecretEnc = trim((string)($overrides['payhere_merchant_secret_enc'] ?? ''));
+    if ($overrideSecretEnc !== '') {
+      $overrideSecret = trim(decrypt_payment_secret($overrideSecretEnc));
+      if ($overrideSecret !== '') {
+        $p['merchant_secret'] = $overrideSecret;
+      }
+    }
+
+    $overrideSandbox = strtolower(trim((string)($overrides['payhere_sandbox'] ?? '')));
+    if ($overrideSandbox !== '') {
+      $p['sandbox'] = in_array($overrideSandbox, ['1', 'true', 'yes', 'on'], true);
+    }
+
+    $overrideBase = rtrim(trim((string)($overrides['payhere_app_base_url'] ?? '')), '/');
+    if ($overrideBase !== '') {
+      $p['app_base_url'] = $overrideBase;
+    }
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] payhere_cfg overrides skipped: %s', $e->getMessage()));
+  }
+
   $merchantId = trim((string)($p['merchant_id'] ?? ''));
   $merchantSecret = trim((string)($p['merchant_secret'] ?? ''));
   $sandbox = (bool)($p['sandbox'] ?? true);
@@ -5573,6 +5620,8 @@ if ($path === '/admin/settings' && $method === 'GET') {
   $settings = [];
   foreach ($rows ?: [] as $row) $settings[(string)$row['setting_key']] = $row['setting_value'];
   $settings['commission_pct'] = (string)get_platform_commission_pct($pdo);
+  $settings['payhere_secret_configured'] = !empty($settings['payhere_merchant_secret_enc']) ? 'true' : 'false';
+  unset($settings['payhere_merchant_secret_enc']);
   json_response(200, ['settings' => $settings]);
 }
 
@@ -5581,7 +5630,16 @@ if ($path === '/admin/settings' && $method === 'POST') {
   $pdo = db();
   ensure_finance_tables($pdo);
   $body = read_json_body();
-  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'email_from', 'maintenance_mode'];
+  $allowed = [
+    'platform_name',
+    'platform_logo_url',
+    'commission_pct',
+    'email_from',
+    'maintenance_mode',
+    'payhere_merchant_id',
+    'payhere_sandbox',
+    'payhere_app_base_url',
+  ];
   foreach ($allowed as $key) {
     if (!array_key_exists($key, $body)) continue;
     $value = (string)$body[$key];
@@ -5603,6 +5661,21 @@ if ($path === '/admin/settings' && $method === 'POST') {
       }
     }
   }
+
+  if (array_key_exists('payhere_merchant_secret', $body)) {
+    $secretPlain = trim((string)$body['payhere_merchant_secret']);
+    if ($secretPlain !== '') {
+      $secretEnc = encrypt_payment_secret($secretPlain);
+      $stmt = $pdo->prepare('INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value');
+      try {
+        $stmt->execute(['payhere_merchant_secret_enc', $secretEnc]);
+      } catch (Throwable $e) {
+        $stmt2 = $pdo->prepare('INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+        $stmt2->execute(['payhere_merchant_secret_enc', $secretEnc]);
+      }
+    }
+  }
+
   write_log($pdo, $adminId, 'super_admin', 'admin.settings.updated', 'setting', null, ['keys' => array_keys($body)]);
   json_response(200, ['ok' => true]);
 }

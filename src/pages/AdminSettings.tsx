@@ -78,6 +78,8 @@ export const AdminSettings: React.FC = () => {
             { key: 'platform_logo_url', label: 'Logo URL', placeholder: 'https://...' },
             { key: 'commission_pct', label: 'Commission %', placeholder: '10' },
             { key: 'email_from', label: 'Email From', placeholder: 'admin@bigturnout.co' },
+            { key: 'payhere_merchant_id', label: 'PayHere Merchant ID', placeholder: 'e.g. 257283' },
+            { key: 'payhere_app_base_url', label: 'PayHere App Base URL', placeholder: 'https://app.bigturnout.co' },
           ].map(({ key, label, placeholder }) => (
             <label key={key} className="flex flex-col gap-1.5">
               <FlowLabel>{label}</FlowLabel>
@@ -99,6 +101,36 @@ export const AdminSettings: React.FC = () => {
               <option value="off">Off</option>
               <option value="on">On</option>
             </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <FlowLabel>PayHere mode</FlowLabel>
+            <select
+              value={settings.payhere_sandbox ?? 'false'}
+              onChange={(e) => onField('payhere_sandbox', e.target.value)}
+              className="rounded-xl border px-3 py-2.5 text-sm outline-none"
+              style={selectStyle}
+            >
+              <option value="false">Live</option>
+              <option value="true">Sandbox</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5 sm:col-span-2">
+            <FlowLabel>PayHere Merchant Secret</FlowLabel>
+            <FlowInput
+              type="password"
+              value={settings.payhere_merchant_secret ?? ''}
+              onChange={(e) => onField('payhere_merchant_secret', e.target.value)}
+              placeholder={
+                settings.payhere_secret_configured === 'true'
+                  ? 'Configured (enter a new value only to rotate)'
+                  : 'Paste Merchant Secret'
+              }
+            />
+            {settings.payhere_secret_configured === 'true' ? (
+              <p className="text-xs" style={{ color: ui.textMuted }}>
+                A merchant secret is already configured. Leave blank to keep current value.
+              </p>
+            ) : null}
           </label>
         </div>
 
