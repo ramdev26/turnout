@@ -39,9 +39,11 @@ export const Dashboard: React.FC = () => {
     const fetchEvents = async () => {
       if (!user) return;
       try {
-        const [eventsRes, statsRes] = await Promise.all([
-          api.get<{ events: Event[] }>('/api/events'),
-          api.get<{
+        const eventsRes = await api.get<{ events: Event[] }>('/api/events');
+        setEvents(eventsRes.events);
+
+        try {
+          const statsRes = await api.get<{
             totals: { soldTickets: number; totalRevenue: number; checkedInCount: number };
             byEvent: Record<string, EventInsights>;
             earnings: {
@@ -50,11 +52,14 @@ export const Dashboard: React.FC = () => {
               netEarnings: number;
               availableBalance: number;
             };
-          }>('/api/organizer/dashboard-stats'),
-        ]);
-        setEvents(eventsRes.events);
-        setInsightsByEvent(statsRes.byEvent);
-        setEarnings(statsRes.earnings);
+          }>('/api/organizer/dashboard-stats');
+          setInsightsByEvent(statsRes.byEvent);
+          setEarnings(statsRes.earnings);
+        } catch (statsError) {
+          console.error('Error fetching dashboard stats:', statsError);
+          setInsightsByEvent({});
+          setEarnings(null);
+        }
       } catch (error) {
         console.error('Error fetching events:', error);
       } finally {
@@ -64,21 +69,6 @@ export const Dashboard: React.FC = () => {
 
     fetchEvents();
   }, [user]);
-
-  if (loading) {
-    return (
-      <OrganizerFlowShell title="Organizer Dashboard" navLinks={organizerMainNav}>
-        <FlowPage>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
-          </div>
-        </FlowPage>
-      </OrganizerFlowShell>
-    );
-  }
 
   const totals = useMemo(
     () =>
@@ -95,8 +85,25 @@ export const Dashboard: React.FC = () => {
       ),
     [events, insightsByEvent]
   );
-  const now = Date.now();
-  const upcomingEvents = events.filter((e) => new Date(e.date).getTime() > now).length;
+  const upcomingEvents = useMemo(
+    () => events.filter((e) => new Date(e.date).getTime() > Date.now()).length,
+    [events]
+  );
+
+  if (loading) {
+    return (
+      <OrganizerFlowShell title="Organizer Dashboard" navLinks={organizerMainNav}>
+        <FlowPage>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+          </div>
+        </FlowPage>
+      </OrganizerFlowShell>
+    );
+  }
 
   return (
     <OrganizerFlowShell
