@@ -1299,9 +1299,18 @@ export const CreateEvent: React.FC = () => {
                             earlyBirdLimit: Number(tickets[index]?.earlyBirdLimit) || 25,
                           }}
                           onChange={(patch) => {
-                            Object.entries(patch).forEach(([key, value]) => {
-                              setValue(`tickets.${index}.${key}` as const, value as never, { shouldDirty: true });
-                            });
+                            if (patch.earlyBirdEnabled !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdEnabled`, patch.earlyBirdEnabled, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdPrice !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdPrice`, patch.earlyBirdPrice, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdEndAt !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdEndAt`, patch.earlyBirdEndAt, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdLimit !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdLimit`, patch.earlyBirdLimit, { shouldDirty: true });
+                            }
                           }}
                         />
                       </div>

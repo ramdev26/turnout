@@ -1,7 +1,7 @@
 import React from 'react';
-import { cn } from '../utils/cn';
-import type { CreateThemeUI } from '../themes/flowUi';
-import { cardMutedStyleFor, fieldClassFor, fieldStyleFor } from '../themes/flowUi';
+import { cn } from '../../utils/cn';
+import type { CreateThemeUI } from '../../themes/flowUi';
+import { cardMutedStyleFor, fieldClassFor, fieldStyleFor } from '../../themes/flowUi';
 
 export type TicketEarlyBirdFieldValues = {
   earlyBirdEnabled: boolean;
