@@ -5368,6 +5368,30 @@ if (preg_match('#^/admin/organizers/(\d+)/commission$#', $path, $m) && $method =
   json_response(200, ['commission' => $commission]);
 }
 
+if (preg_match('#^/admin/organizers/(\d+)/turnout-pay-override$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $organizerId = (int)$m[1];
+  $pdo = db();
+  $exists = $pdo->prepare('SELECT id FROM users WHERE id = ? AND role = ? LIMIT 1');
+  $exists->execute([$organizerId, 'organizer']);
+  if (!$exists->fetch()) json_response(404, ['error' => 'organizer_not_found']);
+
+  $body = read_json_body();
+  $enabled = !empty($body['enabled']);
+  set_organizer_turnout_pay_docs_override($pdo, $organizerId, $enabled);
+  $readiness = organizer_paid_event_readiness_api_shape($pdo, $organizerId);
+
+  write_log($pdo, $adminId, 'super_admin', 'admin.organizer.turnout_pay_override', 'user', (string)$organizerId, [
+    'enabled' => $enabled,
+  ]);
+
+  json_response(200, [
+    'ok' => true,
+    'enabled' => $enabled,
+    'readiness' => $readiness,
+  ]);
+}
+
 if ($path === '/admin/organizers/balances' && $method === 'GET') {
   require_super_admin_user_id();
   $pdo = db();

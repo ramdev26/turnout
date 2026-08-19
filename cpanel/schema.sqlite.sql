@@ -241,6 +241,7 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   bank_swift_code TEXT NULL,
   business_registration_doc_url TEXT NULL,
   bank_statement_doc_url TEXT NULL,
+  turnout_pay_docs_override INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

@@ -112,6 +112,7 @@ export type OrganizerPaidEventRequirements = {
   needsBankDetails: boolean;
   needsOwnPayhereCredentials: boolean;
   needsBillingCard: boolean;
+  turnoutDocsOverride?: boolean;
 };
 
 export type OrganizerPaidEventReadiness = {

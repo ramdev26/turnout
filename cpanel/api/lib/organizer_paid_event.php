@@ -21,6 +21,7 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'business_registration_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'bank_statement_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'turnout_pay_docs_override' => $driver === 'pgsql' ? 'SMALLINT NOT NULL DEFAULT 0' : 'TINYINT NOT NULL DEFAULT 0',
   ];
 
   if ($driver === 'sqlite') {
@@ -107,6 +108,40 @@ function organizer_profile_bank_api_fields(array $profileRow): array {
   ];
 }
 
+function organizer_turnout_pay_docs_override_enabled(array $profileRow): bool {
+  return !empty($profileRow['turnout_pay_docs_override']) && (int)$profileRow['turnout_pay_docs_override'] === 1;
+}
+
+function set_organizer_turnout_pay_docs_override(PDO $pdo, int $ownerUserId, bool $enabled): void {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $value = $enabled ? 1 : 0;
+  if ($driver === 'sqlite') {
+    $stmt = $pdo->prepare(
+      "INSERT INTO organizer_profiles (user_id, turnout_pay_docs_override, updated_at)
+       VALUES (?, ?, datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET turnout_pay_docs_override = excluded.turnout_pay_docs_override, updated_at = datetime('now')"
+    );
+    $stmt->execute([$ownerUserId, $value]);
+    return;
+  }
+  if ($driver === 'pgsql') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_profiles (user_id, turnout_pay_docs_override, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET turnout_pay_docs_override = EXCLUDED.turnout_pay_docs_override, updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$ownerUserId, $value]);
+    return;
+  }
+  $stmt = $pdo->prepare(
+    'INSERT INTO organizer_profiles (user_id, turnout_pay_docs_override, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON DUPLICATE KEY UPDATE turnout_pay_docs_override = VALUES(turnout_pay_docs_override), updated_at = CURRENT_TIMESTAMP'
+  );
+  $stmt->execute([$ownerUserId, $value]);
+}
+
 /** @param list<array<string, mixed>> $tickets */
 function tickets_include_paid_price(array $tickets): bool {
   return tickets_include_paid_or_early_bird_price($tickets);
@@ -117,11 +152,12 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
   $profileRow = load_organizer_profile_row($pdo, $ownerUserId);
   $paymentRow = organizer_payment_settings_row($pdo, $ownerUserId);
   $gatewayMode = normalize_organizer_gateway_mode((string)($paymentRow['gateway_mode'] ?? 'turnout'));
+  $turnoutDocsOverride = organizer_turnout_pay_docs_override_enabled($profileRow);
 
   $businessIncomplete = !organizer_business_details_complete($profileRow);
   // Temporarily do not block paid events on business details.
   $needsBusiness = false;
-  $needsBank = $gatewayMode === 'turnout' && !organizer_bank_details_complete($profileRow);
+  $needsBank = $gatewayMode === 'turnout' && !$turnoutDocsOverride && !organizer_bank_details_complete($profileRow);
   $needsOwnPayhere = $gatewayMode === 'own_payhere' && !organizer_own_payhere_is_configured($paymentRow);
   $needsBillingCard = $gatewayMode === 'own_payhere' && !organizer_billing_is_active($paymentRow);
 
@@ -151,6 +187,7 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
       'needsBankDetails' => $needsBank,
       'needsOwnPayhereCredentials' => $needsOwnPayhere,
       'needsBillingCard' => $needsBillingCard,
+      'turnoutDocsOverride' => $turnoutDocsOverride,
     ],
     'missing' => $missing,
     'business' => organizer_profile_business_api_fields($profileRow),
