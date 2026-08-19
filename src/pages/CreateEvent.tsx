@@ -38,7 +38,7 @@ import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardSty
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
 import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
-import { datetimeLocalToIso, defaultEarlyBirdEndLocal, ticketEffectivePrice } from '../utils/ticketPricing';
+import { datetimeLocalToIso, defaultEarlyBirdEndLocal } from '../utils/ticketPricing';
 
 const ticketTierSchema = z
   .object({
