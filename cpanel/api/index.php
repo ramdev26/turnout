@@ -834,7 +834,6 @@ function payhere_cfg(): array {
     $stmt->execute([
       'payhere_merchant_id',
       'payhere_merchant_secret_enc',
-      'payhere_sandbox',
       'payhere_app_base_url',
     ]);
     $overrides = [];
@@ -855,11 +854,6 @@ function payhere_cfg(): array {
       }
     }
 
-    $overrideSandbox = strtolower(trim((string)($overrides['payhere_sandbox'] ?? '')));
-    if ($overrideSandbox !== '') {
-      $p['sandbox'] = in_array($overrideSandbox, ['1', 'true', 'yes', 'on'], true);
-    }
-
     $overrideBase = rtrim(trim((string)($overrides['payhere_app_base_url'] ?? '')), '/');
     if ($overrideBase !== '') {
       $p['app_base_url'] = $overrideBase;
@@ -870,7 +864,8 @@ function payhere_cfg(): array {
 
   $merchantId = trim((string)($p['merchant_id'] ?? ''));
   $merchantSecret = trim((string)($p['merchant_secret'] ?? ''));
-  $sandbox = (bool)($p['sandbox'] ?? true);
+  // Live-only mode: always use PayHere production checkout endpoint.
+  $sandbox = false;
 
   if ($merchantId === '' || $merchantId === 'CHANGE_ME' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
     json_response(500, [
@@ -5637,7 +5632,6 @@ if ($path === '/admin/settings' && $method === 'POST') {
     'email_from',
     'maintenance_mode',
     'payhere_merchant_id',
-    'payhere_sandbox',
     'payhere_app_base_url',
   ];
   foreach ($allowed as $key) {

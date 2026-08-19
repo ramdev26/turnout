@@ -102,18 +102,6 @@ export const AdminSettings: React.FC = () => {
               <option value="on">On</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1.5">
-            <FlowLabel>PayHere mode</FlowLabel>
-            <select
-              value={settings.payhere_sandbox ?? 'false'}
-              onChange={(e) => onField('payhere_sandbox', e.target.value)}
-              className="rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={selectStyle}
-            >
-              <option value="false">Live</option>
-              <option value="true">Sandbox</option>
-            </select>
-          </label>
           <label className="flex flex-col gap-1.5 sm:col-span-2">
             <FlowLabel>PayHere Merchant Secret</FlowLabel>
             <FlowInput
