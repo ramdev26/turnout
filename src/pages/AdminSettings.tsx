@@ -5,12 +5,28 @@ import { FlowCard, FlowAlert, FlowButton, FlowInput, FlowLabel, APP_FLOW_UI } fr
 
 type SettingsMap = Record<string, string>;
 
+type PayhereCheckResult = {
+  accepted?: boolean;
+  blocked?: boolean;
+  conclusive?: boolean;
+  message?: string;
+  merchantId?: string;
+  merchantSecretFingerprint?: string;
+  merchantSecretLength?: number;
+  credentialSource?: string;
+  appBaseUrl?: string;
+  notifyUrl?: string;
+  checkoutUrl?: string;
+  httpStatus?: number;
+};
+
 export const AdminSettings: React.FC = () => {
   const [settings, setSettings] = useState<SettingsMap>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [payhereStatus, setPayhereStatus] = useState<string | null>(null);
+  const [payhereDetails, setPayhereDetails] = useState<PayhereCheckResult | null>(null);
   const ui = APP_FLOW_UI;
 
   const load = async () => {
@@ -55,8 +71,10 @@ export const AdminSettings: React.FC = () => {
 
   const checkPayhere = async () => {
     setPayhereStatus(null);
+    setPayhereDetails(null);
     try {
-      const res = await api.get<{ accepted?: boolean; message?: string }>('/api/admin/payhere/check');
+      const res = await api.get<PayhereCheckResult>('/api/admin/payhere/check');
+      setPayhereDetails(res);
       setPayhereStatus(res.accepted ? 'PayHere credentials accepted.' : res.message || 'PayHere check failed.');
     } catch (e: unknown) {
       const err = e as { error?: string; message?: string };
@@ -137,7 +155,9 @@ export const AdminSettings: React.FC = () => {
           PayHere integration
         </h2>
         <p className="mb-3 text-sm" style={{ color: ui.textMuted }}>
-          Verify platform PayHere credentials are accepted before going live.
+          PayHere runs in live mode. The merchant secret must be the one issued for the exact domain
+          that serves checkout — approving <code>bigturnout.co</code> does not authorize{' '}
+          <code>app.bigturnout.co</code>.
         </p>
         <FlowButton variant="secondary" onClick={() => void checkPayhere()}>
           Test PayHere credentials
@@ -146,6 +166,32 @@ export const AdminSettings: React.FC = () => {
           <p className="mt-3 text-sm" style={{ color: ui.textMuted }}>
             {payhereStatus}
           </p>
+        ) : null}
+        {payhereDetails ? (
+          <dl className="mt-3 grid gap-1.5 text-xs sm:grid-cols-2" style={{ color: ui.textMuted }}>
+            {[
+              ['Merchant ID in use', payhereDetails.merchantId],
+              ['Credential source', payhereDetails.credentialSource],
+              ['Secret fingerprint', payhereDetails.merchantSecretFingerprint],
+              ['Secret length', payhereDetails.merchantSecretLength?.toString()],
+              ['Checkout domain', payhereDetails.appBaseUrl],
+              ['Notify URL', payhereDetails.notifyUrl],
+            ].map(([label, value]) =>
+              value ? (
+                <div key={label} className="flex flex-wrap gap-1">
+                  <dt className="font-semibold">{label}:</dt>
+                  <dd className="break-all">{value}</dd>
+                </div>
+              ) : null
+            )}
+          </dl>
+        ) : null}
+        {payhereDetails?.blocked ? (
+          <FlowAlert variant="error">
+            This server-side test is inconclusive: PayHere blocks server-to-server checkout posts.
+            Confirm the values above match your live PayHere account, then test a real checkout in a
+            browser.
+          </FlowAlert>
         ) : null}
       </FlowCard>
     </AdminShell>

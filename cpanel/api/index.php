@@ -821,6 +821,8 @@ function payhere_cfg(): array {
   $cfg = get_config();
   $p = is_array($cfg['payhere'] ?? null) ? $cfg['payhere'] : [];
 
+  $secretSource = 'environment';
+
   // Allow super-admin to override platform PayHere credentials at runtime.
   // Secrets are stored encrypted in global_settings.
   try {
@@ -851,6 +853,7 @@ function payhere_cfg(): array {
       $overrideSecret = trim(decrypt_payment_secret($overrideSecretEnc));
       if ($overrideSecret !== '') {
         $p['merchant_secret'] = $overrideSecret;
+        $secretSource = 'admin settings';
       }
     }
 
@@ -870,22 +873,15 @@ function payhere_cfg(): array {
   if ($merchantId === '' || $merchantId === 'CHANGE_ME' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
     json_response(500, [
       'error' => 'payhere_missing_credentials',
-      'message' => 'Set PAYHERE_MERCHANT_ID and PAYHERE_MERCHANT_SECRET (or payhere.merchant_id / merchant_secret in config).',
+      'message' => 'PayHere live credentials are not set. Add them in Super Admin → System Settings, or set PAYHERE_MERCHANT_ID and PAYHERE_MERCHANT_SECRET.',
     ]);
   }
 
   // Merchant secrets are domain-specific in PayHere. Prefer configured APP_BASE_URL
   // (must match an approved domain in PayHere Integrations) over preview hostnames.
   $configuredBase = rtrim((string)($p['app_base_url'] ?? ''), '/');
-  // PayHere account is approved on apex domain; normalize legacy app subdomain to apex.
-  if (preg_match('#^https://app\.bigturnout\.co$#i', $configuredBase)) {
-    $configuredBase = 'https://bigturnout.co';
-  }
   $requestBase = rtrim(payhere_request_base_url(), '/');
   $appBase = $configuredBase !== '' ? $configuredBase : $requestBase;
-  if ($appBase === '') {
-    $appBase = 'https://bigturnout.co';
-  }
   if ($appBase === '') {
     json_response(500, ['error' => 'payhere_missing_app_base_url']);
   }
@@ -895,6 +891,7 @@ function payhere_cfg(): array {
     'sandbox' => $sandbox,
     'merchant_id' => $merchantId,
     'merchant_secret' => $merchantSecret,
+    'secret_source' => $secretSource,
     'notify_url' => $notifyUrl,
     'app_base_url' => $appBase,
   ];
@@ -1151,32 +1148,77 @@ function payhere_sandbox_probe(array $cfg): array {
     'country' => 'Sri Lanka',
   ];
   $url = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
+  // PayHere authorizes the domain that initiates checkout, so probe as that domain.
   $ctx = stream_context_create([
     'http' => [
       'method' => 'POST',
-      'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+      'header' => "Content-Type: application/x-www-form-urlencoded\r\n"
+        . 'Referer: ' . $base . "/\r\n"
+        . 'Origin: ' . $base . "\r\n",
       'content' => http_build_query($postFields),
       'timeout' => 15,
       'ignore_errors' => true,
     ],
   ]);
   $resp = @file_get_contents($url, false, $ctx);
+  $responseHeaders = isset($http_response_header) && is_array($http_response_header) ? $http_response_header : [];
+  $statusLine = (string)($responseHeaders[0] ?? '');
+  $httpStatus = 0;
+  if (preg_match('#HTTP/\S+\s+(\d{3})#', $statusLine, $statusMatch)) {
+    $httpStatus = (int)$statusMatch[1];
+  }
+
   $accepted = is_string($resp) && str_contains($resp, '"status":1');
-  $unauthorized = is_string($resp) && str_contains($resp, 'Unauthorized');
+  $unauthorized = is_string($resp) && stripos($resp, 'unauthorized') !== false;
+  // PayHere's checkout host sits behind a bot-protection layer that rejects
+  // server-to-server posts, so a block here says nothing about the credentials.
+  $blocked = !$accepted
+    && !$unauthorized
+    && (
+      $resp === false
+      || $httpStatus === 403
+      || $httpStatus === 503
+      || (is_string($resp) && (
+        stripos($resp, 'Just a moment') !== false
+        || stripos($resp, 'cf-browser-verification') !== false
+        || stripos($resp, 'Enable JavaScript and cookies') !== false
+      ))
+    );
   $host = parse_url($base, PHP_URL_HOST) ?: $base;
+
+  // Fingerprint only — lets us confirm which secret is loaded without exposing it.
+  $secretFingerprint = substr(strtoupper(md5(trim((string)$cfg['merchant_secret']))), 0, 8);
+  $responseSnippet = is_string($resp) ? trim((string)preg_replace('/\s+/', ' ', strip_tags($resp))) : '';
+  if (strlen($responseSnippet) > 300) {
+    $responseSnippet = substr($responseSnippet, 0, 300) . '…';
+  }
+
+  if ($accepted) {
+    $message = "PayHere accepted a live probe checkout for merchant {$merchantId} on \"{$host}\".";
+  } elseif ($unauthorized) {
+    $message = "PayHere rejected merchant {$merchantId} for \"{$host}\" as unauthorized. In PayHere (LIVE) → Settings → Domains & Credentials, approve this exact domain and use the Merchant Secret issued for it. Approving \"bigturnout.co\" does not authorize \"app.bigturnout.co\".";
+  } elseif ($blocked) {
+    $message = "Inconclusive: PayHere's bot protection blocked this server-side probe (HTTP {$httpStatus}), so it cannot verify credentials. Verify by opening a real checkout in a browser. Loaded config — merchant {$merchantId}, domain \"{$host}\", secret fingerprint {$secretFingerprint} ({$cfg['secret_source']}).";
+  } else {
+    $message = "PayHere did not accept the probe for merchant {$merchantId} on \"{$host}\". Confirm the merchant ID and secret belong to the same LIVE account and that this exact domain is approved.";
+  }
 
   return [
     'accepted' => $accepted,
     'unauthorized' => $unauthorized,
+    'blocked' => $blocked,
+    'conclusive' => $accepted || $unauthorized,
+    'httpStatus' => $httpStatus,
     'sandbox' => (bool)$cfg['sandbox'],
     'merchantId' => $merchantId,
+    'merchantSecretFingerprint' => $secretFingerprint,
+    'merchantSecretLength' => strlen(trim((string)$cfg['merchant_secret'])),
+    'credentialSource' => (string)($cfg['secret_source'] ?? 'unknown'),
+    'checkoutUrl' => $url,
+    'gatewayResponse' => $responseSnippet,
     'appBaseUrl' => $base,
     'notifyUrl' => $cfg['notify_url'],
-    'message' => $accepted
-      ? 'PayHere accepted a probe checkout with the configured credentials.'
-      : ($unauthorized
-        ? "PayHere returned Unauthorized. In sandbox PayHere → Integrations, approve domain \"{$host}\", copy the Merchant Secret for that domain, and set PAYHERE_MERCHANT_ID + PAYHERE_MERCHANT_SECRET (must match the same PayHere account; current merchant {$merchantId})."
-        : 'PayHere did not accept the probe checkout. Verify merchant ID, secret, and domain approval.'),
+    'message' => $message,
   ];
 }
 
