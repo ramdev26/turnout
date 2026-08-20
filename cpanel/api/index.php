@@ -763,6 +763,12 @@ function payhere_fulfill_paid_order(PDO $pdo, int $orderId, ?string $paymentId =
     $paymentId !== null && $paymentId !== '' ? $paymentId : null
   );
   send_order_confirmation_email($pdo, $orderId);
+  // SMS is best-effort; payment fulfillment must not fail on SMS provider issues.
+  try {
+    send_order_confirmation_sms($pdo, $orderId);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] order sms failed order=%d: %s', $orderId, $e->getMessage()));
+  }
 }
 
 /** Complete a pending order when PayHere logged a successful charge but notify fulfillment failed. */
@@ -3330,6 +3336,11 @@ if ($path === '/orders' && $method === 'POST') {
     $pdo->commit();
 
     send_order_confirmation_email($pdo, $orderId);
+    try {
+      send_order_confirmation_sms($pdo, $orderId);
+    } catch (Throwable $e) {
+      error_log(sprintf('[turnout] free order sms failed order=%d: %s', $orderId, $e->getMessage()));
+    }
 
     json_response(201, [
       'orderId' => (string)$orderId,
@@ -4439,6 +4450,11 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST')
       send_order_confirmation_email($pdo, $orderId);
     } catch (Throwable $e) {
       error_log(sprintf('[turnout] manual attendee email failed order=%d: %s', $orderId, $e->getMessage()));
+    }
+    try {
+      send_order_confirmation_sms($pdo, $orderId);
+    } catch (Throwable $e) {
+      error_log(sprintf('[turnout] manual attendee sms failed order=%d: %s', $orderId, $e->getMessage()));
     }
   }
 
