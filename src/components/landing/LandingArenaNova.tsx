@@ -20,11 +20,9 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
-  TicketPriceDisplay,
   useCountdown,
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
-import { ticketLineTotal } from '../../utils/ticketPricing';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveArenaCarouselSlides } from './arenaGallery';
 import { VenueMapEmbed } from './VenueMapEmbed';
@@ -311,7 +309,7 @@ function ArenaNovaTicketCard({
           <h3 className="landing-arena-ticket-name">{ticket.name}</h3>
           <p className="landing-arena-ticket-desc">{desc}</p>
           <p className="landing-arena-ticket-price">
-            <TicketPriceDisplay ticket={ticket} />
+            {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
           </p>
         </div>
       </div>
@@ -360,7 +358,7 @@ function ArenaNovaSummary({
             <span style={{ color: 'var(--arena-muted)' }}>
               {t.name} ×{selectedTickets[t.id]}
             </span>
-            <span className="font-bold tabular-nums">{formatLKRWhole(ticketLineTotal(t, selectedTickets[t.id]))}</span>
+            <span className="font-bold tabular-nums">{formatLKRWhole(t.price * selectedTickets[t.id])}</span>
           </div>
         ))}
       </div>
