@@ -9,6 +9,7 @@ import {
   LandingTopBar,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  TicketPriceDisplay,
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
 import { resolveEventCategory } from '../../themes/eventCategories';
@@ -183,9 +184,15 @@ function GatherRegisterCard({
                 <div key={ticket.id} className="gt-ticket">
                   <div className="gt-ticket-info">
                     <p className="gt-ticket-name">{ticket.name}</p>
-                    <p className="gt-ticket-price">
-                      {soldOut ? 'Sold out' : ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}
-                    </p>
+                    <div className="gt-ticket-price">
+                      {soldOut ? (
+                        'Sold out'
+                      ) : ticket.price <= 0 && !ticket.earlyBird?.active ? (
+                        'Free'
+                      ) : (
+                        <TicketPriceDisplay ticket={ticket} size="sm" />
+                      )}
+                    </div>
                   </div>
                   <div className="gt-qty">
                     <button

@@ -165,6 +165,7 @@ export const AdminOrganizers: React.FC = () => {
   const [commissionMode, setCommissionMode] = useState<'percentage' | 'flat_per_ticket'>('percentage');
   const [commissionValue, setCommissionValue] = useState<string>('10');
   const [savingCommission, setSavingCommission] = useState(false);
+  const [savingOverride, setSavingOverride] = useState(false);
 
   const load = useCallback(
     async (opts?: { background?: boolean }) => {
@@ -272,6 +273,31 @@ export const AdminOrganizers: React.FC = () => {
       setError(err?.message || err?.error || 'Failed to update commission');
     } finally {
       setSavingCommission(false);
+    }
+  };
+
+  const setTurnoutPayOverride = async (organizerId: string, enabled: boolean) => {
+    setSavingOverride(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await api.post<{ readiness: OrganizerPaidEventReadiness }>(
+        `/api/admin/organizers/${organizerId}/turnout-pay-override`,
+        { enabled },
+      );
+      setDetail((prev) => (prev ? { ...prev, readiness: res.readiness } : prev));
+      setMessage(
+        enabled
+          ? 'Turnout Pay override enabled. Organizer can sell paid tickets without KYC docs.'
+          : 'Turnout Pay override disabled.',
+      );
+      await load({ background: true });
+      if (selectedId === organizerId) await loadDetail(organizerId);
+    } catch (e: unknown) {
+      const err = e as { error?: string; message?: string };
+      setError(err?.message || err?.error || 'Failed to update Turnout Pay override');
+    } finally {
+      setSavingOverride(false);
     }
   };
 
@@ -508,6 +534,34 @@ export const AdminOrganizers: React.FC = () => {
                       </ul>
                     </div>
                   ) : null}
+                  <div className="mt-4 rounded-lg border p-3" style={cardMutedStyleFor(ui)}>
+                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                      Turnout Pay admin override
+                    </p>
+                    <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                      Allow this organizer to use Turnout Pay even without uploaded documents.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <FlowButton
+                        size="sm"
+                        disabled={savingOverride || !!detail.readiness.requirements.turnoutDocsOverride}
+                        onClick={() => void setTurnoutPayOverride(detail.user.id, true)}
+                      >
+                        {savingOverride ? 'Saving…' : 'Allow without docs'}
+                      </FlowButton>
+                      <FlowButton
+                        size="sm"
+                        variant="ghost"
+                        disabled={savingOverride || !detail.readiness.requirements.turnoutDocsOverride}
+                        onClick={() => void setTurnoutPayOverride(detail.user.id, false)}
+                      >
+                        Remove override
+                      </FlowButton>
+                    </div>
+                    {detail.readiness.requirements.turnoutDocsOverride ? (
+                      <p className="mt-2 text-xs font-medium text-amber-500">Override active</p>
+                    ) : null}
+                  </div>
                 </DetailSection>
 
                 <DetailSection title="Business & bank" icon={<Building2 className="h-4 w-4" />}>

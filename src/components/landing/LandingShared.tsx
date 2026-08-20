@@ -12,6 +12,7 @@ import {
 import { Event, Ticket as EventTicket } from '../../types';
 import { toApiUrl } from '../../api/client';
 import { formatLKRWhole } from '../../utils/money';
+import { formatEarlyBirdEndsLabel, ticketEffectivePrice, ticketHasEarlyBirdOffer, ticketLineTotal } from '../../utils/ticketPricing';
 import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
 import { EventPolicyLink } from './EventPolicyViewer';
 import { isOnlineEvent } from '../../utils/eventLocation';
@@ -68,6 +69,38 @@ export function ticketRemaining(ticket: EventTicket): number {
 
 export function isTicketSoldOut(ticket: EventTicket): boolean {
   return ticketRemaining(ticket) <= 0;
+}
+
+export function TicketPriceDisplay({
+  ticket,
+  size = 'md',
+}: {
+  ticket: EventTicket;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const active = Boolean(ticket.earlyBird?.active);
+  const sizeClass = size === 'lg' ? 'text-lg sm:text-xl' : size === 'sm' ? 'text-sm' : 'text-base';
+  if (ticket.price <= 0 && !active) {
+    return <span className={`landing-display ${sizeClass}`}>Complimentary</span>;
+  }
+  return (
+    <div>
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className={`landing-display ${sizeClass}`} style={{ color: 'var(--showcase-accent)' }}>
+          {formatLKRWhole(ticketEffectivePrice(ticket))}
+        </span>
+        {active && ticketHasEarlyBirdOffer(ticket) ? (
+          <span className="text-sm line-through opacity-60">{formatLKRWhole(ticket.price)}</span>
+        ) : null}
+      </div>
+      {active && ticket.earlyBird ? (
+        <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-emerald-600">
+          Early bird · {ticket.earlyBird.remaining} left
+          {ticket.earlyBird.endAt ? ` · ends ${formatEarlyBirdEndsLabel(ticket.earlyBird.endAt)}` : ''}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export const landingShellStyle = (): React.CSSProperties => ({
@@ -479,9 +512,7 @@ export function TicketsList({
                   <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {ticket.description || 'Full event access'}
                   </p>
-                  <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
-                  </p>
+                  <TicketPriceDisplay ticket={ticket} size="lg" />
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 sm:pt-1">
@@ -567,7 +598,7 @@ export function CheckoutPanel({
                   {t.name} ×{selectedTickets[t.id]}
                 </span>
                 <span className="font-semibold tabular-nums" style={{ color: 'var(--landing-text)' }}>
-                  {formatLKRWhole(t.price * selectedTickets[t.id])}
+                  {formatLKRWhole(ticketLineTotal(t, selectedTickets[t.id]))}
                 </span>
               </div>
             ))}

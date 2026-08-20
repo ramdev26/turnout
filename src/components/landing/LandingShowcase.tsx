@@ -21,10 +21,12 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  TicketPriceDisplay,
   useCountdown,
 } from './LandingShared';
 import { EventPolicyLink } from './EventPolicyViewer';
 import { formatLKRWhole } from '../../utils/money';
+import { ticketLineTotal } from '../../utils/ticketPricing';
 import { isOnlineEvent } from '../../utils/eventLocation';
 
 function splitHeroTitle(title: string): { accent: string; main: string } {
@@ -334,9 +336,7 @@ function ShowcaseTickets({
                   <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {summary}
                   </p>
-                  <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
-                  </p>
+                  <TicketPriceDisplay ticket={ticket} size="lg" />
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 sm:pt-1">
@@ -432,7 +432,7 @@ function ShowcaseCheckout({
                   {t.name} ×{selectedTickets[t.id]}
                 </span>
                 <span className="font-semibold tabular-nums" style={{ color: 'var(--landing-text)' }}>
-                  {formatLKRWhole(t.price * selectedTickets[t.id])}
+                  {formatLKRWhole(ticketLineTotal(t, selectedTickets[t.id]))}
                 </span>
               </div>
             ))}

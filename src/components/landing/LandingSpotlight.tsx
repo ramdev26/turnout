@@ -21,10 +21,12 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  TicketPriceDisplay,
   useCountdown,
 } from './LandingShared';
 import { VenueMapEmbed } from './VenueMapEmbed';
 import { formatLKRWhole } from '../../utils/money';
+import { ticketEffectivePrice } from '../../utils/ticketPricing';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import {
@@ -37,7 +39,7 @@ import {
 function lowestAvailablePrice(tickets: EventTicket[]): number | null {
   const available = tickets.filter((t) => ticketRemaining(t) > 0);
   if (available.length === 0) return null;
-  return Math.min(...available.map((t) => t.price));
+  return Math.min(...available.map((t) => ticketEffectivePrice(t)));
 }
 
 function formatFromPrice(tickets: EventTicket[]): string {
@@ -263,7 +265,7 @@ function SpotlightTicketRow({
           </div>
           <p className="sp-ticket-desc">{desc}</p>
         </div>
-        <p className="sp-ticket-price">{ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}</p>
+        <TicketPriceDisplay ticket={ticket} size="sm" />
       </div>
       <div className="sp-ticket-action">
         <div className="sp-stepper">
