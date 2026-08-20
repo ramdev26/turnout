@@ -51,6 +51,16 @@ import { absoluteAppUrl } from '../lib/publicAppUrl';
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 import { TurnoutColorPicker } from '../components/ui/TurnoutColorPicker';
 import { DEFAULT_EVENT_POLICY_HTML, resolveEventPolicyHtml } from '../utils/eventPolicy';
+import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
+import { TicketBulkOffersFields } from '../components/organizer/TicketBulkOffersFields';
+import {
+  bulkOffersFromTicket,
+  bulkOffersPayloadFromForm,
+  defaultTicketEarlyBirdForm,
+  earlyBirdFromTicket,
+  earlyBirdPayloadFromForm,
+  ticketEffectivePrice,
+} from '../utils/ticketPricing';
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -195,12 +205,21 @@ export const EventSettings: React.FC = () => {
   const [ticketPdfAccentColor, setTicketPdfAccentColor] = useState('#10b981');
   const [ticketPdfBadgeText, setTicketPdfBadgeText] = useState('VIP ACCESS');
   const [ticketPdfFooterNote, setTicketPdfFooterNote] = useState('Please bring this ticket and a valid ID.');
-  const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantity: 100, description: '' });
+  const [ticketForm, setTicketForm] = useState({
+    name: '',
+    price: 0,
+    quantity: 100,
+    description: '',
+    ...defaultTicketEarlyBirdForm(),
+    bulkOffers: [] as { qty: number; price: number }[],
+  });
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const [eventPolicyHtml, setEventPolicyHtml] = useState(DEFAULT_EVENT_POLICY_HTML);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
+  const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
+  const [eventStats, setEventStats] = useState({ soldTickets: 0, totalRevenue: 0 });
 
   const ui = APP_FLOW_UI;
   const cardStyle = cardStyleFor(ui);
@@ -297,15 +316,20 @@ export const EventSettings: React.FC = () => {
       setAllowPayhere(payhereOn);
       setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer || !!pm?.bankTransfer);
 
-      const [ticketsRes, attendeesRes] = await Promise.all([
+      const [ticketsRes, attendeesRes, statsRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
         api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number; pending: number } }>(
           `/api/events/${eventId}/attendees?limit=1`
         ),
+        api.get<{ stats: { soldTickets: number; totalRevenue: number } }>(`/api/events/${eventId}/stats`),
       ]);
       setTickets(ticketsRes.tickets);
       setAttendees(attendeesRes.attendees);
       setAttendeeStats(attendeesRes.stats ?? { total: attendeesRes.attendees.length, checkedIn: 0, pending: 0 });
+      setEventStats({
+        soldTickets: statsRes.stats.soldTickets,
+        totalRevenue: statsRes.stats.totalRevenue,
+      });
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to load event');
     } finally {
@@ -333,9 +357,8 @@ export const EventSettings: React.FC = () => {
     () => (eventId ? absoluteAppUrl(`/staff/checkin/${eventId}`) : ''),
     [eventId]
   );
-  const soldTickets = useMemo(() => tickets.reduce((sum, t) => sum + t.sold, 0), [tickets]);
-  const totalRevenue = useMemo(() => tickets.reduce((sum, t) => sum + t.sold * t.price, 0), [tickets]);
-  const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
+  const soldTickets = eventStats.soldTickets;
+  const totalRevenue = eventStats.totalRevenue;
   const checkedInCount = attendeeStats.checkedIn;
   const attendeeTotal = attendeeStats.total;
   const readinessScore = useMemo(() => {
@@ -668,8 +691,15 @@ export const EventSettings: React.FC = () => {
 
   const refreshTickets = async () => {
     if (!eventId) return;
-    const res = await api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`);
-    setTickets(res.tickets);
+    const [ticketsRes, statsRes] = await Promise.all([
+      api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
+      api.get<{ stats: { soldTickets: number; totalRevenue: number } }>(`/api/events/${eventId}/stats`),
+    ]);
+    setTickets(ticketsRes.tickets);
+    setEventStats({
+      soldTickets: statsRes.stats.soldTickets,
+      totalRevenue: statsRes.stats.totalRevenue,
+    });
   };
 
   const saveTicket = async () => {
@@ -677,21 +707,43 @@ export const EventSettings: React.FC = () => {
       setError('Ticket name is required');
       return;
     }
-    if (ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
+    const maxBulkPrice = ticketForm.bulkOffers.reduce((max, offer) => Math.max(max, Number(offer.price) || 0), 0);
+    const paidAmount = Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0, maxBulkPrice);
+    if (paidAmount > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
       setError('Complete business and payment setup in Organization settings before adding paid tickets.');
+      return;
+    }
+    if (
+      ticketForm.earlyBirdEnabled &&
+      ticketForm.price > 0 &&
+      ticketForm.earlyBirdPrice >= ticketForm.price
+    ) {
+      setError('Early bird price must be lower than the standard price.');
+      return;
+    }
+    if (ticketForm.earlyBirdEnabled && ticketForm.earlyBirdLimit > ticketForm.quantity) {
+      setError('Early bird limit cannot exceed tier capacity.');
       return;
     }
     setSavingTicket(true);
     setError(null);
     try {
+      const payload = {
+        name: ticketForm.name,
+        price: ticketForm.price,
+        quantity: ticketForm.quantity,
+        description: ticketForm.description,
+        ...earlyBirdPayloadFromForm(ticketForm),
+        ...bulkOffersPayloadFromForm(ticketForm.bulkOffers),
+      };
       if (editingTicketId) {
-        await api.post(`/api/events/${eventId}/tickets/${editingTicketId}`, ticketForm);
+        await api.post(`/api/events/${eventId}/tickets/${editingTicketId}`, payload);
       } else {
-        await api.post(`/api/events/${eventId}/tickets`, ticketForm);
+        await api.post(`/api/events/${eventId}/tickets`, payload);
       }
       await refreshTickets();
       setEditingTicketId(null);
-      setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
+      setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm(), bulkOffers: [] });
       setFeedback('Tickets updated.');
     } catch (e: any) {
       if (e?.error === 'paid_event_setup_required') {
@@ -712,7 +764,7 @@ export const EventSettings: React.FC = () => {
       await refreshTickets();
       if (editingTicketId === ticketId) {
         setEditingTicketId(null);
-        setTicketForm({ name: '', price: 0, quantity: 100, description: '' });
+        setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm(), bulkOffers: [] });
       }
     } catch (e: any) {
       setError(e?.error || 'Failed to delete ticket');
@@ -866,7 +918,7 @@ export const EventSettings: React.FC = () => {
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-            {design.templateId === 'template-6' ? (
+            {design.templateId === 'template-6' || design.templateId === 'template-10' ? (
               <ArenaGalleryEditor
                 images={arenaGalleryImages}
                 disabled={savingBranding}
@@ -1176,7 +1228,26 @@ export const EventSettings: React.FC = () => {
                           {ticket.name}
                         </p>
                         <p className="text-sm" style={{ color: ui.textMuted }}>
-                          {formatLKR(ticket.price)} · {ticket.sold}/{ticket.quantity} sold
+                          {formatLKR(ticketEffectivePrice(ticket))}
+                          {ticket.earlyBird?.active ? (
+                            <span className="ml-1 text-xs text-emerald-600">Early bird</span>
+                          ) : ticket.earlyBird ? (
+                            <span className="ml-1 text-xs" style={{ color: ui.textSubtle }}>
+                              (std {formatLKR(ticket.price)})
+                            </span>
+                          ) : null}
+                          {' · '}
+                          {ticket.sold}/{ticket.quantity} sold
+                          {ticket.bulkOffers && ticket.bulkOffers.length > 0 ? (
+                            <span className="block text-xs" style={{ color: ui.textSubtle }}>
+                              {ticket.bulkOffers.map((o) => `${o.qty} for ${formatLKR(o.price)}`).join(' · ')}
+                            </span>
+                          ) : null}
+                          {ticket.earlyBird ? (
+                            <span className="block text-xs" style={{ color: ui.textSubtle }}>
+                              Early bird: {ticket.earlyBird.sold}/{ticket.earlyBird.limit} sold
+                            </span>
+                          ) : null}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -1189,6 +1260,8 @@ export const EventSettings: React.FC = () => {
                               price: ticket.price,
                               quantity: ticket.quantity,
                               description: ticket.description || '',
+                              ...earlyBirdFromTicket(ticket),
+                              bulkOffers: bulkOffersFromTicket(ticket),
                             });
                           }}
                           className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
@@ -1209,7 +1282,9 @@ export const EventSettings: React.FC = () => {
                 ))}
               </div>
 
-              {ticketForm.price > 0 && paidEventReadiness && !paidEventReadiness.isReady ? (
+              {Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0) > 0 &&
+              paidEventReadiness &&
+              !paidEventReadiness.isReady ? (
                 <div className="mt-4">
                   <PaidEventSetupGate readiness={paidEventReadiness} title="Paid ticket setup required" />
                 </div>
@@ -1227,7 +1302,7 @@ export const EventSettings: React.FC = () => {
                   type="number"
                   min={0}
                   step="0.01"
-                  placeholder="Price (LKR)"
+                  placeholder="Standard price (LKR)"
                   value={ticketForm.price}
                   onChange={(e) => setTicketForm((p) => ({ ...p, price: Number(e.target.value) }))}
                   className={fieldClass}
@@ -1250,6 +1325,25 @@ export const EventSettings: React.FC = () => {
                   style={fieldStyle}
                 />
               </div>
+              <TicketEarlyBirdFields
+                ui={ui}
+                idPrefix="settings-tier"
+                standardPrice={ticketForm.price}
+                totalQuantity={ticketForm.quantity}
+                values={{
+                  earlyBirdEnabled: ticketForm.earlyBirdEnabled,
+                  earlyBirdPrice: ticketForm.earlyBirdPrice,
+                  earlyBirdEndAt: ticketForm.earlyBirdEndAt,
+                  earlyBirdLimit: ticketForm.earlyBirdLimit,
+                }}
+                onChange={(patch) => setTicketForm((p) => ({ ...p, ...patch }))}
+              />
+              <TicketBulkOffersFields
+                ui={ui}
+                standardPrice={ticketForm.price}
+                offers={ticketForm.bulkOffers}
+                onChange={(next) => setTicketForm((p) => ({ ...p, bulkOffers: next }))}
+              />
               <button
                 type="button"
                 onClick={saveTicket}
