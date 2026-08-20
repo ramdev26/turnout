@@ -30,8 +30,15 @@ export const config = {
 
 function isSocialCrawler(userAgent: string): boolean {
   const ua = userAgent.toLowerCase();
-  return [
-    'whatsapp',
+  if (!ua) return false;
+
+  const looksLikeBrowser =
+    ua.includes('mozilla') ||
+    ua.includes('applewebkit') ||
+    ua.includes('chrome') ||
+    ua.includes('safari');
+
+  const knownBots = [
     'facebookexternalhit',
     'facebot',
     'twitterbot',
@@ -47,7 +54,11 @@ function isSocialCrawler(userAgent: string): boolean {
     'pinterest',
     'redditbot',
     'applebot',
-  ].some((token) => ua.includes(token));
+  ];
+  if (knownBots.some((token) => ua.includes(token))) return true;
+
+  // WhatsApp preview bots are non-browser UAs; WhatsApp in-app browsers are not.
+  return ua.includes('whatsapp') && !looksLikeBrowser;
 }
 
 export default async function middleware(request: Request) {

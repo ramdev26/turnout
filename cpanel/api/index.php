@@ -136,8 +136,14 @@ function html_escape(string $value): string {
 function is_social_crawler_request(): bool {
   $ua = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
   if ($ua === '') return false;
+
+  // Real browsers (including WhatsApp/Facebook in-app) usually include these tokens.
+  $looksLikeBrowser = str_contains($ua, 'mozilla')
+    || str_contains($ua, 'applewebkit')
+    || str_contains($ua, 'chrome')
+    || str_contains($ua, 'safari');
+
   foreach ([
-    'whatsapp',
     'facebookexternalhit',
     'facebot',
     'twitterbot',
@@ -156,6 +162,10 @@ function is_social_crawler_request(): bool {
   ] as $token) {
     if (str_contains($ua, $token)) return true;
   }
+
+  // WhatsApp link-preview bots do not look like browsers; in-app browsers do.
+  if (str_contains($ua, 'whatsapp') && !$looksLikeBrowser) return true;
+
   return false;
 }
 
@@ -235,25 +245,24 @@ function maybe_serve_event_share_preview(string $path, string $method): void {
   if ($method !== 'GET' && $method !== 'HEAD') return;
 
   $slug = trim((string)($_GET['share_slug'] ?? ''));
-  $forceSharePath = $slug !== '';
+  $fromShareEndpoint = $slug !== '';
   if ($slug === '' && preg_match('#^/share/e/([^/]+)$#', $path, $m)) {
     $slug = rawurldecode((string)$m[1]);
-    $forceSharePath = true;
+    $fromShareEndpoint = true;
   } elseif ($slug === '' && preg_match('#^/e/([^/]+)$#', $path, $m)) {
     $slug = rawurldecode((string)$m[1]);
-  } elseif ($slug === '') {
-    $reqUri = (string)($_SERVER['REQUEST_URI'] ?? '');
-    if (preg_match('#(?:^|/)share/e/([^/?#]+)#', $reqUri, $m)) {
-      $slug = rawurldecode((string)$m[1]);
-      $forceSharePath = true;
-    } elseif (preg_match('#(?:^|/)e/([^/?#]+)#', $reqUri, $m)) {
-      $slug = rawurldecode((string)$m[1]);
-    }
   }
 
   $slug = trim($slug);
   if ($slug === '') return;
-  if (!$forceSharePath && !is_social_crawler_request()) return;
+
+  $isCrawler = is_social_crawler_request();
+  // Never serve the crawler HTML document to a real browser — send them to the SPA.
+  if ($fromShareEndpoint && !$isCrawler) {
+    header('Location: /e/' . rawurlencode($slug), true, 302);
+    exit;
+  }
+  if (!$isCrawler) return;
 
   try {
     $pdo = db();

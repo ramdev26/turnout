@@ -24,7 +24,18 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(whatsapp|facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|telegrambot|skypeuripreview|googlebot|bingbot|embedly|quora link preview|pinterest|redditbot|applebot).*"
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|telegrambot|skypeuripreview|embedly|quora link preview|pinterest|redditbot|googlebot|bingbot|applebot).*"
+        }
+      ],
+      "dest": "/api/index.php?share_slug=$1"
+    },
+    {
+      "src": "^/e/([^/?#]+)/?$",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i)^(?!.*(?:mozilla|applewebkit|chrome|safari)).*whatsapp.*"
         }
       ],
       "dest": "/api/index.php?share_slug=$1"
