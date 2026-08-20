@@ -42,6 +42,11 @@ function isSocialCrawler(userAgent: string): boolean {
     'skypeuripreview',
     'googlebot',
     'bingbot',
+    'embedly',
+    'quora link preview',
+    'pinterest',
+    'redditbot',
+    'applebot',
   ].some((token) => ua.includes(token));
 }
 
@@ -54,7 +59,7 @@ export default async function middleware(request: Request) {
     const userAgent = request.headers.get('user-agent') || '';
     if (isSocialCrawler(userAgent)) {
       const slug = shareSlugMatch[1];
-      return rewrite(new URL(`/api/share/e/${encodeURIComponent(slug)}`, url.origin));
+      return rewrite(new URL(`/api/index.php?share_slug=${encodeURIComponent(slug)}`, url.origin));
     }
   }
 

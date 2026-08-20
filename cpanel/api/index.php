@@ -109,21 +109,6 @@ if ($path === '/uploads/organizer-document' && $method === 'POST') {
   handle_organizer_doc_upload_post($kind);
 }
 
-if (preg_match('#^/share/e/([^/]+)$#', $path, $shareMatch) && $method === 'GET') {
-  $slug = trim((string)$shareMatch[1]);
-  $pdo = db();
-  $stmt = $pdo->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
-  $stmt->execute([$slug]);
-  $row = $stmt->fetch();
-  if (!$row || !is_event_publicly_visible($row)) {
-    http_response_code(404);
-    echo 'not_found';
-    exit;
-  }
-  $event = map_public_event_row($row, $pdo);
-  render_share_meta_page($event);
-}
-
 function slugify(string $s): string {
   $s = strtolower(trim($s));
   $s = preg_replace('/[^a-z0-9]+/', '-', $s);
@@ -148,37 +133,78 @@ function html_escape(string $value): string {
   return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function is_social_crawler_request(): bool {
+  $ua = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+  if ($ua === '') return false;
+  foreach ([
+    'whatsapp',
+    'facebookexternalhit',
+    'facebot',
+    'twitterbot',
+    'linkedinbot',
+    'slackbot',
+    'discordbot',
+    'telegrambot',
+    'skypeuripreview',
+    'googlebot',
+    'bingbot',
+    'embedly',
+    'quora link preview',
+    'pinterest',
+    'redditbot',
+    'applebot',
+  ] as $token) {
+    if (str_contains($ua, $token)) return true;
+  }
+  return false;
+}
+
 function absolute_public_url(string $url): string {
   $url = trim($url);
   if ($url === '') return '';
   if (preg_match('#^https?://#i', $url)) return $url;
-  $base = payhere_request_base_url();
-  if ($base === '') return $url;
-  return rtrim($base, '/') . '/' . ltrim($url, '/');
+  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+  if ($host === '') return $url;
+  $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+  return ($https ? 'https' : 'http') . '://' . $host . '/' . ltrim($url, '/');
+}
+
+function share_meta_description(string $raw): string {
+  $text = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+  $text = preg_replace('/\s+/u', ' ', trim($text)) ?? '';
+  if ($text === '') {
+    return 'View event details and tickets on Turnout.';
+  }
+  if (mb_strlen($text) > 220) {
+    return rtrim(mb_substr($text, 0, 217)) . '...';
+  }
+  return $text;
 }
 
 function render_share_meta_page(array $event): void {
   $eventTitle = trim((string)($event['title'] ?? 'Event'));
   $organizerName = trim((string)($event['organizerName'] ?? 'Organizer'));
   $metaTitle = trim($eventTitle . ' | ' . $organizerName);
-  if ($metaTitle === '|') $metaTitle = 'Turnout Event';
-  $description = trim((string)($event['description'] ?? ''));
-  if ($description === '') {
-    $description = 'View event details and tickets on Turnout.';
-  }
+  if ($metaTitle === '|' || $metaTitle === '') $metaTitle = 'Turnout Event';
+  $description = share_meta_description((string)($event['description'] ?? ''));
 
   $imageUrl = absolute_public_url((string)($event['bannerUrl'] ?? ''));
   $slug = trim((string)($event['slug'] ?? ''));
-  $origin = rtrim(payhere_request_base_url(), '/');
-  $canonical = $origin !== '' ? ($origin . '/e/' . rawurlencode($slug)) : '';
+  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+  $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+  $origin = $host !== '' ? (($https ? 'https' : 'http') . '://' . $host) : '';
+  $canonical = ($origin !== '' && $slug !== '') ? ($origin . '/e/' . rawurlencode($slug)) : '';
 
   header('Content-Type: text/html; charset=utf-8');
-  header('Cache-Control: public, max-age=300');
+  header('Cache-Control: public, max-age=60, s-maxage=300');
   echo '<!doctype html><html lang="en"><head>';
   echo '<meta charset="utf-8" />';
   echo '<meta name="viewport" content="width=device-width, initial-scale=1" />';
   echo '<title>' . html_escape($metaTitle) . '</title>';
   echo '<meta name="description" content="' . html_escape($description) . '" />';
+  echo '<meta property="og:site_name" content="Turnout" />';
   echo '<meta property="og:type" content="website" />';
   echo '<meta property="og:title" content="' . html_escape($metaTitle) . '" />';
   echo '<meta property="og:description" content="' . html_escape($description) . '" />';
@@ -188,22 +214,70 @@ function render_share_meta_page(array $event): void {
   }
   if ($imageUrl !== '') {
     echo '<meta property="og:image" content="' . html_escape($imageUrl) . '" />';
+    echo '<meta property="og:image:secure_url" content="' . html_escape($imageUrl) . '" />';
+    echo '<meta property="og:image:alt" content="' . html_escape($eventTitle) . '" />';
     echo '<meta name="twitter:image" content="' . html_escape($imageUrl) . '" />';
   }
   echo '<meta name="twitter:card" content="summary_large_image" />';
   echo '<meta name="twitter:title" content="' . html_escape($metaTitle) . '" />';
   echo '<meta name="twitter:description" content="' . html_escape($description) . '" />';
   echo '</head><body>';
+  echo '<h1>' . html_escape($metaTitle) . '</h1>';
+  echo '<p>' . html_escape($description) . '</p>';
   if ($canonical !== '') {
-    echo '<script>window.location.replace(' . json_encode($canonical, JSON_UNESCAPED_SLASHES) . ');</script>';
-    echo '<noscript><meta http-equiv="refresh" content="0; url=' . html_escape($canonical) . '" /></noscript>';
-    echo '<p>Redirecting… <a href="' . html_escape($canonical) . '">Continue</a></p>';
-  } else {
-    echo '<p>Event preview.</p>';
+    echo '<p><a href="' . html_escape($canonical) . '">Open event</a></p>';
   }
   echo '</body></html>';
   exit;
 }
+
+function maybe_serve_event_share_preview(string $path, string $method): void {
+  if ($method !== 'GET' && $method !== 'HEAD') return;
+
+  $slug = trim((string)($_GET['share_slug'] ?? ''));
+  $forceSharePath = $slug !== '';
+  if ($slug === '' && preg_match('#^/share/e/([^/]+)$#', $path, $m)) {
+    $slug = rawurldecode((string)$m[1]);
+    $forceSharePath = true;
+  } elseif ($slug === '' && preg_match('#^/e/([^/]+)$#', $path, $m)) {
+    $slug = rawurldecode((string)$m[1]);
+  } elseif ($slug === '') {
+    $reqUri = (string)($_SERVER['REQUEST_URI'] ?? '');
+    if (preg_match('#(?:^|/)share/e/([^/?#]+)#', $reqUri, $m)) {
+      $slug = rawurldecode((string)$m[1]);
+      $forceSharePath = true;
+    } elseif (preg_match('#(?:^|/)e/([^/?#]+)#', $reqUri, $m)) {
+      $slug = rawurldecode((string)$m[1]);
+    }
+  }
+
+  $slug = trim($slug);
+  if ($slug === '') return;
+  if (!$forceSharePath && !is_social_crawler_request()) return;
+
+  try {
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
+    $stmt->execute([$slug]);
+    $row = $stmt->fetch();
+    if (!$row || !is_event_publicly_visible($row)) {
+      http_response_code(404);
+      header('Content-Type: text/plain; charset=utf-8');
+      echo 'not_found';
+      exit;
+    }
+    $event = map_public_event_row($row, $pdo);
+    render_share_meta_page($event);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] share preview failed for %s: %s', $slug, $e->getMessage()));
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'share_preview_error';
+    exit;
+  }
+}
+
+maybe_serve_event_share_preview($path, $method);
 
 function ensure_event_runbook_table(PDO $pdo): void {
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);

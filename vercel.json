@@ -19,6 +19,17 @@
       "dest": "/api/index.php"
     },
     {
+      "src": "^/e/([^/?#]+)/?$",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(whatsapp|facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|telegrambot|skypeuripreview|googlebot|bingbot|embedly|quora link preview|pinterest|redditbot|applebot).*"
+        }
+      ],
+      "dest": "/api/index.php?share_slug=$1"
+    },
+    {
       "src": "^/landing$",
       "dest": "/turnout-landing.html"
     },
