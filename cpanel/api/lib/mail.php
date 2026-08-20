@@ -610,7 +610,6 @@ function send_organizer_sale_notification_email(
   $paymentMode = htmlspecialchars(mail_payment_mode_label($order['payment_method'] ?? null));
   $bookingAt = htmlspecialchars(mail_format_booking_datetime((string)($order['created_at'] ?? '')));
   $dashboardUrl = mail_organizer_event_dashboard_url($eventId);
-  $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
 
   $attendeeLines = '';
   foreach ($attendees as $a) {
