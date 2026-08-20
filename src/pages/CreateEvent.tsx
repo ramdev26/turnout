@@ -37,12 +37,67 @@ import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
+import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
+import { TicketBulkOffersFields } from '../components/organizer/TicketBulkOffersFields';
+import { bulkOffersPayloadFromForm, datetimeLocalToIso, defaultEarlyBirdEndLocal } from '../utils/ticketPricing';
 
-const ticketTierSchema = z.object({
-  name: z.string().min(1, 'Tier name is required'),
-  price: z.number().min(0, 'Price must be 0 or more'),
-  quantity: z.number().min(1, 'At least 1 seat'),
-});
+const ticketTierSchema = z
+  .object({
+    name: z.string().min(1, 'Tier name is required'),
+    price: z.number().min(0, 'Price must be 0 or more'),
+    quantity: z.number().min(1, 'At least 1 seat'),
+    earlyBirdEnabled: z.boolean().optional(),
+    earlyBirdPrice: z.number().optional(),
+    earlyBirdEndAt: z.string().optional(),
+    earlyBirdLimit: z.number().optional(),
+    bulkOffers: z.array(z.object({ qty: z.number(), price: z.number() })).optional(),
+  })
+  .superRefine((tier, ctx) => {
+    if (!tier.earlyBirdEnabled) return;
+    const ebPrice = tier.earlyBirdPrice ?? 0;
+    if (ebPrice <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird rate is required',
+        path: ['earlyBirdPrice'],
+      });
+    } else if (tier.price > 0 && ebPrice >= tier.price) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird must be lower than standard price',
+        path: ['earlyBirdPrice'],
+      });
+    }
+    if (!(tier.earlyBirdEndAt || '').trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird end date is required',
+        path: ['earlyBirdEndAt'],
+      });
+    }
+    const limit = tier.earlyBirdLimit ?? 0;
+    if (limit < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird limit is required',
+        path: ['earlyBirdLimit'],
+      });
+    } else if (limit > tier.quantity) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird limit cannot exceed tier capacity',
+        path: ['earlyBirdLimit'],
+      });
+    }
+    for (const offer of tier.bulkOffers || []) {
+      if ((offer.qty ?? 0) < 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Bulk quantity must be at least 2', path: ['bulkOffers'] });
+      }
+      if ((offer.price ?? 0) <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Bulk price must be greater than 0', path: ['bulkOffers'] });
+      }
+    }
+  });
 
 const eventSchema = z
   .object({
@@ -240,7 +295,7 @@ export const CreateEvent: React.FC = () => {
       onlinePlatform: 'google_meet',
       onlineUrl: '',
       bannerUrl: '',
-      tickets: [{ name: 'General Admission', price: 0, quantity: 500 }],
+      tickets: [{ name: 'General Admission', price: 0, quantity: 500, bulkOffers: [] }],
       requireApproval: false,
       useCustomDomain: false,
       customDomain: '',
@@ -313,6 +368,7 @@ export const CreateEvent: React.FC = () => {
         name: first?.name || 'General Admission',
         price: 0,
         quantity: freeUnlimited ? 500 : Math.max(1, first?.quantity || 100),
+        bulkOffers: [],
       },
     ]);
   };
@@ -324,8 +380,16 @@ export const CreateEvent: React.FC = () => {
     setShowPaidSetupGate(Boolean(paidEventReadiness && !paidEventReadiness.isReady));
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
-        { name: 'Early Bird', price: 1500, quantity: 50 },
-        { name: 'General Admission', price: 2500, quantity: 150 },
+        {
+          name: 'General Admission',
+          price: 2500,
+          quantity: 150,
+          earlyBirdEnabled: true,
+          earlyBirdPrice: 1500,
+          earlyBirdEndAt: defaultEarlyBirdEndLocal(),
+          earlyBirdLimit: 50,
+          bulkOffers: [],
+        },
       ]);
     }
   };
@@ -436,7 +500,10 @@ export const CreateEvent: React.FC = () => {
     }
 
     if (ticketMode === 'paid') {
-      const hasPaidTier = data.tickets.some((t) => t.price > 0);
+      const hasPaidTier = data.tickets.some((t) => {
+        const hasBulkPaid = (t.bulkOffers || []).some((offer) => (offer.price ?? 0) > 0);
+        return t.price > 0 || (t.earlyBirdEnabled && (t.earlyBirdPrice ?? 0) > 0) || hasBulkPaid;
+      });
       if (!hasPaidTier) {
         setSubmitError('Add at least one paid ticket tier with a price greater than 0.');
         submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -521,6 +588,15 @@ export const CreateEvent: React.FC = () => {
               price: ticket.price,
               quantity: ticket.quantity,
               description: data.requireApproval ? 'Requires organizer approval' : undefined,
+              ...(ticket.earlyBirdEnabled
+                ? {
+                    earlyBirdEnabled: true,
+                    earlyBirdPrice: ticket.earlyBirdPrice,
+                    earlyBirdEndAt: datetimeLocalToIso(ticket.earlyBirdEndAt || ''),
+                    earlyBirdLimit: ticket.earlyBirdLimit,
+                  }
+                : { earlyBirdEnabled: false }),
+              ...bulkOffersPayloadFromForm(ticket.bulkOffers || []),
             }));
 
       const resolvedLocation =
@@ -633,15 +709,40 @@ export const CreateEvent: React.FC = () => {
         },
       ];
     }
-    return tiers.map((tier, index) => ({
-      id: `preview-tier-${index}`,
-      eventId: 'preview',
-      name: tier.name?.trim() || 'General Admission',
-      price: tier.price,
-      quantity: tier.quantity,
-      sold: 0,
-      description: requireApproval ? 'Requires organizer approval' : undefined,
-    }));
+    return tiers.map((tier, index) => {
+      const earlyBirdEnabled = Boolean(tier.earlyBirdEnabled);
+      const endIso = earlyBirdEnabled ? datetimeLocalToIso(tier.earlyBirdEndAt || '') : '';
+      const earlyBird =
+        earlyBirdEnabled && endIso
+          ? {
+              price: tier.earlyBirdPrice ?? 0,
+              endAt: endIso,
+              limit: tier.earlyBirdLimit ?? 0,
+              sold: 0,
+              remaining: tier.earlyBirdLimit ?? 0,
+              active:
+                (tier.earlyBirdPrice ?? 0) > 0 &&
+                (tier.earlyBirdPrice ?? 0) < tier.price &&
+                new Date(endIso).getTime() > Date.now(),
+            }
+          : undefined;
+      const ticket: EventTicket = {
+        id: `preview-tier-${index}`,
+        eventId: 'preview',
+        name: tier.name?.trim() || 'General Admission',
+        price: tier.price,
+        quantity: tier.quantity,
+        sold: 0,
+        description: requireApproval ? 'Requires organizer approval' : undefined,
+        earlyBird,
+        effectivePrice: earlyBird?.active ? earlyBird.price : tier.price,
+        bulkOffers: (tier.bulkOffers || []).map((offer) => ({
+          qty: Number(offer?.qty) || 0,
+          price: Number(offer?.price) || 0,
+        })).filter((offer) => offer.qty > 0 && offer.price > 0),
+      };
+      return ticket;
+    });
   }, [requireApproval, ticketMode, tickets]);
 
   const fieldStyle = { backgroundColor: ui.fieldBg, borderColor: ui.borderColor, color: ui.text };
@@ -1175,7 +1276,7 @@ export const CreateEvent: React.FC = () => {
                           </div>
                           <div>
                             <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Price (LKR)
+                              Standard price (LKR)
                             </label>
                             <input
                               {...register(`tickets.${index}.price` as const, { valueAsNumber: true })}
@@ -1204,6 +1305,43 @@ export const CreateEvent: React.FC = () => {
                             )}
                           </div>
                         </div>
+                        <TicketEarlyBirdFields
+                          idPrefix={`create-tier-${index}`}
+                          ui={ui}
+                          standardPrice={Number(tickets[index]?.price) || 0}
+                          totalQuantity={Number(tickets[index]?.quantity) || 1}
+                          values={{
+                            earlyBirdEnabled: Boolean(tickets[index]?.earlyBirdEnabled),
+                            earlyBirdPrice: Number(tickets[index]?.earlyBirdPrice) || 0,
+                            earlyBirdEndAt: tickets[index]?.earlyBirdEndAt || '',
+                            earlyBirdLimit: Number(tickets[index]?.earlyBirdLimit) || 25,
+                          }}
+                          onChange={(patch) => {
+                            if (patch.earlyBirdEnabled !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdEnabled`, patch.earlyBirdEnabled, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdPrice !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdPrice`, patch.earlyBirdPrice, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdEndAt !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdEndAt`, patch.earlyBirdEndAt, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdLimit !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdLimit`, patch.earlyBirdLimit, { shouldDirty: true });
+                            }
+                          }}
+                        />
+                        <TicketBulkOffersFields
+                          ui={ui}
+                          standardPrice={Number(tickets[index]?.price) || 0}
+                          offers={(tickets[index]?.bulkOffers || []).map((offer) => ({
+                            qty: Number(offer?.qty) || 0,
+                            price: Number(offer?.price) || 0,
+                          }))}
+                          onChange={(next) => {
+                            setValue(`tickets.${index}.bulkOffers`, next, { shouldDirty: true });
+                          }}
+                        />
                       </div>
                     ))}
 
@@ -1214,6 +1352,11 @@ export const CreateEvent: React.FC = () => {
                           name: `Tier ${fields.length + 1}`,
                           price: 2500,
                           quantity: 50,
+                          earlyBirdEnabled: false,
+                          earlyBirdPrice: 0,
+                          earlyBirdEndAt: '',
+                          earlyBirdLimit: 25,
+                          bulkOffers: [],
                         })
                       }
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm font-semibold transition hover:opacity-90"

@@ -6,6 +6,7 @@ import './styles/landing-premium.css';
 import './styles/landing-showcase.css';
 import './styles/landing-templates-responsive.css';
 import './styles/landing-arena.css';
+import './styles/landing-arena-nova.css';
 import './styles/landing-spotlight.css';
 import './styles/landing-gather.css';
 

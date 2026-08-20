@@ -101,9 +101,14 @@ function mark_order_policy_acceptance(PDO $pdo, int $orderId): void {
 }
 
 function normalize_order_items_from_db(PDO $pdo, int $eventId, array $items): array {
+  ensure_ticket_early_bird_columns($pdo);
   $totalCents = 0;
   $normalizedItems = [];
-  $ticketStmt = $pdo->prepare('SELECT id, name, price_cents, quantity, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  $nowTs = time();
+  $ticketStmt = $pdo->prepare(
+    'SELECT id, name, price_cents, quantity, sold, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold, bulk_offers_json
+     FROM tickets WHERE id = ? AND event_id = ? LIMIT 1'
+  );
   foreach ($items as $it) {
     if (!is_array($it)) continue;
     $ticketId = (int)($it['ticketId'] ?? 0);
@@ -122,26 +127,152 @@ function normalize_order_items_from_db(PDO $pdo, int $eventId, array $items): ar
       ]);
     }
 
-    $priceCents = (int)$ticket['price_cents'];
-    $totalCents += ($priceCents * $qty);
-    $normalizedItems[] = [
-      'ticketId' => (string)$ticketId,
-      'name' => (string)$ticket['name'],
-      'quantity' => $qty,
-      'price' => $priceCents / 100,
-    ];
+    $split = ticket_split_early_bird_quantity($ticket, $qty, $nowTs);
+    $ticketName = (string)$ticket['name'];
+
+    $bulkOffers = ticket_bulk_offers_from_row($ticket);
+    if ($split['earlyBirdQty'] > 0) {
+      $ebCents = (int)$ticket['early_bird_price_cents'];
+      $earlyLines = ticket_pricing_lines_with_bulk(
+        (string)$ticketId,
+        $ticketName . ' (Early bird)',
+        $split['earlyBirdQty'],
+        $ebCents,
+        $bulkOffers,
+        'early_bird'
+      );
+      foreach ($earlyLines as $line) {
+        $totalCents += (int)($line['lineTotalCents'] ?? 0);
+        unset($line['lineTotalCents']);
+        $normalizedItems[] = $line;
+      }
+    }
+    if ($split['regularQty'] > 0) {
+      $regCents = (int)$ticket['price_cents'];
+      $regularLines = ticket_pricing_lines_with_bulk(
+        (string)$ticketId,
+        $ticketName,
+        $split['regularQty'],
+        $regCents,
+        $bulkOffers,
+        'standard'
+      );
+      foreach ($regularLines as $line) {
+        $totalCents += (int)($line['lineTotalCents'] ?? 0);
+        unset($line['lineTotalCents']);
+        $normalizedItems[] = $line;
+      }
+    }
   }
   if (count($normalizedItems) < 1) json_response(400, ['error' => 'invalid_order_items']);
   return ['totalCents' => $totalCents, 'items' => $normalizedItems];
 }
 
+function ticket_pricing_lines_with_bulk(
+  string $ticketId,
+  string $baseName,
+  int $quantity,
+  int $unitPriceCents,
+  array $bulkOffers,
+  string $pricingTier
+): array {
+  if ($quantity <= 0) return [];
+  if ($bulkOffers === []) {
+    return [[
+      'ticketId' => $ticketId,
+      'name' => $baseName,
+      'quantity' => $quantity,
+      'price' => $unitPriceCents / 100,
+      'lineTotalCents' => $unitPriceCents * $quantity,
+      'pricingTier' => $pricingTier,
+    ]];
+  }
+
+  $offers = [];
+  foreach ($bulkOffers as $offer) {
+    $qty = (int)($offer['qty'] ?? 0);
+    $priceCents = (int)round(((float)($offer['price'] ?? 0)) * 100);
+    if ($qty >= 2 && $priceCents > 0) {
+      $offers[] = ['qty' => $qty, 'priceCents' => $priceCents];
+    }
+  }
+  if ($offers === []) {
+    return [[
+      'ticketId' => $ticketId,
+      'name' => $baseName,
+      'quantity' => $quantity,
+      'price' => $unitPriceCents / 100,
+      'lineTotalCents' => $unitPriceCents * $quantity,
+      'pricingTier' => $pricingTier,
+    ]];
+  }
+
+  $dp = array_fill(0, $quantity + 1, PHP_INT_MAX);
+  $choice = array_fill(0, $quantity + 1, null);
+  $dp[0] = 0;
+
+  for ($i = 1; $i <= $quantity; $i++) {
+    $single = $dp[$i - 1] + $unitPriceCents;
+    if ($single < $dp[$i]) {
+      $dp[$i] = $single;
+      $choice[$i] = ['qty' => 1, 'priceCents' => $unitPriceCents, 'label' => null];
+    }
+    foreach ($offers as $offer) {
+      if ($offer['qty'] <= $i && $dp[$i - $offer['qty']] !== PHP_INT_MAX) {
+        $cost = $dp[$i - $offer['qty']] + $offer['priceCents'];
+        if ($cost < $dp[$i]) {
+          $dp[$i] = $cost;
+          $choice[$i] = ['qty' => $offer['qty'], 'priceCents' => $offer['priceCents'], 'label' => 'bulk'];
+        }
+      }
+    }
+  }
+
+  $bucket = [];
+  $remaining = $quantity;
+  while ($remaining > 0 && is_array($choice[$remaining])) {
+    $step = $choice[$remaining];
+    $q = (int)$step['qty'];
+    $p = (int)$step['priceCents'];
+    $key = $q . ':' . $p . ':' . (string)($step['label'] ?? '');
+    if (!isset($bucket[$key])) {
+      $bucket[$key] = ['qty' => $q, 'priceCents' => $p, 'label' => $step['label'], 'count' => 0];
+    }
+    $bucket[$key]['count']++;
+    $remaining -= $q;
+  }
+
+  $lines = [];
+  foreach ($bucket as $part) {
+    $lineQty = (int)$part['qty'] * (int)$part['count'];
+    $unit = (int)round(((int)$part['priceCents']) / (int)$part['qty']);
+    $label = $part['label'] === 'bulk' ? " ({$part['qty']} pack)" : '';
+    $lines[] = [
+      'ticketId' => $ticketId,
+      'name' => $baseName . $label,
+      'quantity' => $lineQty,
+      'price' => $unit / 100,
+      'lineTotalCents' => (int)$part['priceCents'] * (int)$part['count'],
+      'pricingTier' => $pricingTier,
+    ];
+  }
+
+  return $lines;
+}
+
 function increment_ticket_sold_counts(PDO $pdo, array $normalizedItems): void {
+  ensure_ticket_early_bird_columns($pdo);
   $inc = $pdo->prepare('UPDATE tickets SET sold = sold + ? WHERE id = ?');
+  $incEarly = $pdo->prepare('UPDATE tickets SET early_bird_sold = early_bird_sold + ? WHERE id = ?');
   foreach ($normalizedItems as $it) {
     if (!is_array($it)) continue;
     $tid = (int)($it['ticketId'] ?? 0);
     $qty = (int)($it['quantity'] ?? 0);
-    if ($tid > 0 && $qty > 0) $inc->execute([$qty, $tid]);
+    if ($tid <= 0 || $qty <= 0) continue;
+    $inc->execute([$qty, $tid]);
+    if (($it['pricingTier'] ?? '') === 'early_bird') {
+      $incEarly->execute([$qty, $tid]);
+    }
   }
 }
 
