@@ -426,21 +426,34 @@ function mail_order_short_ticket_url(int $orderId): string {
 function mail_app_base_url(): string {
   $cfg = get_config();
   $fromCfg = trim((string)(($cfg['payhere'] ?? [])['app_base_url'] ?? ''));
+  $base = '';
   if ($fromCfg !== '') {
-    return rtrim($fromCfg, '/');
+    $base = rtrim($fromCfg, '/');
+  } else {
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host !== '') {
+      $proto = 'http';
+      $https = strtolower(trim((string)($_SERVER['HTTPS'] ?? '')));
+      if ($https !== '' && $https !== 'off') {
+        $proto = 'https';
+      } elseif (strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https') {
+        $proto = 'https';
+      }
+      $base = $proto . '://' . $host;
+    }
   }
-  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
-  if ($host === '') {
-    return '';
+
+  // Always prefer the public app origin so SMS/email ticket links resolve on the SPA
+  // (apex bigturnout.co is a separate Apache host and returns 404 for /t/… and /orders/…).
+  if (function_exists('canonical_public_app_origin')) {
+    return canonical_public_app_origin($base);
   }
-  $proto = 'http';
-  $https = strtolower(trim((string)($_SERVER['HTTPS'] ?? '')));
-  if ($https !== '' && $https !== 'off') {
-    $proto = 'https';
-  } elseif (strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https') {
-    $proto = 'https';
+
+  $host = strtolower((string)(parse_url($base, PHP_URL_HOST) ?: ''));
+  if ($host === 'bigturnout.co' || $host === 'www.bigturnout.co' || $host === '' || str_ends_with($host, '.vercel.app')) {
+    return 'https://app.bigturnout.co';
   }
-  return $proto . '://' . $host;
+  return $base;
 }
 
 function mail_qr_image_url(string $qrToken): string {

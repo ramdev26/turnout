@@ -273,7 +273,7 @@ function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
 
   $stmt = $pdo->prepare(
     'SELECT o.id, o.buyer_name, o.buyer_phone, o.total_amount_cents, o.tickets_json,
-            e.title AS event_title, e.event_date, e.location, e.customization_json
+            e.title AS event_title, e.event_date, e.location, e.customization_json, e.organizer_user_id
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
      WHERE o.id = ?
@@ -337,7 +337,16 @@ function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
     $lines[] = 'Check your email for your e-tickets.';
     $lines[] = '';
   }
-  $lines[] = 'Thank you for choosing Turnout';
+
+  $organizerName = '';
+  if (function_exists('mail_resolve_organizer_name')) {
+    $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
+  }
+  if ($organizerName !== '' && strcasecmp($organizerName, 'Organizer') !== 0) {
+    $lines[] = 'See you at the event — ' . $organizerName;
+  } else {
+    $lines[] = 'See you at the event.';
+  }
 
   $message = implode("\n", $lines);
   if (mb_strlen($message) > 1500) {
