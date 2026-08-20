@@ -109,6 +109,21 @@ if ($path === '/uploads/organizer-document' && $method === 'POST') {
   handle_organizer_doc_upload_post($kind);
 }
 
+if (preg_match('#^/share/e/([^/]+)$#', $path, $shareMatch) && $method === 'GET') {
+  $slug = trim((string)$shareMatch[1]);
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
+  $stmt->execute([$slug]);
+  $row = $stmt->fetch();
+  if (!$row || !is_event_publicly_visible($row)) {
+    http_response_code(404);
+    echo 'not_found';
+    exit;
+  }
+  $event = map_public_event_row($row, $pdo);
+  render_share_meta_page($event);
+}
+
 function slugify(string $s): string {
   $s = strtolower(trim($s));
   $s = preg_replace('/[^a-z0-9]+/', '-', $s);
@@ -127,6 +142,67 @@ function unique_slug(PDO $pdo, string $base): string {
     $slug = $base . '-' . substr(bin2hex(random_bytes(3)), 0, 6);
   }
   return $base . '-' . substr(bin2hex(random_bytes(5)), 0, 10);
+}
+
+function html_escape(string $value): string {
+  return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function absolute_public_url(string $url): string {
+  $url = trim($url);
+  if ($url === '') return '';
+  if (preg_match('#^https?://#i', $url)) return $url;
+  $base = payhere_request_base_url();
+  if ($base === '') return $url;
+  return rtrim($base, '/') . '/' . ltrim($url, '/');
+}
+
+function render_share_meta_page(array $event): void {
+  $eventTitle = trim((string)($event['title'] ?? 'Event'));
+  $organizerName = trim((string)($event['organizerName'] ?? 'Organizer'));
+  $metaTitle = trim($eventTitle . ' | ' . $organizerName);
+  if ($metaTitle === '|') $metaTitle = 'Turnout Event';
+  $description = trim((string)($event['description'] ?? ''));
+  if ($description === '') {
+    $description = 'View event details and tickets on Turnout.';
+  }
+
+  $imageUrl = absolute_public_url((string)($event['bannerUrl'] ?? ''));
+  $slug = trim((string)($event['slug'] ?? ''));
+  $origin = rtrim(payhere_request_base_url(), '/');
+  $canonical = $origin !== '' ? ($origin . '/e/' . rawurlencode($slug)) : '';
+
+  header('Content-Type: text/html; charset=utf-8');
+  header('Cache-Control: public, max-age=300');
+  echo '<!doctype html><html lang="en"><head>';
+  echo '<meta charset="utf-8" />';
+  echo '<meta name="viewport" content="width=device-width, initial-scale=1" />';
+  echo '<title>' . html_escape($metaTitle) . '</title>';
+  echo '<meta name="description" content="' . html_escape($description) . '" />';
+  echo '<meta property="og:type" content="website" />';
+  echo '<meta property="og:title" content="' . html_escape($metaTitle) . '" />';
+  echo '<meta property="og:description" content="' . html_escape($description) . '" />';
+  if ($canonical !== '') {
+    echo '<meta property="og:url" content="' . html_escape($canonical) . '" />';
+    echo '<link rel="canonical" href="' . html_escape($canonical) . '" />';
+  }
+  if ($imageUrl !== '') {
+    echo '<meta property="og:image" content="' . html_escape($imageUrl) . '" />';
+    echo '<meta name="twitter:image" content="' . html_escape($imageUrl) . '" />';
+  }
+  echo '<meta name="twitter:card" content="summary_large_image" />';
+  echo '<meta name="twitter:title" content="' . html_escape($metaTitle) . '" />';
+  echo '<meta name="twitter:description" content="' . html_escape($description) . '" />';
+  echo '</head><body>';
+  if ($canonical !== '') {
+    echo '<script>window.location.replace(' . json_encode($canonical, JSON_UNESCAPED_SLASHES) . ');</script>';
+    echo '<noscript><meta http-equiv="refresh" content="0; url=' . html_escape($canonical) . '" /></noscript>';
+    echo '<p>Redirecting… <a href="' . html_escape($canonical) . '">Continue</a></p>';
+  } else {
+    echo '<p>Event preview.</p>';
+  }
+  echo '</body></html>';
+  exit;
 }
 
 function ensure_event_runbook_table(PDO $pdo): void {

@@ -28,9 +28,35 @@ export const config = {
   matcher: ['/((?!api/|assets/|.*\\..*).*)'],
 };
 
+function isSocialCrawler(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase();
+  return [
+    'whatsapp',
+    'facebookexternalhit',
+    'facebot',
+    'twitterbot',
+    'linkedinbot',
+    'slackbot',
+    'discordbot',
+    'telegrambot',
+    'skypeuripreview',
+    'googlebot',
+    'bingbot',
+  ].some((token) => ua.includes(token));
+}
+
 export default async function middleware(request: Request) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) return next();
+
+  const shareSlugMatch = url.pathname.match(/^\/e\/([^/?#]+)$/);
+  if (shareSlugMatch) {
+    const userAgent = request.headers.get('user-agent') || '';
+    if (isSocialCrawler(userAgent)) {
+      const slug = shareSlugMatch[1];
+      return rewrite(new URL(`/api/share/e/${encodeURIComponent(slug)}`, url.origin));
+    }
+  }
 
   const host = normalizeHost(request.headers.get('host') || '');
   if (isPlatformHost(host)) return next();
