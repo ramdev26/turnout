@@ -11,6 +11,7 @@ require __DIR__ . '/lib/checkin.php';
 require __DIR__ . '/lib/checkout_fields.php';
 require __DIR__ . '/lib/arena_gallery.php';
 require __DIR__ . '/lib/organizer_team.php';
+require __DIR__ . '/lib/tickets.php';
 require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
 require __DIR__ . '/lib/bank_transfer.php';
@@ -127,6 +128,165 @@ function unique_slug(PDO $pdo, string $base): string {
   }
   return $base . '-' . substr(bin2hex(random_bytes(5)), 0, 10);
 }
+
+function html_escape(string $value): string {
+  return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function is_social_crawler_request(): bool {
+  $ua = strtolower((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+  if ($ua === '') return false;
+
+  // Real browsers (including WhatsApp/Facebook in-app) usually include these tokens.
+  $looksLikeBrowser = str_contains($ua, 'mozilla')
+    || str_contains($ua, 'applewebkit')
+    || str_contains($ua, 'chrome')
+    || str_contains($ua, 'safari');
+
+  foreach ([
+    'facebookexternalhit',
+    'facebot',
+    'twitterbot',
+    'linkedinbot',
+    'slackbot',
+    'discordbot',
+    'telegrambot',
+    'skypeuripreview',
+    'googlebot',
+    'bingbot',
+    'embedly',
+    'quora link preview',
+    'pinterest',
+    'redditbot',
+    'applebot',
+  ] as $token) {
+    if (str_contains($ua, $token)) return true;
+  }
+
+  // WhatsApp link-preview bots do not look like browsers; in-app browsers do.
+  if (str_contains($ua, 'whatsapp') && !$looksLikeBrowser) return true;
+
+  return false;
+}
+
+function absolute_public_url(string $url): string {
+  $url = trim($url);
+  if ($url === '') return '';
+  if (preg_match('#^https?://#i', $url)) return $url;
+  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+  if ($host === '') return $url;
+  $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+  return ($https ? 'https' : 'http') . '://' . $host . '/' . ltrim($url, '/');
+}
+
+function share_meta_description(string $raw): string {
+  $text = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+  $text = preg_replace('/\s+/u', ' ', trim($text)) ?? '';
+  if ($text === '') {
+    return 'View event details and tickets on Turnout.';
+  }
+  if (mb_strlen($text) > 220) {
+    return rtrim(mb_substr($text, 0, 217)) . '...';
+  }
+  return $text;
+}
+
+function render_share_meta_page(array $event): void {
+  $eventTitle = trim((string)($event['title'] ?? 'Event'));
+  $organizerName = trim((string)($event['organizerName'] ?? 'Organizer'));
+  $metaTitle = trim($eventTitle . ' | ' . $organizerName);
+  if ($metaTitle === '|' || $metaTitle === '') $metaTitle = 'Turnout Event';
+  $description = share_meta_description((string)($event['description'] ?? ''));
+
+  $imageUrl = absolute_public_url((string)($event['bannerUrl'] ?? ''));
+  $slug = trim((string)($event['slug'] ?? ''));
+  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+  $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+  $origin = $host !== '' ? (($https ? 'https' : 'http') . '://' . $host) : '';
+  $canonical = ($origin !== '' && $slug !== '') ? ($origin . '/e/' . rawurlencode($slug)) : '';
+
+  header('Content-Type: text/html; charset=utf-8');
+  header('Cache-Control: public, max-age=60, s-maxage=300');
+  echo '<!doctype html><html lang="en"><head>';
+  echo '<meta charset="utf-8" />';
+  echo '<meta name="viewport" content="width=device-width, initial-scale=1" />';
+  echo '<title>' . html_escape($metaTitle) . '</title>';
+  echo '<meta name="description" content="' . html_escape($description) . '" />';
+  echo '<meta property="og:site_name" content="Turnout" />';
+  echo '<meta property="og:type" content="website" />';
+  echo '<meta property="og:title" content="' . html_escape($metaTitle) . '" />';
+  echo '<meta property="og:description" content="' . html_escape($description) . '" />';
+  if ($canonical !== '') {
+    echo '<meta property="og:url" content="' . html_escape($canonical) . '" />';
+    echo '<link rel="canonical" href="' . html_escape($canonical) . '" />';
+  }
+  if ($imageUrl !== '') {
+    echo '<meta property="og:image" content="' . html_escape($imageUrl) . '" />';
+    echo '<meta property="og:image:secure_url" content="' . html_escape($imageUrl) . '" />';
+    echo '<meta property="og:image:alt" content="' . html_escape($eventTitle) . '" />';
+    echo '<meta name="twitter:image" content="' . html_escape($imageUrl) . '" />';
+  }
+  echo '<meta name="twitter:card" content="summary_large_image" />';
+  echo '<meta name="twitter:title" content="' . html_escape($metaTitle) . '" />';
+  echo '<meta name="twitter:description" content="' . html_escape($description) . '" />';
+  echo '</head><body>';
+  echo '<h1>' . html_escape($metaTitle) . '</h1>';
+  echo '<p>' . html_escape($description) . '</p>';
+  if ($canonical !== '') {
+    echo '<p><a href="' . html_escape($canonical) . '">Open event</a></p>';
+  }
+  echo '</body></html>';
+  exit;
+}
+
+function maybe_serve_event_share_preview(string $path, string $method): void {
+  if ($method !== 'GET' && $method !== 'HEAD') return;
+
+  $slug = trim((string)($_GET['share_slug'] ?? ''));
+  $fromShareEndpoint = $slug !== '';
+  if ($slug === '' && preg_match('#^/share/e/([^/]+)$#', $path, $m)) {
+    $slug = rawurldecode((string)$m[1]);
+    $fromShareEndpoint = true;
+  } elseif ($slug === '' && preg_match('#^/e/([^/]+)$#', $path, $m)) {
+    $slug = rawurldecode((string)$m[1]);
+  }
+
+  $slug = trim($slug);
+  if ($slug === '') return;
+
+  $isCrawler = is_social_crawler_request();
+  // Never serve the crawler HTML document to a real browser — send them to the SPA.
+  if ($fromShareEndpoint && !$isCrawler) {
+    header('Location: /e/' . rawurlencode($slug), true, 302);
+    exit;
+  }
+  if (!$isCrawler) return;
+
+  try {
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
+    $stmt->execute([$slug]);
+    $row = $stmt->fetch();
+    if (!$row || !is_event_publicly_visible($row)) {
+      http_response_code(404);
+      header('Content-Type: text/plain; charset=utf-8');
+      echo 'not_found';
+      exit;
+    }
+    $event = map_public_event_row($row, $pdo);
+    render_share_meta_page($event);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] share preview failed for %s: %s', $slug, $e->getMessage()));
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'share_preview_error';
+    exit;
+  }
+}
+
+maybe_serve_event_share_preview($path, $method);
 
 function ensure_event_runbook_table(PDO $pdo): void {
   $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
@@ -763,6 +923,12 @@ function payhere_fulfill_paid_order(PDO $pdo, int $orderId, ?string $paymentId =
     $paymentId !== null && $paymentId !== '' ? $paymentId : null
   );
   send_order_confirmation_email($pdo, $orderId);
+  // SMS is best-effort; payment fulfillment must not fail on SMS provider issues.
+  try {
+    send_order_confirmation_sms($pdo, $orderId);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] order sms failed order=%d: %s', $orderId, $e->getMessage()));
+  }
 }
 
 /** Complete a pending order when PayHere logged a successful charge but notify fulfillment failed. */
@@ -820,14 +986,59 @@ function payhere_cfg(): array {
   $cfg = get_config();
   $p = is_array($cfg['payhere'] ?? null) ? $cfg['payhere'] : [];
 
+  $secretSource = 'environment';
+
+  // Allow super-admin to override platform PayHere credentials at runtime.
+  // Secrets are stored encrypted in global_settings.
+  try {
+    $pdo = db();
+    ensure_finance_tables($pdo);
+    $stmt = $pdo->prepare(
+      'SELECT setting_key, setting_value
+       FROM global_settings
+       WHERE setting_key IN (?, ?, ?, ?)'
+    );
+    $stmt->execute([
+      'payhere_merchant_id',
+      'payhere_merchant_secret_enc',
+      'payhere_app_base_url',
+    ]);
+    $overrides = [];
+    while ($row = $stmt->fetch()) {
+      $overrides[(string)$row['setting_key']] = (string)$row['setting_value'];
+    }
+
+    $overrideMerchantId = trim((string)($overrides['payhere_merchant_id'] ?? ''));
+    if ($overrideMerchantId !== '') {
+      $p['merchant_id'] = $overrideMerchantId;
+    }
+
+    $overrideSecretEnc = trim((string)($overrides['payhere_merchant_secret_enc'] ?? ''));
+    if ($overrideSecretEnc !== '') {
+      $overrideSecret = trim(decrypt_payment_secret($overrideSecretEnc));
+      if ($overrideSecret !== '') {
+        $p['merchant_secret'] = $overrideSecret;
+        $secretSource = 'admin settings';
+      }
+    }
+
+    $overrideBase = rtrim(trim((string)($overrides['payhere_app_base_url'] ?? '')), '/');
+    if ($overrideBase !== '') {
+      $p['app_base_url'] = $overrideBase;
+    }
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] payhere_cfg overrides skipped: %s', $e->getMessage()));
+  }
+
   $merchantId = trim((string)($p['merchant_id'] ?? ''));
   $merchantSecret = trim((string)($p['merchant_secret'] ?? ''));
-  $sandbox = (bool)($p['sandbox'] ?? true);
+  // Live-only mode: always use PayHere production checkout endpoint.
+  $sandbox = false;
 
   if ($merchantId === '' || $merchantId === 'CHANGE_ME' || $merchantSecret === '' || $merchantSecret === 'CHANGE_ME') {
     json_response(500, [
       'error' => 'payhere_missing_credentials',
-      'message' => 'Set PAYHERE_MERCHANT_ID and PAYHERE_MERCHANT_SECRET (or payhere.merchant_id / merchant_secret in config).',
+      'message' => 'PayHere live credentials are not set. Add them in Super Admin → System Settings, or set PAYHERE_MERCHANT_ID and PAYHERE_MERCHANT_SECRET.',
     ]);
   }
 
@@ -845,6 +1056,7 @@ function payhere_cfg(): array {
     'sandbox' => $sandbox,
     'merchant_id' => $merchantId,
     'merchant_secret' => $merchantSecret,
+    'secret_source' => $secretSource,
     'notify_url' => $notifyUrl,
     'app_base_url' => $appBase,
   ];
@@ -1101,32 +1313,77 @@ function payhere_sandbox_probe(array $cfg): array {
     'country' => 'Sri Lanka',
   ];
   $url = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
+  // PayHere authorizes the domain that initiates checkout, so probe as that domain.
   $ctx = stream_context_create([
     'http' => [
       'method' => 'POST',
-      'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+      'header' => "Content-Type: application/x-www-form-urlencoded\r\n"
+        . 'Referer: ' . $base . "/\r\n"
+        . 'Origin: ' . $base . "\r\n",
       'content' => http_build_query($postFields),
       'timeout' => 15,
       'ignore_errors' => true,
     ],
   ]);
   $resp = @file_get_contents($url, false, $ctx);
+  $responseHeaders = isset($http_response_header) && is_array($http_response_header) ? $http_response_header : [];
+  $statusLine = (string)($responseHeaders[0] ?? '');
+  $httpStatus = 0;
+  if (preg_match('#HTTP/\S+\s+(\d{3})#', $statusLine, $statusMatch)) {
+    $httpStatus = (int)$statusMatch[1];
+  }
+
   $accepted = is_string($resp) && str_contains($resp, '"status":1');
-  $unauthorized = is_string($resp) && str_contains($resp, 'Unauthorized');
+  $unauthorized = is_string($resp) && stripos($resp, 'unauthorized') !== false;
+  // PayHere's checkout host sits behind a bot-protection layer that rejects
+  // server-to-server posts, so a block here says nothing about the credentials.
+  $blocked = !$accepted
+    && !$unauthorized
+    && (
+      $resp === false
+      || $httpStatus === 403
+      || $httpStatus === 503
+      || (is_string($resp) && (
+        stripos($resp, 'Just a moment') !== false
+        || stripos($resp, 'cf-browser-verification') !== false
+        || stripos($resp, 'Enable JavaScript and cookies') !== false
+      ))
+    );
   $host = parse_url($base, PHP_URL_HOST) ?: $base;
+
+  // Fingerprint only — lets us confirm which secret is loaded without exposing it.
+  $secretFingerprint = substr(strtoupper(md5(trim((string)$cfg['merchant_secret']))), 0, 8);
+  $responseSnippet = is_string($resp) ? trim((string)preg_replace('/\s+/', ' ', strip_tags($resp))) : '';
+  if (strlen($responseSnippet) > 300) {
+    $responseSnippet = substr($responseSnippet, 0, 300) . '…';
+  }
+
+  if ($accepted) {
+    $message = "PayHere accepted a live probe checkout for merchant {$merchantId} on \"{$host}\".";
+  } elseif ($unauthorized) {
+    $message = "PayHere rejected merchant {$merchantId} for \"{$host}\" as unauthorized. In PayHere (LIVE) → Settings → Domains & Credentials, approve this exact domain and use the Merchant Secret issued for it. Approving \"bigturnout.co\" does not authorize \"app.bigturnout.co\".";
+  } elseif ($blocked) {
+    $message = "Inconclusive: PayHere's bot protection blocked this server-side probe (HTTP {$httpStatus}), so it cannot verify credentials. Verify by opening a real checkout in a browser. Loaded config — merchant {$merchantId}, domain \"{$host}\", secret fingerprint {$secretFingerprint} ({$cfg['secret_source']}).";
+  } else {
+    $message = "PayHere did not accept the probe for merchant {$merchantId} on \"{$host}\". Confirm the merchant ID and secret belong to the same LIVE account and that this exact domain is approved.";
+  }
 
   return [
     'accepted' => $accepted,
     'unauthorized' => $unauthorized,
+    'blocked' => $blocked,
+    'conclusive' => $accepted || $unauthorized,
+    'httpStatus' => $httpStatus,
     'sandbox' => (bool)$cfg['sandbox'],
     'merchantId' => $merchantId,
+    'merchantSecretFingerprint' => $secretFingerprint,
+    'merchantSecretLength' => strlen(trim((string)$cfg['merchant_secret'])),
+    'credentialSource' => (string)($cfg['secret_source'] ?? 'unknown'),
+    'checkoutUrl' => $url,
+    'gatewayResponse' => $responseSnippet,
     'appBaseUrl' => $base,
     'notifyUrl' => $cfg['notify_url'],
-    'message' => $accepted
-      ? 'PayHere accepted a probe checkout with the configured credentials.'
-      : ($unauthorized
-        ? "PayHere returned Unauthorized. In sandbox PayHere → Integrations, approve domain \"{$host}\", copy the Merchant Secret for that domain, and set PAYHERE_MERCHANT_ID + PAYHERE_MERCHANT_SECRET (must match the same PayHere account; current merchant {$merchantId})."
-        : 'PayHere did not accept the probe checkout. Verify merchant ID, secret, and domain approval.'),
+    'message' => $message,
   ];
 }
 
@@ -2201,6 +2458,13 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     json_response(400, ['error' => 'invalid_event_organizer']);
   }
   $cfg = payhere_cfg_for_organizer($pdo, $organizerUserId);
+  // Always use the current request origin for browser return/cancel + webhook callback.
+  // This avoids stale admin/base-url values causing redirects to checkout or missed notify.
+  $requestBase = rtrim(payhere_request_base_url(), '/');
+  if ($requestBase !== '') {
+    $cfg['app_base_url'] = $requestBase;
+    $cfg['notify_url'] = $requestBase . '/api/payhere/notify';
+  }
   $merchantId = $cfg['merchant_id'];
   $merchantSecret = $cfg['merchant_secret'];
   $currency = 'LKR';
@@ -2381,6 +2645,143 @@ if ($path === '/payhere/notify' && $method === 'POST') {
 
 // Demo seed route removed for production hardening.
 
+/** Actual paid order totals for an event (early bird / bulk offers included). */
+function event_paid_revenue_cents(PDO $pdo, int $eventId): int {
+  $stmt = $pdo->prepare("SELECT COALESCE(SUM(total_amount_cents), 0) FROM orders WHERE event_id = ? AND status = 'paid'");
+  $stmt->execute([$eventId]);
+  return (int)$stmt->fetchColumn();
+}
+
+function event_stats_api_shape(PDO $pdo, int $eventId): array {
+  $attendeeStats = fetch_attendee_stats($pdo, $eventId);
+  $ticketStmt = $pdo->prepare(
+    'SELECT COALESCE(SUM(sold), 0) AS sold_tickets, COALESCE(SUM(quantity), 0) AS total_capacity
+     FROM tickets WHERE event_id = ?'
+  );
+  $ticketStmt->execute([$eventId]);
+  $ticketRow = $ticketStmt->fetch() ?: ['sold_tickets' => 0, 'total_capacity' => 0];
+
+  return [
+    'eventId' => (string)$eventId,
+    'soldTickets' => (int)$ticketRow['sold_tickets'],
+    'totalRevenue' => event_paid_revenue_cents($pdo, $eventId) / 100,
+    'totalCapacity' => (int)$ticketRow['total_capacity'],
+    'attendeeTotal' => (int)($attendeeStats['total'] ?? 0),
+    'checkedInCount' => (int)($attendeeStats['checkedIn'] ?? 0),
+  ];
+}
+
+/**
+ * Bulk dashboard stats for organizer events — revenue from paid orders, not list prices.
+ *
+ * @param list<int> $eventIds
+ * @return array<string, array<string, mixed>>
+ */
+function organizer_event_stats_map(PDO $pdo, array $eventIds): array {
+  $eventIds = array_values(array_unique(array_filter(array_map('intval', $eventIds), static fn (int $id) => $id > 0)));
+  if ($eventIds === []) {
+    return [];
+  }
+
+  $placeholders = implode(',', array_fill(0, count($eventIds), '?'));
+
+  $revenueByEvent = [];
+  $revStmt = $pdo->prepare(
+    "SELECT event_id, COALESCE(SUM(total_amount_cents), 0) AS revenue_cents
+     FROM orders
+     WHERE event_id IN ($placeholders) AND status = 'paid'
+     GROUP BY event_id"
+  );
+  $revStmt->execute($eventIds);
+  while ($row = $revStmt->fetch()) {
+    $revenueByEvent[(int)$row['event_id']] = (int)$row['revenue_cents'];
+  }
+
+  $ticketByEvent = [];
+  $ticketStmt = $pdo->prepare(
+    "SELECT event_id, COALESCE(SUM(sold), 0) AS sold_tickets, COALESCE(SUM(quantity), 0) AS total_capacity
+     FROM tickets
+     WHERE event_id IN ($placeholders)
+     GROUP BY event_id"
+  );
+  $ticketStmt->execute($eventIds);
+  while ($row = $ticketStmt->fetch()) {
+    $ticketByEvent[(int)$row['event_id']] = [
+      'soldTickets' => (int)$row['sold_tickets'],
+      'totalCapacity' => (int)$row['total_capacity'],
+    ];
+  }
+
+  $attendeeByEvent = [];
+  $attStmt = $pdo->prepare(
+    "SELECT event_id,
+            COUNT(*) AS attendee_total,
+            SUM(CASE WHEN checked_in_at IS NOT NULL THEN 1 ELSE 0 END) AS checked_in_count
+     FROM attendees
+     WHERE event_id IN ($placeholders)
+     GROUP BY event_id"
+  );
+  $attStmt->execute($eventIds);
+  while ($row = $attStmt->fetch()) {
+    $attendeeByEvent[(int)$row['event_id']] = [
+      'attendeeTotal' => (int)$row['attendee_total'],
+      'checkedInCount' => (int)$row['checked_in_count'],
+    ];
+  }
+
+  $map = [];
+  foreach ($eventIds as $eventId) {
+    $tickets = $ticketByEvent[$eventId] ?? ['soldTickets' => 0, 'totalCapacity' => 0];
+    $attendees = $attendeeByEvent[$eventId] ?? ['attendeeTotal' => 0, 'checkedInCount' => 0];
+    $map[(string)$eventId] = [
+      'eventId' => (string)$eventId,
+      'soldTickets' => (int)$tickets['soldTickets'],
+      'totalRevenue' => ((int)($revenueByEvent[$eventId] ?? 0)) / 100,
+      'totalCapacity' => (int)$tickets['totalCapacity'],
+      'attendeeTotal' => (int)$attendees['attendeeTotal'],
+      'checkedInCount' => (int)$attendees['checkedInCount'],
+    ];
+  }
+
+  return $map;
+}
+
+function organizer_earnings_api_shape(PDO $pdo, int $organizerUserId): array {
+  ensure_finance_tables($pdo);
+
+  $sumStmt = $pdo->prepare(
+    "SELECT
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
+     FROM events e
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE e.organizer_user_id = ?"
+  );
+  $sumStmt->execute([$organizerUserId]);
+  $sum = $sumStmt->fetch() ?: ['gross_cents' => 0, 'fee_cents' => 0, 'net_cents' => 0];
+
+  $payoutStmt = $pdo->prepare(
+    "SELECT COALESCE(SUM(total_amount_cents), 0) AS paid_cents
+     FROM payouts
+     WHERE organizer_id = ? AND status IN ('processing', 'completed')"
+  );
+  $payoutStmt->execute([$organizerUserId]);
+  $paidOutCents = (int)(($payoutStmt->fetch()['paid_cents'] ?? 0));
+
+  $grossCents = (int)($sum['gross_cents'] ?? 0);
+  $feeCents = (int)($sum['fee_cents'] ?? 0);
+  $netCents = (int)($sum['net_cents'] ?? 0);
+
+  return [
+    'grossRevenue' => $grossCents / 100,
+    'platformFees' => $feeCents / 100,
+    'netEarnings' => $netCents / 100,
+    'paidOut' => $paidOutCents / 100,
+    'availableBalance' => max(0, $netCents - $paidOutCents) / 100,
+  ];
+}
+
 // ---- Events ----
 if ($path === '/events' && $method === 'GET') {
   $uid = require_organizer_user_id();
@@ -2469,7 +2870,11 @@ if ($path === '/events' && $method === 'POST') {
     ]);
     $eventId = (int)$pdo->lastInsertId();
 
-    $ticketIns = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, ?, ?)');
+    $ticketIns = $pdo->prepare(
+      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold, bulk_offers_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)'
+    );
+    ensure_ticket_early_bird_columns($pdo);
     foreach ($tickets as $t) {
       if (!is_array($t)) continue;
       $name = trim((string)($t['name'] ?? ''));
@@ -2479,7 +2884,23 @@ if ($path === '/events' && $method === 'POST') {
       if ($name === '' || $quantity < 1) {
         throw new Exception('invalid_ticket');
       }
-      $ticketIns->execute([$eventId, $name, (int)round($price * 100), $quantity, 0, $desc]);
+      $earlyBird = parse_early_bird_fields_from_body($t);
+      validate_ticket_early_bird($price, $earlyBird, $quantity);
+      $bulkOffers = parse_bulk_offers_from_body($t);
+      validate_ticket_bulk_offers($price, $bulkOffers);
+      [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
+      $ticketIns->execute([
+        $eventId,
+        $name,
+        (int)round($price * 100),
+        $quantity,
+        0,
+        $desc,
+        $ebPriceCents,
+        $ebEndAt,
+        $ebLimit,
+        bulk_offers_json_from_list($bulkOffers),
+      ]);
     }
 
     write_log($pdo, $uid, 'organizer', 'event.created', 'event', (string)$eventId, ['title' => $title]);
@@ -2515,7 +2936,10 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
-  $ticketsStmt = $pdo->prepare('SELECT name, price_cents, quantity, description FROM tickets WHERE event_id = ? ORDER BY id ASC');
+  $ticketsStmt = $pdo->prepare(
+    'SELECT name, price_cents, quantity, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, bulk_offers_json
+     FROM tickets WHERE event_id = ? ORDER BY id ASC'
+  );
   $ticketsStmt->execute([$eventId]);
   $sourceTickets = $ticketsStmt->fetchAll();
 
@@ -2547,9 +2971,23 @@ if (preg_match('#^/events/(\\d+)/duplicate$#', $path, $m) && $method === 'POST')
     ]);
     $newEventId = (int)$pdo->lastInsertId();
 
-    $insTicket = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
+    ensure_ticket_early_bird_columns($pdo);
+    $insTicket = $pdo->prepare(
+      'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold, bulk_offers_json)
+       VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?)'
+    );
     foreach ($sourceTickets as $t) {
-      $insTicket->execute([$newEventId, $t['name'], (int)$t['price_cents'], (int)$t['quantity'], $t['description']]);
+      $insTicket->execute([
+        $newEventId,
+        $t['name'],
+        (int)$t['price_cents'],
+        (int)$t['quantity'],
+        $t['description'],
+        $t['early_bird_price_cents'] ?? null,
+        $t['early_bird_end_at'] ?? null,
+        $t['early_bird_limit'] ?? null,
+        $t['bulk_offers_json'] ?? null,
+      ]);
     }
     $pdo->commit();
   } catch (Exception $e) {
@@ -3055,7 +3493,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   }
 
   $templateId = trim((string)($body['templateId'] ?? ''));
-  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-7', 'template-8', 'template-canvas'];
+  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-7', 'template-8', 'template-10', 'template-canvas'];
   $legacyTemplates = ['template-1', 'template-3', 'template-4'];
   if ($templateId !== '' && in_array($templateId, $allowedTemplates, true)) {
     $row['template_id'] = $templateId;
@@ -3133,24 +3571,26 @@ if (preg_match('#^/events/(\\d+)/ticket-design$#', $path, $m) && $method === 'PO
   json_response(200, ['customization' => $customization]);
 }
 
+if (preg_match('#^/events/(\\d+)/stats$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  deny_unless_event_row_access($pdo, $row, $uid, 'viewer');
+  json_response(200, ['stats' => event_stats_api_shape($pdo, $eventId)]);
+}
+
 if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
   $pdo = db();
+  ensure_ticket_early_bird_columns($pdo);
   $row = load_event_row_or_404($pdo, $eventId);
   if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
   $stmt = $pdo->prepare('SELECT * FROM tickets WHERE event_id = ? ORDER BY id ASC');
   $stmt->execute([$eventId]);
   $tickets = [];
   while ($row = $stmt->fetch()) {
-    $tickets[] = [
-      'id' => (string)$row['id'],
-      'eventId' => (string)$row['event_id'],
-      'name' => $row['name'],
-      'price' => ((int)$row['price_cents']) / 100,
-      'quantity' => (int)$row['quantity'],
-      'sold' => (int)$row['sold'],
-      'description' => $row['description'],
-    ];
+    $tickets[] = ticket_to_api_shape($row);
   }
   json_response(200, ['tickets' => $tickets]);
 }
@@ -3170,28 +3610,39 @@ if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'POST') {
   if ($quantity < 1) json_response(400, ['error' => 'invalid_ticket_quantity']);
 
   $pdo = db();
+  ensure_ticket_early_bird_columns($pdo);
   $stmt = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
-  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], $price);
+  $earlyBird = parse_early_bird_fields_from_body($body);
+  validate_ticket_early_bird($price, $earlyBird, $quantity);
+  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], max($price, ($earlyBird['priceCents'] ?? 0) / 100));
 
-  $ins = $pdo->prepare('INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description) VALUES (?, ?, ?, ?, 0, ?)');
-  $ins->execute([$eventId, $name, (int)round($price * 100), $quantity, $description !== '' ? $description : null]);
+  [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
+  $bulkOffers = parse_bulk_offers_from_body($body);
+  validate_ticket_bulk_offers($price, $bulkOffers);
+  $ins = $pdo->prepare(
+    'INSERT INTO tickets (event_id, name, price_cents, quantity, sold, description, early_bird_price_cents, early_bird_end_at, early_bird_limit, early_bird_sold, bulk_offers_json)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?)'
+  );
+  $ins->execute([
+    $eventId,
+    $name,
+    (int)round($price * 100),
+    $quantity,
+    $description !== '' ? $description : null,
+    $ebPriceCents,
+    $ebEndAt,
+    $ebLimit,
+    bulk_offers_json_from_list($bulkOffers),
+  ]);
   $ticketId = (int)$pdo->lastInsertId();
 
-  json_response(201, [
-    'ticket' => [
-      'id' => (string)$ticketId,
-      'eventId' => (string)$eventId,
-      'name' => $name,
-      'price' => $price,
-      'quantity' => $quantity,
-      'sold' => 0,
-      'description' => $description,
-    ],
-  ]);
+  $created = $pdo->prepare('SELECT * FROM tickets WHERE id = ? LIMIT 1');
+  $created->execute([$ticketId]);
+  json_response(201, ['ticket' => ticket_to_api_shape($created->fetch())]);
 }
 
 if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'POST') {
@@ -3210,33 +3661,44 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)$#', $path, $m) && $method === 'P
   if ($quantity < 1) json_response(400, ['error' => 'invalid_ticket_quantity']);
 
   $pdo = db();
+  ensure_ticket_early_bird_columns($pdo);
   $owner = $pdo->prepare('SELECT organizer_user_id FROM events WHERE id = ? LIMIT 1');
   $owner->execute([$eventId]);
   $row = $owner->fetch();
   if (!$row) json_response(404, ['error' => 'event_not_found']);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
-  $existing = $pdo->prepare('SELECT id, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  $existing = $pdo->prepare('SELECT * FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
   $existing->execute([$ticketId, $eventId]);
   $ticket = $existing->fetch();
   if (!$ticket) json_response(404, ['error' => 'ticket_not_found']);
   if ($quantity < (int)$ticket['sold']) json_response(400, ['error' => 'quantity_below_sold']);
-  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], $price);
+  $earlyBird = parse_early_bird_fields_from_body($body);
+  validate_ticket_early_bird($price, $earlyBird, $quantity, (int)($ticket['early_bird_sold'] ?? 0));
+  $bulkOffers = parse_bulk_offers_from_body($body);
+  validate_ticket_bulk_offers($price, $bulkOffers);
+  assert_organizer_can_sell_paid_tickets($pdo, (int)$row['organizer_user_id'], max($price, ($earlyBird['priceCents'] ?? 0) / 100));
 
-  $upd = $pdo->prepare('UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ? WHERE id = ? AND event_id = ?');
-  $upd->execute([$name, (int)round($price * 100), $quantity, $description !== '' ? $description : null, $ticketId, $eventId]);
-
-  json_response(200, [
-    'ticket' => [
-      'id' => (string)$ticketId,
-      'eventId' => (string)$eventId,
-      'name' => $name,
-      'price' => $price,
-      'quantity' => $quantity,
-      'sold' => (int)$ticket['sold'],
-      'description' => $description,
-    ],
+  [$ebPriceCents, $ebEndAt, $ebLimit] = ticket_early_bird_db_values($earlyBird);
+  $upd = $pdo->prepare(
+    'UPDATE tickets SET name = ?, price_cents = ?, quantity = ?, description = ?, early_bird_price_cents = ?, early_bird_end_at = ?, early_bird_limit = ?, bulk_offers_json = ? WHERE id = ? AND event_id = ?'
+  );
+  $upd->execute([
+    $name,
+    (int)round($price * 100),
+    $quantity,
+    $description !== '' ? $description : null,
+    $ebPriceCents,
+    $ebEndAt,
+    $ebLimit,
+    bulk_offers_json_from_list($bulkOffers),
+    $ticketId,
+    $eventId,
   ]);
+
+  $updated = $pdo->prepare('SELECT * FROM tickets WHERE id = ? LIMIT 1');
+  $updated->execute([$ticketId]);
+  json_response(200, ['ticket' => ticket_to_api_shape($updated->fetch())]);
 }
 
 if (preg_match('#^/events/(\\d+)/tickets/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
@@ -3330,6 +3792,11 @@ if ($path === '/orders' && $method === 'POST') {
     $pdo->commit();
 
     send_order_confirmation_email($pdo, $orderId);
+    try {
+      send_order_confirmation_sms($pdo, $orderId);
+    } catch (Throwable $e) {
+      error_log(sprintf('[turnout] free order sms failed order=%d: %s', $orderId, $e->getMessage()));
+    }
 
     json_response(201, [
       'orderId' => (string)$orderId,
@@ -4440,6 +4907,11 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST')
     } catch (Throwable $e) {
       error_log(sprintf('[turnout] manual attendee email failed order=%d: %s', $orderId, $e->getMessage()));
     }
+    try {
+      send_order_confirmation_sms($pdo, $orderId);
+    } catch (Throwable $e) {
+      error_log(sprintf('[turnout] manual attendee sms failed order=%d: %s', $orderId, $e->getMessage()));
+    }
   }
 
   json_response(201, [
@@ -5315,6 +5787,30 @@ if (preg_match('#^/admin/organizers/(\d+)/commission$#', $path, $m) && $method =
   json_response(200, ['commission' => $commission]);
 }
 
+if (preg_match('#^/admin/organizers/(\d+)/turnout-pay-override$#', $path, $m) && $method === 'POST') {
+  $adminId = require_super_admin_user_id();
+  $organizerId = (int)$m[1];
+  $pdo = db();
+  $exists = $pdo->prepare('SELECT id FROM users WHERE id = ? AND role = ? LIMIT 1');
+  $exists->execute([$organizerId, 'organizer']);
+  if (!$exists->fetch()) json_response(404, ['error' => 'organizer_not_found']);
+
+  $body = read_json_body();
+  $enabled = !empty($body['enabled']);
+  set_organizer_turnout_pay_docs_override($pdo, $organizerId, $enabled);
+  $readiness = organizer_paid_event_readiness_api_shape($pdo, $organizerId);
+
+  write_log($pdo, $adminId, 'super_admin', 'admin.organizer.turnout_pay_override', 'user', (string)$organizerId, [
+    'enabled' => $enabled,
+  ]);
+
+  json_response(200, [
+    'ok' => true,
+    'enabled' => $enabled,
+    'readiness' => $readiness,
+  ]);
+}
+
 if ($path === '/admin/organizers/balances' && $method === 'GET') {
   require_super_admin_user_id();
   $pdo = db();
@@ -5496,6 +5992,8 @@ if ($path === '/admin/settings' && $method === 'GET') {
   $settings = [];
   foreach ($rows ?: [] as $row) $settings[(string)$row['setting_key']] = $row['setting_value'];
   $settings['commission_pct'] = (string)get_platform_commission_pct($pdo);
+  $settings['payhere_secret_configured'] = !empty($settings['payhere_merchant_secret_enc']) ? 'true' : 'false';
+  unset($settings['payhere_merchant_secret_enc']);
   json_response(200, ['settings' => $settings]);
 }
 
@@ -5504,7 +6002,15 @@ if ($path === '/admin/settings' && $method === 'POST') {
   $pdo = db();
   ensure_finance_tables($pdo);
   $body = read_json_body();
-  $allowed = ['platform_name', 'platform_logo_url', 'commission_pct', 'email_from', 'maintenance_mode'];
+  $allowed = [
+    'platform_name',
+    'platform_logo_url',
+    'commission_pct',
+    'email_from',
+    'maintenance_mode',
+    'payhere_merchant_id',
+    'payhere_app_base_url',
+  ];
   foreach ($allowed as $key) {
     if (!array_key_exists($key, $body)) continue;
     $value = (string)$body[$key];
@@ -5526,6 +6032,21 @@ if ($path === '/admin/settings' && $method === 'POST') {
       }
     }
   }
+
+  if (array_key_exists('payhere_merchant_secret', $body)) {
+    $secretPlain = trim((string)$body['payhere_merchant_secret']);
+    if ($secretPlain !== '') {
+      $secretEnc = encrypt_payment_secret($secretPlain);
+      $stmt = $pdo->prepare('INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value');
+      try {
+        $stmt->execute(['payhere_merchant_secret_enc', $secretEnc]);
+      } catch (Throwable $e) {
+        $stmt2 = $pdo->prepare('INSERT INTO global_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+        $stmt2->execute(['payhere_merchant_secret_enc', $secretEnc]);
+      }
+    }
+  }
+
   write_log($pdo, $adminId, 'super_admin', 'admin.settings.updated', 'setting', null, ['keys' => array_keys($body)]);
   json_response(200, ['ok' => true]);
 }
@@ -5629,22 +6150,41 @@ if ($path === '/admin/events/override' && $method === 'POST') {
   json_response(200, ['ok' => true]);
 }
 
+if ($path === '/organizer/dashboard-stats' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ownerIds = organizer_accessible_owner_ids($pdo, $uid);
+  $placeholders = implode(',', array_fill(0, count($ownerIds), '?'));
+  $stmt = $pdo->prepare("SELECT id FROM events WHERE organizer_user_id IN ($placeholders) ORDER BY created_at DESC");
+  $stmt->execute($ownerIds);
+  $eventIds = [];
+  while ($row = $stmt->fetch()) {
+    $eventIds[] = (int)$row['id'];
+  }
+
+  $byEvent = organizer_event_stats_map($pdo, $eventIds);
+  $totals = [
+    'soldTickets' => 0,
+    'totalRevenue' => 0.0,
+    'checkedInCount' => 0,
+  ];
+  foreach ($byEvent as $stats) {
+    $totals['soldTickets'] += (int)($stats['soldTickets'] ?? 0);
+    $totals['totalRevenue'] += (float)($stats['totalRevenue'] ?? 0);
+    $totals['checkedInCount'] += (int)($stats['checkedInCount'] ?? 0);
+  }
+
+  json_response(200, [
+    'totals' => $totals,
+    'byEvent' => $byEvent,
+    'earnings' => organizer_earnings_api_shape($pdo, $uid),
+  ]);
+}
+
 if ($path === '/organizer/earnings' && $method === 'GET') {
   $uid = require_organizer_user_id();
   $pdo = db();
   ensure_finance_tables($pdo);
-
-  $sumStmt = $pdo->prepare(
-    "SELECT
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
-     FROM events e
-     LEFT JOIN transactions t ON t.event_id = e.id
-     WHERE e.organizer_user_id = ?"
-  );
-  $sumStmt->execute([$uid]);
-  $sum = $sumStmt->fetch();
 
   $payoutStmt = $pdo->prepare(
     "SELECT id, organizer_id, total_amount_cents, status, method, reference, notes, created_at, completed_at
@@ -5655,9 +6195,7 @@ if ($path === '/organizer/earnings' && $method === 'GET') {
   );
   $payoutStmt->execute([$uid]);
   $payouts = [];
-  $paidOutCents = 0;
   while ($r = $payoutStmt->fetch()) {
-    if (in_array((string)$r['status'], ['processing', 'completed'], true)) $paidOutCents += (int)$r['total_amount_cents'];
     $payouts[] = [
       'id' => (string)$r['id'],
       'organizerId' => (string)$r['organizer_id'],
@@ -5671,20 +6209,10 @@ if ($path === '/organizer/earnings' && $method === 'GET') {
     ];
   }
 
-  $grossCents = (int)($sum['gross_cents'] ?? 0);
-  $feeCents = (int)($sum['fee_cents'] ?? 0);
-  $netCents = (int)($sum['net_cents'] ?? 0);
-  $availableCents = max(0, $netCents - $paidOutCents);
-
   json_response(200, [
-    'earnings' => [
-      'grossRevenue' => $grossCents / 100,
-      'platformFees' => $feeCents / 100,
-      'netEarnings' => $netCents / 100,
-      'paidOut' => $paidOutCents / 100,
-      'availableBalance' => $availableCents / 100,
+    'earnings' => array_merge(organizer_earnings_api_shape($pdo, $uid), [
       'payoutHistory' => $payouts,
-    ],
+    ]),
   ]);
 }
 
