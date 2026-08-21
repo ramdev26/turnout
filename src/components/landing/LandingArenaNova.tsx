@@ -34,8 +34,10 @@ import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveArenaCarouselSlides } from './arenaGallery';
 import { VenueMapEmbed } from './VenueMapEmbed';
 import {
+  isLocationTba,
   isOnlineEvent,
   onlinePlatformLabel,
+  resolveEventLocationLabel,
   resolveOnlineJoinUrl,
   resolveOnlinePlatform,
 } from '../../utils/eventLocation';
@@ -192,14 +194,16 @@ function ArenaNovaAbout({ event }: { event: Event }) {
 
 function ArenaNovaEventDetailsCard({ event }: { event: Event }) {
   const tba = !!event.customization?.scheduleTba;
+  const locationTba = isLocationTba(event.customization, event.location);
   const eventDate = new Date(event.date);
   const { days, hours, mins, secs, done } = useCountdown(event.date, !tba);
   const category = resolveEventCategory(event.customization?.eventCategory);
   const online = isOnlineEvent(event.customization, event.location);
   const joinUrl = resolveOnlineJoinUrl(event.customization);
   const platformLabel = onlinePlatformLabel(resolveOnlinePlatform(event.customization));
+  const locationLabel = resolveEventLocationLabel(event.customization, event.location);
   const mapsUrl =
-    !online && event.location?.trim()
+    !online && !locationTba && event.location?.trim()
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
       : null;
   const LocationIcon = online ? Video : MapPin;
@@ -225,7 +229,7 @@ function ArenaNovaEventDetailsCard({ event }: { event: Event }) {
       <div className="landing-arena-location-row">
         <div className="landing-arena-location-text">
           <LocationIcon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--arena-muted)' }} />
-          <span>{event.location || 'Venue to be announced'}</span>
+          <span>{locationLabel}</span>
         </div>
         {joinUrl ? (
           <a href={joinUrl} target="_blank" rel="noopener noreferrer" className="landing-arena-navigate-btn">
@@ -240,7 +244,7 @@ function ArenaNovaEventDetailsCard({ event }: { event: Event }) {
         ) : null}
       </div>
 
-      {!online ? (
+      {!online && !locationTba ? (
         <div className="landing-arena-nova-map-wrap">
           <VenueMapEmbed
             query={event.location}
