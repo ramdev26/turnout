@@ -24,9 +24,15 @@ import {
   useCountdown,
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
-import { ticketLineTotal } from '../../utils/ticketPricing';
+import {
+  activeBulkOffers,
+  bulkOfferSavings,
+  ticketBulkSavingsForQty,
+  ticketLineTotal,
+} from '../../utils/ticketPricing';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveArenaCarouselSlides } from './arenaGallery';
+import { VenueMapEmbed } from './VenueMapEmbed';
 import {
   isLocationTba,
   isOnlineEvent,
@@ -51,10 +57,9 @@ function popularTicketId(tickets: EventTicket[]): string | null {
   return sorted[0]?.id ?? null;
 }
 
-function ArenaHeader({ event }: { event: Event }) {
+function ArenaNovaHeader({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
-  const shortName = brand.name.split(/\s+/)[0]?.toUpperCase() || 'EVENT';
-  const eventName = (event.customization?.heroText?.trim() || event.title).trim();
+  const fullName = brand.name.trim() || 'Organizer';
 
   return (
     <header className="landing-arena-header">
@@ -63,11 +68,13 @@ function ArenaHeader({ event }: { event: Event }) {
           {brand.logoUrl ? (
             <img src={brand.logoUrl} alt="" className="landing-arena-header-logo" referrerPolicy="no-referrer" />
           ) : (
-            <span className="landing-arena-header-mark">{shortName.slice(0, 3)}</span>
+            <span className="landing-arena-header-mark landing-arena-header-mark--name" aria-hidden>
+              {fullName.charAt(0).toUpperCase()}
+            </span>
           )}
           <span className="landing-arena-header-divider" aria-hidden />
-          <span className="landing-arena-header-label" title={eventName}>
-            {eventName}
+          <span className="landing-arena-header-label" title={brand.name}>
+            {fullName}
           </span>
         </div>
       </div>
@@ -75,7 +82,7 @@ function ArenaHeader({ event }: { event: Event }) {
   );
 }
 
-function ArenaCarousel({ event }: { event: Event }) {
+function ArenaNovaCarousel({ event }: { event: Event }) {
   const slides = useMemo(() => resolveArenaCarouselSlides(event), [event.bannerUrl, event.customization?.arenaGalleryImages]);
   const [index, setIndex] = useState(0);
   const hasMultiple = slides.length > 1;
@@ -138,7 +145,7 @@ function ArenaCarousel({ event }: { event: Event }) {
   );
 }
 
-function ArenaEventIntro({ event }: { event: Event }) {
+function ArenaNovaEventIntro({ event }: { event: Event }) {
   const brand = resolveLandingOrganizerBrand(event);
   const title = event.customization?.heroText?.trim() || event.title;
   const lead = (event.customization?.heroSubtext || '').trim();
@@ -154,7 +161,7 @@ function ArenaEventIntro({ event }: { event: Event }) {
 
 const ARENA_ABOUT_READ_MORE_MIN = 160;
 
-function ArenaAbout({ event }: { event: Event }) {
+function ArenaNovaAbout({ event }: { event: Event }) {
   const desc = event.description?.trim();
   const [expanded, setExpanded] = useState(false);
   if (!desc) return null;
@@ -185,7 +192,7 @@ function ArenaAbout({ event }: { event: Event }) {
   );
 }
 
-function ArenaEventDetailsCard({ event }: { event: Event }) {
+function ArenaNovaEventDetailsCard({ event }: { event: Event }) {
   const tba = !!event.customization?.scheduleTba;
   const locationTba = isLocationTba(event.customization, event.location);
   const eventDate = new Date(event.date);
@@ -237,6 +244,17 @@ function ArenaEventDetailsCard({ event }: { event: Event }) {
         ) : null}
       </div>
 
+      {!online && !locationTba ? (
+        <div className="landing-arena-nova-map-wrap">
+          <VenueMapEmbed
+            query={event.location}
+            title={`${event.title} venue map`}
+            emptyLabel="Venue to be announced"
+            className="landing-arena-nova-map"
+          />
+        </div>
+      ) : null}
+
       {category.name ? (
         <div className="landing-arena-tags">
           <span className="landing-arena-tag">{category.name}</span>
@@ -270,7 +288,7 @@ function ArenaEventDetailsCard({ event }: { event: Event }) {
   );
 }
 
-function ArenaTicketCard({
+function ArenaNovaTicketCard({
   ticket,
   qty,
   popular,
@@ -285,14 +303,21 @@ function ArenaTicketCard({
   const soldOut = remaining <= 0;
   const Icon = ticketIcon(ticket);
   const desc = (ticket.description || 'Full event access').split('\n')[0]?.trim() || 'Full event access';
+  const bulkOffers = useMemo(() => activeBulkOffers(ticket), [ticket.bulkOffers]);
+  const appliedSavings = ticketBulkSavingsForQty(ticket, qty);
 
   const addOne = () => {
     if (soldOut || qty >= remaining) return;
     onChange(qty + 1);
   };
 
+  const selectBulk = (packQty: number) => {
+    if (soldOut) return;
+    onChange(Math.min(packQty, remaining));
+  };
+
   return (
-    <div className={`landing-arena-ticket${popular ? ' is-popular' : ''}`}>
+    <div className={`landing-arena-ticket${popular ? ' is-popular' : ''}${bulkOffers.length ? ' has-bulk' : ''}`}>
       {popular ? <span className="landing-arena-popular-badge">Most popular</span> : null}
       <div className="landing-arena-ticket-top">
         <div className="landing-arena-ticket-icon">
@@ -306,6 +331,47 @@ function ArenaTicketCard({
           </p>
         </div>
       </div>
+
+      {bulkOffers.length > 0 ? (
+        <div className="landing-arena-nova-bulk" aria-label="Bulk offers">
+          <div className="landing-arena-nova-bulk-head">
+            <span className="landing-arena-nova-bulk-kicker">Bundle &amp; save</span>
+            <span className="landing-arena-nova-bulk-hint">Tap a pack to select</span>
+          </div>
+          <ul className="landing-arena-nova-bulk-list">
+            {bulkOffers.map((offer) => {
+              const save = bulkOfferSavings(ticket, offer);
+              const selected = qty === offer.qty;
+              const unavailable = soldOut || offer.qty > remaining;
+              return (
+                <li key={`${ticket.id}-bulk-${offer.qty}-${offer.price}`}>
+                  <button
+                    type="button"
+                    className={`landing-arena-nova-bulk-offer${selected ? ' is-selected' : ''}`}
+                    disabled={unavailable}
+                    onClick={() => selectBulk(offer.qty)}
+                    aria-pressed={selected}
+                  >
+                    <span className="landing-arena-nova-bulk-qty">Buy {offer.qty}</span>
+                    <span className="landing-arena-nova-bulk-price">{formatLKRWhole(offer.price)}</span>
+                    {save > 0 ? (
+                      <span className="landing-arena-nova-bulk-save">Save {formatLKRWhole(save)}</span>
+                    ) : (
+                      <span className="landing-arena-nova-bulk-save landing-arena-nova-bulk-save--muted">Pack price</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {appliedSavings > 0 ? (
+            <p className="landing-arena-nova-bulk-applied">
+              Bundle applied · you save {formatLKRWhole(appliedSavings)} on this selection
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="landing-arena-ticket-bar">
         <button type="button" className="landing-arena-qty-btn" disabled={soldOut || qty <= 0} onClick={() => onChange(qty - 1)} aria-label="Decrease">
           −
@@ -322,7 +388,7 @@ function ArenaTicketCard({
   );
 }
 
-function ArenaSummary({
+function ArenaNovaSummary({
   tickets,
   selectedTickets,
   totalAmount,
@@ -346,14 +412,22 @@ function ArenaSummary({
         Your order
       </p>
       <div className="mt-2 space-y-1.5">
-        {lines.map((t) => (
-          <div key={t.id} className="flex justify-between gap-2 text-sm">
-            <span style={{ color: 'var(--arena-muted)' }}>
-              {t.name} ×{selectedTickets[t.id]}
-            </span>
-            <span className="font-bold tabular-nums">{formatLKRWhole(ticketLineTotal(t, selectedTickets[t.id]))}</span>
-          </div>
-        ))}
+        {lines.map((t) => {
+          const lineQty = selectedTickets[t.id];
+          const lineTotal = ticketLineTotal(t, lineQty);
+          const lineSave = ticketBulkSavingsForQty(t, lineQty);
+          return (
+            <div key={t.id} className="flex justify-between gap-2 text-sm">
+              <span style={{ color: 'var(--arena-muted)' }}>
+                {t.name} ×{lineQty}
+                {lineSave > 0 ? (
+                  <span className="landing-arena-nova-summary-save"> · saved {formatLKRWhole(lineSave)}</span>
+                ) : null}
+              </span>
+              <span className="font-bold tabular-nums">{formatLKRWhole(lineTotal)}</span>
+            </div>
+          );
+        })}
       </div>
       <div className="mt-2 flex items-baseline justify-between border-t pt-2" style={{ borderColor: 'var(--arena-border)' }}>
         <span className="font-bold">Total</span>
@@ -367,7 +441,7 @@ function ArenaSummary({
   );
 }
 
-export function LandingArenaPage({
+export function LandingArenaNovaPage({
   event,
   tickets,
   selectedTickets,
@@ -381,25 +455,25 @@ export function LandingArenaPage({
 
   return (
     <div
-      className="landing-page landing-showcase landing-arena relative isolate"
+      className="landing-page landing-showcase landing-arena landing-arena-nova relative isolate"
       data-landing-tone={tone}
       style={{ ...landingCssVars(event.customization, event.templateId), ...landingShellStyle() }}
     >
-      <ArenaHeader event={event} />
+      <ArenaNovaHeader event={event} />
 
       <div className="landing-arena-shell">
         <div className="landing-arena-layout">
           <div className="landing-arena-gallery-col">
-            <ArenaCarousel event={event} />
+            <ArenaNovaCarousel event={event} />
           </div>
 
           <main className="landing-arena-content-col" id="landing-tickets">
-            <ArenaEventIntro event={event} />
-            <ArenaEventDetailsCard event={event} />
-            <ArenaAbout event={event} />
+            <ArenaNovaEventIntro event={event} />
+            <ArenaNovaEventDetailsCard event={event} />
+            <ArenaNovaAbout event={event} />
 
             <div className="landing-arena-section-head">
-              <h2 className="landing-arena-section-title">Select seating</h2>
+              <h2 className="landing-arena-section-title">Choose your tickets</h2>
               <span className="landing-arena-currency">Pay in LKR</span>
             </div>
 
@@ -411,7 +485,7 @@ export function LandingArenaPage({
               </div>
             ) : (
               tickets.map((ticket) => (
-                <ArenaTicketCard
+                <ArenaNovaTicketCard
                   key={ticket.id}
                   ticket={ticket}
                   qty={selectedTickets[ticket.id] || 0}
@@ -421,7 +495,7 @@ export function LandingArenaPage({
               ))
             )}
 
-            <ArenaSummary
+            <ArenaNovaSummary
               tickets={tickets}
               selectedTickets={selectedTickets}
               totalAmount={totalAmount}
