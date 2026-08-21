@@ -190,7 +190,7 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
       <button
         type="button"
         aria-label="Close add attendee"
-        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/60"
         disabled={saving}
         onClick={onClose}
       />

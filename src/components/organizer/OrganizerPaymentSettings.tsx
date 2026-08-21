@@ -308,7 +308,7 @@ function GatewayPickerModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
-      style={{ background: 'rgba(2, 18, 20, 0.72)', backdropFilter: 'blur(6px)' }}
+      style={{ background: 'rgba(2, 18, 20, 0.72)' }}
       onClick={onClose}
       role="presentation"
     >
