@@ -41,6 +41,43 @@ export function ticketHasEarlyBirdOffer(ticket: Ticket): boolean {
   return Boolean(ticket.earlyBird && ticket.earlyBird.price < ticket.price);
 }
 
+/** Valid bulk packs for buyer-facing display (qty ≥ 2, positive pack price). */
+export function activeBulkOffers(ticket: Ticket): Array<{ qty: number; price: number }> {
+  return (ticket.bulkOffers || [])
+    .filter((o) => o.qty >= 2 && o.price > 0)
+    .map((o) => ({ qty: o.qty, price: o.price }))
+    .sort((a, b) => a.qty - b.qty);
+}
+
+export function ticketHasBulkOffers(ticket: Ticket): boolean {
+  return activeBulkOffers(ticket).length > 0;
+}
+
+/** Savings vs buying the same qty at the current unit price (early bird when active). */
+export function bulkOfferSavings(ticket: Ticket, offer: { qty: number; price: number }): number {
+  const unit = ticketEffectivePrice(ticket);
+  const full = unit * offer.qty;
+  return Math.max(0, full - offer.price);
+}
+
+/** Line total as if no bulk packs applied (still respects early-bird inventory split). */
+export function ticketLineTotalWithoutBulk(ticket: Ticket, quantity: number): number {
+  if (quantity <= 0) return 0;
+  const earlyBird = ticket.earlyBird;
+  if (earlyBird?.active && earlyBird.remaining > 0) {
+    const earlyQty = Math.min(quantity, earlyBird.remaining);
+    const regularQty = quantity - earlyQty;
+    return earlyQty * earlyBird.price + regularQty * ticket.price;
+  }
+  return quantity * ticketEffectivePrice(ticket);
+}
+
+/** True when the selected quantity is cheaper than unit price × qty thanks to bulk packs. */
+export function ticketBulkSavingsForQty(ticket: Ticket, quantity: number): number {
+  if (quantity <= 0 || activeBulkOffers(ticket).length === 0) return 0;
+  return Math.max(0, ticketLineTotalWithoutBulk(ticket, quantity) - ticketLineTotal(ticket, quantity));
+}
+
 export function formatEarlyBirdEndsLabel(iso: string): string {
   try {
     const d = new Date(iso);
