@@ -24,7 +24,12 @@ import {
   useCountdown,
 } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
-import { ticketLineTotal } from '../../utils/ticketPricing';
+import {
+  activeBulkOffers,
+  bulkOfferSavings,
+  ticketBulkSavingsForQty,
+  ticketLineTotal,
+} from '../../utils/ticketPricing';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveArenaCarouselSlides } from './arenaGallery';
 import { VenueMapEmbed } from './VenueMapEmbed';
@@ -294,14 +299,21 @@ function ArenaNovaTicketCard({
   const soldOut = remaining <= 0;
   const Icon = ticketIcon(ticket);
   const desc = (ticket.description || 'Full event access').split('\n')[0]?.trim() || 'Full event access';
+  const bulkOffers = useMemo(() => activeBulkOffers(ticket), [ticket.bulkOffers]);
+  const appliedSavings = ticketBulkSavingsForQty(ticket, qty);
 
   const addOne = () => {
     if (soldOut || qty >= remaining) return;
     onChange(qty + 1);
   };
 
+  const selectBulk = (packQty: number) => {
+    if (soldOut) return;
+    onChange(Math.min(packQty, remaining));
+  };
+
   return (
-    <div className={`landing-arena-ticket${popular ? ' is-popular' : ''}`}>
+    <div className={`landing-arena-ticket${popular ? ' is-popular' : ''}${bulkOffers.length ? ' has-bulk' : ''}`}>
       {popular ? <span className="landing-arena-popular-badge">Most popular</span> : null}
       <div className="landing-arena-ticket-top">
         <div className="landing-arena-ticket-icon">
@@ -315,6 +327,47 @@ function ArenaNovaTicketCard({
           </p>
         </div>
       </div>
+
+      {bulkOffers.length > 0 ? (
+        <div className="landing-arena-nova-bulk" aria-label="Bulk offers">
+          <div className="landing-arena-nova-bulk-head">
+            <span className="landing-arena-nova-bulk-kicker">Bundle &amp; save</span>
+            <span className="landing-arena-nova-bulk-hint">Tap a pack to select</span>
+          </div>
+          <ul className="landing-arena-nova-bulk-list">
+            {bulkOffers.map((offer) => {
+              const save = bulkOfferSavings(ticket, offer);
+              const selected = qty === offer.qty;
+              const unavailable = soldOut || offer.qty > remaining;
+              return (
+                <li key={`${ticket.id}-bulk-${offer.qty}-${offer.price}`}>
+                  <button
+                    type="button"
+                    className={`landing-arena-nova-bulk-offer${selected ? ' is-selected' : ''}`}
+                    disabled={unavailable}
+                    onClick={() => selectBulk(offer.qty)}
+                    aria-pressed={selected}
+                  >
+                    <span className="landing-arena-nova-bulk-qty">Buy {offer.qty}</span>
+                    <span className="landing-arena-nova-bulk-price">{formatLKRWhole(offer.price)}</span>
+                    {save > 0 ? (
+                      <span className="landing-arena-nova-bulk-save">Save {formatLKRWhole(save)}</span>
+                    ) : (
+                      <span className="landing-arena-nova-bulk-save landing-arena-nova-bulk-save--muted">Pack price</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {appliedSavings > 0 ? (
+            <p className="landing-arena-nova-bulk-applied">
+              Bundle applied · you save {formatLKRWhole(appliedSavings)} on this selection
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="landing-arena-ticket-bar">
         <button type="button" className="landing-arena-qty-btn" disabled={soldOut || qty <= 0} onClick={() => onChange(qty - 1)} aria-label="Decrease">
           −
@@ -355,14 +408,22 @@ function ArenaNovaSummary({
         Your order
       </p>
       <div className="mt-2 space-y-1.5">
-        {lines.map((t) => (
-          <div key={t.id} className="flex justify-between gap-2 text-sm">
-            <span style={{ color: 'var(--arena-muted)' }}>
-              {t.name} ×{selectedTickets[t.id]}
-            </span>
-            <span className="font-bold tabular-nums">{formatLKRWhole(ticketLineTotal(t, selectedTickets[t.id]))}</span>
-          </div>
-        ))}
+        {lines.map((t) => {
+          const lineQty = selectedTickets[t.id];
+          const lineTotal = ticketLineTotal(t, lineQty);
+          const lineSave = ticketBulkSavingsForQty(t, lineQty);
+          return (
+            <div key={t.id} className="flex justify-between gap-2 text-sm">
+              <span style={{ color: 'var(--arena-muted)' }}>
+                {t.name} ×{lineQty}
+                {lineSave > 0 ? (
+                  <span className="landing-arena-nova-summary-save"> · saved {formatLKRWhole(lineSave)}</span>
+                ) : null}
+              </span>
+              <span className="font-bold tabular-nums">{formatLKRWhole(lineTotal)}</span>
+            </div>
+          );
+        })}
       </div>
       <div className="mt-2 flex items-baseline justify-between border-t pt-2" style={{ borderColor: 'var(--arena-border)' }}>
         <span className="font-bold">Total</span>
