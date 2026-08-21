@@ -30,8 +30,10 @@ import { ticketEffectivePrice } from '../../utils/ticketPricing';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import {
+  isLocationTba,
   isOnlineEvent,
   onlinePlatformLabel,
+  resolveEventLocationLabel,
   resolveOnlineJoinUrl,
   resolveOnlinePlatform,
 } from '../../utils/eventLocation';
@@ -112,7 +114,11 @@ function SpotlightQuickFacts({ event }: { event: Event }) {
           <p className="sp-quickfact-label">
             {isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}
           </p>
-          <p className="sp-quickfact-value">{event.location?.trim() || 'Venue TBA'}</p>
+          <p className="sp-quickfact-value">
+            {isLocationTba(event.customization, event.location)
+              ? 'Venue TBA'
+              : resolveEventLocationLabel(event.customization, event.location)}
+          </p>
         </div>
       </div>
       {category.name ? (
@@ -172,10 +178,11 @@ function SpotlightAbout({ event }: { event: Event }) {
 }
 
 function SpotlightLocation({ event }: { event: Event }) {
-  const location = event.location?.trim() || 'Venue to be announced';
+  const locationTba = isLocationTba(event.customization, event.location);
+  const location = resolveEventLocationLabel(event.customization, event.location);
   const online = isOnlineEvent(event.customization, event.location);
   const joinUrl = resolveOnlineJoinUrl(event.customization);
-  const hasLocation = Boolean(event.location?.trim());
+  const hasLocation = !locationTba && Boolean(event.location?.trim());
   const mapsUrl =
     !online && hasLocation
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location!.trim())}`
@@ -229,7 +236,11 @@ function SpotlightLocation({ event }: { event: Event }) {
           <div className="sp-map-caption">
             <p className="sp-map-name">{location}</p>
             <p className="sp-map-hint">
-              {hasLocation ? 'Interactive map · open Google Maps for directions' : 'Add a venue address to show the map'}
+              {hasLocation
+                ? 'Interactive map · open Google Maps for directions'
+                : locationTba
+                  ? 'Venue to be announced — map will appear once a place is set'
+                  : 'Add a venue address to show the map'}
             </p>
           </div>
         </div>
