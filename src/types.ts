@@ -77,6 +77,8 @@ export type BankTransferDetails = {
   bankCode?: string | null;
   branchCode?: string | null;
   swiftCode?: string | null;
+  /** Optional note for personal accounts collecting on behalf of an org. */
+  accountNote?: string | null;
 };
 
 export type OrganizerProfile = {
@@ -101,6 +103,8 @@ export type OrganizerProfile = {
   bankCode?: string | null;
   bankBranchCode?: string | null;
   bankSwiftCode?: string | null;
+  /** Optional note shown with bank details (e.g. role on a personal account). */
+  bankAccountNote?: string | null;
   bankStatementDocUrl?: string | null;
   bankStatementDocUploaded?: boolean;
   /** Organization Terms & Conditions (HTML). */
@@ -138,6 +142,7 @@ export type OrganizerPaidEventReadiness = {
     bankCode: string | null;
     bankBranchCode: string | null;
     bankSwiftCode: string | null;
+    bankAccountNote: string | null;
     bankStatementDocUrl: string | null;
     bankStatementDocUploaded: boolean;
   };

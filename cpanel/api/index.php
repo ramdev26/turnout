@@ -1852,6 +1852,9 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
   if (array_key_exists('bankSwiftCode', $body)) {
     $profileFields['bank_swift_code'] = $bankSwiftCode;
   }
+  if (array_key_exists('bankAccountNote', $body)) {
+    $profileFields['bank_account_note'] = trim((string)($body['bankAccountNote'] ?? ''));
+  }
   upsert_organizer_profile_paid_event_fields($pdo, $uid, $profileFields);
 
   if (array_key_exists('termsHtml', $body)) {
@@ -1968,6 +1971,9 @@ if (
     }
     if (array_key_exists('bankSwiftCode', $body)) {
       $bankFields['bank_swift_code'] = trim((string)$body['bankSwiftCode']);
+    }
+    if (array_key_exists('bankAccountNote', $body)) {
+      $bankFields['bank_account_note'] = trim((string)$body['bankAccountNote']);
     }
     if ($bankFields !== []) {
       $holder = trim((string)($bankFields['bank_account_holder_name'] ?? ''));

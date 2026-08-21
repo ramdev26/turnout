@@ -290,6 +290,7 @@ export const Success: React.FC = () => {
                   <div className="confirm-meta">
                     {[
                       ['Account name', bank.accountHolderName],
+                      ...(bank.accountNote ? [['Account note', bank.accountNote] as [string, string]] : []),
                       ['Account number', bank.accountNumber],
                       ['Bank', bank.bankName],
                       ['Branch', bank.bankBranch],

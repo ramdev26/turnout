@@ -83,6 +83,7 @@ const MISSING_LABELS: Record<string, string> = {
   business_registration_doc: 'Business registration document',
   bank_statement_doc: 'Bank statement document',
   bank_account_holder_name: 'Account holder name',
+  bank_account_note: 'Account note',
   bank_name: 'Bank name',
   bank_branch: 'Bank branch',
   bank_account_number: 'Bank account number',
@@ -570,6 +571,7 @@ export const AdminOrganizers: React.FC = () => {
                     <InfoRow label="Address" value={detail.profile.businessAddress || '—'} />
                     <InfoRow label="Registration no." value={detail.profile.businessRegistrationNo || '—'} />
                     <InfoRow label="Account holder" value={detail.profile.bankAccountHolderName || '—'} />
+                    <InfoRow label="Account note" value={detail.profile.bankAccountNote || '—'} />
                     <InfoRow
                       label="Bank"
                       value={
