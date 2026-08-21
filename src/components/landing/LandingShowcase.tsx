@@ -27,7 +27,7 @@ import {
 import { EventPolicyLink } from './EventPolicyViewer';
 import { formatLKRWhole } from '../../utils/money';
 import { ticketLineTotal } from '../../utils/ticketPricing';
-import { isOnlineEvent } from '../../utils/eventLocation';
+import { isOnlineEvent, resolveEventLocationLabel } from '../../utils/eventLocation';
 
 function splitHeroTitle(title: string): { accent: string; main: string } {
   const trimmed = title.trim();
@@ -195,7 +195,7 @@ function ShowcaseHero({ event }: { event: Event }) {
             <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
           )}
           <p className="label">{isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}</p>
-          <p className="value">{event.location || 'Venue to be announced'}</p>
+          <p className="value">{resolveEventLocationLabel(event.customization, event.location)}</p>
         </div>
       </div>
     </section>
@@ -244,7 +244,7 @@ function ShowcaseAbout({ event }: { event: Event }) {
   if (!desc) return null;
 
   const tags = [
-    event.location ? { icon: MapPin, text: event.location } : null,
+    { icon: MapPin, text: resolveEventLocationLabel(event.customization, event.location) },
     event.customization?.scheduleTba
       ? { icon: Calendar, text: 'Date to be announced' }
       : { icon: Calendar, text: format(new Date(event.date), 'MMM d, yyyy') },

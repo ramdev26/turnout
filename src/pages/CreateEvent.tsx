@@ -27,7 +27,7 @@ import { type LandingDesignValue } from '../components/organizer/LandingCustomiz
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
-import { formatEventLocationDisplay, isValidMeetingUrl } from '../utils/eventLocation';
+import { formatEventLocationDisplay, isValidMeetingUrl, LOCATION_TBA_LABEL } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
@@ -109,6 +109,7 @@ const eventSchema = z
     endDate: z.string().optional(),
     locationMode: z.enum(['physical', 'online']),
     location: z.string(),
+    locationTba: z.boolean(),
     onlinePlatform: z.enum(['google_meet', 'zoom', 'youtube', 'other']),
     onlineUrl: z.string().optional(),
     bannerUrl: z
@@ -133,7 +134,9 @@ const eventSchema = z
     dnsConfigured: z.boolean(),
   })
   .superRefine((data, ctx) => {
-    if (data.locationMode === 'physical') {
+    if (data.locationTba) {
+      // Venue TBA — no physical address or meeting link required.
+    } else if (data.locationMode === 'physical') {
       if (!(data.location || '').trim()) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -292,6 +295,7 @@ export const CreateEvent: React.FC = () => {
       endDate: '',
       locationMode: 'physical',
       location: '',
+      locationTba: false,
       onlinePlatform: 'google_meet',
       onlineUrl: '',
       bannerUrl: '',
@@ -316,6 +320,7 @@ export const CreateEvent: React.FC = () => {
   const endDate = watch('endDate');
   const locationMode = watch('locationMode');
   const location = watch('location');
+  const locationTba = watch('locationTba');
   const onlinePlatform = watch('onlinePlatform');
   const onlineUrl = watch('onlineUrl');
   const bannerUrl = watch('bannerUrl');
@@ -559,9 +564,12 @@ export const CreateEvent: React.FC = () => {
         smallUnderline: design.smallUnderline,
         eventPolicyHtml: DEFAULT_EVENT_POLICY_HTML,
         scheduleTba: !hasSchedule,
-        locationMode: data.locationMode,
-        onlinePlatform: data.locationMode === 'online' ? data.onlinePlatform : undefined,
-        onlineUrl: data.locationMode === 'online' ? (data.onlineUrl || '').trim() : undefined,
+        locationTba: !!data.locationTba,
+        locationMode: data.locationTba ? 'physical' : data.locationMode,
+        onlinePlatform:
+          !data.locationTba && data.locationMode === 'online' ? data.onlinePlatform : undefined,
+        onlineUrl:
+          !data.locationTba && data.locationMode === 'online' ? (data.onlineUrl || '').trim() : undefined,
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
@@ -599,8 +607,9 @@ export const CreateEvent: React.FC = () => {
               ...bulkOffersPayloadFromForm(ticket.bulkOffers || []),
             }));
 
-      const resolvedLocation =
-        data.locationMode === 'online'
+      const resolvedLocation = data.locationTba
+        ? LOCATION_TBA_LABEL
+        : data.locationMode === 'online'
           ? formatEventLocationDisplay({ mode: 'online', platform: data.onlinePlatform })
           : data.location.trim();
 
@@ -631,8 +640,9 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
-  const locationReady =
-    locationMode === 'online'
+  const locationReady = locationTba
+    ? true
+    : locationMode === 'online'
       ? isValidMeetingUrl(onlineUrl || '')
       : Boolean((location || '').trim());
 
@@ -641,16 +651,18 @@ export const CreateEvent: React.FC = () => {
   const previewEvent = useMemo((): Event => {
     const scheduleTba = !hasSchedule;
     const baseCustomization = landingCustomizationFromDesign(design, themeId);
-    const resolvedLocation =
-      locationMode === 'online'
+    const resolvedLocation = locationTba
+      ? LOCATION_TBA_LABEL
+      : locationMode === 'online'
         ? formatEventLocationDisplay({ mode: 'online', platform: onlinePlatform })
-        : location.trim() || 'Venue to be announced';
+        : location.trim() || LOCATION_TBA_LABEL;
     const customization: EventCustomization = {
       ...baseCustomization,
       scheduleTba,
-      locationMode,
-      onlinePlatform: locationMode === 'online' ? onlinePlatform : undefined,
-      onlineUrl: locationMode === 'online' ? (onlineUrl || '').trim() || undefined : undefined,
+      locationTba,
+      locationMode: locationTba ? 'physical' : locationMode,
+      onlinePlatform: !locationTba && locationMode === 'online' ? onlinePlatform : undefined,
+      onlineUrl: !locationTba && locationMode === 'online' ? (onlineUrl || '').trim() || undefined : undefined,
       heroSubtext: (shortDescription || '').trim(),
       heroText: title.trim() || 'Your event title',
       layout: 'standard',
@@ -685,6 +697,7 @@ export const CreateEvent: React.FC = () => {
     hasSchedule,
     location,
     locationMode,
+    locationTba,
     onlinePlatform,
     onlineUrl,
     shortDescription,
@@ -834,8 +847,9 @@ export const CreateEvent: React.FC = () => {
                     { label: 'Cover image', done: (bannerUrl || '').trim() !== '', icon: <Eye className="h-3.5 w-3.5" /> },
                     {
                       label: 'Location',
-                      done:
-                        locationMode === 'online'
+                      done: locationTba
+                        ? true
+                        : locationMode === 'online'
                           ? isValidMeetingUrl((onlineUrl || '').trim())
                           : (location || '').trim().length >= 3,
                       icon: <MapPin className="h-3.5 w-3.5" />,
@@ -1070,12 +1084,14 @@ export const CreateEvent: React.FC = () => {
                       physicalLocation={location}
                       onlinePlatform={onlinePlatform}
                       onlineUrl={onlineUrl || ''}
+                      locationTba={!!locationTba}
                       onModeChange={(mode) => setValue('locationMode', mode, { shouldValidate: true })}
                       onPhysicalLocationChange={(value) => setValue('location', value, { shouldValidate: true })}
                       onOnlinePlatformChange={(platform) =>
                         setValue('onlinePlatform', platform, { shouldValidate: true })
                       }
                       onOnlineUrlChange={(url) => setValue('onlineUrl', url, { shouldValidate: true })}
+                      onLocationTbaChange={(tba) => setValue('locationTba', tba, { shouldValidate: true })}
                       error={errors.location?.message || errors.onlineUrl?.message || null}
                     />
                   </div>
@@ -1471,7 +1487,7 @@ export const CreateEvent: React.FC = () => {
               </button>
               {!canSubmit && !submitError && (
                 <p className="mt-2 text-center text-xs" style={{ color: ui.textSubtle }}>
-                  Tip: event name and a venue or meeting link are required
+                  Tip: event name and a venue, meeting link, or TBA location are required
                   {hasSchedule ? ', plus a start date & time' : ''}.
                 </p>
               )}

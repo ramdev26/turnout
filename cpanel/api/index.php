@@ -3376,6 +3376,9 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   if (array_key_exists('scheduleTba', $body)) {
     $customization['scheduleTba'] = (bool)$body['scheduleTba'];
   }
+  if (array_key_exists('locationTba', $body)) {
+    $customization['locationTba'] = (bool)$body['locationTba'];
+  }
   if (array_key_exists('locationMode', $body)) {
     $locationMode = trim((string)$body['locationMode']);
     if ($locationMode === 'physical' || $locationMode === 'online') {
@@ -3410,8 +3413,14 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       }
     }
   }
-  if (($customization['locationMode'] ?? 'physical') !== 'online') {
+  if (!empty($customization['locationTba'])) {
+    $customization['locationMode'] = 'physical';
     unset($customization['onlinePlatform'], $customization['onlineUrl']);
+  } elseif (($customization['locationMode'] ?? 'physical') !== 'online') {
+    unset($customization['onlinePlatform'], $customization['onlineUrl']);
+  }
+  if (($customization['locationMode'] ?? 'physical') === 'online') {
+    $customization['locationTba'] = false;
   }
   if (array_key_exists('checkoutFields', $body)) {
     $customization['checkoutFields'] = normalize_checkout_fields($body['checkoutFields']);

@@ -303,6 +303,8 @@ export interface EventCustomization {
   eventPolicyHtml?: string;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
+  /** When true, the venue / meeting place is "to be announced" */
+  locationTba?: boolean;
   /** Physical venue vs online meeting / stream */
   locationMode?: 'physical' | 'online';
   /** Platform when locationMode is online */

@@ -15,7 +15,7 @@ import { formatLKRWhole } from '../../utils/money';
 import { formatEarlyBirdEndsLabel, ticketEffectivePrice, ticketHasEarlyBirdOffer, ticketLineTotal } from '../../utils/ticketPricing';
 import { landingCssVars, landingToneIsDark, resolveEventTheme } from '../../themes/eventThemes';
 import { EventPolicyLink } from './EventPolicyViewer';
-import { isOnlineEvent } from '../../utils/eventLocation';
+import { isOnlineEvent, resolveEventLocationLabel } from '../../utils/eventLocation';
 
 export function resolveLandingOrganizerBrand(event: Event): { name: string; logoUrl: string | null } {
   const name = event.organizerName?.trim() || 'Organizer';
@@ -313,7 +313,7 @@ export function EventMeta({
           <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
         )}
         <p className="label">{isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}</p>
-        <p className="value">{event.location || 'Venue to be announced'}</p>
+        <p className="value">{resolveEventLocationLabel(event.customization, event.location)}</p>
       </div>
     </div>
   );
