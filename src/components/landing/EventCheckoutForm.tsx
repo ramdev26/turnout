@@ -935,12 +935,12 @@ export const EventCheckoutForm: React.FC<Props> = ({
   );
 
   const payhereOverlay = payherePopupOpen ? (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4">
       <div
         className="w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl"
         style={{
           borderColor: 'var(--landing-border)',
-          background: 'var(--landing-surface)',
+          background: 'var(--landing-page-bg, #ffffff)',
           color: 'var(--landing-text)',
         }}
       >
@@ -1064,7 +1064,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
     <>
       {payhereOverlay}
       <div
-        className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-6 lg:p-8"
+        className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="landing-checkout-title"
@@ -1075,14 +1075,14 @@ export const EventCheckoutForm: React.FC<Props> = ({
           }`}
           style={{
             borderColor: 'var(--landing-border)',
-            background: 'var(--landing-surface)',
+            background: 'var(--landing-page-bg, #ffffff)',
             color: 'var(--landing-text)',
-            boxShadow: 'var(--landing-shadow-hover)',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.35)',
           }}
         >
           <div
             className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-7"
-            style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}
+            style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-page-bg, #ffffff)' }}
           >
             <div className="min-w-0 pr-2">
               <p className="landing-eyebrow" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>

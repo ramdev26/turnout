@@ -160,7 +160,6 @@ export function TurnoutSelect({
                 background: theme.panel,
                 border: `1px solid ${theme.border}`,
                 color: theme.text,
-                backdropFilter: 'blur(16px)',
               }}
             >
               {options.length === 0 ? (
