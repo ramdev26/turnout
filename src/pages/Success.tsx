@@ -290,7 +290,6 @@ export const Success: React.FC = () => {
                   <div className="confirm-meta">
                     {[
                       ['Account name', bank.accountHolderName],
-                      ...(bank.accountNote ? [['Account note', bank.accountNote] as [string, string]] : []),
                       ['Account number', bank.accountNumber],
                       ['Bank', bank.bankName],
                       ['Branch', bank.bankBranch],
@@ -300,6 +299,12 @@ export const Success: React.FC = () => {
                         <strong style={{ textAlign: 'right' }}>{value}</strong>
                       </div>
                     ))}
+                    {bank.accountNote ? (
+                      <div className="confirm-line-item confirm-line-item--note">
+                        <span style={{ color: 'var(--confirm-muted)' }}>Account note</span>
+                        <strong>{bank.accountNote}</strong>
+                      </div>
+                    ) : null}
                     <div className="confirm-line-item">
                       <span style={{ color: 'var(--confirm-muted)' }}>Amount</span>
                       <strong>{formatLKRWhole(order.totalAmount)}</strong>
