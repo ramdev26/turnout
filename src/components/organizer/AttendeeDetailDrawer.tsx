@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, Mail, Phone, Ticket, X } from 'lucide-react';
+import { CheckCircle2, Mail, Phone, Ticket, Trash2, X } from 'lucide-react';
 import type { Attendee, CheckoutFieldDefinition } from '../../types';
 import type { CreateThemeUI } from '../../themes/eventThemes';
 import { accentButtonStyleFor, cardMutedStyleFor, cardStyleFor } from '../../themes/flowUi';
@@ -16,7 +16,9 @@ type Props = {
   onClose: () => void;
   onCheckIn?: (attendee: Attendee) => void;
   onUndoCheckIn?: (attendee: Attendee) => void;
+  onRemove?: (attendee: Attendee) => void;
   checkingIn?: boolean;
+  removing?: boolean;
 };
 
 function DetailRow({
@@ -52,7 +54,9 @@ export function AttendeeDetailDrawer({
   onClose,
   onCheckIn,
   onUndoCheckIn,
+  onRemove,
   checkingIn,
+  removing,
 }: Props) {
   const cardStyle = cardStyleFor(ui);
   const cardMutedStyle = cardMutedStyleFor(ui);
@@ -260,6 +264,18 @@ export function AttendeeDetailDrawer({
               style={{ ...cardStyle, color: ui.textMuted }}
             >
               Undo check-in
+            </button>
+          ) : null}
+          {onRemove ? (
+            <button
+              type="button"
+              disabled={removing}
+              onClick={() => onRemove(attendee)}
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 sm:flex-none"
+              style={{ borderColor: 'rgba(244,63,94,0.35)', color: '#f43f5e' }}
+            >
+              <Trash2 className="h-4 w-4" />
+              {removing ? 'Removing…' : 'Remove'}
             </button>
           ) : null}
           <button

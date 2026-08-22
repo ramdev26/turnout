@@ -11,6 +11,7 @@ import {
   ScanLine,
   Search,
   Shield,
+  Trash2,
   Undo2,
   UserPlus,
   Users,
@@ -55,6 +56,8 @@ export const CheckInManager: React.FC = () => {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [removingAttendee, setRemovingAttendee] = useState(false);
+  const [bulkRemoving, setBulkRemoving] = useState(false);
   const [config, setConfig] = useState<CheckinConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(false);
   const [copyHint, setCopyHint] = useState<string | null>(null);
@@ -254,6 +257,64 @@ export const CheckInManager: React.FC = () => {
     } catch (e: unknown) {
       const error = e as { message?: string; error?: string };
       setErr(error?.message || error?.error || 'Undo failed');
+    }
+  };
+
+  const removeAttendee = async (attendee: Attendee) => {
+    if (!eventId) return;
+    if (
+      !window.confirm(
+        `Remove ${attendee.fullName} from this event?\n\nTheir ticket pass will be cancelled and inventory will be released. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setRemovingAttendee(true);
+    setErr(null);
+    try {
+      const res = await api.delete<{ stats: AttendeeStats; fullName?: string }>(
+        `/api/events/${eventId}/attendees/${attendee.id}`
+      );
+      setStats(res.stats);
+      setAttendees((prev) => prev.filter((a) => a.id !== attendee.id));
+      if (selectedAttendee?.id === attendee.id) setSelectedAttendee(null);
+      setMsg(`${attendee.fullName} removed from the attendee list.`);
+      await load({ background: true });
+    } catch (e: unknown) {
+      const error = e as { message?: string; error?: string };
+      setErr(error?.message || error?.error || 'Could not remove attendee');
+    } finally {
+      setRemovingAttendee(false);
+    }
+  };
+
+  const removeAllShown = async () => {
+    if (!eventId || attendees.length === 0) return;
+    const count = attendees.length;
+    if (
+      !window.confirm(
+        `Remove all ${count} attendee${count === 1 ? '' : 's'} shown in this list?\n\nTheir passes will be cancelled and ticket inventory will be released. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setBulkRemoving(true);
+    setErr(null);
+    try {
+      const res = await api.post<{ removed: number; stats: AttendeeStats }>(
+        `/api/events/${eventId}/attendees/bulk-delete`,
+        { attendeeIds: attendees.map((a) => a.id) }
+      );
+      setStats(res.stats);
+      setAttendees([]);
+      setSelectedAttendee(null);
+      setMsg(`Removed ${res.removed} attendee${res.removed === 1 ? '' : 's'}.`);
+      await load({ background: true });
+    } catch (e: unknown) {
+      const error = e as { message?: string; error?: string };
+      setErr(error?.message || error?.error || 'Could not remove attendees');
+    } finally {
+      setBulkRemoving(false);
     }
   };
 
@@ -589,6 +650,18 @@ export const CheckInManager: React.FC = () => {
                 >
                   {showTokens ? 'Hide tokens' : 'Show tokens'}
                 </button>
+                {attendees.length > 0 ? (
+                  <button
+                    type="button"
+                    disabled={bulkRemoving}
+                    onClick={() => void removeAllShown()}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-50"
+                    style={{ borderColor: 'rgba(244,63,94,0.35)', color: '#f43f5e' }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {bulkRemoving ? 'Removing…' : `Remove all shown (${attendees.length})`}
+                  </button>
+                ) : null}
               </div>
 
               <div className="max-h-[min(70vh,560px)] overflow-auto">
@@ -733,6 +806,10 @@ export const CheckInManager: React.FC = () => {
             onUndoCheckIn={(a) => {
               void undoCheckIn(a);
             }}
+            onRemove={(a) => {
+              void removeAttendee(a);
+            }}
+            removing={removingAttendee}
           />
         ) : null}
 

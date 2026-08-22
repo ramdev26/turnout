@@ -4944,6 +4944,105 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST')
   ]);
 }
 
+if (preg_match('#^/events/(\\d+)/attendees/(\\d+)$#', $path, $m) && $method === 'DELETE') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $attendeeId = (int)$m[2];
+
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+
+  $stmt = $pdo->prepare('SELECT id, ticket_id, full_name FROM attendees WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$attendeeId, $eventId]);
+  $row = $stmt->fetch();
+  if (!$row) {
+    json_response(404, ['error' => 'attendee_not_found', 'message' => 'Attendee not found.']);
+  }
+
+  $pdo->beginTransaction();
+  try {
+    $del = $pdo->prepare('DELETE FROM attendees WHERE id = ? AND event_id = ?');
+    $del->execute([$attendeeId, $eventId]);
+    decrement_ticket_sold_count($pdo, (int)$row['ticket_id'], 1);
+    $pdo->commit();
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log(sprintf('[turnout] attendee delete failed id=%d: %s', $attendeeId, $e->getMessage()));
+    json_response(500, ['error' => 'attendee_delete_failed', 'message' => 'Could not remove attendee.']);
+  }
+
+  json_response(200, [
+    'removed' => true,
+    'attendeeId' => (string)$attendeeId,
+    'fullName' => (string)$row['full_name'],
+    'stats' => fetch_attendee_stats($pdo, $eventId),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/attendees/bulk-delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+
+  $rawIds = $body['attendeeIds'] ?? [];
+  if (!is_array($rawIds) || count($rawIds) < 1) {
+    json_response(400, ['error' => 'invalid_attendee_ids', 'message' => 'Select at least one attendee to remove.']);
+  }
+
+  $attendeeIds = [];
+  foreach ($rawIds as $rawId) {
+    $id = (int)$rawId;
+    if ($id > 0) $attendeeIds[] = $id;
+  }
+  $attendeeIds = array_values(array_unique($attendeeIds));
+  if (count($attendeeIds) < 1) {
+    json_response(400, ['error' => 'invalid_attendee_ids', 'message' => 'Select at least one attendee to remove.']);
+  }
+  if (count($attendeeIds) > 500) {
+    json_response(400, ['error' => 'too_many_attendees', 'message' => 'Remove at most 500 attendees at a time.']);
+  }
+
+  $placeholders = implode(',', array_fill(0, count($attendeeIds), '?'));
+  $stmt = $pdo->prepare(
+    "SELECT id, ticket_id FROM attendees WHERE event_id = ? AND id IN ($placeholders)"
+  );
+  $stmt->execute(array_merge([$eventId], $attendeeIds));
+  $rows = $stmt->fetchAll();
+  if (!$rows) {
+    json_response(404, ['error' => 'attendees_not_found', 'message' => 'No matching attendees found.']);
+  }
+
+  $ticketCounts = [];
+  foreach ($rows as $row) {
+    $tid = (int)$row['ticket_id'];
+    $ticketCounts[$tid] = ($ticketCounts[$tid] ?? 0) + 1;
+  }
+
+  $pdo->beginTransaction();
+  try {
+    $del = $pdo->prepare(
+      "DELETE FROM attendees WHERE event_id = ? AND id IN ($placeholders)"
+    );
+    $del->execute(array_merge([$eventId], $attendeeIds));
+    foreach ($ticketCounts as $ticketId => $qty) {
+      decrement_ticket_sold_count($pdo, (int)$ticketId, (int)$qty);
+    }
+    $pdo->commit();
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log(sprintf('[turnout] bulk attendee delete failed event=%d: %s', $eventId, $e->getMessage()));
+    json_response(500, ['error' => 'attendee_delete_failed', 'message' => 'Could not remove attendees.']);
+  }
+
+  json_response(200, [
+    'removed' => count($rows),
+    'stats' => fetch_attendee_stats($pdo, $eventId),
+  ]);
+}
+
 if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];

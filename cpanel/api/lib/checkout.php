@@ -276,6 +276,14 @@ function increment_ticket_sold_counts(PDO $pdo, array $normalizedItems): void {
   }
 }
 
+/** Release ticket inventory when an attendee registration is removed. */
+function decrement_ticket_sold_count(PDO $pdo, int $ticketId, int $qty = 1): void {
+  if ($ticketId <= 0 || $qty <= 0) return;
+  ensure_ticket_early_bird_columns($pdo);
+  $dec = $pdo->prepare('UPDATE tickets SET sold = CASE WHEN sold >= ? THEN sold - ? ELSE 0 END WHERE id = ?');
+  $dec->execute([$qty, $qty, $ticketId]);
+}
+
 /** Format order total cents as PayHere amount string (e.g. 4300000 → "43000.00"). */
 function payhere_amount_format_cents(int $totalCents): string {
   $negative = $totalCents < 0;
