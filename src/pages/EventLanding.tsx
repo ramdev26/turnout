@@ -7,6 +7,7 @@ import { landingCssVars, normalizeLandingCustomization } from '../themes/eventTh
 import { loadLandingFont } from '../themes/landingFonts';
 import { formatLKRWhole } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
+import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { saveCheckoutCart } from '../utils/checkoutCart';
 
@@ -28,7 +29,8 @@ export const EventLanding: React.FC = () => {
           ticketId: t.id,
           name: t.name,
           quantity: selectedTickets[t.id],
-          price: t.price,
+          price: ticketEffectivePrice(t),
+          lineTotal: ticketLineTotal(t, selectedTickets[t.id]),
         })),
     [selectedTickets, tickets]
   );
@@ -68,7 +70,10 @@ export const EventLanding: React.FC = () => {
     }));
   };
 
-  const totalAmount = tickets.reduce((sum, ticket) => sum + ticket.price * (selectedTickets[ticket.id] || 0), 0);
+  const totalAmount = tickets.reduce(
+    (sum, ticket) => sum + ticketLineTotal(ticket, selectedTickets[ticket.id] || 0),
+    0
+  );
 
   const hasSelectedTickets = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
 
