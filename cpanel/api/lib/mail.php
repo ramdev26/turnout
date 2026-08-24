@@ -1022,3 +1022,139 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   return $buyerOk && $attendeeOk;
 }
 
+/**
+ * Email the buyer a bank-transfer instructions + slip upload link while the order is still pending.
+ * Useful when they leave checkout before uploading a slip.
+ */
+function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDetails = null): bool {
+  ensure_order_bank_transfer_columns($pdo);
+
+  $stmt = $pdo->prepare(
+    'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
+            o.payment_method, o.status, o.created_at, o.event_id,
+            e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url, e.organizer_user_id,
+            e.customization_json
+     FROM orders o
+     INNER JOIN events e ON e.id = o.event_id
+     WHERE o.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$orderId]);
+  $order = $stmt->fetch();
+  if (!$order) {
+    return false;
+  }
+
+  if (strtolower(trim((string)($order['payment_method'] ?? ''))) !== 'bank_transfer') {
+    return false;
+  }
+  if (strtolower(trim((string)($order['status'] ?? ''))) !== 'pending') {
+    return false;
+  }
+
+  $toEmail = strtolower(trim((string)($order['buyer_email'] ?? '')));
+  if ($toEmail === '' || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+    return false;
+  }
+
+  if (!is_array($bankDetails) || empty($bankDetails)) {
+    $organizerUserId = (int)($order['organizer_user_id'] ?? 0);
+    $profileRow = function_exists('load_organizer_profile_row')
+      ? load_organizer_profile_row($pdo, $organizerUserId)
+      : null;
+    $bankDetails = is_array($profileRow) && function_exists('organizer_receiving_bank_api_shape')
+      ? organizer_receiving_bank_api_shape($profileRow)
+      : null;
+  }
+
+  $uploadUrl = mail_order_success_url($orderId);
+  $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
+  $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
+  $eventTitle = htmlspecialchars((string)($order['event_title'] ?? 'your event'));
+  $eventDate = htmlspecialchars(mail_format_event_when((string)($order['event_date'] ?? '')));
+  $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
+  $total = htmlspecialchars(mail_format_lkr_from_cents((int)($order['total_amount_cents'] ?? 0)));
+  $greeting = htmlspecialchars(trim((string)($order['buyer_name'] ?? '')) ?: 'there');
+  $bookingId = 'TO' . strtoupper(dechex(max(1, $orderId))) . str_pad((string)$orderId, 4, '0', STR_PAD_LEFT);
+  $bannerUrl = mail_absolute_asset_url((string)($order['banner_url'] ?? ''));
+
+  $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
+  if (!is_array($items)) $items = [];
+  $detailRows = '';
+  foreach ($items as $it) {
+    if (!is_array($it)) continue;
+    $name = htmlspecialchars(trim((string)($it['name'] ?? $it['ticketName'] ?? 'Ticket')));
+    $qty = (int)($it['quantity'] ?? 0);
+    if ($qty < 1) continue;
+    $unitCents = isset($it['price'])
+      ? (int)round(((float)$it['price']) * 100)
+      : (int)($it['price_cents'] ?? 0);
+    $detailRows .= mail_detail_row($name, htmlspecialchars((string)$qty . ' × ' . mail_format_lkr_from_cents($unitCents)));
+  }
+
+  $bankRows = '';
+  if (is_array($bankDetails)) {
+    $bankMap = [
+      'Account holder' => (string)($bankDetails['accountHolderName'] ?? ''),
+      'Bank' => (string)($bankDetails['bankName'] ?? ''),
+      'Branch' => (string)($bankDetails['bankBranch'] ?? ''),
+      'Account number' => (string)($bankDetails['accountNumber'] ?? ''),
+      'Account type' => (string)($bankDetails['accountType'] ?? ''),
+    ];
+    foreach ($bankMap as $label => $value) {
+      $value = trim($value);
+      if ($value === '') continue;
+      $bankRows .= mail_detail_row($label, htmlspecialchars($value));
+    }
+  }
+
+  $bannerHtml = $bannerUrl !== ''
+    ? '<img src="' . htmlspecialchars($bannerUrl) . '" alt="' . $eventTitle . '" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />'
+    : '';
+
+  $inner =
+    $bannerHtml .
+    '<div style="padding:28px 28px 8px;text-align:center;">' .
+    '<div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0d585b;">Bank transfer</div>' .
+    '<h1 style="margin:10px 0 12px;font-size:24px;line-height:1.25;font-weight:700;color:#1e1b4b;">Complete your payment</h1>' .
+    '<p style="margin:0 auto 8px;max-width:480px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ' . $greeting .
+    ', your order for <strong style="color:#111827;">' . $eventTitle . '</strong> is reserved. ' .
+    'Transfer <strong style="color:#111827;">' . $total . '</strong> and upload your bank slip using the button below — ' .
+    'even if you closed the checkout page.</p>' .
+    mail_cta_button($uploadUrl, 'UPLOAD TRANSFER SLIP', '#0d585b', '#f3ffe4') .
+    '</div>' .
+    '<div style="padding:8px 28px 4px;">' .
+    '<table width="100%" cellpadding="0" cellspacing="0">' .
+    mail_detail_row('Event', $eventTitle) .
+    ($eventDate !== '' ? mail_detail_row('When', $eventDate) : '') .
+    ($eventLocation !== '' ? mail_detail_row('Venue', $eventLocation) : '') .
+    $detailRows .
+    mail_detail_row('Amount to transfer', $total, true) .
+    mail_detail_row('Order', htmlspecialchars('#' . (string)$orderId . ' · ' . $bookingId)) .
+    '</table></div>' .
+    ($bankRows !== ''
+      ? '<div style="padding:16px 28px 4px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;margin-bottom:10px;">Transfer to</div>' .
+        '<table width="100%" cellpadding="0" cellspacing="0">' . $bankRows . '</table></div>'
+      : '') .
+    '<div style="padding:18px 28px 28px;">' .
+    '<div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">Next steps</div>' .
+    '<ul style="margin:0;padding:0 0 0 18px;color:#4b5563;font-size:14px;line-height:1.65;">' .
+    '<li style="margin:0 0 8px;">Transfer the exact amount to the account above.</li>' .
+    '<li style="margin:0 0 8px;">Open the upload link and attach your bank slip (PDF, JPG, or PNG).</li>' .
+    '<li style="margin:0;">Tickets are issued after ' . $organizerLabel . ' confirms your transfer.</li>' .
+    '</ul>' .
+    ($uploadUrl !== ''
+      ? '<p style="margin:16px 0 0;font-size:12px;line-height:1.55;color:#6b7280;word-break:break-all;">If the button does not work, copy this link:<br/>' .
+        '<a href="' . htmlspecialchars($uploadUrl) . '" style="color:#0d585b;">' . htmlspecialchars($uploadUrl) . '</a></p>'
+      : '') .
+    '</div>';
+
+  $subject = 'Upload your bank slip · ' . (string)($order['event_title'] ?? 'Event') . ' · Order #' . $orderId;
+  return send_email(
+    $toEmail,
+    $subject,
+    mail_transaction_layout($inner, 'Upload your bank transfer slip for ' . (string)($order['event_title'] ?? 'your event'), $organizerName),
+    $pdo
+  );
+}
+

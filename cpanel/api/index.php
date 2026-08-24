@@ -3894,6 +3894,13 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   }
 
   $accessToken = issue_order_access_token($orderId);
+
+  try {
+    send_bank_transfer_pending_email($pdo, $orderId, $bankDetails);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] bank transfer pending email failed order=%d: %s', $orderId, $e->getMessage()));
+  }
+
   json_response(201, [
     'orderId' => (string)$orderId,
     'accessToken' => $accessToken,
