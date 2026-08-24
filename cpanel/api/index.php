@@ -662,7 +662,7 @@ function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, 
   $platformFeeCents = (int)$commission['platformFeeCents'];
   $organizerAmountCents = (int)$commission['organizerAmountCents'];
 
-  if (order_waives_platform_fee($pdo, $eventId, $orderId)) {
+  if (order_waives_platform_fee($pdo, $eventId, $orderId, $reference)) {
     $platformFeeCents = 0;
     $organizerAmountCents = $amountCents;
   }
@@ -695,6 +695,20 @@ function payhere_fulfill_paid_order(PDO $pdo, int $orderId, ?string $paymentId =
   $check = $pdo->prepare('SELECT id FROM attendees WHERE order_id = ? LIMIT 1');
   $check->execute([$orderId]);
   if ($check->fetch()) {
+    $o = $pdo->prepare('SELECT event_id, buyer_user_id, total_amount_cents FROM orders WHERE id = ? LIMIT 1');
+    $o->execute([$orderId]);
+    $existing = $o->fetch();
+    if ($existing) {
+      upsert_transaction(
+        $pdo,
+        (int)$existing['event_id'],
+        $existing['buyer_user_id'] !== null ? (int)$existing['buyer_user_id'] : null,
+        $orderId,
+        (int)$existing['total_amount_cents'],
+        'paid',
+        $paymentId !== null && $paymentId !== '' ? $paymentId : null
+      );
+    }
     return;
   }
 
@@ -5183,6 +5197,7 @@ if ($path === '/admin/organizers' && $method === 'GET') {
   $pdo = db();
   ensure_finance_tables($pdo);
   ensure_organizer_profile_paid_event_columns($pdo);
+  reconcile_waived_platform_fees($pdo);
   $q = trim((string)($_GET['q'] ?? ''));
   $sql = "SELECT u.id, u.display_name, u.email, u.status, u.created_at FROM users u WHERE u.role = 'organizer'";
   $params = [];
@@ -5253,26 +5268,21 @@ if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') 
   $pdo = db();
   ensure_finance_tables($pdo);
   ensure_organizer_profile_paid_event_columns($pdo);
-  reconcile_waived_platform_fees($pdo, $organizerId);
   $u = $pdo->prepare('SELECT id, email, display_name, role, status, created_at FROM users WHERE id = ? AND role = ? LIMIT 1');
   $u->execute([$organizerId, 'organizer']);
   $user = $u->fetch();
   if (!$user) json_response(404, ['error' => 'organizer_not_found']);
 
-  $balStmt = $pdo->prepare(
-    "SELECT
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fees_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents,
-      COALESCE((SELECT SUM(p.total_amount_cents) FROM payouts p WHERE p.organizer_id = ? AND p.status IN ('processing','completed')),0) AS paid_cents
-     FROM events e
-     LEFT JOIN transactions t ON t.event_id = e.id
-     WHERE e.organizer_user_id = ?"
+  $totals = organizer_earnings_totals($pdo, $organizerId);
+  $paidStmt = $pdo->prepare(
+    "SELECT COALESCE(SUM(total_amount_cents),0) AS paid_cents
+     FROM payouts
+     WHERE organizer_id = ? AND status IN ('processing','completed')"
   );
-  $balStmt->execute([$organizerId, $organizerId]);
-  $b = $balStmt->fetch() ?: ['gross_cents' => 0, 'fees_cents' => 0, 'net_cents' => 0, 'paid_cents' => 0];
-  $net = (int)$b['net_cents'];
-  $paid = (int)$b['paid_cents'];
+  $paidStmt->execute([$organizerId]);
+  $paidRow = $paidStmt->fetch() ?: ['paid_cents' => 0];
+  $net = (int)$totals['netCents'];
+  $paid = (int)($paidRow['paid_cents'] ?? 0);
 
   $evStmt = $pdo->prepare('SELECT id, slug, title, status, event_status, created_at FROM events WHERE organizer_user_id = ? ORDER BY created_at DESC LIMIT 50');
   $evStmt->execute([$organizerId]);
@@ -5315,8 +5325,8 @@ if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') 
     'readiness' => organizer_paid_event_readiness_api_shape($pdo, $organizerId),
     'commission' => organizer_commission_config($pdo, $organizerId),
     'balance' => [
-      'grossRevenue' => ((int)$b['gross_cents']) / 100,
-      'platformFees' => ((int)$b['fees_cents']) / 100,
+      'grossRevenue' => ((int)$totals['grossCents']) / 100,
+      'platformFees' => ((int)$totals['feeCents']) / 100,
       'netEarnings' => $net / 100,
       'paidOut' => $paid / 100,
       'availableBalance' => max(0, $net - $paid) / 100,
@@ -5666,19 +5676,7 @@ if ($path === '/organizer/earnings' && $method === 'GET') {
   $pdo = db();
   ensure_finance_tables($pdo);
   ensure_order_bank_transfer_columns($pdo);
-  reconcile_waived_platform_fees($pdo, $uid);
-
-  $sumStmt = $pdo->prepare(
-    "SELECT
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
-     FROM events e
-     LEFT JOIN transactions t ON t.event_id = e.id
-     WHERE e.organizer_user_id = ?"
-  );
-  $sumStmt->execute([$uid]);
-  $sum = $sumStmt->fetch();
+  $totals = organizer_earnings_totals($pdo, $uid);
 
   $payoutStmt = $pdo->prepare(
     "SELECT id, organizer_id, total_amount_cents, status, method, reference, notes, created_at, completed_at
@@ -5705,9 +5703,9 @@ if ($path === '/organizer/earnings' && $method === 'GET') {
     ];
   }
 
-  $grossCents = (int)($sum['gross_cents'] ?? 0);
-  $feeCents = (int)($sum['fee_cents'] ?? 0);
-  $netCents = (int)($sum['net_cents'] ?? 0);
+  $grossCents = (int)$totals['grossCents'];
+  $feeCents = (int)$totals['feeCents'];
+  $netCents = (int)$totals['netCents'];
   $availableCents = max(0, $netCents - $paidOutCents);
 
   json_response(200, [

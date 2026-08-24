@@ -98,13 +98,51 @@ function payment_method_waives_platform_fee(?string $method): bool {
   ], true);
 }
 
+/** Ledger / notify references that are not a PayHere card capture. */
+function payhere_reference_waives_platform_fee(?string $reference): bool {
+  $ref = strtolower(trim((string)$reference));
+  if ($ref === '') return false;
+  return str_starts_with($ref, 'bank_transfer:')
+    || str_starts_with($ref, 'manual_')
+    || str_starts_with($ref, 'comp:')
+    || str_starts_with($ref, 'complimentary');
+}
+
+function sale_waives_platform_fee(?string $paymentMethod, ?string $payhereReference): bool {
+  return payment_method_waives_platform_fee($paymentMethod)
+    || payhere_reference_waives_platform_fee($payhereReference);
+}
+
+/**
+ * Turnout commission applies only to real PayHere card checkout.
+ * Bank transfer, cash, complimentary, and unlabeled ledger rows are not card sales.
+ */
+function sale_is_payhere_card(?string $paymentMethod, ?string $payhereReference): bool {
+  if (sale_waives_platform_fee($paymentMethod, $payhereReference)) return false;
+  $method = strtolower(trim((string)$paymentMethod));
+  $ref = trim((string)$payhereReference);
+  if ($method === 'payhere' && $ref !== '') return true;
+  // Legacy PayHere notify stored the gateway payment id before payment_method existed.
+  if ($method === '' && $ref !== '') return true;
+  return false;
+}
+
 /** True when this order/event should never be charged a Turnout platform fee. */
-function order_waives_platform_fee(PDO $pdo, int $eventId, int $orderId): bool {
+function order_waives_platform_fee(PDO $pdo, int $eventId, int $orderId, ?string $reference = null): bool {
   ensure_order_bank_transfer_columns($pdo);
   $stmt = $pdo->prepare('SELECT payment_method FROM orders WHERE id = ? LIMIT 1');
   $stmt->execute([$orderId]);
   $row = $stmt->fetch();
-  if (is_array($row) && payment_method_waives_platform_fee($row['payment_method'] ?? null)) {
+  $method = is_array($row) ? ($row['payment_method'] ?? null) : null;
+  if ($reference === null || trim((string)$reference) === '') {
+    $refStmt = $pdo->prepare('SELECT payhere_reference FROM transactions WHERE order_id = ? LIMIT 1');
+    $refStmt->execute([$orderId]);
+    $tx = $refStmt->fetch();
+    if (is_array($tx) && ($reference === null || trim((string)$reference) === '')) {
+      $reference = $tx['payhere_reference'] ?? null;
+    }
+  }
+  if (sale_waives_platform_fee($method, $reference)) {
     return true;
   }
 
@@ -119,55 +157,97 @@ function order_waives_platform_fee(PDO $pdo, int $eventId, int $orderId): bool {
   return empty($methods['payhere']) && !empty($methods['bankTransfer']);
 }
 
+function organizer_has_payhere_card_sales(PDO $pdo, int $organizerId): bool {
+  ensure_order_bank_transfer_columns($pdo);
+  $stmt = $pdo->prepare(
+    "SELECT o.payment_method, t.payhere_reference
+     FROM transactions t
+     INNER JOIN events e ON e.id = t.event_id
+     LEFT JOIN orders o ON o.id = t.order_id
+     WHERE e.organizer_user_id = ?
+       AND t.payment_status = 'paid'"
+  );
+  $stmt->execute([$organizerId]);
+  while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    if (sale_is_payhere_card($row['payment_method'] ?? null, $row['payhere_reference'] ?? null)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function zero_transaction_platform_fee(PDO $pdo, int $transactionId, int $amountCents): void {
+  $fix = $pdo->prepare(
+    'UPDATE transactions SET platform_fee_cents = 0, organizer_amount_cents = ? WHERE id = ?'
+  );
+  $fix->execute([$amountCents, $transactionId]);
+}
+
 function reconcile_waived_platform_fees(PDO $pdo, ?int $organizerUserId = null): void {
   try {
     ensure_finance_tables($pdo);
     ensure_order_bank_transfer_columns($pdo);
     $sql =
-      "UPDATE transactions t
-       INNER JOIN orders o ON o.id = t.order_id
-       SET t.platform_fee_cents = 0,
-           t.organizer_amount_cents = t.amount_cents
-       WHERE t.platform_fee_cents > 0
-         AND o.payment_method IN ('bank_transfer','free','complimentary','manual_cash','manual_bank','manual_other')";
-    $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-    if ($driver === 'pgsql') {
-      $sql =
-        "UPDATE transactions t
-         SET platform_fee_cents = 0,
-             organizer_amount_cents = t.amount_cents
-         FROM orders o
-         WHERE o.id = t.order_id
-           AND t.platform_fee_cents > 0
-           AND o.payment_method IN ('bank_transfer','free','complimentary','manual_cash','manual_bank','manual_other')";
-    } elseif ($driver === 'sqlite') {
-      $sql =
-        "UPDATE transactions
-         SET platform_fee_cents = 0,
-             organizer_amount_cents = amount_cents
-         WHERE platform_fee_cents > 0
-           AND order_id IN (
-             SELECT id FROM orders
-             WHERE payment_method IN ('bank_transfer','free','complimentary','manual_cash','manual_bank','manual_other')
-           )";
-    }
-
+      "SELECT t.id, t.amount_cents, t.platform_fee_cents, t.payhere_reference,
+              e.organizer_user_id, o.payment_method
+       FROM transactions t
+       INNER JOIN events e ON e.id = t.event_id
+       LEFT JOIN orders o ON o.id = t.order_id
+       WHERE t.platform_fee_cents > 0";
+    $params = [];
     if ($organizerUserId !== null && $organizerUserId > 0) {
-      if ($driver === 'pgsql') {
-        $sql .= ' AND t.event_id IN (SELECT id FROM events WHERE organizer_user_id = ?)';
-      } else {
-        $sql .= $driver === 'sqlite'
-          ? ' AND event_id IN (SELECT id FROM events WHERE organizer_user_id = ?)'
-          : ' AND t.event_id IN (SELECT id FROM events WHERE organizer_user_id = ?)';
-      }
-      $pdo->prepare($sql)->execute([$organizerUserId]);
-      return;
+      $sql .= ' AND e.organizer_user_id = ?';
+      $params[] = $organizerUserId;
     }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $pdo->exec($sql);
+    $hasCardByOrg = [];
+    foreach ($rows as $row) {
+      $oid = (int)($row['organizer_user_id'] ?? 0);
+      $method = $row['payment_method'] ?? null;
+      $ref = $row['payhere_reference'] ?? null;
+      if (sale_is_payhere_card($method, $ref)) {
+        continue;
+      }
+      $waive = sale_waives_platform_fee($method, $ref);
+      if (!$waive && $oid > 0) {
+        if (!array_key_exists($oid, $hasCardByOrg)) {
+          $hasCardByOrg[$oid] = organizer_has_payhere_card_sales($pdo, $oid);
+        }
+        // Organizer has never taken a PayHere card payment — do not keep a commission.
+        $waive = !$hasCardByOrg[$oid];
+      }
+      if (!$waive) continue;
+      zero_transaction_platform_fee($pdo, (int)$row['id'], (int)$row['amount_cents']);
+    }
   } catch (Throwable $e) {
     error_log(sprintf('[turnout] reconcile waived platform fees failed: %s', $e->getMessage()));
   }
+}
+
+function organizer_earnings_totals(PDO $pdo, int $organizerId): array {
+  ensure_finance_tables($pdo);
+  ensure_order_bank_transfer_columns($pdo);
+  reconcile_waived_platform_fees($pdo, $organizerId);
+
+  $stmt = $pdo->prepare(
+    "SELECT
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
+     FROM events e
+     LEFT JOIN transactions t ON t.event_id = e.id
+     WHERE e.organizer_user_id = ?"
+  );
+  $stmt->execute([$organizerId]);
+  $sum = $stmt->fetch() ?: ['gross_cents' => 0, 'fee_cents' => 0, 'net_cents' => 0];
+  return [
+    'grossCents' => (int)($sum['gross_cents'] ?? 0),
+    'feeCents' => (int)($sum['fee_cents'] ?? 0),
+    'netCents' => (int)($sum['net_cents'] ?? 0),
+  ];
 }
 
 function fetch_event_sales_stats_map(PDO $pdo, array $eventIds): array {
