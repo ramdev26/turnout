@@ -1,0 +1,294 @@
+/* Arena Nova — refined Arena duplicate with stronger mobile UX */
+
+/* —— Bulk offers showcase on ticket cards —— */
+.landing-arena-nova .landing-arena-nova-bulk {
+  margin-top: 0.85rem;
+  padding: 0.7rem 0.75rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--arena-text) 10%, var(--arena-border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--showcase-accent, #0f766e) 8%, #fff) 0%,
+      var(--arena-surface) 55%,
+      #fff 100%
+    );
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-kicker {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--showcase-accent, #0f766e);
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-hint {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--arena-muted);
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-offer {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--arena-border);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-offer:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--showcase-accent, #0f766e) 45%, var(--arena-border));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--showcase-accent, #0f766e) 12%, transparent);
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-offer:active:not(:disabled) {
+  transform: scale(0.992);
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-offer.is-selected {
+  border-color: color-mix(in srgb, var(--showcase-accent, #0f766e) 55%, var(--arena-border));
+  background: color-mix(in srgb, var(--showcase-accent, #0f766e) 7%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--showcase-accent, #0f766e) 25%, transparent);
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-offer:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-qty {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--arena-text);
+  white-space: nowrap;
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-price {
+  font-size: 0.875rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--showcase-accent, #0f766e);
+  justify-self: end;
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-save {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #047857;
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-save--muted {
+  font-weight: 600;
+  color: var(--arena-muted);
+}
+
+.landing-arena-nova .landing-arena-nova-bulk-applied {
+  margin: 0.55rem 0 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #047857;
+}
+
+.landing-arena-nova .landing-arena-nova-summary-save {
+  font-weight: 700;
+  color: #047857;
+}
+
+@media (min-width: 480px) {
+  .landing-arena-nova .landing-arena-nova-bulk-offer {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .landing-arena-nova .landing-arena-nova-bulk-save {
+    grid-column: auto;
+    justify-self: end;
+    text-align: right;
+  }
+}
+
+.landing-arena-nova .landing-arena-header-label {
+  font-weight: 700;
+  color: var(--arena-text);
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.landing-arena-nova .landing-arena-header-brand {
+  width: 100%;
+  justify-content: center;
+}
+
+.landing-arena-nova .landing-arena-header-mark--name {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.7rem;
+  background: color-mix(in srgb, var(--arena-text) 10%, #fff);
+  color: var(--arena-text);
+}
+
+.landing-arena-nova .landing-arena-header-divider {
+  background: color-mix(in srgb, var(--arena-text) 32%, transparent);
+}
+
+.landing-arena-nova .landing-arena-nova-map-wrap {
+  margin-top: 0.9rem;
+}
+
+.landing-arena-nova .landing-arena-nova-map .venue-map-frame,
+.landing-arena-nova .landing-arena-nova-map.venue-map {
+  border-radius: 0.75rem;
+  min-height: 220px;
+}
+
+/* Desktop: remove odd inner boxed image margins and let hero breathe */
+@container arena (min-width: 1024px) {
+  .landing-arena-nova .landing-arena-carousel-stage {
+    padding: 0 !important;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: transparent;
+    aspect-ratio: auto;
+    min-height: 0;
+    max-height: none;
+    height: auto;
+    border: none;
+  }
+
+  .landing-arena-nova .landing-arena-carousel-img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    border-radius: 0;
+    display: block;
+  }
+}
+
+/* Mobile refinement pass */
+@container arena (max-width: 768px) {
+  .landing-arena-nova .landing-arena-header-inner {
+    min-height: 3.5rem;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .landing-arena-nova .landing-arena-header-label {
+    font-size: 0.82rem;
+  }
+
+  .landing-arena-nova .landing-arena-content-col {
+    padding: 1rem 0.85rem 2rem;
+  }
+
+  .landing-arena-nova .landing-arena-event-card,
+  .landing-arena-nova .landing-arena-about-card,
+  .landing-arena-nova .landing-arena-ticket,
+  .landing-arena-nova .landing-arena-summary {
+    border-radius: 0.95rem;
+    box-shadow: 0 1px 8px rgba(15, 23, 42, 0.06);
+  }
+
+  .landing-arena-nova .landing-arena-ticket {
+    padding: 0.95rem;
+  }
+
+  .landing-arena-nova .landing-arena-ticket-top {
+    gap: 0.65rem;
+  }
+
+  .landing-arena-nova .landing-arena-ticket-body {
+    padding-right: 0;
+  }
+
+  .landing-arena-nova .landing-arena-ticket.is-popular .landing-arena-ticket-body {
+    padding-right: 0;
+  }
+
+  .landing-arena-nova .landing-arena-popular-badge {
+    top: 0.55rem;
+    right: 0.55rem;
+  }
+
+  .landing-arena-nova .landing-arena-ticket-bar {
+    margin-top: 0.75rem;
+    gap: 0.4rem;
+    padding: 0.35rem;
+  }
+
+  .landing-arena-nova .landing-arena-qty-btn {
+    width: 2.15rem;
+    height: 2.15rem;
+    border-radius: 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  .landing-arena-nova .landing-arena-add-btn {
+    min-height: 2.15rem;
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.8rem;
+    letter-spacing: 0.03em;
+  }
+
+  .landing-arena-nova .landing-arena-checkout-btn {
+    min-height: 3.25rem;
+    border-radius: 0.65rem;
+    font-size: 0.8rem;
+  }
+
+  .landing-arena-nova .landing-arena-section-head {
+    margin: 1.35rem 0 0.9rem;
+  }
+
+  .landing-arena-nova .landing-arena-section-title {
+    font-size: clamp(1.15rem, 5.2vw, 1.35rem);
+  }
+
+  .landing-arena-nova .landing-arena-carousel-stage {
+    min-height: 0;
+    max-height: none;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .landing-arena-nova .landing-arena-carousel-img {
+    width: 100%;
+    height: auto;
+    max-height: none !important;
+    object-fit: contain !important;
+    border-radius: 0;
+  }
+}

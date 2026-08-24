@@ -77,6 +77,8 @@ export type BankTransferDetails = {
   bankCode?: string | null;
   branchCode?: string | null;
   swiftCode?: string | null;
+  /** Optional note for personal accounts collecting on behalf of an org. */
+  accountNote?: string | null;
 };
 
 export type OrganizerProfile = {
@@ -101,6 +103,8 @@ export type OrganizerProfile = {
   bankCode?: string | null;
   bankBranchCode?: string | null;
   bankSwiftCode?: string | null;
+  /** Optional note shown with bank details (e.g. role on a personal account). */
+  bankAccountNote?: string | null;
   bankStatementDocUrl?: string | null;
   bankStatementDocUploaded?: boolean;
   /** Organization Terms & Conditions (HTML). */
@@ -112,6 +116,7 @@ export type OrganizerPaidEventRequirements = {
   needsBankDetails: boolean;
   needsOwnPayhereCredentials: boolean;
   needsBillingCard: boolean;
+  turnoutDocsOverride?: boolean;
 };
 
 export type OrganizerPaidEventReadiness = {
@@ -137,6 +142,7 @@ export type OrganizerPaidEventReadiness = {
     bankCode: string | null;
     bankBranchCode: string | null;
     bankSwiftCode: string | null;
+    bankAccountNote: string | null;
     bankStatementDocUrl: string | null;
     bankStatementDocUploaded: boolean;
   };
@@ -417,12 +423,6 @@ export interface Event {
   customDomain?: string | null;
   status: 'draft' | 'published' | 'cancelled';
   createdAt: string;
-  stats?: {
-    soldTickets: number;
-    totalRevenue: number;
-    attendeeTotal: number;
-    checkedInCount: number;
-  };
 }
 
 export interface TicketEarlyBird {
@@ -432,6 +432,11 @@ export interface TicketEarlyBird {
   sold: number;
   remaining: number;
   active: boolean;
+}
+
+export interface TicketBulkOffer {
+  qty: number;
+  price: number;
 }
 
 export interface Ticket {
@@ -444,6 +449,7 @@ export interface Ticket {
   sold: number;
   description?: string;
   earlyBird?: TicketEarlyBird | null;
+  bulkOffers?: TicketBulkOffer[];
 }
 
 export type Speaker = {

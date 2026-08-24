@@ -51,6 +51,7 @@ function organizer_receiving_bank_api_shape(array $profileRow): ?array {
     'bankCode' => trim((string)($profileRow['bank_code'] ?? '')) ?: null,
     'branchCode' => trim((string)($profileRow['bank_branch_code'] ?? '')) ?: null,
     'swiftCode' => trim((string)($profileRow['bank_swift_code'] ?? '')) ?: null,
+    'accountNote' => trim((string)($profileRow['bank_account_note'] ?? '')) ?: null,
   ];
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { Event } from '../types';
@@ -17,20 +17,10 @@ type EventInsights = {
   eventId: string;
   soldTickets: number;
   totalRevenue: number;
+  totalCapacity: number;
   attendeeTotal: number;
   checkedInCount: number;
 };
-
-function insightsFromEvent(event: Event): EventInsights {
-  const stats = event.stats;
-  return {
-    eventId: event.id,
-    soldTickets: stats?.soldTickets ?? 0,
-    totalRevenue: stats?.totalRevenue ?? 0,
-    attendeeTotal: stats?.attendeeTotal ?? 0,
-    checkedInCount: stats?.checkedInCount ?? 0,
-  };
-}
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuthStore();
@@ -49,17 +39,25 @@ export const Dashboard: React.FC = () => {
     const fetchEvents = async () => {
       if (!user) return;
       try {
-        const res = await api.get<{ events: Event[] }>('/api/events');
-        setEvents(res.events);
-        setInsightsByEvent(
-          Object.fromEntries(res.events.map((event) => [event.id, insightsFromEvent(event)]))
-        );
+        const eventsRes = await api.get<{ events: Event[] }>('/api/events');
+        setEvents(eventsRes.events);
+
         try {
-          const earningsRes = await api.get<{
-            earnings: { grossRevenue: number; platformFees: number; netEarnings: number; availableBalance: number };
-          }>('/api/organizer/earnings');
-          setEarnings(earningsRes.earnings);
-        } catch {
+          const statsRes = await api.get<{
+            totals: { soldTickets: number; totalRevenue: number; checkedInCount: number };
+            byEvent: Record<string, EventInsights>;
+            earnings: {
+              grossRevenue: number;
+              platformFees: number;
+              netEarnings: number;
+              availableBalance: number;
+            };
+          }>('/api/organizer/dashboard-stats');
+          setInsightsByEvent(statsRes.byEvent);
+          setEarnings(statsRes.earnings);
+        } catch (statsError) {
+          console.error('Error fetching dashboard stats:', statsError);
+          setInsightsByEvent({});
           setEarnings(null);
         }
       } catch (error) {
@@ -71,6 +69,26 @@ export const Dashboard: React.FC = () => {
 
     fetchEvents();
   }, [user]);
+
+  const totals = useMemo(
+    () =>
+      events.reduce(
+        (acc, event) => {
+          const eventInsight = insightsByEvent[event.id];
+          if (!eventInsight) return acc;
+          acc.soldTickets += eventInsight.soldTickets;
+          acc.totalRevenue += eventInsight.totalRevenue;
+          acc.checkedInCount += eventInsight.checkedInCount;
+          return acc;
+        },
+        { soldTickets: 0, totalRevenue: 0, checkedInCount: 0 }
+      ),
+    [events, insightsByEvent]
+  );
+  const upcomingEvents = useMemo(
+    () => events.filter((e) => new Date(e.date).getTime() > Date.now()).length,
+    [events]
+  );
 
   if (loading) {
     return (
@@ -86,20 +104,6 @@ export const Dashboard: React.FC = () => {
       </OrganizerFlowShell>
     );
   }
-
-  const totals = events.reduce(
-    (acc, event) => {
-      const eventInsight = insightsByEvent[event.id];
-      if (!eventInsight) return acc;
-      acc.soldTickets += eventInsight.soldTickets;
-      acc.totalRevenue += eventInsight.totalRevenue;
-      acc.checkedInCount += eventInsight.checkedInCount;
-      return acc;
-    },
-    { soldTickets: 0, totalRevenue: 0, checkedInCount: 0 }
-  );
-  const now = Date.now();
-  const upcomingEvents = events.filter((e) => new Date(e.date).getTime() > now).length;
 
   return (
     <OrganizerFlowShell
@@ -231,7 +235,7 @@ export const Dashboard: React.FC = () => {
                       <Link
                         to={`/dashboard/events/${event.id}/settings`}
                         className="text-sm font-semibold"
-                        style={{ color: ui.text }}
+                        style={{ color: ui.textMuted }}
                       >
                         Settings →
                       </Link>

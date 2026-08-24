@@ -73,9 +73,11 @@ return [
     'charset' => $env('DB_CHARSET', 'UTF8'),
   ],
   'payhere' => [
-    'sandbox' => strtolower($env('PAYHERE_SANDBOX', 'true')) !== 'false',
-    'merchant_id' => $env('PAYHERE_MERCHANT_ID', '1236076'),
-    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'MTk2NDI5Nzk5MzI3MzcwODk4NDkzNDA5OTcxNjMyMjgwODMxMjIyNQ=='),
+    // Live-only. Never fall back to demo credentials: a wrong merchant on the live
+    // endpoint is always rejected as "Unauthorized payment request".
+    'sandbox' => false,
+    'merchant_id' => $env('PAYHERE_MERCHANT_ID'),
+    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET'),
     'notify_url' => $env('PAYHERE_NOTIFY_URL', 'https://app.bigturnout.co/api/payhere/notify'),
     'app_base_url' => $env('APP_BASE_URL', 'https://app.bigturnout.co'),
   ],

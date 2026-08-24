@@ -431,6 +431,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   const [bankCode, setBankCode] = useState('');
   const [bankBranchCode, setBankBranchCode] = useState('');
   const [bankSwiftCode, setBankSwiftCode] = useState('');
+  const [bankAccountNote, setBankAccountNote] = useState('');
   const [readiness, setReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
   const [expanded, setExpanded] = useState<ExpandedSection>(null);
   const [gatewayModalOpen, setGatewayModalOpen] = useState(false);
@@ -460,6 +461,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     setBankCode(nextReadiness.bank.bankCode || '');
     setBankBranchCode(nextReadiness.bank.bankBranchCode || '');
     setBankSwiftCode(nextReadiness.bank.bankSwiftCode || '');
+    setBankAccountNote(nextReadiness.bank.bankAccountNote || '');
 
     const payoutReady = !!(
       nextReadiness.bank.bankAccountHolderName &&
@@ -601,6 +603,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
       bankCode: bankCode.trim(),
       bankBranchCode: bankBranchCode.trim(),
       bankSwiftCode: bankSwiftCode.trim(),
+      bankAccountNote: bankAccountNote.trim(),
     };
     if (bankAccountNumber.trim()) body.bankAccountNumber = bankAccountNumber.trim();
 
@@ -1084,6 +1087,21 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   className={fieldClass}
                   style={fieldStyle}
                 />
+              </label>
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <FlowLabel>Account note (optional)</FlowLabel>
+                <FlowInput
+                  value={bankAccountNote}
+                  disabled={!isOwner}
+                  onChange={(e) => setBankAccountNote(e.target.value)}
+                  placeholder="e.g. Treasurer of the AICPA & CIMA Students’ Society Sri Lanka"
+                  className={fieldClass}
+                  style={fieldStyle}
+                  maxLength={255}
+                />
+                <p className="text-xs" style={{ color: ui.textMuted }}>
+                  Shown to buyers with your bank details. Useful when using a personal account for an organization or society.
+                </p>
               </label>
               <label className="flex flex-col gap-1.5 sm:col-span-2">
                 <FlowLabel>Account number</FlowLabel>

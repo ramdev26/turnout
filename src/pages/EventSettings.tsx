@@ -54,7 +54,10 @@ import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '..
 import { TurnoutColorPicker } from '../components/ui/TurnoutColorPicker';
 import { DEFAULT_EVENT_POLICY_HTML, resolveEventPolicyHtml } from '../utils/eventPolicy';
 import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
+import { TicketBulkOffersFields } from '../components/organizer/TicketBulkOffersFields';
 import {
+  bulkOffersFromTicket,
+  bulkOffersPayloadFromForm,
   defaultTicketEarlyBirdForm,
   earlyBirdFromTicket,
   earlyBirdPayloadFromForm,
@@ -211,12 +214,15 @@ export const EventSettings: React.FC = () => {
     quantity: 100,
     description: '',
     ...defaultTicketEarlyBirdForm(),
+    bulkOffers: [] as { qty: number; price: number }[],
   });
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
   const [eventPolicyHtml, setEventPolicyHtml] = useState(DEFAULT_EVENT_POLICY_HTML);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
+  const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
+  const [eventStats, setEventStats] = useState({ soldTickets: 0, totalRevenue: 0 });
 
   const ui = APP_FLOW_UI;
   const cardStyle = cardStyleFor(ui);
@@ -315,15 +321,20 @@ export const EventSettings: React.FC = () => {
       setAllowPayhere(payhereOn);
       setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer || !!pm?.bankTransfer);
 
-      const [ticketsRes, attendeesRes] = await Promise.all([
+      const [ticketsRes, attendeesRes, statsRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
         api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number; pending: number } }>(
           `/api/events/${eventId}/attendees?limit=1`
         ),
+        api.get<{ stats: { soldTickets: number; totalRevenue: number } }>(`/api/events/${eventId}/stats`),
       ]);
       setTickets(ticketsRes.tickets);
       setAttendees(attendeesRes.attendees);
       setAttendeeStats(attendeesRes.stats ?? { total: attendeesRes.attendees.length, checkedIn: 0, pending: 0 });
+      setEventStats({
+        soldTickets: statsRes.stats.soldTickets,
+        totalRevenue: statsRes.stats.totalRevenue,
+      });
     } catch (e: any) {
       setError(e?.message || e?.error || 'Failed to load event');
     } finally {
@@ -351,9 +362,8 @@ export const EventSettings: React.FC = () => {
     () => (eventId ? absoluteAppUrl(`/staff/checkin/${eventId}`) : ''),
     [eventId]
   );
-  const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
-  const soldTickets = attendeeStats.total || tickets.reduce((sum, t) => sum + t.sold, 0);
-  const totalRevenue = event?.stats?.totalRevenue ?? tickets.reduce((sum, t) => sum + t.sold * t.price, 0);
+  const soldTickets = eventStats.soldTickets;
+  const totalRevenue = eventStats.totalRevenue;
   const checkedInCount = attendeeStats.checkedIn;
   const attendeeTotal = attendeeStats.total;
   const readinessScore = useMemo(() => {
@@ -694,8 +704,15 @@ export const EventSettings: React.FC = () => {
 
   const refreshTickets = async () => {
     if (!eventId) return;
-    const res = await api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`);
-    setTickets(res.tickets);
+    const [ticketsRes, statsRes] = await Promise.all([
+      api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
+      api.get<{ stats: { soldTickets: number; totalRevenue: number } }>(`/api/events/${eventId}/stats`),
+    ]);
+    setTickets(ticketsRes.tickets);
+    setEventStats({
+      soldTickets: statsRes.stats.soldTickets,
+      totalRevenue: statsRes.stats.totalRevenue,
+    });
   };
 
   const saveTicket = async () => {
@@ -703,7 +720,8 @@ export const EventSettings: React.FC = () => {
       setError('Ticket name is required');
       return;
     }
-    const paidAmount = Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0);
+    const maxBulkPrice = ticketForm.bulkOffers.reduce((max, offer) => Math.max(max, Number(offer.price) || 0), 0);
+    const paidAmount = Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0, maxBulkPrice);
     if (paidAmount > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
       setError('Complete business and payment setup in Organization settings before adding paid tickets.');
       return;
@@ -729,6 +747,7 @@ export const EventSettings: React.FC = () => {
         quantity: ticketForm.quantity,
         description: ticketForm.description,
         ...earlyBirdPayloadFromForm(ticketForm),
+        ...bulkOffersPayloadFromForm(ticketForm.bulkOffers),
       };
       if (editingTicketId) {
         await api.post(`/api/events/${eventId}/tickets/${editingTicketId}`, payload);
@@ -737,7 +756,7 @@ export const EventSettings: React.FC = () => {
       }
       await refreshTickets();
       setEditingTicketId(null);
-      setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm() });
+      setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm(), bulkOffers: [] });
       setFeedback('Tickets updated.');
     } catch (e: any) {
       if (e?.error === 'paid_event_setup_required') {
@@ -758,7 +777,7 @@ export const EventSettings: React.FC = () => {
       await refreshTickets();
       if (editingTicketId === ticketId) {
         setEditingTicketId(null);
-        setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm() });
+        setTicketForm({ name: '', price: 0, quantity: 100, description: '', ...defaultTicketEarlyBirdForm(), bulkOffers: [] });
       }
     } catch (e: any) {
       setError(e?.error || 'Failed to delete ticket');
@@ -912,7 +931,7 @@ export const EventSettings: React.FC = () => {
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
-            {design.templateId === 'template-6' ? (
+            {design.templateId === 'template-6' || design.templateId === 'template-10' ? (
               <ArenaGalleryEditor
                 images={arenaGalleryImages}
                 disabled={savingBranding}
@@ -1236,6 +1255,11 @@ export const EventSettings: React.FC = () => {
                           ) : null}
                           {' · '}
                           {ticket.sold}/{ticket.quantity} sold
+                          {ticket.bulkOffers && ticket.bulkOffers.length > 0 ? (
+                            <span className="block text-xs" style={{ color: ui.textSubtle }}>
+                              {ticket.bulkOffers.map((o) => `${o.qty} for ${formatLKR(o.price)}`).join(' · ')}
+                            </span>
+                          ) : null}
                           {ticket.earlyBird ? (
                             <span className="block text-xs" style={{ color: ui.textSubtle }}>
                               Early bird: {ticket.earlyBird.sold}/{ticket.earlyBird.limit} sold
@@ -1254,6 +1278,7 @@ export const EventSettings: React.FC = () => {
                               quantity: ticket.quantity,
                               description: ticket.description || '',
                               ...earlyBirdFromTicket(ticket),
+                              bulkOffers: bulkOffersFromTicket(ticket),
                             });
                           }}
                           className="rounded-lg border px-3 py-1.5 text-xs font-semibold"
@@ -1329,6 +1354,12 @@ export const EventSettings: React.FC = () => {
                   earlyBirdLimit: ticketForm.earlyBirdLimit,
                 }}
                 onChange={(patch) => setTicketForm((p) => ({ ...p, ...patch }))}
+              />
+              <TicketBulkOffersFields
+                ui={ui}
+                standardPrice={ticketForm.price}
+                offers={ticketForm.bulkOffers}
+                onChange={(next) => setTicketForm((p) => ({ ...p, bulkOffers: next }))}
               />
               <button
                 type="button"

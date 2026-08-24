@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   early_bird_end_at TEXT NULL,
   early_bird_limit INTEGER NULL,
   early_bird_sold INTEGER NOT NULL DEFAULT 0,
+  bulk_offers_json TEXT NULL,
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );
 
@@ -240,6 +241,7 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   bank_swift_code TEXT NULL,
   business_registration_doc_url TEXT NULL,
   bank_statement_doc_url TEXT NULL,
+  turnout_pay_docs_override INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
