@@ -234,9 +234,33 @@ function organizer_earnings_totals(PDO $pdo, int $organizerId): array {
 
   $stmt = $pdo->prepare(
     "SELECT
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.amount_cents ELSE 0 END),0) AS gross_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.platform_fee_cents ELSE 0 END),0) AS fee_cents,
-      COALESCE(SUM(CASE WHEN t.payment_status='paid' THEN t.organizer_amount_cents ELSE 0 END),0) AS net_cents
+      COALESCE(SUM(CASE
+        WHEN t.payment_status='paid'
+          AND (
+            t.order_id IS NULL
+            OR EXISTS (SELECT 1 FROM attendees a WHERE a.order_id = t.order_id)
+          )
+        THEN t.amount_cents
+        ELSE 0
+      END),0) AS gross_cents,
+      COALESCE(SUM(CASE
+        WHEN t.payment_status='paid'
+          AND (
+            t.order_id IS NULL
+            OR EXISTS (SELECT 1 FROM attendees a WHERE a.order_id = t.order_id)
+          )
+        THEN t.platform_fee_cents
+        ELSE 0
+      END),0) AS fee_cents,
+      COALESCE(SUM(CASE
+        WHEN t.payment_status='paid'
+          AND (
+            t.order_id IS NULL
+            OR EXISTS (SELECT 1 FROM attendees a WHERE a.order_id = t.order_id)
+          )
+        THEN t.organizer_amount_cents
+        ELSE 0
+      END),0) AS net_cents
      FROM events e
      LEFT JOIN transactions t ON t.event_id = e.id
      WHERE e.organizer_user_id = ?"
@@ -285,10 +309,12 @@ function fetch_event_sales_stats_map(PDO $pdo, array $eventIds): array {
   }
 
   $rev = $pdo->prepare(
-    "SELECT event_id, COALESCE(SUM(total_amount_cents), 0) AS revenue_cents
-     FROM orders
-     WHERE event_id IN ($placeholders) AND status = 'paid'
-     GROUP BY event_id"
+    "SELECT o.event_id, COALESCE(SUM(o.total_amount_cents), 0) AS revenue_cents
+     FROM orders o
+     WHERE o.event_id IN ($placeholders)
+       AND o.status = 'paid'
+       AND EXISTS (SELECT 1 FROM attendees a WHERE a.order_id = o.id)
+     GROUP BY o.event_id"
   );
   $rev->execute($ids);
   while ($row = $rev->fetch()) {
