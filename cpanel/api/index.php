@@ -61,7 +61,7 @@ function enforce_write_request_integrity(string $path, string $method): void {
   if ($path === '/payhere/notify') return;
   if ($path === '/organizer/billing/notify') return;
   // Public auth bootstrap endpoints are intentionally available pre-session.
-  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/forgot-password' || $path === '/auth/reset-password' || $path === '/auth/verify-email' || $path === '/auth/resend-verification') return;
+  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/forgot-password' || $path === '/auth/reset-password' || $path === '/auth/verify-email' || $path === '/auth/resend-verification' || $path === '/auth/check-email') return;
   // CSRF protection is required only for authenticated cookie sessions.
   if (current_user_id() === null) return;
   if (!is_same_origin_request()) {
@@ -1388,13 +1388,70 @@ function payhere_sandbox_probe(array $cfg): array {
 }
 
 // ---- Auth ----
-if ($path === '/auth/register' && $method === 'POST') {
+if ($path === '/auth/check-email' && $method === 'POST') {
   $body = read_json_body();
   $email = strtolower(trim((string)($body['email'] ?? '')));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(400, [
+      'error' => 'invalid_email',
+      'message' => 'Enter a valid email address.',
+      'ok' => false,
+      'deliverable' => false,
+    ]);
+  }
+
+  $result = plunk_verify_email($email);
+  if (!empty($result['skipped'])) {
+    json_response(200, [
+      'ok' => true,
+      'deliverable' => true,
+      'skipped' => true,
+      'email' => $email,
+      'message' => 'Email format looks valid.',
+    ]);
+  }
+
+  $deliverable = ($result['valid'] === true)
+    && ($result['isDisposable'] !== true)
+    && ($result['hasMxRecords'] !== false)
+    && ($result['domainExists'] !== false)
+    && !($result['isTypo'] === true && !empty($result['suggestedEmail']));
+
+  $message = $deliverable
+    ? 'Email looks deliverable.'
+    : 'This email address does not look deliverable. Please check for typos.';
+  if (!$deliverable && !empty($result['isDisposable'])) {
+    $message = 'Temporary or disposable email addresses are not allowed.';
+  }
+  if (!$deliverable && !empty($result['suggestedEmail'])) {
+    $message = 'Did you mean ' . $result['suggestedEmail'] . '?';
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'deliverable' => $deliverable,
+    'skipped' => false,
+    'email' => $email,
+    'suggestedEmail' => $result['suggestedEmail'],
+    'verification' => [
+      'valid' => $result['valid'],
+      'isDisposable' => $result['isDisposable'],
+      'isTypo' => $result['isTypo'],
+      'hasMxRecords' => $result['hasMxRecords'],
+      'domainExists' => $result['domainExists'],
+      'isPersonalEmail' => $result['isPersonalEmail'],
+      'reasons' => $result['reasons'],
+    ],
+    'message' => $message,
+  ]);
+}
+
+if ($path === '/auth/register' && $method === 'POST') {
+  $body = read_json_body();
+  $email = require_deliverable_email((string)($body['email'] ?? ''));
   $password = (string)($body['password'] ?? '');
   $displayName = trim((string)($body['displayName'] ?? ''));
 
-  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_email']);
   if (strlen($password) < 8) json_response(400, ['error' => 'password_too_short']);
   if ($displayName === '') $displayName = 'User';
 
@@ -1420,11 +1477,10 @@ if ($path === '/auth/register' && $method === 'POST') {
 
 if ($path === '/auth/register-attendee' && $method === 'POST') {
   $body = read_json_body();
-  $email = strtolower(trim((string)($body['email'] ?? '')));
+  $email = require_deliverable_email((string)($body['email'] ?? ''));
   $password = (string)($body['password'] ?? '');
   $displayName = trim((string)($body['displayName'] ?? ''));
 
-  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_email']);
   if (strlen($password) < 8) json_response(400, ['error' => 'password_too_short']);
   if ($displayName === '') $displayName = 'Attendee';
 
@@ -2397,7 +2453,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $attendees = $body['attendees'] ?? [];
 
   if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
-  if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
+  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email');
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
   if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
   require_checkout_policy_acceptance($body);
@@ -3741,7 +3797,7 @@ if ($path === '/orders' && $method === 'POST') {
   $attendees = $body['attendees'] ?? [];
 
   if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
-  if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
+  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email');
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
   require_checkout_policy_acceptance($body);
 
@@ -3825,7 +3881,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $attendees = $body['attendees'] ?? [];
 
   if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
-  if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) json_response(400, ['error' => 'invalid_buyer_email']);
+  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email');
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
   if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
   require_checkout_policy_acceptance($body);

@@ -45,8 +45,12 @@ export const Signup: React.FC = () => {
       }
       setServerError(res.message || res.error || 'Signup failed');
     } catch (e: unknown) {
-      const err = e as { message?: string; error?: string };
-      setServerError(err?.message || err?.error || 'Signup failed');
+      const err = e as { message?: string; error?: string; suggestedEmail?: string };
+      if (err?.suggestedEmail) {
+        setServerError(err.message || `Did you mean ${err.suggestedEmail}?`);
+      } else {
+        setServerError(err?.message || err?.error || 'Signup failed');
+      }
     }
   };
 

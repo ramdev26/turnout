@@ -119,6 +119,226 @@ function plunk_send_email(string $to, string $subject, string $htmlBody, string 
   return true;
 }
 
+/**
+ * Resolve Plunk verify endpoint from the configured send URL.
+ * Docs: POST https://next-api.useplunk.com/v1/verify
+ */
+function plunk_verify_email_url(array $mail): string {
+  $configured = trim((string)($mail['plunk_verify_api_url'] ?? ''));
+  if ($configured !== '') {
+    return rtrim($configured, '/');
+  }
+
+  $sendUrl = trim((string)($mail['plunk_api_url'] ?? 'https://next-api.useplunk.com/v1/send'));
+  if ($sendUrl === '') {
+    $sendUrl = 'https://next-api.useplunk.com/v1/send';
+  }
+  if (preg_match('#/v1/send/?$#i', $sendUrl)) {
+    return (string)preg_replace('#/v1/send/?$#i', '/v1/verify', $sendUrl);
+  }
+  if (preg_match('#/v1/verify/?$#i', $sendUrl)) {
+    return rtrim($sendUrl, '/');
+  }
+  return 'https://next-api.useplunk.com/v1/verify';
+}
+
+/**
+ * Call Plunk public verifyEmail API.
+ * @return array{
+ *   skipped:bool,
+ *   success:bool,
+ *   email:string,
+ *   valid:?bool,
+ *   isDisposable:?bool,
+ *   isAlias:?bool,
+ *   isTypo:?bool,
+ *   isPlusAddressed:?bool,
+ *   isPersonalEmail:?bool,
+ *   domainExists:?bool,
+ *   hasWebsite:?bool,
+ *   hasMxRecords:?bool,
+ *   suggestedEmail:?string,
+ *   reasons:list<string>,
+ *   error:?string
+ * }
+ */
+function plunk_verify_email(string $email): array {
+  $email = strtolower(trim($email));
+  $empty = [
+    'skipped' => true,
+    'success' => false,
+    'email' => $email,
+    'valid' => null,
+    'isDisposable' => null,
+    'isAlias' => null,
+    'isTypo' => null,
+    'isPlusAddressed' => null,
+    'isPersonalEmail' => null,
+    'domainExists' => null,
+    'hasWebsite' => null,
+    'hasMxRecords' => null,
+    'suggestedEmail' => null,
+    'reasons' => [],
+    'error' => null,
+  ];
+
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $empty['skipped'] = false;
+    $empty['valid'] = false;
+    $empty['error'] = 'invalid_format';
+    $empty['reasons'] = ['Email format is invalid.'];
+    return $empty;
+  }
+
+  $mail = mail_config();
+  $apiKey = trim((string)($mail['plunk_secret_key'] ?? ''));
+  if ($apiKey === '') {
+    $empty['error'] = 'plunk_not_configured';
+    return $empty;
+  }
+
+  $apiUrl = plunk_verify_email_url($mail);
+  $payload = json_encode(['email' => $email], JSON_UNESCAPED_UNICODE);
+  if ($payload === false) {
+    $empty['error'] = 'encode_failed';
+    return $empty;
+  }
+
+  $ch = curl_init($apiUrl);
+  if ($ch === false) {
+    $empty['error'] = 'curl_init_failed';
+    return $empty;
+  }
+
+  curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 12,
+    CURLOPT_HTTPHEADER => [
+      'Authorization: Bearer ' . $apiKey,
+      'Content-Type: application/json',
+    ],
+    CURLOPT_POSTFIELDS => $payload,
+  ]);
+
+  $response = curl_exec($ch);
+  $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $curlError = curl_error($ch);
+  curl_close($ch);
+
+  if ($response === false) {
+    error_log('Plunk verify failed (curl): ' . $curlError);
+    $empty['error'] = 'curl_failed';
+    return $empty;
+  }
+
+  $decoded = json_decode((string)$response, true);
+  if (!is_array($decoded)) {
+    error_log('Plunk verify failed HTTP ' . $httpCode . ': ' . substr((string)$response, 0, 500));
+    $empty['error'] = 'invalid_response';
+    return $empty;
+  }
+
+  if ($httpCode < 200 || $httpCode >= 300) {
+    error_log('Plunk verify failed HTTP ' . $httpCode . ': ' . substr((string)$response, 0, 500));
+    $empty['error'] = 'http_' . $httpCode;
+    return $empty;
+  }
+
+  $data = is_array($decoded['data'] ?? null) ? $decoded['data'] : $decoded;
+  $reasons = [];
+  if (isset($data['reasons']) && is_array($data['reasons'])) {
+    foreach ($data['reasons'] as $reason) {
+      if (is_string($reason) && trim($reason) !== '') {
+        $reasons[] = trim($reason);
+      }
+    }
+  }
+
+  $suggested = trim((string)($data['suggestedEmail'] ?? ''));
+  if ($suggested !== '' && !filter_var($suggested, FILTER_VALIDATE_EMAIL)) {
+    $suggested = '';
+  }
+
+  return [
+    'skipped' => false,
+    'success' => !empty($decoded['success']) || array_key_exists('valid', $data),
+    'email' => strtolower(trim((string)($data['email'] ?? $email))),
+    'valid' => array_key_exists('valid', $data) ? (bool)$data['valid'] : null,
+    'isDisposable' => array_key_exists('isDisposable', $data) ? (bool)$data['isDisposable'] : null,
+    'isAlias' => array_key_exists('isAlias', $data) ? (bool)$data['isAlias'] : null,
+    'isTypo' => array_key_exists('isTypo', $data) ? (bool)$data['isTypo'] : null,
+    'isPlusAddressed' => array_key_exists('isPlusAddressed', $data) ? (bool)$data['isPlusAddressed'] : null,
+    'isPersonalEmail' => array_key_exists('isPersonalEmail', $data) ? (bool)$data['isPersonalEmail'] : null,
+    'domainExists' => array_key_exists('domainExists', $data) ? (bool)$data['domainExists'] : null,
+    'hasWebsite' => array_key_exists('hasWebsite', $data) ? (bool)$data['hasWebsite'] : null,
+    'hasMxRecords' => array_key_exists('hasMxRecords', $data) ? (bool)$data['hasMxRecords'] : null,
+    'suggestedEmail' => $suggested !== '' ? strtolower($suggested) : null,
+    'reasons' => $reasons,
+    'error' => null,
+  ];
+}
+
+/**
+ * Reject undeliverable / disposable emails via Plunk when configured.
+ * Soft-fails open if Plunk is unavailable so signup/checkout stay usable.
+ */
+function require_deliverable_email(string $email, string $errorKey = 'invalid_email'): string {
+  $email = strtolower(trim($email));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(400, [
+      'error' => $errorKey,
+      'message' => 'Enter a valid email address.',
+    ]);
+  }
+
+  $result = plunk_verify_email($email);
+  if (!empty($result['skipped'])) {
+    return $email;
+  }
+
+  if (!empty($result['isDisposable'])) {
+    json_response(400, [
+      'error' => 'disposable_email',
+      'message' => 'Temporary or disposable email addresses are not allowed. Please use a permanent email.',
+      'verification' => [
+        'valid' => false,
+        'isDisposable' => true,
+        'reasons' => $result['reasons'],
+      ],
+    ]);
+  }
+
+  $looksBad = ($result['valid'] === false)
+    || ($result['hasMxRecords'] === false)
+    || ($result['domainExists'] === false)
+    || ($result['isTypo'] === true && !empty($result['suggestedEmail']));
+
+  if ($looksBad) {
+    $message = 'This email address does not look deliverable. Please check for typos.';
+    $payload = [
+      'error' => $errorKey,
+      'message' => $message,
+      'verification' => [
+        'valid' => $result['valid'],
+        'isTypo' => $result['isTypo'],
+        'hasMxRecords' => $result['hasMxRecords'],
+        'domainExists' => $result['domainExists'],
+        'reasons' => $result['reasons'],
+      ],
+    ];
+    if (!empty($result['suggestedEmail'])) {
+      $payload['suggestedEmail'] = $result['suggestedEmail'];
+      $payload['message'] = 'This email address looks incorrect. Did you mean ' . $result['suggestedEmail'] . '?';
+    } elseif (!empty($result['reasons'][0])) {
+      $payload['message'] = (string)$result['reasons'][0];
+    }
+    json_response(400, $payload);
+  }
+
+  return $email;
+}
+
 function send_email(string $to, string $subject, string $htmlBody, ?PDO $pdo = null): bool {
   $mail = mail_config();
   $enabled = (bool)($mail['enabled'] ?? false);
