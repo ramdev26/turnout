@@ -662,6 +662,11 @@ function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, 
   $platformFeeCents = (int)$commission['platformFeeCents'];
   $organizerAmountCents = (int)$commission['organizerAmountCents'];
 
+  if (order_waives_platform_fee($pdo, $eventId, $orderId)) {
+    $platformFeeCents = 0;
+    $organizerAmountCents = $amountCents;
+  }
+
   $existingStmt = $pdo->prepare('SELECT id FROM transactions WHERE order_id = ? LIMIT 1');
   $existingStmt->execute([$orderId]);
   $existing = $existingStmt->fetch();
@@ -2389,8 +2394,22 @@ if ($path === '/events' && $method === 'GET') {
   $placeholders = implode(',', array_fill(0, count($ownerIds), '?'));
   $stmt = $pdo->prepare("SELECT * FROM events WHERE organizer_user_id IN ($placeholders) ORDER BY created_at DESC");
   $stmt->execute($ownerIds);
-  $events = [];
+  $rows = [];
+  $eventIds = [];
   while ($row = $stmt->fetch()) {
+    $rows[] = $row;
+    $eventIds[] = (int)$row['id'];
+  }
+  $statsMap = fetch_event_sales_stats_map($pdo, $eventIds);
+  $events = [];
+  foreach ($rows as $row) {
+    $eid = (int)$row['id'];
+    $stats = $statsMap[$eid] ?? [
+      'soldTickets' => 0,
+      'totalRevenue' => 0,
+      'attendeeTotal' => 0,
+      'checkedInCount' => 0,
+    ];
     $events[] = [
       'id' => (string)$row['id'],
       'slug' => $row['slug'],
@@ -2404,6 +2423,7 @@ if ($path === '/events' && $method === 'GET') {
       'customization' => json_decode($row['customization_json'], true),
       'status' => $row['status'],
       'createdAt' => gmdate('c', strtotime($row['created_at'])),
+      'stats' => $stats,
     ];
   }
   json_response(200, ['events' => $events]);
@@ -2616,7 +2636,18 @@ if (preg_match('#^/events/(\\d+)$#', $path, $m) && $method === 'GET') {
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
   if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
-  json_response(200, ['event' => map_public_event_row($row, $pdo)]);
+  $event = map_public_event_row($row, $pdo);
+  $uid = current_user_id();
+  if ($uid !== null && user_can_access_event_row($pdo, $row, $uid, 'viewer')) {
+    $statsMap = fetch_event_sales_stats_map($pdo, [$eventId]);
+    $event['stats'] = $statsMap[$eventId] ?? [
+      'soldTickets' => 0,
+      'totalRevenue' => 0,
+      'attendeeTotal' => 0,
+      'checkedInCount' => 0,
+    ];
+  }
+  json_response(200, ['event' => $event]);
 }
 
 // Public by slug
@@ -5222,6 +5253,7 @@ if (preg_match('#^/admin/organizers/(\\d+)$#', $path, $m) && $method === 'GET') 
   $pdo = db();
   ensure_finance_tables($pdo);
   ensure_organizer_profile_paid_event_columns($pdo);
+  reconcile_waived_platform_fees($pdo, $organizerId);
   $u = $pdo->prepare('SELECT id, email, display_name, role, status, created_at FROM users WHERE id = ? AND role = ? LIMIT 1');
   $u->execute([$organizerId, 'organizer']);
   $user = $u->fetch();
@@ -5633,6 +5665,8 @@ if ($path === '/organizer/earnings' && $method === 'GET') {
   $uid = require_organizer_user_id();
   $pdo = db();
   ensure_finance_tables($pdo);
+  ensure_order_bank_transfer_columns($pdo);
+  reconcile_waived_platform_fees($pdo, $uid);
 
   $sumStmt = $pdo->prepare(
     "SELECT

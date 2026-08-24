@@ -85,6 +85,140 @@ function event_allows_payhere(array $eventRow): bool {
   return !empty($methods['payhere']);
 }
 
+/** Payment methods that never go through Turnout card checkout — no platform fee. */
+function payment_method_waives_platform_fee(?string $method): bool {
+  $method = strtolower(trim((string)$method));
+  return in_array($method, [
+    'bank_transfer',
+    'free',
+    'complimentary',
+    'manual_cash',
+    'manual_bank',
+    'manual_other',
+  ], true);
+}
+
+/** True when this order/event should never be charged a Turnout platform fee. */
+function order_waives_platform_fee(PDO $pdo, int $eventId, int $orderId): bool {
+  ensure_order_bank_transfer_columns($pdo);
+  $stmt = $pdo->prepare('SELECT payment_method FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $row = $stmt->fetch();
+  if (is_array($row) && payment_method_waives_platform_fee($row['payment_method'] ?? null)) {
+    return true;
+  }
+
+  $evStmt = $pdo->prepare('SELECT customization_json FROM events WHERE id = ? LIMIT 1');
+  $evStmt->execute([$eventId]);
+  $ev = $evStmt->fetch();
+  if (!is_array($ev)) return false;
+  $methods = event_payment_methods_from_customization(
+    json_decode((string)($ev['customization_json'] ?? ''), true) ?: []
+  );
+  // Organizer / event is bank-transfer only (PayHere off).
+  return empty($methods['payhere']) && !empty($methods['bankTransfer']);
+}
+
+function reconcile_waived_platform_fees(PDO $pdo, ?int $organizerUserId = null): void {
+  try {
+    ensure_finance_tables($pdo);
+    ensure_order_bank_transfer_columns($pdo);
+    $sql =
+      "UPDATE transactions t
+       INNER JOIN orders o ON o.id = t.order_id
+       SET t.platform_fee_cents = 0,
+           t.organizer_amount_cents = t.amount_cents
+       WHERE t.platform_fee_cents > 0
+         AND o.payment_method IN ('bank_transfer','free','complimentary','manual_cash','manual_bank','manual_other')";
+    $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    if ($driver === 'pgsql') {
+      $sql =
+        "UPDATE transactions t
+         SET platform_fee_cents = 0,
+             organizer_amount_cents = t.amount_cents
+         FROM orders o
+         WHERE o.id = t.order_id
+           AND t.platform_fee_cents > 0
+           AND o.payment_method IN ('bank_transfer','free','complimentary','manual_cash','manual_bank','manual_other')";
+    } elseif ($driver === 'sqlite') {
+      $sql =
+        "UPDATE transactions
+         SET platform_fee_cents = 0,
+             organizer_amount_cents = amount_cents
+         WHERE platform_fee_cents > 0
+           AND order_id IN (
+             SELECT id FROM orders
+             WHERE payment_method IN ('bank_transfer','free','complimentary','manual_cash','manual_bank','manual_other')
+           )";
+    }
+
+    if ($organizerUserId !== null && $organizerUserId > 0) {
+      if ($driver === 'pgsql') {
+        $sql .= ' AND t.event_id IN (SELECT id FROM events WHERE organizer_user_id = ?)';
+      } else {
+        $sql .= $driver === 'sqlite'
+          ? ' AND event_id IN (SELECT id FROM events WHERE organizer_user_id = ?)'
+          : ' AND t.event_id IN (SELECT id FROM events WHERE organizer_user_id = ?)';
+      }
+      $pdo->prepare($sql)->execute([$organizerUserId]);
+      return;
+    }
+
+    $pdo->exec($sql);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] reconcile waived platform fees failed: %s', $e->getMessage()));
+  }
+}
+
+function fetch_event_sales_stats_map(PDO $pdo, array $eventIds): array {
+  $out = [];
+  foreach ($eventIds as $id) {
+    $eid = (int)$id;
+    if ($eid <= 0) continue;
+    $out[$eid] = [
+      'soldTickets' => 0,
+      'totalRevenue' => 0.0,
+      'attendeeTotal' => 0,
+      'checkedInCount' => 0,
+    ];
+  }
+  if (!$out) return $out;
+
+  $ids = array_keys($out);
+  $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+  $att = $pdo->prepare(
+    "SELECT event_id,
+            COUNT(*) AS total,
+            SUM(CASE WHEN checked_in_at IS NOT NULL THEN 1 ELSE 0 END) AS checked_in
+     FROM attendees
+     WHERE event_id IN ($placeholders)
+     GROUP BY event_id"
+  );
+  $att->execute($ids);
+  while ($row = $att->fetch()) {
+    $eid = (int)$row['event_id'];
+    $total = (int)($row['total'] ?? 0);
+    $out[$eid]['attendeeTotal'] = $total;
+    $out[$eid]['checkedInCount'] = (int)($row['checked_in'] ?? 0);
+    $out[$eid]['soldTickets'] = $total;
+  }
+
+  $rev = $pdo->prepare(
+    "SELECT event_id, COALESCE(SUM(total_amount_cents), 0) AS revenue_cents
+     FROM orders
+     WHERE event_id IN ($placeholders) AND status = 'paid'
+     GROUP BY event_id"
+  );
+  $rev->execute($ids);
+  while ($row = $rev->fetch()) {
+    $eid = (int)$row['event_id'];
+    $out[$eid]['totalRevenue'] = ((int)($row['revenue_cents'] ?? 0)) / 100;
+  }
+
+  return $out;
+}
+
 function apply_event_payment_methods_to_customization(array $customization, bool $payhere, bool $bankTransfer): array {
   $customization['paymentMethods'] = [
     'payhere' => $payhere,

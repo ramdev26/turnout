@@ -415,6 +415,12 @@ export interface Event {
   customDomain?: string | null;
   status: 'draft' | 'published' | 'cancelled';
   createdAt: string;
+  stats?: {
+    soldTickets: number;
+    totalRevenue: number;
+    attendeeTotal: number;
+    checkedInCount: number;
+  };
 }
 
 export interface Ticket {

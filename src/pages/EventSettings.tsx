@@ -333,9 +333,9 @@ export const EventSettings: React.FC = () => {
     () => (eventId ? absoluteAppUrl(`/staff/checkin/${eventId}`) : ''),
     [eventId]
   );
-  const soldTickets = useMemo(() => tickets.reduce((sum, t) => sum + t.sold, 0), [tickets]);
-  const totalRevenue = useMemo(() => tickets.reduce((sum, t) => sum + t.sold * t.price, 0), [tickets]);
   const [attendeeStats, setAttendeeStats] = useState({ total: 0, checkedIn: 0, pending: 0 });
+  const soldTickets = attendeeStats.total || tickets.reduce((sum, t) => sum + t.sold, 0);
+  const totalRevenue = event?.stats?.totalRevenue ?? tickets.reduce((sum, t) => sum + t.sold * t.price, 0);
   const checkedInCount = attendeeStats.checkedIn;
   const attendeeTotal = attendeeStats.total;
   const readinessScore = useMemo(() => {

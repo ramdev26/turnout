@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { Attendee, Event, Ticket } from '../types';
+import { Event } from '../types';
 import { Plus, Calendar, MapPin, Users, DollarSign, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { api } from '../api/client';
@@ -17,10 +17,20 @@ type EventInsights = {
   eventId: string;
   soldTickets: number;
   totalRevenue: number;
-  totalCapacity: number;
   attendeeTotal: number;
   checkedInCount: number;
 };
+
+function insightsFromEvent(event: Event): EventInsights {
+  const stats = event.stats;
+  return {
+    eventId: event.id,
+    soldTickets: stats?.soldTickets ?? 0,
+    totalRevenue: stats?.totalRevenue ?? 0,
+    attendeeTotal: stats?.attendeeTotal ?? 0,
+    checkedInCount: stats?.checkedInCount ?? 0,
+  };
+}
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuthStore();
@@ -41,36 +51,9 @@ export const Dashboard: React.FC = () => {
       try {
         const res = await api.get<{ events: Event[] }>('/api/events');
         setEvents(res.events);
-
-        const insightPairs = await Promise.all(
-          res.events.map(async (event) => {
-            const [ticketsRes, attendeesRes] = await Promise.all([
-              api.get<{ tickets: Ticket[] }>(`/api/events/${event.id}/tickets`),
-              api.get<{ attendees: Attendee[]; stats: { total: number; checkedIn: number } }>(
-                `/api/events/${event.id}/attendees?limit=1`
-              ),
-            ]);
-
-            const soldTickets = ticketsRes.tickets.reduce((sum, t) => sum + t.sold, 0);
-            const totalRevenue = ticketsRes.tickets.reduce((sum, t) => sum + t.sold * t.price, 0);
-            const totalCapacity = ticketsRes.tickets.reduce((sum, t) => sum + t.quantity, 0);
-            const attendeeTotal = attendeesRes.stats?.total ?? attendeesRes.attendees.length;
-            const checkedInCount = attendeesRes.stats?.checkedIn ?? 0;
-
-            return [
-              event.id,
-              {
-                eventId: event.id,
-                soldTickets,
-                totalRevenue,
-                totalCapacity,
-                attendeeTotal,
-                checkedInCount,
-              } as EventInsights,
-            ] as const;
-          })
+        setInsightsByEvent(
+          Object.fromEntries(res.events.map((event) => [event.id, insightsFromEvent(event)]))
         );
-        setInsightsByEvent(Object.fromEntries(insightPairs));
         try {
           const earningsRes = await api.get<{
             earnings: { grossRevenue: number; platformFees: number; netEarnings: number; availableBalance: number };
@@ -248,7 +231,7 @@ export const Dashboard: React.FC = () => {
                       <Link
                         to={`/dashboard/events/${event.id}/settings`}
                         className="text-sm font-semibold"
-                        style={{ color: ui.textMuted }}
+                        style={{ color: ui.text }}
                       >
                         Settings →
                       </Link>
