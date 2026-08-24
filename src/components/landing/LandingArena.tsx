@@ -27,6 +27,7 @@ import { formatLKRWhole } from '../../utils/money';
 import { ticketLineTotal } from '../../utils/ticketPricing';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveArenaCarouselSlides } from './arenaGallery';
+import { VenueMapEmbed } from './VenueMapEmbed';
 import {
   isLocationTba,
   isOnlineEvent,
@@ -236,6 +237,17 @@ function ArenaEventDetailsCard({ event }: { event: Event }) {
           </a>
         ) : null}
       </div>
+
+      {!online && !locationTba ? (
+        <div className="landing-arena-nova-map-wrap">
+          <VenueMapEmbed
+            query={event.location}
+            title={`${event.title} venue map`}
+            emptyLabel="Venue to be announced"
+            className="landing-arena-nova-map"
+          />
+        </div>
+      ) : null}
 
       {category.name ? (
         <div className="landing-arena-tags">
