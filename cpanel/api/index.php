@@ -2453,7 +2453,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $attendees = $body['attendees'] ?? [];
 
   if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
-  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email');
+  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email', 'checkout');
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
   if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
   require_checkout_policy_acceptance($body);
@@ -3797,7 +3797,7 @@ if ($path === '/orders' && $method === 'POST') {
   $attendees = $body['attendees'] ?? [];
 
   if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
-  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email');
+  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email', 'checkout');
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
   require_checkout_policy_acceptance($body);
 
@@ -3881,7 +3881,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $attendees = $body['attendees'] ?? [];
 
   if ($eventId <= 0) json_response(400, ['error' => 'invalid_event']);
-  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email');
+  $buyerEmail = require_deliverable_email($buyerEmail, 'invalid_buyer_email', 'checkout');
   if (!is_array($items) || count($items) < 1) json_response(400, ['error' => 'invalid_order_items']);
   if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
   require_checkout_policy_acceptance($body);

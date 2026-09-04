@@ -282,8 +282,12 @@ function plunk_verify_email(string $email): array {
 /**
  * Reject undeliverable / disposable emails via Plunk when configured.
  * Soft-fails open if Plunk is unavailable so signup/checkout stay usable.
+ *
+ * @param 'strict'|'checkout' $mode
+ *   - checkout: only block disposable addresses (avoid false DNS rejects at purchase)
+ *   - strict: also block clear typos / clearly invalid overall results for account signup
  */
-function require_deliverable_email(string $email, string $errorKey = 'invalid_email'): string {
+function require_deliverable_email(string $email, string $errorKey = 'invalid_email', string $mode = 'strict'): string {
   $email = strtolower(trim($email));
   if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     json_response(400, [
@@ -292,6 +296,7 @@ function require_deliverable_email(string $email, string $errorKey = 'invalid_em
     ]);
   }
 
+  $mode = $mode === 'checkout' ? 'checkout' : 'strict';
   $result = plunk_verify_email($email);
   if (!empty($result['skipped'])) {
     return $email;
@@ -301,37 +306,29 @@ function require_deliverable_email(string $email, string $errorKey = 'invalid_em
     json_response(400, [
       'error' => 'disposable_email',
       'message' => 'Temporary or disposable email addresses are not allowed. Please use a permanent email.',
-      'verification' => [
-        'valid' => false,
-        'isDisposable' => true,
-        'reasons' => $result['reasons'],
-      ],
     ]);
   }
 
-  $looksBad = ($result['valid'] === false)
-    || ($result['hasMxRecords'] === false)
-    || ($result['domainExists'] === false)
-    || ($result['isTypo'] === true && !empty($result['suggestedEmail']));
+  // Checkout must not hard-fail on Plunk DNS/MX heuristics — custom domains often get false negatives.
+  if ($mode === 'checkout') {
+    return $email;
+  }
 
-  if ($looksBad) {
+  // Signup: only block clear typo suggestions or an overall invalid mark without MX.
+  $clearTypo = ($result['isTypo'] === true) && !empty($result['suggestedEmail']);
+  $clearlyInvalid = ($result['valid'] === false)
+    && ($result['hasMxRecords'] === false)
+    && ($result['domainExists'] === false);
+
+  if ($clearTypo || $clearlyInvalid) {
     $message = 'This email address does not look deliverable. Please check for typos.';
     $payload = [
       'error' => $errorKey,
       'message' => $message,
-      'verification' => [
-        'valid' => $result['valid'],
-        'isTypo' => $result['isTypo'],
-        'hasMxRecords' => $result['hasMxRecords'],
-        'domainExists' => $result['domainExists'],
-        'reasons' => $result['reasons'],
-      ],
     ];
     if (!empty($result['suggestedEmail'])) {
       $payload['suggestedEmail'] = $result['suggestedEmail'];
       $payload['message'] = 'This email address looks incorrect. Did you mean ' . $result['suggestedEmail'] . '?';
-    } elseif (!empty($result['reasons'][0])) {
-      $payload['message'] = (string)$result['reasons'][0];
     }
     json_response(400, $payload);
   }
