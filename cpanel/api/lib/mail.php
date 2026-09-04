@@ -1,7 +1,7 @@
 <?php
 
 /** Bump when transaction email HTML changes — also exposed on /api/health. */
-const MAIL_LAYOUT_VERSION = 'transaction-white-v2-20260723';
+const MAIL_LAYOUT_VERSION = 'transaction-organizer-v1-20260820';
 
 function mail_layout_version(): string {
   return MAIL_LAYOUT_VERSION;
@@ -117,6 +117,223 @@ function plunk_send_email(string $to, string $subject, string $htmlBody, string 
   }
 
   return true;
+}
+
+/**
+ * Resolve Plunk verify endpoint from the configured send URL.
+ * Docs: POST https://next-api.useplunk.com/v1/verify
+ */
+function plunk_verify_email_url(array $mail): string {
+  $configured = trim((string)($mail['plunk_verify_api_url'] ?? ''));
+  if ($configured !== '') {
+    return rtrim($configured, '/');
+  }
+
+  $sendUrl = trim((string)($mail['plunk_api_url'] ?? 'https://next-api.useplunk.com/v1/send'));
+  if ($sendUrl === '') {
+    $sendUrl = 'https://next-api.useplunk.com/v1/send';
+  }
+  if (preg_match('#/v1/send/?$#i', $sendUrl)) {
+    return (string)preg_replace('#/v1/send/?$#i', '/v1/verify', $sendUrl);
+  }
+  if (preg_match('#/v1/verify/?$#i', $sendUrl)) {
+    return rtrim($sendUrl, '/');
+  }
+  return 'https://next-api.useplunk.com/v1/verify';
+}
+
+/**
+ * Call Plunk public verifyEmail API.
+ * @return array{
+ *   skipped:bool,
+ *   success:bool,
+ *   email:string,
+ *   valid:?bool,
+ *   isDisposable:?bool,
+ *   isAlias:?bool,
+ *   isTypo:?bool,
+ *   isPlusAddressed:?bool,
+ *   isPersonalEmail:?bool,
+ *   domainExists:?bool,
+ *   hasWebsite:?bool,
+ *   hasMxRecords:?bool,
+ *   suggestedEmail:?string,
+ *   reasons:list<string>,
+ *   error:?string
+ * }
+ */
+function plunk_verify_email(string $email): array {
+  $email = strtolower(trim($email));
+  $empty = [
+    'skipped' => true,
+    'success' => false,
+    'email' => $email,
+    'valid' => null,
+    'isDisposable' => null,
+    'isAlias' => null,
+    'isTypo' => null,
+    'isPlusAddressed' => null,
+    'isPersonalEmail' => null,
+    'domainExists' => null,
+    'hasWebsite' => null,
+    'hasMxRecords' => null,
+    'suggestedEmail' => null,
+    'reasons' => [],
+    'error' => null,
+  ];
+
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $empty['skipped'] = false;
+    $empty['valid'] = false;
+    $empty['error'] = 'invalid_format';
+    $empty['reasons'] = ['Email format is invalid.'];
+    return $empty;
+  }
+
+  $mail = mail_config();
+  $apiKey = trim((string)($mail['plunk_secret_key'] ?? ''));
+  if ($apiKey === '') {
+    $empty['error'] = 'plunk_not_configured';
+    return $empty;
+  }
+
+  $apiUrl = plunk_verify_email_url($mail);
+  $payload = json_encode(['email' => $email], JSON_UNESCAPED_UNICODE);
+  if ($payload === false) {
+    $empty['error'] = 'encode_failed';
+    return $empty;
+  }
+
+  $ch = curl_init($apiUrl);
+  if ($ch === false) {
+    $empty['error'] = 'curl_init_failed';
+    return $empty;
+  }
+
+  curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 12,
+    CURLOPT_HTTPHEADER => [
+      'Authorization: Bearer ' . $apiKey,
+      'Content-Type: application/json',
+    ],
+    CURLOPT_POSTFIELDS => $payload,
+  ]);
+
+  $response = curl_exec($ch);
+  $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  $curlError = curl_error($ch);
+  curl_close($ch);
+
+  if ($response === false) {
+    error_log('Plunk verify failed (curl): ' . $curlError);
+    $empty['error'] = 'curl_failed';
+    return $empty;
+  }
+
+  $decoded = json_decode((string)$response, true);
+  if (!is_array($decoded)) {
+    error_log('Plunk verify failed HTTP ' . $httpCode . ': ' . substr((string)$response, 0, 500));
+    $empty['error'] = 'invalid_response';
+    return $empty;
+  }
+
+  if ($httpCode < 200 || $httpCode >= 300) {
+    error_log('Plunk verify failed HTTP ' . $httpCode . ': ' . substr((string)$response, 0, 500));
+    $empty['error'] = 'http_' . $httpCode;
+    return $empty;
+  }
+
+  $data = is_array($decoded['data'] ?? null) ? $decoded['data'] : $decoded;
+  $reasons = [];
+  if (isset($data['reasons']) && is_array($data['reasons'])) {
+    foreach ($data['reasons'] as $reason) {
+      if (is_string($reason) && trim($reason) !== '') {
+        $reasons[] = trim($reason);
+      }
+    }
+  }
+
+  $suggested = trim((string)($data['suggestedEmail'] ?? ''));
+  if ($suggested !== '' && !filter_var($suggested, FILTER_VALIDATE_EMAIL)) {
+    $suggested = '';
+  }
+
+  return [
+    'skipped' => false,
+    'success' => !empty($decoded['success']) || array_key_exists('valid', $data),
+    'email' => strtolower(trim((string)($data['email'] ?? $email))),
+    'valid' => array_key_exists('valid', $data) ? (bool)$data['valid'] : null,
+    'isDisposable' => array_key_exists('isDisposable', $data) ? (bool)$data['isDisposable'] : null,
+    'isAlias' => array_key_exists('isAlias', $data) ? (bool)$data['isAlias'] : null,
+    'isTypo' => array_key_exists('isTypo', $data) ? (bool)$data['isTypo'] : null,
+    'isPlusAddressed' => array_key_exists('isPlusAddressed', $data) ? (bool)$data['isPlusAddressed'] : null,
+    'isPersonalEmail' => array_key_exists('isPersonalEmail', $data) ? (bool)$data['isPersonalEmail'] : null,
+    'domainExists' => array_key_exists('domainExists', $data) ? (bool)$data['domainExists'] : null,
+    'hasWebsite' => array_key_exists('hasWebsite', $data) ? (bool)$data['hasWebsite'] : null,
+    'hasMxRecords' => array_key_exists('hasMxRecords', $data) ? (bool)$data['hasMxRecords'] : null,
+    'suggestedEmail' => $suggested !== '' ? strtolower($suggested) : null,
+    'reasons' => $reasons,
+    'error' => null,
+  ];
+}
+
+/**
+ * Reject undeliverable / disposable emails via Plunk when configured.
+ * Soft-fails open if Plunk is unavailable so signup/checkout stay usable.
+ *
+ * @param 'strict'|'checkout' $mode
+ *   - checkout: only block disposable addresses (avoid false DNS rejects at purchase)
+ *   - strict: also block clear typos / clearly invalid overall results for account signup
+ */
+function require_deliverable_email(string $email, string $errorKey = 'invalid_email', string $mode = 'strict'): string {
+  $email = strtolower(trim($email));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(400, [
+      'error' => $errorKey,
+      'message' => 'Enter a valid email address.',
+    ]);
+  }
+
+  $mode = $mode === 'checkout' ? 'checkout' : 'strict';
+  $result = plunk_verify_email($email);
+  if (!empty($result['skipped'])) {
+    return $email;
+  }
+
+  if (!empty($result['isDisposable'])) {
+    json_response(400, [
+      'error' => 'disposable_email',
+      'message' => 'Temporary or disposable email addresses are not allowed. Please use a permanent email.',
+    ]);
+  }
+
+  // Checkout must not hard-fail on Plunk DNS/MX heuristics — custom domains often get false negatives.
+  if ($mode === 'checkout') {
+    return $email;
+  }
+
+  // Signup: only block clear typo suggestions or an overall invalid mark without MX.
+  $clearTypo = ($result['isTypo'] === true) && !empty($result['suggestedEmail']);
+  $clearlyInvalid = ($result['valid'] === false)
+    && ($result['hasMxRecords'] === false)
+    && ($result['domainExists'] === false);
+
+  if ($clearTypo || $clearlyInvalid) {
+    $message = 'This email address does not look deliverable. Please check for typos.';
+    $payload = [
+      'error' => $errorKey,
+      'message' => $message,
+    ];
+    if (!empty($result['suggestedEmail'])) {
+      $payload['suggestedEmail'] = $result['suggestedEmail'];
+      $payload['message'] = 'This email address looks incorrect. Did you mean ' . $result['suggestedEmail'] . '?';
+    }
+    json_response(400, $payload);
+  }
+
+  return $email;
 }
 
 function send_email(string $to, string $subject, string $htmlBody, ?PDO $pdo = null): bool {
@@ -426,21 +643,34 @@ function mail_order_short_ticket_url(int $orderId): string {
 function mail_app_base_url(): string {
   $cfg = get_config();
   $fromCfg = trim((string)(($cfg['payhere'] ?? [])['app_base_url'] ?? ''));
+  $base = '';
   if ($fromCfg !== '') {
-    return rtrim($fromCfg, '/');
+    $base = rtrim($fromCfg, '/');
+  } else {
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host !== '') {
+      $proto = 'http';
+      $https = strtolower(trim((string)($_SERVER['HTTPS'] ?? '')));
+      if ($https !== '' && $https !== 'off') {
+        $proto = 'https';
+      } elseif (strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https') {
+        $proto = 'https';
+      }
+      $base = $proto . '://' . $host;
+    }
   }
-  $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
-  if ($host === '') {
-    return '';
+
+  // Always prefer the public app origin so SMS/email ticket links resolve on the SPA
+  // (apex bigturnout.co is a separate Apache host and returns 404 for /t/… and /orders/…).
+  if (function_exists('canonical_public_app_origin')) {
+    return canonical_public_app_origin($base);
   }
-  $proto = 'http';
-  $https = strtolower(trim((string)($_SERVER['HTTPS'] ?? '')));
-  if ($https !== '' && $https !== 'off') {
-    $proto = 'https';
-  } elseif (strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https') {
-    $proto = 'https';
+
+  $host = strtolower((string)(parse_url($base, PHP_URL_HOST) ?: ''));
+  if ($host === 'bigturnout.co' || $host === 'www.bigturnout.co' || $host === '' || str_ends_with($host, '.vercel.app')) {
+    return 'https://app.bigturnout.co';
   }
-  return $proto . '://' . $host;
+  return $base;
 }
 
 function mail_qr_image_url(string $qrToken): string {
@@ -491,6 +721,167 @@ function mail_format_lkr_from_cents(int $cents): string {
   return 'LKR ' . number_format(max(0, $cents) / 100, 2);
 }
 
+function mail_resolve_organizer_name(PDO $pdo, int $organizerUserId): string {
+  if ($organizerUserId < 1) {
+    return 'Organizer';
+  }
+
+  if (function_exists('organizer_profile_api_shape')) {
+    $profile = organizer_profile_api_shape($pdo, $organizerUserId);
+    $orgName = trim((string)($profile['organizationName'] ?? ''));
+    if ($orgName !== '') {
+      return $orgName;
+    }
+    $displayName = trim((string)($profile['displayName'] ?? ''));
+    if ($displayName !== '') {
+      return $displayName;
+    }
+  }
+
+  $stmt = $pdo->prepare(
+    'SELECT COALESCE(NULLIF(TRIM(p.organization_name), \'\'), NULLIF(TRIM(u.display_name), \'\')) AS organizer_name
+     FROM users u
+     LEFT JOIN organizer_profiles p ON p.user_id = u.id
+     WHERE u.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$organizerUserId]);
+  $row = $stmt->fetch();
+  $name = trim((string)($row['organizer_name'] ?? ''));
+  return $name !== '' ? $name : 'Organizer';
+}
+
+function mail_resolve_organizer_email(PDO $pdo, int $organizerUserId): string {
+  if ($organizerUserId < 1) {
+    return '';
+  }
+  $stmt = $pdo->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$organizerUserId]);
+  $row = $stmt->fetch();
+  $email = strtolower(trim((string)($row['email'] ?? '')));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    return '';
+  }
+  return $email;
+}
+
+function mail_organizer_event_dashboard_url(int $eventId): string {
+  $base = mail_app_base_url();
+  if ($base === '' || $eventId < 1) {
+    return '';
+  }
+  return $base . '/dashboard/events/' . rawurlencode((string)$eventId) . '/checkin';
+}
+
+/**
+ * Notify the event organizer that a ticket order was confirmed.
+ */
+function send_organizer_sale_notification_email(
+  PDO $pdo,
+  array $order,
+  int $orderId,
+  array $attendees,
+  string $organizerName = 'Organizer'
+): bool {
+  $organizerUserId = (int)($order['organizer_user_id'] ?? 0);
+  $toEmail = mail_resolve_organizer_email($pdo, $organizerUserId);
+  if ($toEmail === '') {
+    return false;
+  }
+
+  $buyerEmail = strtolower(trim((string)($order['buyer_email'] ?? '')));
+
+  $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
+  if (!is_array($items)) {
+    $items = [];
+  }
+
+  $ticketQty = 0;
+  $detailRows = '';
+  foreach ($items as $it) {
+    if (!is_array($it)) {
+      continue;
+    }
+    $name = htmlspecialchars(trim((string)($it['name'] ?? $it['ticketName'] ?? 'Ticket')));
+    $qty = (int)($it['quantity'] ?? 0);
+    if ($qty < 1) {
+      continue;
+    }
+    $ticketQty += $qty;
+    $unitCents = isset($it['price'])
+      ? (int)round(((float)$it['price']) * 100)
+      : (int)($it['price_cents'] ?? 0);
+    $detailRows .= mail_detail_row($name, htmlspecialchars((string)$qty . ' × ' . mail_format_lkr_from_cents($unitCents)));
+  }
+  if ($ticketQty < 1) {
+    $ticketQty = count($attendees);
+  }
+
+  $eventId = (int)($order['event_id'] ?? 0);
+  $eventTitle = htmlspecialchars((string)($order['event_title'] ?? 'your event'));
+  $eventDate = htmlspecialchars(mail_format_event_when((string)($order['event_date'] ?? '')));
+  $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
+  $total = htmlspecialchars(mail_format_lkr_from_cents((int)($order['total_amount_cents'] ?? 0)));
+  $buyerName = htmlspecialchars(trim((string)($order['buyer_name'] ?? '')) ?: 'Buyer');
+  $buyerPhone = htmlspecialchars(trim((string)($order['buyer_phone'] ?? '')));
+  $paymentMode = htmlspecialchars(mail_payment_mode_label($order['payment_method'] ?? null));
+  $bookingAt = htmlspecialchars(mail_format_booking_datetime((string)($order['created_at'] ?? '')));
+  $dashboardUrl = mail_organizer_event_dashboard_url($eventId);
+
+  $attendeeLines = '';
+  foreach ($attendees as $a) {
+    if (!is_array($a)) {
+      continue;
+    }
+    $aName = htmlspecialchars(trim((string)($a['full_name'] ?? 'Guest')));
+    $aTicket = htmlspecialchars(trim((string)($a['ticket_name'] ?? 'Ticket')));
+    $attendeeLines .=
+      '<tr><td style="padding:8px 0;font-size:14px;color:#111827;border-bottom:1px solid #f3f4f6;">' .
+      $aName .
+      '<div style="font-size:12px;color:#6b7280;">' . $aTicket . '</div></td></tr>';
+  }
+
+  $inner =
+    '<div style="padding:28px 28px 8px;text-align:center;">' .
+    '<div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0d585b;">New ticket sale</div>' .
+    '<h1 style="margin:10px 0 12px;font-size:24px;line-height:1.25;font-weight:700;color:#111827;">You just sold ' .
+    ($ticketQty === 1 ? 'a ticket' : $ticketQty . ' tickets') . '</h1>' .
+    '<p style="margin:0 auto 8px;max-width:460px;font-size:15px;line-height:1.6;color:#4b5563;">' .
+    '<strong style="color:#111827;">' . $buyerName . '</strong> booked for <strong style="color:#111827;">' .
+    $eventTitle . '</strong>.</p>' .
+    ($dashboardUrl !== '' ? mail_cta_button($dashboardUrl, 'VIEW ATTENDEES', '#0d585b', '#f3ffe4') : '') .
+    '</div>' .
+    '<div style="padding:8px 28px 8px;">' .
+    '<table width="100%" cellpadding="0" cellspacing="0">' .
+    mail_detail_row('Event', $eventTitle) .
+    ($eventDate !== '' ? mail_detail_row('When', $eventDate) : '') .
+    ($eventLocation !== '' ? mail_detail_row('Venue', $eventLocation) : '') .
+    mail_detail_row('Buyer', $buyerName) .
+    ($buyerEmail !== '' ? mail_detail_row('Buyer email', htmlspecialchars($buyerEmail)) : '') .
+    ($buyerPhone !== '' ? mail_detail_row('Buyer phone', $buyerPhone) : '') .
+    $detailRows .
+    mail_detail_row('Total', $total, true) .
+    mail_detail_row('Payment', $paymentMode) .
+    mail_detail_row('Booking ID', htmlspecialchars((string)$orderId)) .
+    ($bookingAt !== '' ? mail_detail_row('Booked at', $bookingAt) : '') .
+    '</table></div>' .
+    ($attendeeLines !== ''
+      ? '<div style="padding:12px 28px 8px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;margin-bottom:6px;">Attendees</div>' .
+        '<table width="100%" cellpadding="0" cellspacing="0">' . $attendeeLines . '</table></div>'
+      : '') .
+    '<p style="margin:0;padding:16px 28px 28px;font-size:13px;line-height:1.55;color:#6b7280;text-align:center;">' .
+    'You received this because a ticket order was confirmed for your event.' .
+    '</p>';
+
+  $subject = 'New sale · ' . (string)($order['event_title'] ?? 'Event') . ' · #' . $orderId;
+  $html = mail_transaction_layout(
+    $inner,
+    'New ticket sale for ' . (string)($order['event_title'] ?? 'your event'),
+    $organizerName
+  );
+  return send_email($toEmail, $subject, $html, $pdo);
+}
+
 /** Auth / system emails keep the branded dark shell. */
 function mail_turnout_layout(string $headline, string $innerHtml): string {
   return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#052e30;font-family:Segoe UI,Arial,sans-serif;color:#e9f4ee;">' .
@@ -506,12 +897,19 @@ function mail_turnout_layout(string $headline, string $innerHtml): string {
 
 /**
  * Clean white transaction email shell (order confirmations / tickets).
+ * Turnout appears only once in the footer as "Powered by turnout".
  */
-function mail_transaction_layout(string $innerHtml, string $preheader = ''): string {
+function mail_transaction_layout(string $innerHtml, string $preheader = '', string $organizerName = ''): string {
   $pre = $preheader !== ''
     ? '<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">' .
       htmlspecialchars($preheader) . '</div>'
     : '';
+
+  $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
+  $headerHtml = '<tr><td style="padding:18px 24px;border-bottom:1px solid #eef0f3;text-align:center;">' .
+    '<div style="font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#111827;">' .
+    $organizerLabel .
+    '</div></td></tr>';
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' .
     '<title>Ticket Booking Confirmation</title></head>' .
@@ -521,13 +919,10 @@ function mail_transaction_layout(string $innerHtml, string $preheader = ''): str
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 12px;">' .
     '<tr><td align="center">' .
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:4px;overflow:hidden;border:1px solid #e5e7eb;">' .
-    '<tr><td style="padding:18px 24px;border-bottom:1px solid #eef0f3;text-align:center;">' .
-    '<div style="font-size:13px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#111827;">Turnout</div>' .
-    '</td></tr>' .
+    $headerHtml .
     '<tr><td style="padding:0;color:#1f2937;">' . $innerHtml . '</td></tr>' .
     '<tr><td style="padding:28px 24px 32px;text-align:center;border-top:1px solid #eef0f3;background:#fafafa;">' .
-    '<div style="font-size:14px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#111827;">Turnout</div>' .
-    '<p style="margin:12px 0 0;font-size:12px;line-height:1.6;color:#6b7280;">This e-mail was sent by <strong style="color:#374151;">Turnout</strong></p>' .
+    '<p style="margin:0;font-size:12px;line-height:1.6;color:#6b7280;">Powered by <strong style="color:#374151;">turnout</strong></p>' .
     '<p style="margin:10px 0 0;font-size:11px;line-height:1.55;color:#9ca3af;">You received this email because a ticket order was placed using this address.</p>' .
     '</td></tr>' .
     '</table></td></tr></table></body></html>';
@@ -596,7 +991,8 @@ function send_buyer_order_confirmation_email(
   array $order,
   int $orderId,
   array $attendees,
-  string $ticketUrl
+  string $ticketUrl,
+  string $organizerName = 'Organizer'
 ): bool {
   $buyerEmail = strtolower(trim((string)$order['buyer_email']));
   if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) {
@@ -625,6 +1021,7 @@ function send_buyer_order_confirmation_email(
   }
 
   $eventTitle = htmlspecialchars((string)$order['event_title']);
+  $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
   $eventDate = htmlspecialchars(mail_format_event_when((string)($order['event_date'] ?? '')));
   $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
   $total = htmlspecialchars(mail_format_lkr_from_cents((int)($order['total_amount_cents'] ?? 0)));
@@ -655,9 +1052,10 @@ function send_buyer_order_confirmation_email(
   $inner =
     $bannerHtml .
     '<div style="padding:28px 28px 8px;text-align:center;">' .
-    '<h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:#1e1b4b;">Thank you for choosing Turnout</h1>' .
+    '<h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:#1e1b4b;">Thank you for your booking</h1>' .
     '<p style="margin:0 auto 8px;max-width:460px;font-size:15px;line-height:1.6;color:#4b5563;">' .
-    'Your seat booking for <strong style="color:#111827;">' . $eventTitle . '</strong> is confirmed. ' .
+    'Your seat booking for <strong style="color:#111827;">' . $eventTitle . '</strong> with ' .
+    '<strong style="color:#111827;">' . $organizerLabel . '</strong> is confirmed. ' .
     'Download your digital ticket using the button below.</p>' .
     mail_cta_button($ticketUrl, 'DOWNLOAD DIGITAL TICKET', '#5b21b6', '#ffffff') .
     '</div>' .
@@ -687,11 +1085,15 @@ function send_buyer_order_confirmation_email(
     '<ul style="margin:0;padding:0 0 0 18px;color:#4b5563;font-size:14px;line-height:1.65;">' .
     '<li style="margin:0 0 8px;">Tickets are non-refundable unless the organizer cancels or reschedules the event.</li>' .
     '<li style="margin:0 0 8px;">Show your QR code at the entrance for check-in. Keep this email or use the download link above.</li>' .
-    '<li style="margin:0;">Need help? Reply to this email or contact the event organizer.</li>' .
+    '<li style="margin:0;">Need help? Reply to this email or contact ' . $organizerLabel . '.</li>' .
     '</ul></div>';
 
   $subject = 'Ticket Booking Confirmation';
-  $html = mail_transaction_layout($inner, 'Your booking for ' . (string)$order['event_title'] . ' is confirmed.');
+  $html = mail_transaction_layout(
+    $inner,
+    'Your booking for ' . (string)$order['event_title'] . ' is confirmed.',
+    $organizerName
+  );
   return send_email($buyerEmail, $subject, $html, $pdo);
 }
 
@@ -702,9 +1104,11 @@ function send_attendee_ticket_email(
   array $passes,
   array $order,
   int $orderId,
-  string $ticketUrl
+  string $ticketUrl,
+  string $organizerName = 'Organizer'
 ): bool {
   $eventTitle = htmlspecialchars((string)$order['event_title']);
+  $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
   $eventDate = htmlspecialchars(mail_format_event_when((string)($order['event_date'] ?? '')));
   $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
   $greeting = htmlspecialchars($recipientName !== '' ? $recipientName : 'there');
@@ -729,7 +1133,8 @@ function send_attendee_ticket_email(
     ($passCount > 1 ? 's are' : ' is') . ' ready</h1>' .
     '<p style="margin:0 auto 8px;max-width:460px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ' . $greeting .
     ', you have ' . ($passCount > 1 ? '<strong>' . $passCount . ' tickets</strong>' : 'a ticket') .
-    ' for <strong style="color:#111827;">' . $eventTitle . '</strong>.</p>' .
+    ' for <strong style="color:#111827;">' . $eventTitle . '</strong> from ' .
+    '<strong style="color:#111827;">' . $organizerLabel . '</strong>.</p>' .
     mail_cta_button($ticketUrl, $ticketLabel, '#5b21b6', '#ffffff') .
     '</div>' .
     '<div style="padding:8px 28px 4px;">' .
@@ -752,7 +1157,12 @@ function send_attendee_ticket_email(
     ? 'Your ' . $passCount . ' tickets for ' . (string)$order['event_title']
     : 'Your ticket for ' . (string)$order['event_title'];
 
-  return send_email($toEmail, $subject, mail_transaction_layout($inner, 'Your ticket for ' . (string)$order['event_title']), $pdo);
+  return send_email(
+    $toEmail,
+    $subject,
+    mail_transaction_layout($inner, 'Your ticket for ' . (string)$order['event_title'], $organizerName),
+    $pdo
+  );
 }
 
 /**
@@ -761,8 +1171,8 @@ function send_attendee_ticket_email(
 function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   $stmt = $pdo->prepare(
     'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
-            o.payment_method, o.created_at,
-            e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url
+            o.payment_method, o.created_at, o.event_id,
+            e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url, e.organizer_user_id
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
      WHERE o.id = ?
@@ -773,6 +1183,8 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   if (!$order) {
     return false;
   }
+
+  $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
 
   $attStmt = $pdo->prepare(
     'SELECT a.id, a.full_name, a.email, a.qr_token, t.name AS ticket_name
@@ -786,12 +1198,15 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
 
   $buyerTicketUrl = mail_order_success_url($orderId);
 
-  $buyerOk = send_buyer_order_confirmation_email($pdo, $order, $orderId, $attendees, $buyerTicketUrl);
+  $buyerOk = send_buyer_order_confirmation_email($pdo, $order, $orderId, $attendees, $buyerTicketUrl, $organizerName);
+
+  // SMS is sent separately by callers (once) via send_order_confirmation_sms().
+  // Do not send SMS here — that previously caused duplicate texts on registration.
 
   try {
-    send_order_confirmation_sms($pdo, $orderId);
+    send_organizer_sale_notification_email($pdo, $order, $orderId, $attendees, $organizerName);
   } catch (Throwable $e) {
-    error_log('[turnout] order confirmation SMS error for order ' . $orderId . ': ' . $e->getMessage());
+    error_log('[turnout] organizer sale email failed for order ' . $orderId . ': ' . $e->getMessage());
   }
 
   $buyerEmail = strtolower(trim((string)$order['buyer_email']));
@@ -815,12 +1230,148 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
     $recipientName = trim((string)($passes[0]['full_name'] ?? ''));
     $passIds = array_map(static fn($p) => (int)($p['id'] ?? 0), $passes);
     $holderTicketUrl = mail_order_success_url($orderId, null, $passIds);
-    if (!send_attendee_ticket_email($pdo, $email, $recipientName, $passes, $order, $orderId, $holderTicketUrl)) {
+    if (!send_attendee_ticket_email($pdo, $email, $recipientName, $passes, $order, $orderId, $holderTicketUrl, $organizerName)) {
       $attendeeOk = false;
       error_log('Turnout: failed attendee ticket email for order ' . $orderId . ' to ' . $email);
     }
   }
 
   return $buyerOk && $attendeeOk;
+}
+
+/**
+ * Email the buyer a bank-transfer instructions + slip upload link while the order is still pending.
+ * Useful when they leave checkout before uploading a slip.
+ */
+function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDetails = null): bool {
+  ensure_order_bank_transfer_columns($pdo);
+
+  $stmt = $pdo->prepare(
+    'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
+            o.payment_method, o.status, o.created_at, o.event_id,
+            e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url, e.organizer_user_id,
+            e.customization_json
+     FROM orders o
+     INNER JOIN events e ON e.id = o.event_id
+     WHERE o.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$orderId]);
+  $order = $stmt->fetch();
+  if (!$order) {
+    return false;
+  }
+
+  if (strtolower(trim((string)($order['payment_method'] ?? ''))) !== 'bank_transfer') {
+    return false;
+  }
+  if (strtolower(trim((string)($order['status'] ?? ''))) !== 'pending') {
+    return false;
+  }
+
+  $toEmail = strtolower(trim((string)($order['buyer_email'] ?? '')));
+  if ($toEmail === '' || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+    return false;
+  }
+
+  if (!is_array($bankDetails) || empty($bankDetails)) {
+    $organizerUserId = (int)($order['organizer_user_id'] ?? 0);
+    $profileRow = function_exists('load_organizer_profile_row')
+      ? load_organizer_profile_row($pdo, $organizerUserId)
+      : null;
+    $bankDetails = is_array($profileRow) && function_exists('organizer_receiving_bank_api_shape')
+      ? organizer_receiving_bank_api_shape($profileRow)
+      : null;
+  }
+
+  $uploadUrl = mail_order_success_url($orderId);
+  $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
+  $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
+  $eventTitle = htmlspecialchars((string)($order['event_title'] ?? 'your event'));
+  $eventDate = htmlspecialchars(mail_format_event_when((string)($order['event_date'] ?? '')));
+  $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
+  $total = htmlspecialchars(mail_format_lkr_from_cents((int)($order['total_amount_cents'] ?? 0)));
+  $greeting = htmlspecialchars(trim((string)($order['buyer_name'] ?? '')) ?: 'there');
+  $bookingId = 'TO' . strtoupper(dechex(max(1, $orderId))) . str_pad((string)$orderId, 4, '0', STR_PAD_LEFT);
+  $bannerUrl = mail_absolute_asset_url((string)($order['banner_url'] ?? ''));
+
+  $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
+  if (!is_array($items)) $items = [];
+  $detailRows = '';
+  foreach ($items as $it) {
+    if (!is_array($it)) continue;
+    $name = htmlspecialchars(trim((string)($it['name'] ?? $it['ticketName'] ?? 'Ticket')));
+    $qty = (int)($it['quantity'] ?? 0);
+    if ($qty < 1) continue;
+    $unitCents = isset($it['price'])
+      ? (int)round(((float)$it['price']) * 100)
+      : (int)($it['price_cents'] ?? 0);
+    $detailRows .= mail_detail_row($name, htmlspecialchars((string)$qty . ' × ' . mail_format_lkr_from_cents($unitCents)));
+  }
+
+  $bankRows = '';
+  if (is_array($bankDetails)) {
+    $bankMap = [
+      'Account holder' => (string)($bankDetails['accountHolderName'] ?? ''),
+      'Bank' => (string)($bankDetails['bankName'] ?? ''),
+      'Branch' => (string)($bankDetails['bankBranch'] ?? ''),
+      'Account number' => (string)($bankDetails['accountNumber'] ?? ''),
+      'Account type' => (string)($bankDetails['accountType'] ?? ''),
+    ];
+    foreach ($bankMap as $label => $value) {
+      $value = trim($value);
+      if ($value === '') continue;
+      $bankRows .= mail_detail_row($label, htmlspecialchars($value));
+    }
+  }
+
+  $bannerHtml = $bannerUrl !== ''
+    ? '<img src="' . htmlspecialchars($bannerUrl) . '" alt="' . $eventTitle . '" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />'
+    : '';
+
+  $inner =
+    $bannerHtml .
+    '<div style="padding:28px 28px 8px;text-align:center;">' .
+    '<div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0d585b;">Bank transfer</div>' .
+    '<h1 style="margin:10px 0 12px;font-size:24px;line-height:1.25;font-weight:700;color:#1e1b4b;">Complete your payment</h1>' .
+    '<p style="margin:0 auto 8px;max-width:480px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ' . $greeting .
+    ', your order for <strong style="color:#111827;">' . $eventTitle . '</strong> is reserved. ' .
+    'Transfer <strong style="color:#111827;">' . $total . '</strong> and upload your bank slip using the button below — ' .
+    'even if you closed the checkout page.</p>' .
+    mail_cta_button($uploadUrl, 'UPLOAD TRANSFER SLIP', '#0d585b', '#f3ffe4') .
+    '</div>' .
+    '<div style="padding:8px 28px 4px;">' .
+    '<table width="100%" cellpadding="0" cellspacing="0">' .
+    mail_detail_row('Event', $eventTitle) .
+    ($eventDate !== '' ? mail_detail_row('When', $eventDate) : '') .
+    ($eventLocation !== '' ? mail_detail_row('Venue', $eventLocation) : '') .
+    $detailRows .
+    mail_detail_row('Amount to transfer', $total, true) .
+    mail_detail_row('Order', htmlspecialchars('#' . (string)$orderId . ' · ' . $bookingId)) .
+    '</table></div>' .
+    ($bankRows !== ''
+      ? '<div style="padding:16px 28px 4px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;margin-bottom:10px;">Transfer to</div>' .
+        '<table width="100%" cellpadding="0" cellspacing="0">' . $bankRows . '</table></div>'
+      : '') .
+    '<div style="padding:18px 28px 28px;">' .
+    '<div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">Next steps</div>' .
+    '<ul style="margin:0;padding:0 0 0 18px;color:#4b5563;font-size:14px;line-height:1.65;">' .
+    '<li style="margin:0 0 8px;">Transfer the exact amount to the account above.</li>' .
+    '<li style="margin:0 0 8px;">Open the upload link and attach your bank slip (PDF, JPG, or PNG).</li>' .
+    '<li style="margin:0;">Tickets are issued after ' . $organizerLabel . ' confirms your transfer.</li>' .
+    '</ul>' .
+    ($uploadUrl !== ''
+      ? '<p style="margin:16px 0 0;font-size:12px;line-height:1.55;color:#6b7280;word-break:break-all;">If the button does not work, copy this link:<br/>' .
+        '<a href="' . htmlspecialchars($uploadUrl) . '" style="color:#0d585b;">' . htmlspecialchars($uploadUrl) . '</a></p>'
+      : '') .
+    '</div>';
+
+  $subject = 'Upload your bank slip · ' . (string)($order['event_title'] ?? 'Event') . ' · Order #' . $orderId;
+  return send_email(
+    $toEmail,
+    $subject,
+    mail_transaction_layout($inner, 'Upload your bank transfer slip for ' . (string)($order['event_title'] ?? 'your event'), $organizerName),
+    $pdo
+  );
 }
 

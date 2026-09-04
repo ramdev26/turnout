@@ -73,9 +73,11 @@ return [
     'charset' => $env('DB_CHARSET', 'UTF8'),
   ],
   'payhere' => [
-    'sandbox' => strtolower($env('PAYHERE_SANDBOX', 'true')) !== 'false',
-    'merchant_id' => $env('PAYHERE_MERCHANT_ID', '1236076'),
-    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET', 'MTk2NDI5Nzk5MzI3MzcwODk4NDkzNDA5OTcxNjMyMjgwODMxMjIyNQ=='),
+    // Live-only. Never fall back to demo credentials: a wrong merchant on the live
+    // endpoint is always rejected as "Unauthorized payment request".
+    'sandbox' => false,
+    'merchant_id' => $env('PAYHERE_MERCHANT_ID'),
+    'merchant_secret' => $env('PAYHERE_MERCHANT_SECRET'),
     'notify_url' => $env('PAYHERE_NOTIFY_URL', 'https://app.bigturnout.co/api/payhere/notify'),
     'app_base_url' => $env('APP_BASE_URL', 'https://app.bigturnout.co'),
   ],
@@ -98,6 +100,7 @@ return [
     'from_name' => $env('MAIL_FROM_NAME', 'Turnout'),
     'plunk_secret_key' => $env('PLUNK_SECRET_KEY', ''),
     'plunk_api_url' => $env('PLUNK_API_URL', 'https://next-api.useplunk.com/v1/send'),
+    'plunk_verify_api_url' => $env('PLUNK_VERIFY_API_URL', 'https://next-api.useplunk.com/v1/verify'),
     'smtp_host' => $env('MAIL_SMTP_HOST', ''),
     'smtp_port' => (int)$env('MAIL_SMTP_PORT', '587'),
     'smtp_user' => $env('MAIL_SMTP_USER', ''),

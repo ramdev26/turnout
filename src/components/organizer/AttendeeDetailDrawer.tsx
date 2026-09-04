@@ -110,7 +110,7 @@ export function AttendeeDetailDrawer({
       <button
         type="button"
         aria-label="Close attendee details"
-        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/60"
         onClick={onClose}
       />
       <div

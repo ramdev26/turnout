@@ -47,8 +47,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const isMarketingHome = path === '/landing';
   const isOrderConfirmation = /^\/orders\/\d+\/success$/.test(path);
+  const isPaymentReturn = /^\/payhere\/(return|cancel)$/.test(path);
 
-  const hideChrome = isPublicLanding || isStaffCheckin || isMarketingHome || isOrderConfirmation;
+  const hideChrome = isPublicLanding || isStaffCheckin || isMarketingHome || isOrderConfirmation || isPaymentReturn;
   const isAppFlow = isOrganizerConsole || isAttendeeConsole || isAdminConsole || isAuthPage;
   const chromeThemed = !hideChrome;
 
