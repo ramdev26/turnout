@@ -295,18 +295,18 @@ export const Success: React.FC = () => {
                       ['Branch', bank.bankBranch],
                     ].map(([label, value]) => (
                       <div key={label} className="confirm-line-item">
-                        <span style={{ color: 'var(--confirm-muted)' }}>{label}</span>
-                        <strong style={{ textAlign: 'right' }}>{value}</strong>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
                       </div>
                     ))}
                     {bank.accountNote ? (
                       <div className="confirm-line-item confirm-line-item--note">
-                        <span style={{ color: 'var(--confirm-muted)' }}>Account note</span>
+                        <span>Account note</span>
                         <strong>{bank.accountNote}</strong>
                       </div>
                     ) : null}
                     <div className="confirm-line-item">
-                      <span style={{ color: 'var(--confirm-muted)' }}>Amount</span>
+                      <span>Amount</span>
                       <strong>{formatLKRWhole(order.totalAmount)}</strong>
                     </div>
                   </div>
