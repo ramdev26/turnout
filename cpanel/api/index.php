@@ -2827,25 +2827,25 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization['secondaryColor'] = $secondaryColor;
     }
   }
+  $allowedFonts = [
+    'fraunces',
+    'playfair',
+    'sora',
+    'space-grotesk',
+    'dm-serif',
+    'poppins',
+    'manrope',
+    'outfit',
+    'figtree',
+    'libre-baskerville',
+    'archivo',
+    'raleway',
+    'rubik',
+    'syne',
+    'instrument-serif',
+  ];
   if (array_key_exists('fontFamily', $body)) {
     $fontFamily = trim((string)$body['fontFamily']);
-    $allowedFonts = [
-      'fraunces',
-      'playfair',
-      'sora',
-      'space-grotesk',
-      'dm-serif',
-      'poppins',
-      'manrope',
-      'outfit',
-      'figtree',
-      'libre-baskerville',
-      'archivo',
-      'raleway',
-      'rubik',
-      'syne',
-      'instrument-serif',
-    ];
     if (in_array($fontFamily, $allowedFonts, true)) {
       $customization['fontFamily'] = $fontFamily;
     }
@@ -2862,7 +2862,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       $customization['landingStyle'] = $landingStyle;
     }
   }
-  foreach (['buttonColor', 'headingColor', 'bodyTextColor', 'mutedTextColor', 'pageBackgroundColor', 'surfaceColor', 'surfaceMutedColor', 'borderColor', 'headerBgColor', 'footerBgColor'] as $deepColorKey) {
+  foreach (['buttonColor', 'headingColor', 'bodyTextColor', 'mutedTextColor', 'pageBackgroundColor', 'surfaceColor', 'surfaceMutedColor', 'borderColor', 'headerBgColor', 'footerBgColor', 'h2Color', 'h3Color', 'buttonTextColor', 'iconColor', 'linkColor', 'bannerOutlineColor', 'buttonOutlineColor'] as $deepColorKey) {
     if (!array_key_exists($deepColorKey, $body)) {
       continue;
     }
@@ -2877,10 +2877,40 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     }
   }
   foreach ([
+    'h1FontFamily',
+    'h2FontFamily',
+    'h3FontFamily',
+    'bodyFontFamily',
+    'buttonFontFamily',
+  ] as $roleFontKey) {
+    if (!array_key_exists($roleFontKey, $body)) {
+      continue;
+    }
+    $raw = $body[$roleFontKey];
+    if ($raw === null || $raw === '') {
+      unset($customization[$roleFontKey]);
+      continue;
+    }
+    $fontFamily = trim((string)$raw);
+    if (in_array($fontFamily, $allowedFonts, true)) {
+      $customization[$roleFontKey] = $fontFamily;
+    }
+  }
+  foreach ([
     'h1FontSize' => [20, 96],
     'h2FontSize' => [14, 64],
     'bodyFontSize' => [12, 28],
     'smallFontSize' => [10, 20],
+    'h1FontSizeMobile' => [16, 72],
+    'h2FontSizeMobile' => [12, 48],
+    'h3FontSize' => [10, 40],
+    'h3FontSizeMobile' => [10, 32],
+    'bodyFontSizeMobile' => [11, 24],
+    'buttonFontSize' => [10, 28],
+    'buttonFontSizeMobile' => [10, 24],
+    'bannerOutlineWidth' => [0, 24],
+    'buttonRadius' => [0, 999],
+    'buttonOutlineWidth' => [0, 12],
   ] as $fontSizeKey => $fontSizeRange) {
     if (!array_key_exists($fontSizeKey, $body)) {
       continue;
@@ -2911,6 +2941,12 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     'smallBold',
     'smallItalic',
     'smallUnderline',
+    'h3Bold',
+    'h3Italic',
+    'h3Underline',
+    'buttonTextBold',
+    'buttonTextItalic',
+    'buttonTextUnderline',
   ] as $typeStyleKey) {
     if (!array_key_exists($typeStyleKey, $body)) {
       continue;
@@ -2921,6 +2957,17 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
       continue;
     }
     $customization[$typeStyleKey] = (bool)$raw;
+  }
+  if (array_key_exists('buttonShadow', $body)) {
+    $rawShadow = $body['buttonShadow'];
+    if ($rawShadow === null || $rawShadow === '') {
+      unset($customization['buttonShadow']);
+    } else {
+      $shadow = trim((string)$rawShadow);
+      if (in_array($shadow, ['none', 'soft', 'medium', 'strong'], true)) {
+        $customization['buttonShadow'] = $shadow;
+      }
+    }
   }
   if (array_key_exists('eventCategory', $body)) {
     $eventCategory = trim((string)$body['eventCategory']);

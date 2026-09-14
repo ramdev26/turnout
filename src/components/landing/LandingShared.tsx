@@ -147,12 +147,12 @@ export function LandingTopBar({
             <span className="landing-showcase-mark">{brand.name.charAt(0).toUpperCase()}</span>
           )}
           <div className="min-w-0 text-left leading-tight">
-            <p className="truncate text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--landing-text)' }}>
+            <p className="landing-type-h2 truncate text-xs font-bold uppercase tracking-wide">
               {brand.name}
             </p>
           </div>
         </div>
-        <button type="button" onClick={scrollToTickets} className="landing-showcase-btn-cta shrink-0">
+        <button type="button" onClick={scrollToTickets} className="landing-showcase-btn-cta landing-type-btn shrink-0">
           Get tickets
         </button>
       </div>
