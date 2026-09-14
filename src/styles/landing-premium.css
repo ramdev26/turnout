@@ -77,8 +77,10 @@
 
 .landing-poster-frame {
   border-radius: 0.75rem;
-  border: 1px solid var(--showcase-border);
-  background: var(--showcase-card-muted);
+  border-style: solid;
+  border-width: var(--landing-banner-outline-width, 1px);
+  border-color: var(--landing-banner-outline, var(--showcase-border));
+  background: transparent;
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 20px 48px rgba(5, 46, 48, 0.12);
@@ -251,14 +253,35 @@
 }
 
 .landing-btn-primary,
-.landing-showcase-btn-cta {
-  color: var(--landing-on-button, var(--landing-on-primary, #0a2426));
+.landing-showcase-btn-cta,
+.landing-type-btn {
+  color: var(--landing-button-text, var(--landing-on-button, var(--landing-on-primary, #0a2426)));
   background: var(--landing-button, var(--showcase-accent));
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent);
+  font-family: var(--landing-button-font, var(--landing-font-body));
+  font-size: var(--landing-button-size-mobile, var(--landing-button-size, inherit));
+  font-weight: var(--landing-button-weight, 800);
+  font-style: var(--landing-button-style, normal);
+  text-decoration: var(--landing-button-decoration, none);
+  border-radius: var(--landing-button-radius, 9999px);
+  border-style: solid;
+  border-width: var(--landing-button-outline-width, 0px);
+  border-color: var(--landing-button-outline-color, transparent);
+  box-shadow: var(
+    --landing-button-shadow,
+    0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent)
+  );
   transition:
     transform 0.2s ease,
     box-shadow 0.25s ease,
     filter 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .landing-btn-primary,
+  .landing-showcase-btn-cta,
+  .landing-type-btn {
+    font-size: var(--landing-button-size, inherit);
+  }
 }
 
 .landing-btn-secondary {
@@ -380,6 +403,68 @@
   color: var(--landing-on-button, var(--landing-on-primary, var(--primary-on, #ffffff))) !important;
   background: var(--landing-button, var(--landing-accent-readable, var(--primary))) !important;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--landing-button, var(--primary)) 35%, transparent);
+}
+
+/* Typography role utilities — mobile size first, desktop override at 768px */
+.landing-type-h1 {
+  font-family: var(--landing-h1-font, var(--landing-font-display));
+  font-size: var(--landing-h1-size-mobile, var(--landing-h1-size, inherit));
+  font-weight: var(--landing-h1-weight, 500);
+  font-style: var(--landing-h1-style, normal);
+  text-decoration: var(--landing-h1-decoration, none);
+  color: var(--landing-h1-color, var(--landing-heading, var(--landing-text)));
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+.landing-type-h2 {
+  font-family: var(--landing-h2-font, var(--landing-font-display));
+  font-size: var(--landing-h2-size-mobile, var(--landing-h2-size, inherit));
+  font-weight: var(--landing-h2-weight, 500);
+  font-style: var(--landing-h2-style, normal);
+  text-decoration: var(--landing-h2-decoration, none);
+  color: var(--landing-h2-color, var(--landing-text-muted));
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.landing-type-h3 {
+  font-family: var(--landing-h3-font, var(--landing-font-display));
+  font-size: var(--landing-h3-size-mobile, var(--landing-h3-size, var(--landing-small-size, inherit)));
+  font-weight: var(--landing-h3-weight, 600);
+  font-style: var(--landing-h3-style, normal);
+  text-decoration: var(--landing-h3-decoration, none);
+  color: var(--landing-h3-color, var(--landing-text-muted));
+  line-height: 1.35;
+}
+
+.landing-type-p {
+  font-family: var(--landing-p-font, var(--landing-body-font, var(--landing-font-body)));
+  font-size: var(--landing-body-size-mobile, var(--landing-body-size, inherit));
+  font-weight: var(--landing-body-weight, inherit);
+  font-style: var(--landing-body-style, normal);
+  text-decoration: var(--landing-body-decoration, none);
+  color: var(--landing-p-color, var(--landing-text));
+  line-height: 1.65;
+}
+
+.landing-icon {
+  color: var(--landing-icon, var(--showcase-accent, var(--primary)));
+}
+
+@media (min-width: 768px) {
+  .landing-type-h1 {
+    font-size: var(--landing-h1-size, inherit);
+  }
+  .landing-type-h2 {
+    font-size: var(--landing-h2-size, inherit);
+  }
+  .landing-type-h3 {
+    font-size: var(--landing-h3-size, var(--landing-small-size, inherit));
+  }
+  .landing-type-p {
+    font-size: var(--landing-body-size, inherit);
+  }
 }
 
 /* Checkout confirm footer shipping */
