@@ -119,7 +119,7 @@ function ShowcaseHeader({ event, onTickets }: { event: Event; onTickets: () => v
             <span className="landing-showcase-mark">{brand.name.charAt(0).toUpperCase()}</span>
           )}
           <div className="min-w-0 text-left leading-tight">
-            <p className="truncate text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--landing-text)' }}>
+            <p className="landing-type-h2 truncate text-xs font-bold uppercase tracking-wide">
               {brand.name}
             </p>
             <p className="truncate text-[10px] font-medium" style={{ color: 'var(--landing-text-muted)' }}>
@@ -130,20 +130,20 @@ function ShowcaseHeader({ event, onTickets }: { event: Event; onTickets: () => v
 
         <nav className="landing-showcase-nav" aria-label="Event sections">
           <a href="#landing-tickets" className="is-active" onClick={(e) => { e.preventDefault(); scroll('landing-tickets'); }}>
-            <Ticket className="h-3.5 w-3.5" />
+            <Ticket className="landing-icon h-3.5 w-3.5" />
             Reserve passes
           </a>
           <a href="#landing-about" onClick={(e) => { e.preventDefault(); scroll('landing-about'); }}>
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles className="landing-icon h-3.5 w-3.5" />
             Experience
           </a>
           <a href="#landing-venue" onClick={(e) => { e.preventDefault(); scroll('landing-venue'); }}>
-            <MapPin className="h-3.5 w-3.5" />
+            <MapPin className="landing-icon h-3.5 w-3.5" />
             Venue
           </a>
         </nav>
 
-        <button type="button" onClick={onTickets} className="landing-showcase-btn-cta shrink-0">
+        <button type="button" onClick={onTickets} className="landing-showcase-btn-cta landing-type-btn shrink-0">
           Get tickets
         </button>
       </div>
@@ -176,24 +176,24 @@ function ShowcaseHero({ event }: { event: Event }) {
         {event.status === 'published' ? 'Now booking passes online' : event.status}
       </span>
 
-      {accent ? <p className="landing-showcase-hero-accent mt-6">{accent}</p> : null}
-      <h1 className={`landing-showcase-hero-title ${accent ? 'mt-1' : 'mt-6'}`}>{main || heroText}</h1>
-      <p className="landing-showcase-hero-lead">{subtitle}</p>
+      {accent ? <p className="landing-showcase-hero-accent landing-type-h1 mt-6">{accent}</p> : null}
+      <h1 className={`landing-showcase-hero-title landing-type-h1 ${accent ? 'mt-1' : 'mt-6'}`}>{main || heroText}</h1>
+      <p className="landing-showcase-hero-lead landing-type-p">{subtitle}</p>
 
       <div id="landing-venue" className="landing-showcase-info-grid scroll-mt-28">
         <div className="landing-showcase-info-card">
-          <Calendar className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+          <Calendar className="landing-icon mb-2 h-4 w-4" />
           <p className="label">Event date &amp; time</p>
-          <p className="value">{dateStr}</p>
+          <p className="value landing-type-h3">{dateStr}</p>
         </div>
         <div className="landing-showcase-info-card">
           {isOnlineEvent(event.customization, event.location) ? (
-            <Video className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <Video className="landing-icon mb-2 h-4 w-4" />
           ) : (
-            <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <MapPin className="landing-icon mb-2 h-4 w-4" />
           )}
           <p className="label">{isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}</p>
-          <p className="value">{event.location || 'Venue to be announced'}</p>
+          <p className="value landing-type-h3">{event.location || 'Venue to be announced'}</p>
         </div>
       </div>
     </section>
@@ -227,7 +227,7 @@ function ShowcaseCountdown({ event, urgent }: { event: Event; urgent?: boolean }
             { label: 'Secs', value: secs },
           ].map((u) => (
             <div key={u.label} className="landing-showcase-countdown-cell">
-              <div className="num">{pad2(u.value)}</div>
+              <div className="num landing-type-h2">{pad2(u.value)}</div>
               <div className="unit">{u.label}</div>
             </div>
           ))}
@@ -250,9 +250,9 @@ function ShowcaseAbout({ event }: { event: Event }) {
 
   return (
     <section id="landing-about" className="scroll-mt-28">
-      <h2 className="landing-showcase-section-title">The experience</h2>
+      <h2 className="landing-showcase-section-title landing-type-h2">The experience</h2>
       <div className="landing-showcase-card mt-5 p-5 sm:p-7">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed sm:text-base" style={{ color: 'var(--landing-text-muted)' }}>
+        <p className="landing-type-p whitespace-pre-wrap text-sm leading-relaxed sm:text-base" style={{ color: 'var(--landing-text-muted)' }}>
           {desc}
         </p>
         {tags.length > 0 ? (
@@ -263,7 +263,7 @@ function ShowcaseAbout({ event }: { event: Event }) {
                 className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
                 style={{ borderColor: 'var(--showcase-border)', color: 'var(--landing-text)' }}
               >
-                <t.icon className="h-3.5 w-3.5" style={{ color: 'var(--showcase-accent)' }} />
+                <t.icon className="landing-icon h-3.5 w-3.5" />
                 {t.text}
               </span>
             ))}
@@ -308,14 +308,14 @@ function ShowcaseTickets({
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-lg"
                   style={{
                     background: 'var(--showcase-accent-soft)',
-                    color: 'var(--showcase-accent)',
+                    color: 'var(--landing-icon, var(--showcase-accent))',
                   }}
                 >
                   <Ticket className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-bold sm:text-base" style={{ color: 'var(--landing-text)' }}>
+                    <h3 className="landing-type-h2 text-sm font-bold sm:text-base">
                       {ticket.name}
                     </h3>
                     {soldOut ? (
@@ -331,10 +331,10 @@ function ShowcaseTickets({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                  <p className="landing-type-p mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {summary}
                   </p>
-                  <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
+                  <p className="landing-type-h3 mt-2 text-lg sm:text-xl">
                     {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
                   </p>
                 </div>
@@ -355,7 +355,7 @@ function ShowcaseTickets({
               <ul className="mt-3 space-y-1 border-t pt-3" style={{ borderColor: 'var(--showcase-border)' }}>
                 {perks.map((p) => (
                   <li key={p} className="landing-showcase-ticket-perk">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--showcase-accent)' }} />
+                    <Check className="landing-icon mt-0.5 h-3.5 w-3.5 shrink-0" />
                     {p}
                   </li>
                 ))}
@@ -413,7 +413,7 @@ function ShowcaseCheckout({
         <p className="landing-eyebrow" style={{ color: 'var(--landing-text-muted)' }}>
           Your order
         </p>
-        <h3 className="landing-display mt-1 text-2xl" style={{ color: 'var(--landing-text)' }}>
+        <h3 className="landing-type-h2 mt-1 text-2xl" style={{ color: 'var(--landing-text)' }}>
           Summary
         </h3>
 
@@ -452,7 +452,7 @@ function ShowcaseCheckout({
           type="button"
           onClick={onCheckout}
           disabled={!hasSelection || isPurchasing}
-          className="landing-showcase-btn-cta mt-6 flex w-full min-h-[48px] items-center justify-center gap-2 disabled:opacity-45"
+          className="landing-showcase-btn-cta landing-type-btn mt-6 flex w-full min-h-[48px] items-center justify-center gap-2 disabled:opacity-45"
         >
           {isPurchasing ? 'Processing…' : hasSelection ? (totalAmount <= 0 ? 'Complete registration' : 'Proceed to payment') : 'Select passes'}
           {hasSelection && !isPurchasing ? <ArrowRight className="h-4 w-4" /> : null}
@@ -460,11 +460,11 @@ function ShowcaseCheckout({
 
         <div className="mt-5 flex flex-col gap-2 border-t pt-4" style={{ borderColor: 'var(--showcase-border)' }}>
           <p className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--landing-text-muted)' }}>
-            <ShieldCheck className="h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <ShieldCheck className="landing-icon h-4 w-4" />
             Verified secure checkout
           </p>
           <p className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--landing-text-muted)' }}>
-            <Lock className="h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+            <Lock className="landing-icon h-4 w-4" />
             PayHere · LKR · Instant confirmation
           </p>
         </div>
@@ -594,7 +594,7 @@ function ShowcaseTicketPulse({ tickets, onReserve }: { tickets: EventTicket[]; o
       <button
         type="button"
         onClick={onReserve}
-        className="landing-showcase-btn-cta mt-4 flex w-full items-center justify-center gap-1.5 py-2.5 text-[11px]"
+        className="landing-showcase-btn-cta landing-type-btn mt-4 flex w-full items-center justify-center gap-1.5 py-2.5 text-[11px]"
       >
         Reserve your passes
         <ArrowRight className="h-3.5 w-3.5" />

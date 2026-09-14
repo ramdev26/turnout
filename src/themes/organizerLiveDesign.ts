@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import type { LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import type { LandingStyle } from '../types';
-import { loadLandingFont, resolveLandingFont } from './landingFonts';
+import { loadLandingFont, resolveLandingFont, resolveLandingFontKey } from './landingFonts';
 import { EVENT_THEMES, landingCssVars, type CreateThemeUI, type EventThemeId } from './eventThemes';
 
 export function uiIsDark(displayMode: LandingDesignValue['displayMode'], fallbackIsDark: boolean): boolean {
@@ -21,6 +21,10 @@ export function companionSecondaryColor(primaryHex: string): string {
   const mix = (channel: number) => Math.min(255, Math.round(channel + (255 - channel) * 0.35));
   const out = (mix(r) << 16) | (mix(g) << 8) | mix(b);
   return `#${out.toString(16).padStart(6, '0')}`;
+}
+
+function optionalFontKey(value: string | undefined) {
+  return value ? resolveLandingFontKey(value) : undefined;
 }
 
 export function landingCustomizationFromDesign(
@@ -45,10 +49,29 @@ export function landingCustomizationFromDesign(
     borderColor: design.borderColor || undefined,
     headerBgColor: design.headerBgColor || undefined,
     footerBgColor: design.footerBgColor || undefined,
+    h2Color: design.h2Color || undefined,
+    h3Color: design.h3Color || undefined,
+    buttonTextColor: design.buttonTextColor || undefined,
+    iconColor: design.iconColor || undefined,
+    linkColor: design.linkColor || undefined,
+    bannerOutlineColor: design.bannerOutlineColor || undefined,
+    bannerOutlineWidth: design.bannerOutlineWidth ?? undefined,
+    h1FontFamily: optionalFontKey(design.h1FontFamily),
+    h2FontFamily: optionalFontKey(design.h2FontFamily),
+    h3FontFamily: optionalFontKey(design.h3FontFamily),
+    bodyFontFamily: optionalFontKey(design.bodyFontFamily),
+    buttonFontFamily: optionalFontKey(design.buttonFontFamily),
     h1FontSize: design.h1FontSize || undefined,
     h2FontSize: design.h2FontSize || undefined,
     bodyFontSize: design.bodyFontSize || undefined,
     smallFontSize: design.smallFontSize || undefined,
+    h1FontSizeMobile: design.h1FontSizeMobile || undefined,
+    h2FontSizeMobile: design.h2FontSizeMobile || undefined,
+    h3FontSize: design.h3FontSize || undefined,
+    h3FontSizeMobile: design.h3FontSizeMobile || undefined,
+    bodyFontSizeMobile: design.bodyFontSizeMobile || undefined,
+    buttonFontSize: design.buttonFontSize || undefined,
+    buttonFontSizeMobile: design.buttonFontSizeMobile || undefined,
     h1Bold: design.h1Bold || undefined,
     h1Italic: design.h1Italic || undefined,
     h1Underline: design.h1Underline || undefined,
@@ -61,6 +84,16 @@ export function landingCustomizationFromDesign(
     smallBold: design.smallBold || undefined,
     smallItalic: design.smallItalic || undefined,
     smallUnderline: design.smallUnderline || undefined,
+    h3Bold: design.h3Bold || undefined,
+    h3Italic: design.h3Italic || undefined,
+    h3Underline: design.h3Underline || undefined,
+    buttonTextBold: design.buttonTextBold || undefined,
+    buttonTextItalic: design.buttonTextItalic || undefined,
+    buttonTextUnderline: design.buttonTextUnderline || undefined,
+    buttonRadius: design.buttonRadius ?? undefined,
+    buttonOutlineWidth: design.buttonOutlineWidth ?? undefined,
+    buttonOutlineColor: design.buttonOutlineColor || undefined,
+    buttonShadow: design.buttonShadow || undefined,
   };
 }
 
@@ -128,7 +161,24 @@ export function useOrganizerLiveDesign(design: LandingDesignValue, themeId: Even
 
   useEffect(() => {
     loadLandingFont(design.fontFamily);
-  }, [design.fontFamily]);
+    const roleFonts = [
+      design.h1FontFamily,
+      design.h2FontFamily,
+      design.h3FontFamily,
+      design.bodyFontFamily,
+      design.buttonFontFamily,
+    ];
+    for (const key of roleFonts) {
+      if (key) loadLandingFont(key);
+    }
+  }, [
+    design.fontFamily,
+    design.h1FontFamily,
+    design.h2FontFamily,
+    design.h3FontFamily,
+    design.bodyFontFamily,
+    design.buttonFontFamily,
+  ]);
 
   const landingVars = useMemo(
     () => landingCssVars(landingCustomizationFromDesign(design, themeId)),

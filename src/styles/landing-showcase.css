@@ -68,13 +68,14 @@
   padding: 0.4rem 0.85rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--landing-text-muted);
+  color: var(--landing-link, var(--landing-text-muted));
   transition: background 0.2s, color 0.2s;
 }
 
 .landing-showcase-nav a:hover {
-  color: var(--landing-text);
+  color: var(--landing-link, var(--landing-text));
   background: var(--showcase-accent-soft);
+  filter: brightness(1.05);
 }
 
 .landing-showcase-nav a.is-active {
@@ -83,16 +84,31 @@
 }
 
 .landing-showcase-btn-cta {
-  border-radius: 9999px;
+  border-radius: var(--landing-button-radius, 9999px);
   padding: 0.55rem 1.15rem;
-  font-size: 0.6875rem;
-  font-weight: 800;
+  font-size: var(--landing-button-size-mobile, 0.6875rem);
+  font-weight: var(--landing-button-weight, 800);
+  font-style: var(--landing-button-style, normal);
+  text-decoration: var(--landing-button-decoration, none);
+  font-family: var(--landing-button-font, var(--landing-font-body));
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--landing-on-button, var(--landing-on-primary, #0a2426));
+  color: var(--landing-button-text, var(--landing-on-button, var(--landing-on-primary, #0a2426)));
   background: var(--landing-button, var(--showcase-accent));
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent);
+  border-style: solid;
+  border-width: var(--landing-button-outline-width, 0px);
+  border-color: var(--landing-button-outline-color, transparent);
+  box-shadow: var(
+    --landing-button-shadow,
+    0 4px 20px color-mix(in srgb, var(--landing-button, var(--showcase-accent)) 35%, transparent)
+  );
   transition: transform 0.2s, filter 0.2s;
+}
+
+@media (min-width: 768px) {
+  .landing-showcase-btn-cta {
+    font-size: var(--landing-button-size, 0.6875rem);
+  }
 }
 
 .landing-showcase-btn-cta:hover {
@@ -113,8 +129,9 @@
 
 /* Showcase poster — full column width, large and responsive */
 .landing-poster-frame--showcase {
-  border-color: var(--showcase-border);
-  background: var(--showcase-card-muted);
+  border-color: var(--landing-banner-outline, var(--showcase-border));
+  border-width: var(--landing-banner-outline-width, 1px);
+  background: transparent;
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 20px 48px rgba(5, 46, 48, 0.32);
@@ -170,43 +187,59 @@
 }
 
 .landing-showcase-hero-accent {
-  font-family: var(--landing-font-display);
-  font-size: var(--landing-h1-size, clamp(2rem, 5vw, 3.25rem));
+  font-family: var(--landing-h1-font, var(--landing-font-display));
+  font-size: var(--landing-h1-size-mobile, var(--landing-h1-size, clamp(2rem, 5vw, 3.25rem)));
   font-weight: var(--landing-h1-weight, 500);
   font-style: var(--landing-h1-style, normal);
   text-decoration: var(--landing-h1-decoration, none);
   letter-spacing: -0.02em;
   line-height: 1.05;
-  color: var(--landing-heading, var(--showcase-accent));
+  color: var(--landing-h1-color, var(--landing-heading, var(--showcase-accent)));
   max-width: 56rem;
   margin-inline: auto;
 }
 
 .landing-showcase-hero-title {
-  font-family: var(--landing-font-display);
-  font-size: var(--landing-h1-size, clamp(2.25rem, 6vw, 4rem));
+  font-family: var(--landing-h1-font, var(--landing-font-display));
+  font-size: var(--landing-h1-size-mobile, var(--landing-h1-size, clamp(2.25rem, 6vw, 4rem)));
   font-weight: var(--landing-h1-weight, 500);
   font-style: var(--landing-h1-style, normal);
   text-decoration: var(--landing-h1-decoration, none);
   letter-spacing: -0.03em;
   line-height: 1.02;
-  color: var(--landing-heading, var(--landing-text));
+  color: var(--landing-h1-color, var(--landing-heading, var(--landing-text)));
   text-wrap: balance;
   max-width: 56rem;
   margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .landing-showcase-hero-accent {
+    font-size: var(--landing-h1-size, clamp(2rem, 5vw, 3.25rem));
+  }
+  .landing-showcase-hero-title {
+    font-size: var(--landing-h1-size, clamp(2.25rem, 6vw, 4rem));
+  }
 }
 
 .landing-showcase-hero-lead {
   margin-top: 1rem;
   max-width: 40rem;
   margin-inline: auto;
-  font-size: var(--landing-body-size, 0.9375rem);
+  font-family: var(--landing-p-font, var(--landing-font-body));
+  font-size: var(--landing-body-size-mobile, var(--landing-body-size, 0.9375rem));
   font-weight: var(--landing-body-weight, inherit);
   font-style: var(--landing-body-style, normal);
   text-decoration: var(--landing-body-decoration, none);
   line-height: 1.65;
-  color: var(--landing-text-muted);
+  color: var(--landing-p-color, var(--landing-text-muted));
   text-wrap: pretty;
+}
+
+@media (min-width: 768px) {
+  .landing-showcase-hero-lead {
+    font-size: var(--landing-body-size, 0.9375rem);
+  }
 }
 
 .landing-showcase-info-grid {
@@ -241,9 +274,18 @@
 
 .landing-showcase-info-card .value {
   margin-top: 0.35rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--landing-text);
+  font-family: var(--landing-h3-font, var(--landing-font-display));
+  font-size: var(--landing-h3-size-mobile, var(--landing-h3-size, 0.875rem));
+  font-weight: var(--landing-h3-weight, 600);
+  font-style: var(--landing-h3-style, normal);
+  text-decoration: var(--landing-h3-decoration, none);
+  color: var(--landing-h3-color, var(--landing-text));
+}
+
+@media (min-width: 768px) {
+  .landing-showcase-info-card .value {
+    font-size: var(--landing-h3-size, 0.875rem);
+  }
 }
 
 .landing-showcase-poster {
@@ -316,11 +358,19 @@
 }
 
 .landing-showcase-countdown-cell .num {
-  font-family: var(--landing-font-display);
-  font-size: clamp(1.5rem, 4vw, 2.25rem);
-  font-weight: 500;
-  color: var(--landing-text);
+  font-family: var(--landing-h2-font, var(--landing-font-display));
+  font-size: var(--landing-h2-size-mobile, var(--landing-h2-size, clamp(1.5rem, 4vw, 2.25rem)));
+  font-weight: var(--landing-h2-weight, 500);
+  font-style: var(--landing-h2-style, normal);
+  text-decoration: var(--landing-h2-decoration, none);
+  color: var(--landing-h2-color, var(--landing-text));
   font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+  .landing-showcase-countdown-cell .num {
+    font-size: var(--landing-h2-size, clamp(1.5rem, 4vw, 2.25rem));
+  }
 }
 
 .landing-showcase-countdown-cell .unit {
@@ -333,13 +383,19 @@
 }
 
 .landing-showcase-section-title {
-  font-family: var(--landing-font-display);
-  font-size: var(--landing-h2-size, clamp(1.75rem, 3vw, 2.35rem));
+  font-family: var(--landing-h2-font, var(--landing-font-display));
+  font-size: var(--landing-h2-size-mobile, var(--landing-h2-size, clamp(1.75rem, 3vw, 2.35rem)));
   font-weight: var(--landing-h2-weight, 500);
   font-style: var(--landing-h2-style, normal);
   text-decoration: var(--landing-h2-decoration, none);
   letter-spacing: -0.02em;
-  color: var(--showcase-accent);
+  color: var(--landing-h2-color, var(--showcase-accent));
+}
+
+@media (min-width: 768px) {
+  .landing-showcase-section-title {
+    font-size: var(--landing-h2-size, clamp(1.75rem, 3vw, 2.35rem));
+  }
 }
 
 .landing-showcase-ticket {
@@ -499,12 +555,13 @@
 }
 
 .landing-showcase-footer-links a {
-  color: var(--landing-text-muted);
+  color: var(--landing-link, var(--landing-text-muted));
   transition: color 0.2s;
 }
 
 .landing-showcase-footer-links a:hover {
-  color: var(--showcase-accent);
+  color: var(--landing-link, var(--showcase-accent));
+  filter: brightness(1.08);
 }
 
 /* Event settings phone frame — force mobile layout regardless of desktop viewport */
