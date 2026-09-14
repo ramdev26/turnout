@@ -240,7 +240,7 @@ export function EventBanner({
 
 export function HeroTitle({ children, className = '' }: { children: React.ReactNode; className?: string; light?: boolean }) {
   return (
-    <h1 className={`landing-showcase-hero-title landing-fade-in landing-fade-in-delay-1 ${className}`.trim()}>
+    <h1 className={`landing-showcase-hero-title landing-type-h1 landing-fade-in landing-fade-in-delay-1 ${className}`.trim()}>
       {children}
     </h1>
   );
@@ -248,7 +248,7 @@ export function HeroTitle({ children, className = '' }: { children: React.ReactN
 
 export function HeroSubtitle({ children, className = '' }: { children: React.ReactNode; className?: string; light?: boolean }) {
   return (
-    <p className={`landing-showcase-hero-lead landing-fade-in landing-fade-in-delay-2 ${className}`.trim()}>
+    <p className={`landing-showcase-hero-lead landing-type-p landing-fade-in landing-fade-in-delay-2 ${className}`.trim()}>
       {children}
     </p>
   );
@@ -269,18 +269,18 @@ export function EventMeta({
   return (
     <div id="landing-venue" className={`landing-showcase-info-grid scroll-mt-28 ${className}`.trim()}>
       <div className="landing-showcase-info-card">
-        <Calendar className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+        <Calendar className="landing-icon mb-2 h-4 w-4" />
         <p className="label">Event date &amp; time</p>
-        <p className="value">{dateStr}</p>
+        <p className="value landing-type-h3">{dateStr}</p>
       </div>
       <div className="landing-showcase-info-card">
         {isOnlineEvent(event.customization, event.location) ? (
-          <Video className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+          <Video className="landing-icon mb-2 h-4 w-4" />
         ) : (
-          <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
+          <MapPin className="landing-icon mb-2 h-4 w-4" />
         )}
         <p className="label">{isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}</p>
-        <p className="value">{event.location || 'Venue to be announced'}</p>
+        <p className="value landing-type-h3">{event.location || 'Venue to be announced'}</p>
       </div>
     </div>
   );
@@ -302,11 +302,11 @@ export function CountdownDisplay({
   if (tba) {
     return (
       <div className={`landing-showcase-card ${compact ? 'p-5' : 'p-6 sm:p-7'}`}>
-        <p className="landing-eyebrow" style={{ color: 'var(--landing-text-muted)' }}>
+        <p className="landing-eyebrow landing-type-h2" style={{ color: 'var(--landing-text-muted)' }}>
           When
         </p>
-        <div className="landing-showcase-hero-title mt-2 text-2xl sm:text-3xl">Date to be announced</div>
-        <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+        <div className="landing-type-h3 mt-2 text-2xl sm:text-3xl">Date to be announced</div>
+        <p className="landing-type-p mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           Reserve your spot now — we’ll share the date &amp; time soon.
         </p>
       </div>
@@ -323,19 +323,19 @@ export function CountdownDisplay({
   return (
     <div className={`landing-showcase-card ${compact ? 'p-5' : 'p-5 sm:p-6'}`}>
       <div className="landing-showcase-countdown-head">
-        <p className="landing-eyebrow" style={{ color: 'var(--landing-text-muted)' }}>
+        <p className="landing-eyebrow landing-type-h2" style={{ color: 'var(--landing-text-muted)' }}>
           {done ? 'Now live' : title}
         </p>
       </div>
       {done ? (
-        <p className="text-sm font-semibold" style={{ color: 'var(--landing-text)' }}>
+        <p className="landing-type-p text-sm font-semibold" style={{ color: 'var(--landing-text)' }}>
           The event is live — reserve your passes below.
         </p>
       ) : (
         <div className="landing-showcase-countdown-grid">
           {units.map((u) => (
             <div key={u.label} className="landing-showcase-countdown-cell">
-              <div className="num">{pad2(u.value)}</div>
+              <div className="num landing-type-h2">{pad2(u.value)}</div>
               <div className="unit">{u.label}</div>
             </div>
           ))}
@@ -356,9 +356,9 @@ export function SectionHeading({
 }) {
   return (
     <div id={id} className="mb-7 scroll-mt-28 sm:mb-8">
-      <h2 className="landing-showcase-section-title">{children}</h2>
+      <h2 className="landing-showcase-section-title landing-type-h2">{children}</h2>
       {subtitle ? (
-        <p className="mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+        <p className="landing-type-p mt-2 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           {subtitle}
         </p>
       ) : null}
@@ -380,7 +380,7 @@ export function AboutBlock({ event }: { event: Event }) {
       <SectionHeading subtitle="Curated details for your visit.">The experience</SectionHeading>
       <div className="landing-showcase-card mt-5 p-5 sm:p-7">
         <p
-          className={`whitespace-pre-wrap text-sm leading-relaxed sm:text-base ${
+          className={`landing-type-p whitespace-pre-wrap text-sm leading-relaxed sm:text-base ${
             canExpand && !expanded ? 'line-clamp-4 sm:line-clamp-none' : ''
           }`}
           style={{ color: 'var(--landing-text-muted)' }}
@@ -392,7 +392,7 @@ export function AboutBlock({ event }: { event: Event }) {
             type="button"
             onClick={() => setExpanded((v) => !v)}
             className="mt-3 text-sm font-semibold underline-offset-2 hover:underline sm:hidden"
-            style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
+            style={{ color: 'var(--landing-link, var(--landing-accent-readable, var(--primary)))' }}
             aria-expanded={expanded}
           >
             {expanded ? 'Show less' : 'Read more'}
@@ -453,14 +453,14 @@ export function TicketsList({
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-lg"
                   style={{
                     background: 'var(--showcase-accent-soft)',
-                    color: 'var(--showcase-accent)',
+                    color: 'var(--landing-icon, var(--showcase-accent))',
                   }}
                 >
-                  <Ticket className="h-4 w-4" />
+                  <Ticket className="landing-icon h-4 w-4" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-bold sm:text-base" style={{ color: 'var(--landing-text)' }}>
+                    <h3 className="landing-type-h2 text-sm font-bold sm:text-base">
                       {ticket.name}
                     </h3>
                     {soldOut ? (
@@ -476,10 +476,10 @@ export function TicketsList({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                  <p className="landing-type-p mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {ticket.description || 'Full event access'}
                   </p>
-                  <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
+                  <p className="landing-type-h3 mt-2 text-lg sm:text-xl">
                     {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
                   </p>
                 </div>
@@ -545,17 +545,17 @@ export function CheckoutPanel({
     <div className="landing-showcase-card overflow-hidden">
       <div className="h-1" style={{ background: 'linear-gradient(90deg, var(--showcase-accent), var(--secondary))' }} />
       <div className="p-5 sm:p-6">
-        <p className="landing-eyebrow" style={{ color: 'var(--landing-text-muted)' }}>
+        <p className="landing-eyebrow landing-type-h2" style={{ color: 'var(--landing-text-muted)' }}>
           Your order
         </p>
-        <h3 className="landing-display mt-1 text-2xl" style={{ color: 'var(--landing-text)' }}>
+        <h3 className="landing-type-h2 mt-1 text-2xl">
           Summary
         </h3>
 
         {!hasSelection ? (
           <div className="landing-showcase-cart-empty">
-            <Ticket className="mx-auto h-9 w-9 opacity-35" style={{ color: 'var(--landing-text-muted)' }} />
-            <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
+            <Ticket className="landing-icon mx-auto h-9 w-9 opacity-35" />
+            <p className="landing-type-p mt-3 text-sm leading-relaxed" style={{ color: 'var(--landing-text-muted)' }}>
               Your cart is empty. Select one or more pass levels below to see your total.
             </p>
           </div>
@@ -563,20 +563,20 @@ export function CheckoutPanel({
           <div className="mt-5 space-y-2.5">
             {lines.map((t) => (
               <div key={t.id} className="flex justify-between gap-3 text-sm">
-                <span style={{ color: 'var(--landing-text-muted)' }}>
+                <span className="landing-type-p" style={{ color: 'var(--landing-text-muted)' }}>
                   {t.name} ×{selectedTickets[t.id]}
                 </span>
-                <span className="font-semibold tabular-nums" style={{ color: 'var(--landing-text)' }}>
+                <span className="landing-type-h3 font-semibold tabular-nums">
                   {formatLKRWhole(t.price * selectedTickets[t.id])}
                 </span>
               </div>
             ))}
             <div className="landing-divider-glow my-3" />
             <div className="flex items-baseline justify-between">
-              <span className="font-semibold" style={{ color: 'var(--landing-text)' }}>
+              <span className="landing-type-h2 font-semibold">
                 Total
               </span>
-              <span className="landing-display text-2xl" style={{ color: 'var(--showcase-accent)' }}>
+              <span className="landing-type-h3 text-2xl">
                 {totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}
               </span>
             </div>
@@ -587,15 +587,15 @@ export function CheckoutPanel({
           type="button"
           onClick={onCheckout}
           disabled={!hasSelection || isPurchasing}
-          className="landing-showcase-btn-cta mt-6 flex w-full min-h-[48px] items-center justify-center gap-2 disabled:opacity-45"
+          className="landing-showcase-btn-cta landing-type-btn mt-6 flex w-full min-h-[48px] items-center justify-center gap-2 disabled:opacity-45"
         >
           {isPurchasing ? 'Processing…' : hasSelection ? (totalAmount <= 0 ? 'Complete registration' : 'Proceed to payment') : 'Select passes'}
           {hasSelection && !isPurchasing ? <ArrowRight className="h-4 w-4" /> : null}
         </button>
 
         <div className="mt-5 flex flex-col gap-2 border-t pt-4" style={{ borderColor: 'var(--showcase-border)' }}>
-          <TrustRow icon={<ShieldCheck className="h-4 w-4" />} text="Verified secure checkout" />
-          <TrustRow icon={<Lock className="h-4 w-4" />} text="PayHere · LKR · Instant confirmation" />
+          <TrustRow icon={<ShieldCheck className="landing-icon h-4 w-4" />} text="Verified secure checkout" />
+          <TrustRow icon={<Lock className="landing-icon h-4 w-4" />} text="PayHere · LKR · Instant confirmation" />
         </div>
       </div>
     </div>
