@@ -114,7 +114,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
       orderItems.map((it) => ({
         name: it.name,
         qty: it.quantity,
-        total: it.price * it.quantity,
+        total: it.lineTotal ?? it.price * it.quantity,
       })),
     [orderItems]
   );
@@ -458,7 +458,9 @@ export const EventCheckoutForm: React.FC<Props> = ({
       ))}
       <div className="mt-2 flex justify-between border-t pt-2 font-semibold" style={{ borderColor: 'var(--landing-border)' }}>
         <span>Total</span>
-        <span style={{ color: 'var(--primary)' }}>{totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}</span>
+        <span style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
+          {totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}
+        </span>
       </div>
     </div>
   );
@@ -471,7 +473,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           checked={acceptedOrganizerTerms}
           onChange={(e) => setAcceptedOrganizerTerms(e.target.checked)}
           className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border sm:h-4 sm:w-4"
-          style={{ accentColor: 'var(--primary)' }}
+          style={{ accentColor: 'var(--landing-accent-readable, var(--primary))' }}
         />
         <span>
           I agree to the organizer{' '}
@@ -496,7 +498,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           checked={acceptedEventPolicy}
           onChange={(e) => setAcceptedEventPolicy(e.target.checked)}
           className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border sm:h-4 sm:w-4"
-          style={{ accentColor: 'var(--primary)' }}
+          style={{ accentColor: 'var(--landing-accent-readable, var(--primary))' }}
         />
         <span>
           I agree to this event&apos;s{' '}
@@ -541,7 +543,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
   const paymentMethodBlock =
     totalAmount > 0 && (event.allowPayhere !== false || event.allowBankTransfer) ? (
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
           How will you pay?
         </p>
         {event.allowPayhere !== false && event.allowBankTransfer ? (
@@ -619,7 +621,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
         </div>
       )}
 
-      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
         Purchaser (you)
       </p>
       <p className="-mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
@@ -697,7 +699,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
         <div className="space-y-4 rounded-xl border p-4" style={{ borderColor: 'var(--landing-border)' }}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2">
-              <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--primary)' }} />
+              <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--landing-accent-readable, var(--primary))' }} />
               <div>
                 <p className="text-sm font-semibold text-[var(--landing-text)]">Assign each ticket</p>
                 <p className="mt-1 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
@@ -717,7 +719,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           <button
             type="button"
             className="text-xs font-semibold underline-offset-2 hover:underline"
-            style={{ color: 'var(--primary)' }}
+            style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
             onClick={() => {
               const name = buyerName.trim();
               const email = buyerEmail.trim();
@@ -743,7 +745,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
                   background: 'var(--landing-surface-muted)',
                 }}
               >
-                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
                   {row.label}
                 </p>
                 <label className="flex flex-col gap-1.5">
@@ -892,7 +894,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
 
           {checkoutFields.length > 0 ? (
             <div className="space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
                 {totalTicketQuantity > 1 ? 'Additional info per ticket holder' : 'Additional information'}
               </p>
               {buildTicketHolders(orderItems).map((holder, index) => (
@@ -905,7 +907,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
                   }}
                 >
                   {totalTicketQuantity > 1 ? (
-                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
                       {holder.label}
                     </p>
                   ) : null}
@@ -933,18 +935,18 @@ export const EventCheckoutForm: React.FC<Props> = ({
   );
 
   const payhereOverlay = payherePopupOpen ? (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4">
       <div
         className="w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl"
         style={{
           borderColor: 'var(--landing-border)',
-          background: 'var(--landing-surface)',
+          background: 'var(--landing-page-bg, #ffffff)',
           color: 'var(--landing-text)',
         }}
       >
         <div
           className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-t-transparent"
-          style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }}
+          style={{ borderColor: 'var(--landing-accent-readable, var(--primary))', borderTopColor: 'transparent' }}
         />
         <p className="mt-4 text-sm font-semibold">Complete your payment</p>
         <p className="mt-2 text-xs" style={{ color: 'var(--landing-text-muted)' }}>
@@ -1002,7 +1004,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
             )}
 
             <div className="mt-4 sm:mt-6">
-              <p className="landing-eyebrow" style={{ color: 'var(--primary)' }}>
+              <p className="landing-eyebrow" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
                 Checkout
               </p>
               <h1 className="landing-display mt-1 text-2xl sm:text-3xl" style={{ color: 'var(--landing-text)' }}>
@@ -1038,7 +1040,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
                     boxShadow: 'var(--landing-shadow-hover)',
                   }}
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--primary)' }}>
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
                     Order summary
                   </p>
                   {orderSummaryCard}
@@ -1062,7 +1064,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
     <>
       {payhereOverlay}
       <div
-        className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-6 lg:p-8"
+        className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="landing-checkout-title"
@@ -1073,17 +1075,17 @@ export const EventCheckoutForm: React.FC<Props> = ({
           }`}
           style={{
             borderColor: 'var(--landing-border)',
-            background: 'var(--landing-surface)',
+            background: 'var(--landing-page-bg, #ffffff)',
             color: 'var(--landing-text)',
-            boxShadow: 'var(--landing-shadow-hover)',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.35)',
           }}
         >
           <div
             className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-7"
-            style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface)' }}
+            style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-page-bg, #ffffff)' }}
           >
             <div className="min-w-0 pr-2">
-              <p className="landing-eyebrow" style={{ color: 'var(--primary)' }}>
+              <p className="landing-eyebrow" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
                 Checkout
               </p>
               <div id="landing-checkout-title" className="landing-display mt-1 text-xl sm:text-2xl">

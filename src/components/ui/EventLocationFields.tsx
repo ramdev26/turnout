@@ -17,10 +17,12 @@ type Props = {
   physicalLocation: string;
   onlinePlatform: OnlineEventPlatform;
   onlineUrl: string;
+  locationTba?: boolean;
   onModeChange: (mode: EventLocationMode) => void;
   onPhysicalLocationChange: (value: string) => void;
   onOnlinePlatformChange: (platform: OnlineEventPlatform) => void;
   onOnlineUrlChange: (url: string) => void;
+  onLocationTbaChange?: (tba: boolean) => void;
   /** Compact styling for Create Event panels */
   compact?: boolean;
   error?: string | null;
@@ -32,17 +34,34 @@ export function EventLocationFields({
   physicalLocation,
   onlinePlatform,
   onlineUrl,
+  locationTba = false,
   onModeChange,
   onPhysicalLocationChange,
   onOnlinePlatformChange,
   onOnlineUrlChange,
+  onLocationTbaChange,
   compact = false,
   error,
 }: Props) {
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
   const platform = ONLINE_EVENT_PLATFORMS.find((p) => p.id === onlinePlatform) || ONLINE_EVENT_PLATFORMS[0];
-  const urlInvalid = mode === 'online' && onlineUrl.trim() !== '' && !isValidMeetingUrl(onlineUrl);
+  const urlInvalid = !locationTba && mode === 'online' && onlineUrl.trim() !== '' && !isValidMeetingUrl(onlineUrl);
+  const supportsTba = typeof onLocationTbaChange === 'function';
+  const activeTab: 'physical' | 'online' | 'tba' = locationTba ? 'tba' : mode;
+
+  const selectPhysical = () => {
+    onLocationTbaChange?.(false);
+    onModeChange('physical');
+  };
+  const selectOnline = () => {
+    onLocationTbaChange?.(false);
+    onModeChange('online');
+  };
+  const selectTba = () => {
+    onLocationTbaChange?.(true);
+    onModeChange('physical');
+  };
 
   return (
     <div className="space-y-4">
@@ -55,12 +74,12 @@ export function EventLocationFields({
         <button
           type="button"
           role="tab"
-          aria-selected={mode === 'physical'}
-          onClick={() => onModeChange('physical')}
+          aria-selected={activeTab === 'physical'}
+          onClick={selectPhysical}
           className={cn(
             'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition sm:flex-none'
           )}
-          style={accentSegmentStyleFor(ui, mode === 'physical')}
+          style={accentSegmentStyleFor(ui, activeTab === 'physical')}
         >
           <MapPin className="h-3.5 w-3.5" />
           Physical
@@ -68,19 +87,45 @@ export function EventLocationFields({
         <button
           type="button"
           role="tab"
-          aria-selected={mode === 'online'}
-          onClick={() => onModeChange('online')}
+          aria-selected={activeTab === 'online'}
+          onClick={selectOnline}
           className={cn(
             'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition sm:flex-none'
           )}
-          style={accentSegmentStyleFor(ui, mode === 'online')}
+          style={accentSegmentStyleFor(ui, activeTab === 'online')}
         >
           <Video className="h-3.5 w-3.5" />
           Online
         </button>
+        {supportsTba ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'tba'}
+            onClick={selectTba}
+            className={cn(
+              'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition sm:flex-none'
+            )}
+            style={accentSegmentStyleFor(ui, activeTab === 'tba')}
+          >
+            TBA
+          </button>
+        ) : null}
       </div>
 
-      {mode === 'physical' ? (
+      {locationTba ? (
+        <div className="flex items-start gap-3">
+          <MapPin className="mt-0.5 h-5 w-5 shrink-0" style={{ color: ui.textSubtle }} />
+          <div>
+            <p className="text-sm font-medium" style={{ color: ui.text }}>
+              Venue to be announced
+            </p>
+            <p className="text-xs" style={{ color: ui.textSubtle }}>
+              Attendees can reserve now — add the venue whenever you’re ready.
+            </p>
+          </div>
+        </div>
+      ) : mode === 'physical' ? (
         <div>
           {compact ? (
             <LocationAutocomplete

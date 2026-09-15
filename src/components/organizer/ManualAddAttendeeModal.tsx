@@ -11,6 +11,7 @@ import { formatApiError } from '../../utils/apiError';
 import { validateCustomFieldValues, resolveCheckoutFieldType } from '../../utils/checkoutFields';
 import { cn } from '../../utils/cn';
 import { formatLKRWhole } from '../../utils/money';
+import { ticketEffectivePrice } from '../../utils/ticketPricing';
 
 type ManualPaymentMethod = 'cash' | 'bank_transfer' | 'card' | 'other';
 type PaymentMode = 'complimentary' | 'paid';
@@ -111,7 +112,7 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
   useEffect(() => {
     if (!selectedTicket) return;
     if (paymentMode === 'paid') {
-      setAmount(String(selectedTicket.price));
+      setAmount(String(ticketEffectivePrice(selectedTicket)));
     }
   }, [selectedTicket?.id, paymentMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -189,7 +190,7 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
       <button
         type="button"
         aria-label="Close add attendee"
-        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/60"
         disabled={saving}
         onClick={onClose}
       />
@@ -249,14 +250,14 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
                   buttonClassName={cn(fieldClass, 'w-full')}
                   options={tickets.map((t) => ({
                     value: t.id,
-                    label: `${t.name} · ${formatLKRWhole(t.price)} · ${Math.max(0, t.quantity - t.sold)} left`,
+                    label: `${t.name} · ${formatLKRWhole(ticketEffectivePrice(t))} · ${Math.max(0, t.quantity - t.sold)} left`,
                   }))}
                 />
               )}
               {selectedTicket ? (
                 <p className="text-xs" style={{ color: remaining > 0 ? ui.textMuted : '#dc2626' }}>
                   {remaining} of {selectedTicket.quantity} remaining · ticket price{' '}
-                  {formatLKRWhole(selectedTicket.price)}
+                  {formatLKRWhole(ticketEffectivePrice(selectedTicket))}
                 </p>
               ) : null}
             </div>
@@ -324,7 +325,7 @@ export function ManualAddAttendeeModal({ open, eventId, checkoutFields, ui, onCl
                       inputMode="decimal"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      placeholder={selectedTicket ? String(selectedTicket.price) : '0'}
+                      placeholder={selectedTicket ? String(ticketEffectivePrice(selectedTicket)) : '0'}
                       className={fieldClass}
                       style={fieldStyle}
                     />

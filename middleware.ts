@@ -28,9 +28,51 @@ export const config = {
   matcher: ['/((?!api/|assets/|.*\\..*).*)'],
 };
 
+function isSocialCrawler(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase();
+  if (!ua) return false;
+
+  const looksLikeBrowser =
+    ua.includes('mozilla') ||
+    ua.includes('applewebkit') ||
+    ua.includes('chrome') ||
+    ua.includes('safari');
+
+  const knownBots = [
+    'facebookexternalhit',
+    'facebot',
+    'twitterbot',
+    'linkedinbot',
+    'slackbot',
+    'discordbot',
+    'telegrambot',
+    'skypeuripreview',
+    'googlebot',
+    'bingbot',
+    'embedly',
+    'quora link preview',
+    'pinterest',
+    'redditbot',
+    'applebot',
+  ];
+  if (knownBots.some((token) => ua.includes(token))) return true;
+
+  // WhatsApp preview bots are non-browser UAs; WhatsApp in-app browsers are not.
+  return ua.includes('whatsapp') && !looksLikeBrowser;
+}
+
 export default async function middleware(request: Request) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) return next();
+
+  const shareSlugMatch = url.pathname.match(/^\/e\/([^/?#]+)$/);
+  if (shareSlugMatch) {
+    const userAgent = request.headers.get('user-agent') || '';
+    if (isSocialCrawler(userAgent)) {
+      const slug = shareSlugMatch[1];
+      return rewrite(new URL(`/api/index.php?share_slug=${encodeURIComponent(slug)}`, url.origin));
+    }
+  }
 
   const host = normalizeHost(request.headers.get('host') || '');
   if (isPlatformHost(host)) return next();

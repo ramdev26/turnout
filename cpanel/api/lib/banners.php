@@ -32,6 +32,10 @@ function canonical_public_app_origin(string $base): string {
   if (!is_string($host) || $host === '') return $base;
 
   $host = strtolower($host);
+  // Apex / marketing host is not the SPA — ticket links must hit the app subdomain.
+  if ($host === 'bigturnout.co' || $host === 'www.bigturnout.co') {
+    return $canonical;
+  }
   if (str_ends_with($host, '.vercel.app') || $host === 'turnout-omega.vercel.app') {
     return $canonical;
   }

@@ -5,6 +5,7 @@ import { getLandingTemplateForEvent } from '../../templates/templates';
 import { landingCssVars, normalizeLandingCustomization } from '../../themes/eventThemes';
 import { loadLandingFont } from '../../themes/landingFonts';
 import { formatLKRWhole } from '../../utils/money';
+import { ticketLineTotal } from '../../utils/ticketPricing';
 import { cn } from '../../utils/cn';
 
 const MOBILE_CANVAS_WIDTH = 390;
@@ -98,7 +99,7 @@ export const EventLandingLivePreview: React.FC<EventLandingLivePreviewProps> = (
     () =>
       tickets.reduce((sum, ticket) => {
         const qty = selectedTickets[ticket.id] || 0;
-        return sum + ticket.price * qty;
+        return sum + ticketLineTotal(ticket, qty);
       }, 0),
     [selectedTickets, tickets]
   );

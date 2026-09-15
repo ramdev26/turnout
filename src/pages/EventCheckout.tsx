@@ -6,6 +6,7 @@ import { landingCssVars, normalizeLandingCustomization } from '../themes/eventTh
 import { loadLandingFont } from '../themes/landingFonts';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { loadCheckoutCart, clearCheckoutCart } from '../utils/checkoutCart';
+import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
 
 type LocationState = {
   selectedTickets?: Record<string, number>;
@@ -71,13 +72,18 @@ export const EventCheckout: React.FC = () => {
         ticketId: t.id,
         name: t.name,
         quantity: selectedTickets[t.id],
-        price: t.price,
+        price: ticketEffectivePrice(t),
+        lineTotal: ticketLineTotal(t, selectedTickets[t.id]),
       }));
   }, [selectedTickets, tickets]);
 
   const totalAmount = useMemo(
-    () => orderItems.reduce((sum, it) => sum + it.price * it.quantity, 0),
-    [orderItems]
+    () =>
+      tickets.reduce(
+        (sum, ticket) => sum + ticketLineTotal(ticket, selectedTickets?.[ticket.id] || 0),
+        0
+      ),
+    [selectedTickets, tickets]
   );
 
   const themeVars = event

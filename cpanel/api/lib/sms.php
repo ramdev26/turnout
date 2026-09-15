@@ -211,17 +211,69 @@ function sms_format_lkr_from_cents(int $cents): string {
   return 'LKR ' . number_format(max(0, $cents) / 100, 2);
 }
 
+function ensure_order_confirmation_sms_column(PDO $pdo): void {
+  static $checked = false;
+  if ($checked) {
+    return;
+  }
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $type = $driver === 'pgsql' ? 'TIMESTAMP NULL' : 'DATETIME NULL';
+  try {
+    if ($driver === 'pgsql') {
+      $pdo->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS confirmation_sms_sent_at {$type}");
+    } else {
+      $pdo->exec("ALTER TABLE orders ADD COLUMN confirmation_sms_sent_at {$type}");
+    }
+  } catch (Throwable $e) {
+    // Column may already exist.
+  }
+  $checked = true;
+}
+
+/**
+ * Atomically claim the right to send confirmation SMS for this order.
+ * Returns false if SMS was already claimed/sent (prevents duplicates).
+ */
+function claim_order_confirmation_sms_slot(PDO $pdo, int $orderId): bool {
+  ensure_order_confirmation_sms_column($pdo);
+  $stmt = $pdo->prepare(
+    'UPDATE orders
+     SET confirmation_sms_sent_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND confirmation_sms_sent_at IS NULL'
+  );
+  $stmt->execute([$orderId]);
+  return $stmt->rowCount() > 0;
+}
+
+function release_order_confirmation_sms_slot(PDO $pdo, int $orderId): void {
+  try {
+    ensure_order_confirmation_sms_column($pdo);
+    $stmt = $pdo->prepare(
+      'UPDATE orders SET confirmation_sms_sent_at = NULL WHERE id = ?'
+    );
+    $stmt->execute([$orderId]);
+  } catch (Throwable $e) {
+    error_log('[turnout] failed to release confirmation SMS slot for order ' . $orderId);
+  }
+}
+
 /**
  * Buyer transaction SMS after a successful paid/free order confirmation.
+ * Idempotent: at most one successful send per order.
  */
 function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
   if (!sms_enabled()) {
     return false;
   }
 
+  if (!claim_order_confirmation_sms_slot($pdo, $orderId)) {
+    // Already sent (or claimed by a concurrent fulfillment path).
+    return false;
+  }
+
   $stmt = $pdo->prepare(
     'SELECT o.id, o.buyer_name, o.buyer_phone, o.total_amount_cents, o.tickets_json,
-            e.title AS event_title, e.event_date, e.location, e.customization_json
+            e.title AS event_title, e.event_date, e.location, e.customization_json, e.organizer_user_id
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
      WHERE o.id = ?
@@ -230,11 +282,13 @@ function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
   $stmt->execute([$orderId]);
   $order = $stmt->fetch();
   if (!$order) {
+    release_order_confirmation_sms_slot($pdo, $orderId);
     return false;
   }
 
   $phone = trim((string)($order['buyer_phone'] ?? ''));
   if ($phone === '') {
+    // Nothing to send — keep claim so we do not retry forever for phoneless orders.
     return false;
   }
 
@@ -283,7 +337,16 @@ function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
     $lines[] = 'Check your email for your e-tickets.';
     $lines[] = '';
   }
-  $lines[] = 'Thank you for choosing Turnout';
+
+  $organizerName = '';
+  if (function_exists('mail_resolve_organizer_name')) {
+    $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
+  }
+  if ($organizerName !== '' && strcasecmp($organizerName, 'Organizer') !== 0) {
+    $lines[] = 'See you at the event — ' . $organizerName;
+  } else {
+    $lines[] = 'See you at the event.';
+  }
 
   $message = implode("\n", $lines);
   if (mb_strlen($message) > 1500) {
@@ -292,6 +355,7 @@ function send_order_confirmation_sms(PDO $pdo, int $orderId): bool {
 
   $ok = send_sms($phone, $message);
   if (!$ok) {
+    release_order_confirmation_sms_slot($pdo, $orderId);
     error_log('[turnout] order confirmation SMS failed for order ' . $orderId);
   }
   return $ok;

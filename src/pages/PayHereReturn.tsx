@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Check, RefreshCw } from 'lucide-react';
 import { api } from '../api/client';
 import { notifyPayHereOpener } from '../lib/payhereCheckout';
 import { Order } from '../types';
-import { EVENT_THEMES } from '../themes/eventThemes';
-import { accentButtonStyleFor, cardStyleFor } from '../themes/flowUi';
-
-const ui = EVENT_THEMES.minimal.ui;
+import '../styles/order-confirmation.css';
 
 export const PayHereReturn: React.FC = () => {
   const [params] = useSearchParams();
@@ -20,7 +17,7 @@ export const PayHereReturn: React.FC = () => {
   useEffect(() => {
     if (!orderId) {
       setStatus('failed');
-      setMsg('Missing order_id');
+      setMsg('Missing order reference.');
       return;
     }
 
@@ -47,11 +44,11 @@ export const PayHereReturn: React.FC = () => {
         }
         if (s === 'failed') {
           setStatus('failed');
-          setMsg('Payment failed or cancelled.');
+          setMsg('Payment failed or was cancelled.');
           return;
         }
         setStatus('pending');
-        setMsg('Payment is being confirmed. Please wait…');
+        setMsg('Payment is being confirmed. This usually takes a few seconds…');
       } catch {
         if (cancelled) return;
         setStatus('pending');
@@ -62,7 +59,7 @@ export const PayHereReturn: React.FC = () => {
         window.setTimeout(tick, 1500);
       } else if (!cancelled) {
         setStatus('pending');
-        setMsg('Still confirming payment. You can refresh this page.');
+        setMsg('Still confirming payment. You can refresh this page or open your SMS ticket link.');
       }
     };
 
@@ -72,42 +69,38 @@ export const PayHereReturn: React.FC = () => {
     };
   }, [navigate, orderId, accessToken]);
 
+  const tokenQs = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
+
   return (
-    <div
-      className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12"
-      style={{ background: ui.pageBg }}
-    >
-      <div className="w-full max-w-md">
-        <div className="rounded-2xl border p-8 shadow-sm text-center" style={cardStyleFor(ui)}>
-          {status === 'loading' || status === 'pending' ? (
-            <Loader2 className="mx-auto h-12 w-12 animate-spin" style={{ color: ui.accent }} />
-          ) : null}
-          <h1 className="mt-4 text-2xl font-semibold" style={{ color: ui.text }}>
-            {status === 'failed' ? 'Payment failed' : 'Confirming payment…'}
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: ui.textMuted }}>
-            {msg || 'Loading…'}
-          </p>
-          <div className="mt-2 text-xs font-mono" style={{ color: ui.textMuted }}>
-            Order: {orderId || '—'} · Status: {status}
+    <div className="confirm-page confirm-loading">
+      <div style={{ maxWidth: 380, width: '100%' }}>
+        {status === 'paid' ? (
+          <div className="confirm-check" style={{ margin: '0 auto 1rem' }} aria-hidden>
+            <Check className="h-8 w-8" strokeWidth={2.75} />
           </div>
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="rounded-xl border px-5 py-2.5 text-sm font-semibold"
-              style={{ ...cardStyleFor(ui), color: ui.text }}
-            >
-              Refresh
-            </button>
-            <Link
-              to="/"
-              className="turnout-btn-accent rounded-xl px-5 py-2.5 text-sm font-semibold"
-              style={accentButtonStyleFor(ui)}
-            >
-              Go home
+        ) : status === 'failed' ? null : (
+          <div className="confirm-spinner" style={{ margin: '0 auto' }} />
+        )}
+
+        <h1 className="confirm-title" style={{ marginTop: '1rem' }}>
+          {status === 'failed' ? 'Payment not completed' : status === 'paid' ? 'Payment confirmed' : 'Confirming your order…'}
+        </h1>
+        <p className="confirm-sub">{msg || (status === 'paid' ? 'Taking you to your tickets…' : 'Please keep this page open.')}</p>
+        {orderId ? <p className="confirm-hint">Booking #{orderId}</p> : null}
+
+        <div style={{ marginTop: '1.35rem', display: 'grid', gap: '0.5rem' }}>
+          {status === 'paid' && orderId ? (
+            <Link to={`/orders/${orderId}/success${tokenQs}`} className="confirm-btn confirm-btn-primary">
+              View tickets
             </Link>
-          </div>
+          ) : (
+            <button type="button" className="confirm-btn confirm-btn-primary" onClick={() => window.location.reload()}>
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </button>
+          )}
+          <Link to="/" className="confirm-btn confirm-btn-secondary">
+            Go home
+          </Link>
         </div>
       </div>
     </div>

@@ -127,7 +127,7 @@ export function EventPolicyEditorModal({
       <button
         type="button"
         aria-label="Close policy editor"
-        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/60"
         onClick={onClose}
       />
       <div

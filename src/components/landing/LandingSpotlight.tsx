@@ -21,15 +21,19 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  TicketPriceDisplay,
   useCountdown,
 } from './LandingShared';
 import { VenueMapEmbed } from './VenueMapEmbed';
 import { formatLKRWhole } from '../../utils/money';
+import { ticketEffectivePrice } from '../../utils/ticketPricing';
 import { resolveEventCategory } from '../../themes/eventCategories';
 import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import {
+  isLocationTba,
   isOnlineEvent,
   onlinePlatformLabel,
+  resolveEventLocationLabel,
   resolveOnlineJoinUrl,
   resolveOnlinePlatform,
 } from '../../utils/eventLocation';
@@ -37,7 +41,7 @@ import {
 function lowestAvailablePrice(tickets: EventTicket[]): number | null {
   const available = tickets.filter((t) => ticketRemaining(t) > 0);
   if (available.length === 0) return null;
-  return Math.min(...available.map((t) => t.price));
+  return Math.min(...available.map((t) => ticketEffectivePrice(t)));
 }
 
 function formatFromPrice(tickets: EventTicket[]): string {
@@ -110,7 +114,11 @@ function SpotlightQuickFacts({ event }: { event: Event }) {
           <p className="sp-quickfact-label">
             {isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}
           </p>
-          <p className="sp-quickfact-value">{event.location?.trim() || 'Venue TBA'}</p>
+          <p className="sp-quickfact-value">
+            {isLocationTba(event.customization, event.location)
+              ? 'Venue TBA'
+              : resolveEventLocationLabel(event.customization, event.location)}
+          </p>
         </div>
       </div>
       {category.name ? (
@@ -170,10 +178,11 @@ function SpotlightAbout({ event }: { event: Event }) {
 }
 
 function SpotlightLocation({ event }: { event: Event }) {
-  const location = event.location?.trim() || 'Venue to be announced';
+  const locationTba = isLocationTba(event.customization, event.location);
+  const location = resolveEventLocationLabel(event.customization, event.location);
   const online = isOnlineEvent(event.customization, event.location);
   const joinUrl = resolveOnlineJoinUrl(event.customization);
-  const hasLocation = Boolean(event.location?.trim());
+  const hasLocation = !locationTba && Boolean(event.location?.trim());
   const mapsUrl =
     !online && hasLocation
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location!.trim())}`
@@ -227,7 +236,11 @@ function SpotlightLocation({ event }: { event: Event }) {
           <div className="sp-map-caption">
             <p className="sp-map-name">{location}</p>
             <p className="sp-map-hint">
-              {hasLocation ? 'Interactive map · open Google Maps for directions' : 'Add a venue address to show the map'}
+              {hasLocation
+                ? 'Interactive map · open Google Maps for directions'
+                : locationTba
+                  ? 'Venue to be announced — map will appear once a place is set'
+                  : 'Add a venue address to show the map'}
             </p>
           </div>
         </div>
@@ -263,7 +276,7 @@ function SpotlightTicketRow({
           </div>
           <p className="sp-ticket-desc">{desc}</p>
         </div>
-        <p className="sp-ticket-price">{ticket.price <= 0 ? 'Free' : formatLKRWhole(ticket.price)}</p>
+        <TicketPriceDisplay ticket={ticket} size="sm" />
       </div>
       <div className="sp-ticket-action">
         <div className="sp-stepper">

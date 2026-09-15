@@ -6,6 +6,7 @@ import { resolveTemplateId } from '../themes/eventThemes';
 import { LandingShowcasePage } from '../components/landing/LandingShowcase';
 import { LandingClassicPage } from '../components/landing/LandingClassic';
 import { LandingArenaPage } from '../components/landing/LandingArena';
+import { LandingArenaNovaPage } from '../components/landing/LandingArenaNova';
 import { LandingSpotlightPage } from '../components/landing/LandingSpotlight';
 import { LandingGatherPage } from '../components/landing/LandingGather';
 import {
@@ -24,7 +25,7 @@ import {
   TicketsSection,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-8' | 'template-canvas';
+export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-8' | 'template-10' | 'template-canvas';
 
 /** Layout templates organizers can pick in the design console (excludes custom canvas). */
 export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
@@ -37,6 +38,7 @@ export const LANDING_LAYOUT_TEMPLATES: {
   { id: 'template-2', name: 'Showcase', description: 'Editorial hero with sidebar checkout' },
   { id: 'template-8', name: 'Gather', description: 'Soft hosted-event card with split layout' },
   { id: 'template-6', name: 'Arena', description: 'Venue carousel with seating picker' },
+  { id: 'template-10', name: 'Arena Nova', description: 'Refined arena layout with immersive media and polished mobile UX' },
   { id: 'template-7', name: 'Spotlight', description: 'Featured banner with sticky booking card' },
   { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
 ];
@@ -48,6 +50,7 @@ export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
     id === 'template-2' ||
     id === 'template-5' ||
     id === 'template-6' ||
+    id === 'template-10' ||
     id === 'template-7' ||
     id === 'template-8'
   ) {
@@ -291,6 +294,14 @@ const TemplateArena: LandingTemplate = {
   render: (props) => <LandingArenaPage {...props} />,
 };
 
+const TemplateArenaNova: LandingTemplate = {
+  id: 'template-10',
+  name: 'Arena Nova',
+  description: 'Arena-inspired layout with full-width media, venue map, and premium mobile UX.',
+  previewSeed: 'arena-nova',
+  render: (props) => <LandingArenaNovaPage {...props} />,
+};
+
 const TemplateSpotlight: LandingTemplate = {
   id: 'template-7',
   name: 'Spotlight',
@@ -311,6 +322,7 @@ export const landingTemplates: LandingTemplate[] = [
   TemplateShowcase,
   TemplateGather,
   TemplateArena,
+  TemplateArenaNova,
   TemplateSpotlight,
   TemplateClassic,
 ];

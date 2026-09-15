@@ -27,7 +27,7 @@ import { type LandingDesignValue } from '../components/organizer/LandingCustomiz
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
 import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
-import { formatEventLocationDisplay, isValidMeetingUrl } from '../utils/eventLocation';
+import { formatEventLocationDisplay, isValidMeetingUrl, LOCATION_TBA_LABEL } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
 import { EVENT_THEMES, type CreateThemeUI, type EventThemeId } from '../themes/eventThemes';
@@ -37,12 +37,67 @@ import { landingCustomizationFromDesign } from '../themes/organizerLiveDesign';
 import { accentButtonStyleFor, accentSegmentStyleFor, cardMutedStyleFor, cardStyleFor } from '../themes/flowUi';
 import { TurnoutDateTimePicker, formatScheduleDay, formatScheduleTime } from '../components/ui/TurnoutDateTimePicker';
 import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
+import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
+import { TicketBulkOffersFields } from '../components/organizer/TicketBulkOffersFields';
+import { bulkOffersPayloadFromForm, datetimeLocalToIso, defaultEarlyBirdEndLocal } from '../utils/ticketPricing';
 
-const ticketTierSchema = z.object({
-  name: z.string().min(1, 'Tier name is required'),
-  price: z.number().min(0, 'Price must be 0 or more'),
-  quantity: z.number().min(1, 'At least 1 seat'),
-});
+const ticketTierSchema = z
+  .object({
+    name: z.string().min(1, 'Tier name is required'),
+    price: z.number().min(0, 'Price must be 0 or more'),
+    quantity: z.number().min(1, 'At least 1 seat'),
+    earlyBirdEnabled: z.boolean().optional(),
+    earlyBirdPrice: z.number().optional(),
+    earlyBirdEndAt: z.string().optional(),
+    earlyBirdLimit: z.number().optional(),
+    bulkOffers: z.array(z.object({ qty: z.number(), price: z.number() })).optional(),
+  })
+  .superRefine((tier, ctx) => {
+    if (!tier.earlyBirdEnabled) return;
+    const ebPrice = tier.earlyBirdPrice ?? 0;
+    if (ebPrice <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird rate is required',
+        path: ['earlyBirdPrice'],
+      });
+    } else if (tier.price > 0 && ebPrice >= tier.price) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird must be lower than standard price',
+        path: ['earlyBirdPrice'],
+      });
+    }
+    if (!(tier.earlyBirdEndAt || '').trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird end date is required',
+        path: ['earlyBirdEndAt'],
+      });
+    }
+    const limit = tier.earlyBirdLimit ?? 0;
+    if (limit < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird limit is required',
+        path: ['earlyBirdLimit'],
+      });
+    } else if (limit > tier.quantity) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Early bird limit cannot exceed tier capacity',
+        path: ['earlyBirdLimit'],
+      });
+    }
+    for (const offer of tier.bulkOffers || []) {
+      if ((offer.qty ?? 0) < 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Bulk quantity must be at least 2', path: ['bulkOffers'] });
+      }
+      if ((offer.price ?? 0) <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Bulk price must be greater than 0', path: ['bulkOffers'] });
+      }
+    }
+  });
 
 const eventSchema = z
   .object({
@@ -54,6 +109,7 @@ const eventSchema = z
     endDate: z.string().optional(),
     locationMode: z.enum(['physical', 'online']),
     location: z.string(),
+    locationTba: z.boolean(),
     onlinePlatform: z.enum(['google_meet', 'zoom', 'youtube', 'other']),
     onlineUrl: z.string().optional(),
     bannerUrl: z
@@ -78,7 +134,9 @@ const eventSchema = z
     dnsConfigured: z.boolean(),
   })
   .superRefine((data, ctx) => {
-    if (data.locationMode === 'physical') {
+    if (data.locationTba) {
+      // Venue TBA — no physical address or meeting link required.
+    } else if (data.locationMode === 'physical') {
       if (!(data.location || '').trim()) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -237,10 +295,11 @@ export const CreateEvent: React.FC = () => {
       endDate: '',
       locationMode: 'physical',
       location: '',
+      locationTba: false,
       onlinePlatform: 'google_meet',
       onlineUrl: '',
       bannerUrl: '',
-      tickets: [{ name: 'General Admission', price: 0, quantity: 500 }],
+      tickets: [{ name: 'General Admission', price: 0, quantity: 500, bulkOffers: [] }],
       requireApproval: false,
       useCustomDomain: false,
       customDomain: '',
@@ -261,6 +320,7 @@ export const CreateEvent: React.FC = () => {
   const endDate = watch('endDate');
   const locationMode = watch('locationMode');
   const location = watch('location');
+  const locationTba = watch('locationTba');
   const onlinePlatform = watch('onlinePlatform');
   const onlineUrl = watch('onlineUrl');
   const bannerUrl = watch('bannerUrl');
@@ -313,6 +373,7 @@ export const CreateEvent: React.FC = () => {
         name: first?.name || 'General Admission',
         price: 0,
         quantity: freeUnlimited ? 500 : Math.max(1, first?.quantity || 100),
+        bulkOffers: [],
       },
     ]);
   };
@@ -324,8 +385,16 @@ export const CreateEvent: React.FC = () => {
     setShowPaidSetupGate(Boolean(paidEventReadiness && !paidEventReadiness.isReady));
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
-        { name: 'Early Bird', price: 1500, quantity: 50 },
-        { name: 'General Admission', price: 2500, quantity: 150 },
+        {
+          name: 'General Admission',
+          price: 2500,
+          quantity: 150,
+          earlyBirdEnabled: true,
+          earlyBirdPrice: 1500,
+          earlyBirdEndAt: defaultEarlyBirdEndLocal(),
+          earlyBirdLimit: 50,
+          bulkOffers: [],
+        },
       ]);
     }
   };
@@ -436,7 +505,10 @@ export const CreateEvent: React.FC = () => {
     }
 
     if (ticketMode === 'paid') {
-      const hasPaidTier = data.tickets.some((t) => t.price > 0);
+      const hasPaidTier = data.tickets.some((t) => {
+        const hasBulkPaid = (t.bulkOffers || []).some((offer) => (offer.price ?? 0) > 0);
+        return t.price > 0 || (t.earlyBirdEnabled && (t.earlyBirdPrice ?? 0) > 0) || hasBulkPaid;
+      });
       if (!hasPaidTier) {
         setSubmitError('Add at least one paid ticket tier with a price greater than 0.');
         submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -492,9 +564,12 @@ export const CreateEvent: React.FC = () => {
         smallUnderline: design.smallUnderline,
         eventPolicyHtml: DEFAULT_EVENT_POLICY_HTML,
         scheduleTba: !hasSchedule,
-        locationMode: data.locationMode,
-        onlinePlatform: data.locationMode === 'online' ? data.onlinePlatform : undefined,
-        onlineUrl: data.locationMode === 'online' ? (data.onlineUrl || '').trim() : undefined,
+        locationTba: !!data.locationTba,
+        locationMode: data.locationTba ? 'physical' : data.locationMode,
+        onlinePlatform:
+          !data.locationTba && data.locationMode === 'online' ? data.onlinePlatform : undefined,
+        onlineUrl:
+          !data.locationTba && data.locationMode === 'online' ? (data.onlineUrl || '').trim() : undefined,
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
@@ -521,10 +596,20 @@ export const CreateEvent: React.FC = () => {
               price: ticket.price,
               quantity: ticket.quantity,
               description: data.requireApproval ? 'Requires organizer approval' : undefined,
+              ...(ticket.earlyBirdEnabled
+                ? {
+                    earlyBirdEnabled: true,
+                    earlyBirdPrice: ticket.earlyBirdPrice,
+                    earlyBirdEndAt: datetimeLocalToIso(ticket.earlyBirdEndAt || ''),
+                    earlyBirdLimit: ticket.earlyBirdLimit,
+                  }
+                : { earlyBirdEnabled: false }),
+              ...bulkOffersPayloadFromForm(ticket.bulkOffers || []),
             }));
 
-      const resolvedLocation =
-        data.locationMode === 'online'
+      const resolvedLocation = data.locationTba
+        ? LOCATION_TBA_LABEL
+        : data.locationMode === 'online'
           ? formatEventLocationDisplay({ mode: 'online', platform: data.onlinePlatform })
           : data.location.trim();
 
@@ -555,8 +640,9 @@ export const CreateEvent: React.FC = () => {
     }
   };
 
-  const locationReady =
-    locationMode === 'online'
+  const locationReady = locationTba
+    ? true
+    : locationMode === 'online'
       ? isValidMeetingUrl(onlineUrl || '')
       : Boolean((location || '').trim());
 
@@ -565,16 +651,18 @@ export const CreateEvent: React.FC = () => {
   const previewEvent = useMemo((): Event => {
     const scheduleTba = !hasSchedule;
     const baseCustomization = landingCustomizationFromDesign(design, themeId);
-    const resolvedLocation =
-      locationMode === 'online'
+    const resolvedLocation = locationTba
+      ? LOCATION_TBA_LABEL
+      : locationMode === 'online'
         ? formatEventLocationDisplay({ mode: 'online', platform: onlinePlatform })
-        : location.trim() || 'Venue to be announced';
+        : location.trim() || LOCATION_TBA_LABEL;
     const customization: EventCustomization = {
       ...baseCustomization,
       scheduleTba,
-      locationMode,
-      onlinePlatform: locationMode === 'online' ? onlinePlatform : undefined,
-      onlineUrl: locationMode === 'online' ? (onlineUrl || '').trim() || undefined : undefined,
+      locationTba,
+      locationMode: locationTba ? 'physical' : locationMode,
+      onlinePlatform: !locationTba && locationMode === 'online' ? onlinePlatform : undefined,
+      onlineUrl: !locationTba && locationMode === 'online' ? (onlineUrl || '').trim() || undefined : undefined,
       heroSubtext: (shortDescription || '').trim(),
       heroText: title.trim() || 'Your event title',
       layout: 'standard',
@@ -609,6 +697,7 @@ export const CreateEvent: React.FC = () => {
     hasSchedule,
     location,
     locationMode,
+    locationTba,
     onlinePlatform,
     onlineUrl,
     shortDescription,
@@ -633,15 +722,40 @@ export const CreateEvent: React.FC = () => {
         },
       ];
     }
-    return tiers.map((tier, index) => ({
-      id: `preview-tier-${index}`,
-      eventId: 'preview',
-      name: tier.name?.trim() || 'General Admission',
-      price: tier.price,
-      quantity: tier.quantity,
-      sold: 0,
-      description: requireApproval ? 'Requires organizer approval' : undefined,
-    }));
+    return tiers.map((tier, index) => {
+      const earlyBirdEnabled = Boolean(tier.earlyBirdEnabled);
+      const endIso = earlyBirdEnabled ? datetimeLocalToIso(tier.earlyBirdEndAt || '') : '';
+      const earlyBird =
+        earlyBirdEnabled && endIso
+          ? {
+              price: tier.earlyBirdPrice ?? 0,
+              endAt: endIso,
+              limit: tier.earlyBirdLimit ?? 0,
+              sold: 0,
+              remaining: tier.earlyBirdLimit ?? 0,
+              active:
+                (tier.earlyBirdPrice ?? 0) > 0 &&
+                (tier.earlyBirdPrice ?? 0) < tier.price &&
+                new Date(endIso).getTime() > Date.now(),
+            }
+          : undefined;
+      const ticket: EventTicket = {
+        id: `preview-tier-${index}`,
+        eventId: 'preview',
+        name: tier.name?.trim() || 'General Admission',
+        price: tier.price,
+        quantity: tier.quantity,
+        sold: 0,
+        description: requireApproval ? 'Requires organizer approval' : undefined,
+        earlyBird,
+        effectivePrice: earlyBird?.active ? earlyBird.price : tier.price,
+        bulkOffers: (tier.bulkOffers || []).map((offer) => ({
+          qty: Number(offer?.qty) || 0,
+          price: Number(offer?.price) || 0,
+        })).filter((offer) => offer.qty > 0 && offer.price > 0),
+      };
+      return ticket;
+    });
   }, [requireApproval, ticketMode, tickets]);
 
   const fieldStyle = { backgroundColor: ui.fieldBg, borderColor: ui.borderColor, color: ui.text };
@@ -733,8 +847,9 @@ export const CreateEvent: React.FC = () => {
                     { label: 'Cover image', done: (bannerUrl || '').trim() !== '', icon: <Eye className="h-3.5 w-3.5" /> },
                     {
                       label: 'Location',
-                      done:
-                        locationMode === 'online'
+                      done: locationTba
+                        ? true
+                        : locationMode === 'online'
                           ? isValidMeetingUrl((onlineUrl || '').trim())
                           : (location || '').trim().length >= 3,
                       icon: <MapPin className="h-3.5 w-3.5" />,
@@ -969,12 +1084,14 @@ export const CreateEvent: React.FC = () => {
                       physicalLocation={location}
                       onlinePlatform={onlinePlatform}
                       onlineUrl={onlineUrl || ''}
+                      locationTba={!!locationTba}
                       onModeChange={(mode) => setValue('locationMode', mode, { shouldValidate: true })}
                       onPhysicalLocationChange={(value) => setValue('location', value, { shouldValidate: true })}
                       onOnlinePlatformChange={(platform) =>
                         setValue('onlinePlatform', platform, { shouldValidate: true })
                       }
                       onOnlineUrlChange={(url) => setValue('onlineUrl', url, { shouldValidate: true })}
+                      onLocationTbaChange={(tba) => setValue('locationTba', tba, { shouldValidate: true })}
                       error={errors.location?.message || errors.onlineUrl?.message || null}
                     />
                   </div>
@@ -1175,7 +1292,7 @@ export const CreateEvent: React.FC = () => {
                           </div>
                           <div>
                             <label className="mb-1.5 block text-xs font-medium" style={{ color: ui.textMuted }}>
-                              Price (LKR)
+                              Standard price (LKR)
                             </label>
                             <input
                               {...register(`tickets.${index}.price` as const, { valueAsNumber: true })}
@@ -1204,6 +1321,43 @@ export const CreateEvent: React.FC = () => {
                             )}
                           </div>
                         </div>
+                        <TicketEarlyBirdFields
+                          idPrefix={`create-tier-${index}`}
+                          ui={ui}
+                          standardPrice={Number(tickets[index]?.price) || 0}
+                          totalQuantity={Number(tickets[index]?.quantity) || 1}
+                          values={{
+                            earlyBirdEnabled: Boolean(tickets[index]?.earlyBirdEnabled),
+                            earlyBirdPrice: Number(tickets[index]?.earlyBirdPrice) || 0,
+                            earlyBirdEndAt: tickets[index]?.earlyBirdEndAt || '',
+                            earlyBirdLimit: Number(tickets[index]?.earlyBirdLimit) || 25,
+                          }}
+                          onChange={(patch) => {
+                            if (patch.earlyBirdEnabled !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdEnabled`, patch.earlyBirdEnabled, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdPrice !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdPrice`, patch.earlyBirdPrice, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdEndAt !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdEndAt`, patch.earlyBirdEndAt, { shouldDirty: true });
+                            }
+                            if (patch.earlyBirdLimit !== undefined) {
+                              setValue(`tickets.${index}.earlyBirdLimit`, patch.earlyBirdLimit, { shouldDirty: true });
+                            }
+                          }}
+                        />
+                        <TicketBulkOffersFields
+                          ui={ui}
+                          standardPrice={Number(tickets[index]?.price) || 0}
+                          offers={(tickets[index]?.bulkOffers || []).map((offer) => ({
+                            qty: Number(offer?.qty) || 0,
+                            price: Number(offer?.price) || 0,
+                          }))}
+                          onChange={(next) => {
+                            setValue(`tickets.${index}.bulkOffers`, next, { shouldDirty: true });
+                          }}
+                        />
                       </div>
                     ))}
 
@@ -1214,6 +1368,11 @@ export const CreateEvent: React.FC = () => {
                           name: `Tier ${fields.length + 1}`,
                           price: 2500,
                           quantity: 50,
+                          earlyBirdEnabled: false,
+                          earlyBirdPrice: 0,
+                          earlyBirdEndAt: '',
+                          earlyBirdLimit: 25,
+                          bulkOffers: [],
                         })
                       }
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm font-semibold transition hover:opacity-90"
@@ -1328,7 +1487,7 @@ export const CreateEvent: React.FC = () => {
               </button>
               {!canSubmit && !submitError && (
                 <p className="mt-2 text-center text-xs" style={{ color: ui.textSubtle }}>
-                  Tip: event name and a venue or meeting link are required
+                  Tip: event name and a venue, meeting link, or TBA location are required
                   {hasSchedule ? ', plus a start date & time' : ''}.
                 </p>
               )}

@@ -315,6 +315,7 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
     'bankCode' => trim((string)($row['bank_code'] ?? '')) ?: null,
     'bankBranchCode' => trim((string)($row['bank_branch_code'] ?? '')) ?: null,
     'bankSwiftCode' => trim((string)($row['bank_swift_code'] ?? '')) ?: null,
+    'bankAccountNote' => trim((string)($row['bank_account_note'] ?? '')) ?: null,
     'bankStatementDocUrl' => trim((string)($row['bank_statement_doc_url'] ?? '')) ?: null,
     'bankStatementDocUploaded' => trim((string)($row['bank_statement_doc_url'] ?? '')) !== '',
     'termsHtml' => trim((string)($row['terms_html'] ?? '')) ?: null,

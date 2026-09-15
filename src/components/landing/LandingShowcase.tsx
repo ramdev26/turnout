@@ -21,11 +21,13 @@ import {
   pad2,
   resolveLandingOrganizerBrand,
   ticketRemaining,
+  TicketPriceDisplay,
   useCountdown,
 } from './LandingShared';
 import { EventPolicyLink } from './EventPolicyViewer';
 import { formatLKRWhole } from '../../utils/money';
-import { isOnlineEvent } from '../../utils/eventLocation';
+import { ticketLineTotal } from '../../utils/ticketPricing';
+import { isOnlineEvent, resolveEventLocationLabel } from '../../utils/eventLocation';
 
 function splitHeroTitle(title: string): { accent: string; main: string } {
   const trimmed = title.trim();
@@ -193,7 +195,7 @@ function ShowcaseHero({ event }: { event: Event }) {
             <MapPin className="mb-2 h-4 w-4" style={{ color: 'var(--showcase-accent)' }} />
           )}
           <p className="label">{isOnlineEvent(event.customization, event.location) ? 'Online' : 'Venue'}</p>
-          <p className="value">{event.location || 'Venue to be announced'}</p>
+          <p className="value">{resolveEventLocationLabel(event.customization, event.location)}</p>
         </div>
       </div>
     </section>
@@ -242,7 +244,7 @@ function ShowcaseAbout({ event }: { event: Event }) {
   if (!desc) return null;
 
   const tags = [
-    event.location ? { icon: MapPin, text: event.location } : null,
+    { icon: MapPin, text: resolveEventLocationLabel(event.customization, event.location) },
     event.customization?.scheduleTba
       ? { icon: Calendar, text: 'Date to be announced' }
       : { icon: Calendar, text: format(new Date(event.date), 'MMM d, yyyy') },
@@ -334,9 +336,7 @@ function ShowcaseTickets({
                   <p className="mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {summary}
                   </p>
-                  <p className="landing-display mt-2 text-lg sm:text-xl" style={{ color: 'var(--showcase-accent)' }}>
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
-                  </p>
+                  <TicketPriceDisplay ticket={ticket} size="lg" />
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 sm:pt-1">
@@ -432,7 +432,7 @@ function ShowcaseCheckout({
                   {t.name} ×{selectedTickets[t.id]}
                 </span>
                 <span className="font-semibold tabular-nums" style={{ color: 'var(--landing-text)' }}>
-                  {formatLKRWhole(t.price * selectedTickets[t.id])}
+                  {formatLKRWhole(ticketLineTotal(t, selectedTickets[t.id]))}
                 </span>
               </div>
             ))}

@@ -77,6 +77,8 @@ export type BankTransferDetails = {
   bankCode?: string | null;
   branchCode?: string | null;
   swiftCode?: string | null;
+  /** Optional note for personal accounts collecting on behalf of an org. */
+  accountNote?: string | null;
 };
 
 export type OrganizerProfile = {
@@ -101,6 +103,8 @@ export type OrganizerProfile = {
   bankCode?: string | null;
   bankBranchCode?: string | null;
   bankSwiftCode?: string | null;
+  /** Optional note shown with bank details (e.g. role on a personal account). */
+  bankAccountNote?: string | null;
   bankStatementDocUrl?: string | null;
   bankStatementDocUploaded?: boolean;
   /** Organization Terms & Conditions (HTML). */
@@ -112,6 +116,7 @@ export type OrganizerPaidEventRequirements = {
   needsBankDetails: boolean;
   needsOwnPayhereCredentials: boolean;
   needsBillingCard: boolean;
+  turnoutDocsOverride?: boolean;
 };
 
 export type OrganizerPaidEventReadiness = {
@@ -137,6 +142,7 @@ export type OrganizerPaidEventReadiness = {
     bankCode: string | null;
     bankBranchCode: string | null;
     bankSwiftCode: string | null;
+    bankAccountNote: string | null;
     bankStatementDocUrl: string | null;
     bankStatementDocUploaded: boolean;
   };
@@ -297,6 +303,8 @@ export interface EventCustomization {
   eventPolicyHtml?: string;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */
   scheduleTba?: boolean;
+  /** When true, the venue / meeting place is "to be announced" */
+  locationTba?: boolean;
   /** Physical venue vs online meeting / stream */
   locationMode?: 'physical' | 'online';
   /** Platform when locationMode is online */
@@ -417,14 +425,31 @@ export interface Event {
   createdAt: string;
 }
 
+export interface TicketEarlyBird {
+  price: number;
+  endAt: string | null;
+  limit: number;
+  sold: number;
+  remaining: number;
+  active: boolean;
+}
+
+export interface TicketBulkOffer {
+  qty: number;
+  price: number;
+}
+
 export interface Ticket {
   id: string;
   eventId: string;
   name: string;
   price: number;
+  effectivePrice?: number;
   quantity: number;
   sold: number;
   description?: string;
+  earlyBird?: TicketEarlyBird | null;
+  bulkOffers?: TicketBulkOffer[];
 }
 
 export type Speaker = {
@@ -479,6 +504,8 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  /** Client-side cart line total when early bird splits apply. */
+  lineTotal?: number;
 }
 
 export interface Order {

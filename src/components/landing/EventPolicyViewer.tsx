@@ -10,6 +10,19 @@ type Props = {
   title?: string;
 };
 
+/** Solid modal panel — no glass / blur / translucent surfaces. */
+const solidPanelStyle: React.CSSProperties = {
+  borderColor: 'var(--landing-border, rgba(255,255,255,0.12))',
+  background: 'var(--landing-page-bg, #0c1f24)',
+  color: 'var(--landing-text, #f4faf8)',
+  boxShadow: '0 24px 48px rgba(0,0,0,0.45)',
+};
+
+const solidHeaderStyle: React.CSSProperties = {
+  borderColor: 'var(--landing-border, rgba(255,255,255,0.12))',
+  background: 'color-mix(in srgb, var(--landing-page-bg, #0c1f24) 92%, var(--landing-text, #fff) 8%)',
+};
+
 export function EventPolicyViewerModal({
   html,
   open,
@@ -39,21 +52,19 @@ export function EventPolicyViewerModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <button type="button" aria-label="Close policy" className="absolute inset-0 bg-black/50 backdrop-blur-[1px]" onClick={onClose} />
+      <button
+        type="button"
+        aria-label="Close policy"
+        className="absolute inset-0 bg-black/60"
+        onClick={onClose}
+      />
       <div
         role="dialog"
         aria-modal="true"
         className="relative z-10 flex max-h-[min(88vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:rounded-2xl"
-        style={{
-          borderColor: 'var(--landing-border)',
-          background: 'var(--landing-surface)',
-          color: 'var(--landing-text)',
-        }}
+        style={solidPanelStyle}
       >
-        <div
-          className="flex items-center justify-between gap-3 border-b px-4 py-3"
-          style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-surface-muted)' }}
-        >
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3" style={solidHeaderStyle}>
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4" style={{ color: 'var(--landing-accent-readable, var(--primary))' }} />
             <h2 className="text-base font-semibold">{title}</h2>
