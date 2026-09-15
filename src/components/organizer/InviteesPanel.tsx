@@ -325,11 +325,15 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
     if (!ok) return;
     setCancellingId(invitee.id);
     try {
-      await api.delete(`/api/events/${eventId}/invitees/${invitee.id}`);
+      // Prefer POST /cancel — more reliable than DELETE across proxies.
+      await api.post(`/api/events/${eventId}/invitees/${invitee.id}/cancel`, {});
       setInvitees((prev) => prev.filter((i) => i.id !== invitee.id));
       onFeedback?.(`Cancelled invitation for ${invitee.fullName}. Removed from attendee list.`);
-      // Refresh ticket availability after releasing the seat.
-      await load();
+      try {
+        await load();
+      } catch {
+        // List already updated locally; ticket refresh is best-effort.
+      }
     } catch (e) {
       onError?.(formatApiError(e, 'Could not cancel invitation'));
     } finally {

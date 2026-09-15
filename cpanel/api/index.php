@@ -791,6 +791,75 @@ function payhere_request_base_url(): string {
   return ($https ? 'https' : 'http') . '://' . $host;
 }
 
+/**
+ * Cancel a VIP invite pass: delete attendee, release ticket inventory, fail the order.
+ * @return array{attendeeId:string,orderId:string,fullName:string,email:string}
+ */
+function cancel_vip_invitee(PDO $pdo, int $eventId, int $attendeeId): array {
+  ensure_order_bank_transfer_columns($pdo);
+  ensure_ticket_early_bird_columns($pdo);
+
+  $stmt = $pdo->prepare(
+    'SELECT a.id, a.order_id, a.ticket_id, a.full_name, a.email, o.payment_method
+     FROM attendees a
+     INNER JOIN orders o ON o.id = a.order_id
+     WHERE a.id = ? AND a.event_id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$attendeeId, $eventId]);
+  $row = $stmt->fetch();
+  if (!$row) {
+    json_response(404, ['error' => 'invitee_not_found', 'message' => 'Invitee not found.']);
+  }
+  if (trim((string)($row['payment_method'] ?? '')) !== 'vip_invite') {
+    json_response(400, [
+      'error' => 'not_vip_invitee',
+      'message' => 'This attendee is not a VIP invite pass.',
+    ]);
+  }
+
+  $orderId = (int)$row['order_id'];
+  $ticketId = (int)$row['ticket_id'];
+
+  $pdo->beginTransaction();
+  try {
+    $del = $pdo->prepare('DELETE FROM attendees WHERE id = ? AND event_id = ?');
+    $del->execute([$attendeeId, $eventId]);
+    if ($del->rowCount() < 1) {
+      throw new Exception('attendee_not_deleted');
+    }
+
+    if ($ticketId > 0) {
+      $dec = $pdo->prepare('UPDATE tickets SET sold = CASE WHEN sold >= 1 THEN sold - 1 ELSE 0 END WHERE id = ?');
+      $dec->execute([$ticketId]);
+    }
+
+    // orders.status ENUM is pending|paid|failed.
+    $upd = $pdo->prepare("UPDATE orders SET status = 'failed' WHERE id = ? AND event_id = ?");
+    $upd->execute([$orderId, $eventId]);
+
+    // transactions uses payment_status (not status).
+    $txn = $pdo->prepare("UPDATE transactions SET payment_status = 'failed' WHERE order_id = ?");
+    $txn->execute([$orderId]);
+
+    $pdo->commit();
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log(sprintf('[turnout] vip invitee cancel failed id=%d: %s', $attendeeId, $e->getMessage()));
+    json_response(500, [
+      'error' => 'invitee_delete_failed',
+      'message' => 'Could not cancel this invitation. Try again.',
+    ]);
+  }
+
+  return [
+    'attendeeId' => (string)$attendeeId,
+    'orderId' => (string)$orderId,
+    'fullName' => (string)$row['full_name'],
+    'email' => (string)$row['email'],
+  ];
+}
+
 function upsert_transaction(PDO $pdo, int $eventId, ?int $userId, int $orderId, int $amountCents, string $status, ?string $reference): array {
   $commissionPct = get_platform_commission_pct($pdo);
 
@@ -5293,65 +5362,32 @@ if (preg_match('#^/events/(\\d+)/invitees/(\\d+)$#', $path, $m) && $method === '
   $attendeeId = (int)$m[2];
   $pdo = db();
   require_event_owner($pdo, $eventId, $uid, 'editor');
-  ensure_order_bank_transfer_columns($pdo);
-
-  $stmt = $pdo->prepare(
-    'SELECT a.id, a.order_id, a.ticket_id, a.full_name, a.email, o.payment_method
-     FROM attendees a
-     INNER JOIN orders o ON o.id = a.order_id
-     WHERE a.id = ? AND a.event_id = ?
-     LIMIT 1'
-  );
-  $stmt->execute([$attendeeId, $eventId]);
-  $row = $stmt->fetch();
-  if (!$row) {
-    json_response(404, ['error' => 'invitee_not_found', 'message' => 'Invitee not found.']);
-  }
-  if (trim((string)($row['payment_method'] ?? '')) !== 'vip_invite') {
-    json_response(400, [
-      'error' => 'not_vip_invitee',
-      'message' => 'This attendee is not a VIP invite pass.',
-    ]);
-  }
-
-  $orderId = (int)$row['order_id'];
-  $ticketId = (int)$row['ticket_id'];
-
-  $pdo->beginTransaction();
-  try {
-    $del = $pdo->prepare('DELETE FROM attendees WHERE id = ? AND event_id = ?');
-    $del->execute([$attendeeId, $eventId]);
-    decrement_ticket_sold_count($pdo, $ticketId, 1);
-
-    // Mark the complimentary VIP order failed so it no longer counts as an active pass.
-    // (orders.status ENUM is pending|paid|failed — no cancelled value.)
-    $upd = $pdo->prepare("UPDATE orders SET status = 'failed' WHERE id = ? AND event_id = ?");
-    $upd->execute([$orderId, $eventId]);
-
-    try {
-      $txn = $pdo->prepare("UPDATE transactions SET status = 'failed' WHERE order_id = ?");
-      $txn->execute([$orderId]);
-    } catch (Throwable $e) {
-      // transactions table / status values may vary; attendee removal is the critical part.
-    }
-
-    $pdo->commit();
-  } catch (Throwable $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log(sprintf('[turnout] vip invitee delete failed id=%d: %s', $attendeeId, $e->getMessage()));
-    json_response(500, [
-      'error' => 'invitee_delete_failed',
-      'message' => 'Could not cancel this invitation. Try again.',
-    ]);
-  }
-
+  $cancelled = cancel_vip_invitee($pdo, $eventId, $attendeeId);
   json_response(200, [
     'ok' => true,
     'cancelled' => true,
-    'attendeeId' => (string)$attendeeId,
-    'orderId' => (string)$orderId,
-    'fullName' => (string)$row['full_name'],
-    'email' => (string)$row['email'],
+    'attendeeId' => $cancelled['attendeeId'],
+    'orderId' => $cancelled['orderId'],
+    'fullName' => $cancelled['fullName'],
+    'email' => $cancelled['email'],
+    'stats' => fetch_attendee_stats($pdo, $eventId),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/invitees/(\\d+)/cancel$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $attendeeId = (int)$m[2];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  $cancelled = cancel_vip_invitee($pdo, $eventId, $attendeeId);
+  json_response(200, [
+    'ok' => true,
+    'cancelled' => true,
+    'attendeeId' => $cancelled['attendeeId'],
+    'orderId' => $cancelled['orderId'],
+    'fullName' => $cancelled['fullName'],
+    'email' => $cancelled['email'],
     'stats' => fetch_attendee_stats($pdo, $eventId),
   ]);
 }
