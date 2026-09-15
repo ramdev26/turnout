@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
+  Copy,
   Download,
+  ExternalLink,
   Loader2,
   Mail,
   RefreshCw,
@@ -11,9 +13,12 @@ import {
   Upload,
   UserPlus,
   Users,
+  X,
   XCircle,
 } from 'lucide-react';
-import { api } from '../../api/client';
+import { QRCodeCanvas } from 'qrcode.react';
+import { format } from 'date-fns';
+import { api, toApiUrl } from '../../api/client';
 import type { Ticket } from '../../types';
 import type { CreateThemeUI } from '../../themes/eventThemes';
 import {
@@ -27,6 +32,7 @@ import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../flow/FlowPrimiti
 import { TurnoutSelect } from '../ui/TurnoutSelect';
 import { formatApiError } from '../../utils/apiError';
 import { cn } from '../../utils/cn';
+import { absoluteAppUrl } from '../../lib/publicAppUrl';
 
 const SAMPLE_INVITEE_CSV = `name,email,phone
 Jane Perera,jane@example.com,+94771234567
@@ -45,6 +51,24 @@ function downloadSampleInviteeCsv() {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+type PassLinkPayload = {
+  url: string;
+  shortUrl: string;
+  invitee: {
+    id: string;
+    fullName: string;
+    email: string;
+    qrToken: string;
+    ticketName: string;
+  };
+  event: {
+    title: string;
+    date?: string | null;
+    location: string;
+    bannerUrl?: string;
+  };
+};
 export type VipInvitee = {
   id: string;
   orderId: string;
@@ -175,6 +199,8 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
   const [sending, setSending] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [passBusyId, setPassBusyId] = useState<string | null>(null);
+  const [passCard, setPassCard] = useState<PassLinkPayload | null>(null);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -328,6 +354,7 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
       // Prefer POST /cancel — more reliable than DELETE across proxies.
       await api.post(`/api/events/${eventId}/invitees/${invitee.id}/cancel`, {});
       setInvitees((prev) => prev.filter((i) => i.id !== invitee.id));
+      if (passCard?.invitee.id === invitee.id) setPassCard(null);
       onFeedback?.(`Cancelled invitation for ${invitee.fullName}. Removed from attendee list.`);
       try {
         await load();
@@ -338,6 +365,41 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
       onError?.(formatApiError(e, 'Could not cancel invitation'));
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const fetchPassLink = async (invitee: VipInvitee): Promise<PassLinkPayload> => {
+    const res = await api.get<PassLinkPayload>(`/api/events/${eventId}/invitees/${invitee.id}/pass-link`);
+    return {
+      ...res,
+      url: absoluteAppUrl(res.url),
+      shortUrl: absoluteAppUrl(res.shortUrl || res.url),
+    };
+  };
+
+  const viewPassCard = async (invitee: VipInvitee) => {
+    setPassBusyId(invitee.id);
+    try {
+      const payload = await fetchPassLink(invitee);
+      setPassCard(payload);
+    } catch (e) {
+      onError?.(formatApiError(e, 'Could not load VIP pass card'));
+    } finally {
+      setPassBusyId(null);
+    }
+  };
+
+  const copyPassLink = async (invitee: VipInvitee) => {
+    setPassBusyId(invitee.id);
+    try {
+      const payload = await fetchPassLink(invitee);
+      const link = payload.shortUrl || payload.url;
+      await navigator.clipboard.writeText(link);
+      onFeedback?.(`Pass link copied for ${invitee.fullName}`);
+    } catch (e) {
+      onError?.(formatApiError(e, 'Could not copy pass link'));
+    } finally {
+      setPassBusyId(null);
     }
   };
 
@@ -624,6 +686,34 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <button
                     type="button"
+                    disabled={passBusyId === inv.id || cancellingId === inv.id}
+                    onClick={() => void viewPassCard(inv)}
+                    className={cn(
+                      'inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50'
+                    )}
+                    style={{ ...cardStyle, color: ui.text }}
+                  >
+                    {passBusyId === inv.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    )}
+                    View card
+                  </button>
+                  <button
+                    type="button"
+                    disabled={passBusyId === inv.id || cancellingId === inv.id}
+                    onClick={() => void copyPassLink(inv)}
+                    className={cn(
+                      'inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50'
+                    )}
+                    style={{ ...cardStyle, color: ui.text }}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy link
+                  </button>
+                  <button
+                    type="button"
                     disabled={resendingId === inv.id || cancellingId === inv.id}
                     onClick={() => void resend(inv)}
                     className={cn(
@@ -660,6 +750,147 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
           </div>
         )}
       </div>
+
+      {passCard ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="VIP pass card"
+          onClick={() => setPassCard(null)}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border shadow-xl"
+            style={{ ...cardStyle, background: ui.cardBg || '#0f172a' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {passCard.event.bannerUrl ? (
+              <img
+                src={
+                  passCard.event.bannerUrl.startsWith('http')
+                    ? passCard.event.bannerUrl
+                    : toApiUrl(passCard.event.bannerUrl)
+                }
+                alt=""
+                className="h-28 w-full object-cover"
+              />
+            ) : null}
+            <div className="space-y-4 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p
+                    className="text-[11px] font-bold uppercase tracking-[0.14em]"
+                    style={{ color: ui.accent }}
+                  >
+                    VIP Invite
+                  </p>
+                  <h3 className="mt-1 text-lg font-bold" style={{ color: ui.text }}>
+                    {passCard.event.title || 'Event pass'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPassCard(null)}
+                  className="rounded-lg p-1.5"
+                  style={{ color: ui.textMuted }}
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="rounded-xl border p-4 text-center" style={cardMutedStyle}>
+                <p className="text-sm font-bold" style={{ color: ui.text }}>
+                  {passCard.invitee.fullName}
+                </p>
+                <p className="text-xs" style={{ color: ui.textMuted }}>
+                  {passCard.invitee.ticketName || 'VIP Pass'} · {passCard.invitee.email}
+                </p>
+                <div className="mx-auto mt-4 inline-flex rounded-xl bg-white p-3">
+                  <QRCodeCanvas
+                    value={passCard.invitee.qrToken}
+                    size={168}
+                    bgColor="#ffffff"
+                    fgColor="#0c1f24"
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Show this code at the door
+                </p>
+              </div>
+
+              <div className="space-y-1.5 text-sm" style={{ color: ui.textMuted }}>
+                {passCard.event.date ? (
+                  <p>
+                    <span className="font-semibold" style={{ color: ui.text }}>
+                      When ·{' '}
+                    </span>
+                    {format(new Date(passCard.event.date), 'EEE, d MMM yyyy · h:mm a')}
+                  </p>
+                ) : null}
+                {passCard.event.location ? (
+                  <p>
+                    <span className="font-semibold" style={{ color: ui.text }}>
+                      Where ·{' '}
+                    </span>
+                    {passCard.event.location}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-xl border p-3" style={cardMutedStyle}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Shareable link
+                </p>
+                <p className="mt-1 break-all text-xs" style={{ color: ui.text }}>
+                  {passCard.shortUrl || passCard.url}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(passCard.shortUrl || passCard.url).then(
+                      () => onFeedback?.('Pass link copied'),
+                      () => onError?.('Could not copy link')
+                    );
+                  }}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold"
+                  style={{ ...cardStyle, color: ui.text }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = passCard.shortUrl || passCard.url;
+                    const text = `Your VIP pass for ${passCard.event.title || 'the event'}: ${link}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+                  }}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold"
+                  style={accentBtn}
+                >
+                  Share on WhatsApp
+                </button>
+                <a
+                  href={passCard.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold"
+                  style={{ ...cardStyle, color: ui.text }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open guest pass page
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

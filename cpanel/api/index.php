@@ -5392,6 +5392,74 @@ if (preg_match('#^/events/(\\d+)/invitees/(\\d+)/cancel$#', $path, $m) && $metho
   ]);
 }
 
+if (preg_match('#^/events/(\\d+)/invitees/(\\d+)/pass-link$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $attendeeId = (int)$m[2];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_order_bank_transfer_columns($pdo);
+
+  $stmt = $pdo->prepare(
+    'SELECT a.id, a.order_id, a.full_name, a.email, a.qr_token, o.payment_method, o.status AS order_status,
+            e.title AS event_title, e.event_date, e.location, e.banner_url, t.name AS ticket_name
+     FROM attendees a
+     INNER JOIN orders o ON o.id = a.order_id
+     INNER JOIN events e ON e.id = a.event_id
+     LEFT JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.id = ? AND a.event_id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$attendeeId, $eventId]);
+  $row = $stmt->fetch();
+  if (!$row) {
+    json_response(404, ['error' => 'invitee_not_found', 'message' => 'Invitee not found.']);
+  }
+  if (trim((string)($row['payment_method'] ?? '')) !== 'vip_invite') {
+    json_response(400, [
+      'error' => 'not_vip_invitee',
+      'message' => 'This attendee is not a VIP invite pass.',
+    ]);
+  }
+  if (trim((string)($row['order_status'] ?? '')) === 'failed') {
+    json_response(400, [
+      'error' => 'invite_cancelled',
+      'message' => 'This invitation was cancelled.',
+    ]);
+  }
+
+  $orderId = (int)$row['order_id'];
+  $passUrl = mail_order_success_url($orderId, null, [$attendeeId]);
+  $shortUrl = mail_order_short_ticket_url($orderId);
+  if ($passUrl === '') {
+    json_response(500, [
+      'error' => 'pass_link_failed',
+      'message' => 'Could not create a shareable pass link.',
+    ]);
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'url' => $passUrl,
+    'shortUrl' => $shortUrl !== '' ? $shortUrl : $passUrl,
+    'orderId' => (string)$orderId,
+    'attendeeId' => (string)$attendeeId,
+    'invitee' => [
+      'id' => (string)$row['id'],
+      'fullName' => (string)$row['full_name'],
+      'email' => (string)$row['email'],
+      'qrToken' => (string)$row['qr_token'],
+      'ticketName' => (string)($row['ticket_name'] ?? 'VIP Pass'),
+    ],
+    'event' => [
+      'title' => (string)($row['event_title'] ?? ''),
+      'date' => !empty($row['event_date']) ? gmdate('c', strtotime((string)$row['event_date'])) : null,
+      'location' => (string)($row['location'] ?? ''),
+      'bannerUrl' => (string)($row['banner_url'] ?? ''),
+    ],
+  ]);
+}
+
 if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];
