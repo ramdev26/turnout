@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
+  Download,
   Loader2,
   Mail,
   RefreshCw,
   Send,
   Sparkles,
+  Trash2,
   Upload,
   UserPlus,
   Users,
@@ -26,6 +28,23 @@ import { TurnoutSelect } from '../ui/TurnoutSelect';
 import { formatApiError } from '../../utils/apiError';
 import { cn } from '../../utils/cn';
 
+const SAMPLE_INVITEE_CSV = `name,email,phone
+Jane Perera,jane@example.com,+94771234567
+Kasun Fernando,kasun@example.com,+94770001122
+Nimali Silva,nimali@example.com,
+`;
+
+function downloadSampleInviteeCsv() {
+  const blob = new Blob([SAMPLE_INVITEE_CSV], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'vip-invitees-sample.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 export type VipInvitee = {
   id: string;
   orderId: string;
@@ -155,6 +174,7 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -298,6 +318,25 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
     }
   };
 
+  const cancelInvitation = async (invitee: VipInvitee) => {
+    const ok = window.confirm(
+      `Cancel invitation for ${invitee.fullName} (${invitee.email})?\n\nThis removes their VIP pass and deletes them from the attendee list.`
+    );
+    if (!ok) return;
+    setCancellingId(invitee.id);
+    try {
+      await api.delete(`/api/events/${eventId}/invitees/${invitee.id}`);
+      setInvitees((prev) => prev.filter((i) => i.id !== invitee.id));
+      onFeedback?.(`Cancelled invitation for ${invitee.fullName}. Removed from attendee list.`);
+      // Refresh ticket availability after releasing the seat.
+      await load();
+    } catch (e) {
+      onError?.(formatApiError(e, 'Could not cancel invitation'));
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-16 text-sm" style={{ color: ui.textMuted }}>
@@ -406,8 +445,17 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
           <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
             Columns: <span className="font-mono">name, email, phone</span> (phone optional). Header row supported.
           </p>
+          <button
+            type="button"
+            onClick={downloadSampleInviteeCsv}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold"
+            style={{ borderColor: ui.borderColor, color: ui.text }}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download sample CSV
+          </button>
           <label
-            className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-8 text-center transition hover:opacity-90"
+            className="mt-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-8 text-center transition hover:opacity-90"
             style={{ ...cardMutedStyle, color: ui.textMuted }}
           >
             <Upload className="h-6 w-6" style={{ color: ui.accent }} />
@@ -569,22 +617,40 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
                     {inv.checkedInAt ? ' · Checked in' : ''}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled={resendingId === inv.id}
-                  onClick={() => void resend(inv)}
-                  className={cn(
-                    'inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50'
-                  )}
-                  style={{ ...cardStyle, color: ui.text }}
-                >
-                  {resendingId === inv.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Send className="h-3.5 w-3.5" />
-                  )}
-                  Resend card
-                </button>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={resendingId === inv.id || cancellingId === inv.id}
+                    onClick={() => void resend(inv)}
+                    className={cn(
+                      'inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50'
+                    )}
+                    style={{ ...cardStyle, color: ui.text }}
+                  >
+                    {resendingId === inv.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
+                    Resend card
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cancellingId === inv.id || resendingId === inv.id}
+                    onClick={() => void cancelInvitation(inv)}
+                    className={cn(
+                      'inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50'
+                    )}
+                    style={{ borderColor: 'rgba(185,28,28,0.35)', color: '#b91c1c', background: 'rgba(254,226,226,0.35)' }}
+                  >
+                    {cancellingId === inv.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                    Cancel invitation
+                  </button>
+                </div>
               </div>
             ))}
           </div>
