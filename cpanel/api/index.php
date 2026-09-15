@@ -4998,6 +4998,295 @@ if (preg_match('#^/events/(\\d+)/attendees$#', $path, $m) && $method === 'POST')
   ]);
 }
 
+if (preg_match('#^/events/(\\d+)/invitees$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_order_bank_transfer_columns($pdo);
+
+  $stmt = $pdo->prepare(
+    'SELECT a.id, a.order_id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at,
+            t.name AS ticket_name
+     FROM attendees a
+     INNER JOIN orders o ON o.id = a.order_id
+     LEFT JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.event_id = ? AND o.payment_method = ?
+     ORDER BY a.id DESC
+     LIMIT 2000'
+  );
+  $stmt->execute([$eventId, 'vip_invite']);
+  $invitees = [];
+  while ($row = $stmt->fetch()) {
+    $shape = attendee_api_shape($row, $eventId);
+    $shape['orderId'] = (string)$row['order_id'];
+    $invitees[] = $shape;
+  }
+  json_response(200, ['invitees' => $invitees]);
+}
+
+if (preg_match('#^/events/(\\d+)/invitees/bulk$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_order_policy_acceptance_columns($pdo);
+  ensure_order_bank_transfer_columns($pdo);
+  ensure_attendees_custom_fields_column($pdo);
+
+  $ticketId = (int)($body['ticketId'] ?? 0);
+  $sendEmail = !array_key_exists('sendEmail', $body) || !empty($body['sendEmail']);
+  $rawInvitees = $body['invitees'] ?? null;
+
+  if ($ticketId <= 0) {
+    json_response(400, ['error' => 'invalid_ticket', 'message' => 'Select a ticket type for VIP passes.']);
+  }
+  if (!is_array($rawInvitees) || count($rawInvitees) < 1) {
+    json_response(400, ['error' => 'empty_invitees', 'message' => 'Add at least one invitee.']);
+  }
+  if (count($rawInvitees) > 200) {
+    json_response(400, ['error' => 'too_many_invitees', 'message' => 'Upload at most 200 invitees at a time.']);
+  }
+
+  $ticketStmt = $pdo->prepare('SELECT id, name, price_cents, quantity, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1');
+  $ticketStmt->execute([$ticketId, $eventId]);
+  $ticketRow = $ticketStmt->fetch();
+  if (!$ticketRow) {
+    json_response(400, ['error' => 'ticket_not_found', 'message' => 'Selected ticket type was not found.']);
+  }
+
+  $results = [];
+  $created = 0;
+  $failed = 0;
+  $emailed = 0;
+  $seenEmails = [];
+
+  foreach ($rawInvitees as $idx => $raw) {
+    if (!is_array($raw)) {
+      $failed++;
+      $results[] = [
+        'fullName' => '',
+        'email' => '',
+        'ok' => false,
+        'error' => 'Invalid invitee row.',
+      ];
+      continue;
+    }
+
+    $fullName = trim((string)($raw['fullName'] ?? $raw['name'] ?? ''));
+    $email = strtolower(trim((string)($raw['email'] ?? '')));
+    $phone = trim((string)($raw['phone'] ?? ''));
+
+    if ($fullName === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      $failed++;
+      $results[] = [
+        'fullName' => $fullName,
+        'email' => $email,
+        'ok' => false,
+        'error' => 'Name and a valid email are required.',
+      ];
+      continue;
+    }
+    if (isset($seenEmails[$email])) {
+      $failed++;
+      $results[] = [
+        'fullName' => $fullName,
+        'email' => $email,
+        'ok' => false,
+        'error' => 'Duplicate email in this upload.',
+      ];
+      continue;
+    }
+    $seenEmails[$email] = true;
+
+    $orderId = 0;
+    $attRow = null;
+    $rowOk = false;
+    $rowError = 'Could not create VIP pass.';
+
+    try {
+      $pdo->beginTransaction();
+
+      $driver = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+      $lockSql = 'SELECT id, name, price_cents, quantity, sold FROM tickets WHERE id = ? AND event_id = ? LIMIT 1';
+      if ($driver === 'mysql' || $driver === 'pgsql') {
+        $lockSql .= ' FOR UPDATE';
+      }
+      $lockStmt = $pdo->prepare($lockSql);
+      $lockStmt->execute([$ticketId, $eventId]);
+      $lockedTicket = $lockStmt->fetch();
+      if (!$lockedTicket) {
+        throw new Exception('ticket_not_found');
+      }
+      $available = max(0, (int)$lockedTicket['quantity'] - (int)$lockedTicket['sold']);
+      if ($available < 1) {
+        throw new Exception('ticket_sold_out');
+      }
+
+      $normalizedItems = [[
+        'ticketId' => (string)$ticketId,
+        'name' => (string)$lockedTicket['name'],
+        'quantity' => 1,
+        'price' => ((int)$lockedTicket['price_cents']) / 100,
+      ]];
+      $attendees = [[
+        'ticketId' => (string)$ticketId,
+        'fullName' => $fullName,
+        'email' => $email,
+        'phone' => $phone,
+        'customFields' => [],
+      ]];
+
+      $ins = $pdo->prepare(
+        'INSERT INTO orders (event_id, buyer_user_id, buyer_name, buyer_phone, buyer_email, tickets_json, total_amount_cents, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      );
+      $ins->execute([
+        $eventId,
+        $uid,
+        $fullName,
+        $phone !== '' ? $phone : null,
+        $email,
+        json_encode($normalizedItems, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        0,
+        'paid',
+      ]);
+      $orderId = (int)$pdo->lastInsertId();
+      mark_order_policy_acceptance($pdo, $orderId);
+      set_order_payment_method($pdo, $orderId, 'vip_invite');
+      upsert_transaction($pdo, $eventId, $uid, $orderId, 0, 'paid', 'vip_invite');
+      increment_ticket_sold_counts($pdo, $normalizedItems);
+
+      $createdCount = insert_attendees_for_order(
+        $pdo,
+        $orderId,
+        $eventId,
+        $attendees,
+        $email,
+        $phone,
+        $fullName,
+        []
+      );
+      if ($createdCount !== 1) {
+        throw new Exception('invalid_attendee');
+      }
+
+      $attStmt = $pdo->prepare(
+        'SELECT a.id, a.order_id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, a.custom_fields_json, t.name AS ticket_name
+         FROM attendees a
+         JOIN tickets t ON t.id = a.ticket_id
+         WHERE a.order_id = ? AND a.event_id = ?
+         ORDER BY a.id DESC
+         LIMIT 1'
+      );
+      $attStmt->execute([$orderId, $eventId]);
+      $attRow = $attStmt->fetch();
+      if (!$attRow) {
+        throw new Exception('attendee_missing');
+      }
+      $pdo->commit();
+      $rowOk = true;
+    } catch (Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      error_log(sprintf('[turnout] vip invitee create failed event=%d email=%s: %s', $eventId, $email, $e->getMessage()));
+      $msg = $e->getMessage();
+      if (strpos($msg, 'sold_out') !== false) {
+        $rowError = 'Ticket type is sold out or unavailable.';
+      } elseif (strpos($msg, 'ticket_not_found') !== false) {
+        $rowError = 'Selected ticket type is invalid or unavailable.';
+      } else {
+        $rowError = 'Could not create VIP pass. Check ticket availability and try again.';
+      }
+    }
+
+    if (!$rowOk) {
+      $failed++;
+      $results[] = [
+        'fullName' => $fullName,
+        'email' => $email,
+        'ok' => false,
+        'error' => $rowError,
+      ];
+      continue;
+    }
+
+    $created++;
+    $emailSent = false;
+    if ($sendEmail && $orderId > 0) {
+      try {
+        $emailSent = send_vip_invite_pass_email($pdo, $orderId);
+        if ($emailSent) $emailed++;
+      } catch (Throwable $e) {
+        error_log(sprintf('[turnout] vip invite email failed order=%d: %s', $orderId, $e->getMessage()));
+      }
+    }
+
+    $shape = attendee_api_shape($attRow, $eventId);
+    $results[] = [
+      'fullName' => $fullName,
+      'email' => $email,
+      'ok' => true,
+      'attendeeId' => $shape['id'],
+      'orderId' => (string)$orderId,
+      'emailSent' => $emailSent,
+    ];
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'created' => $created,
+    'failed' => $failed,
+    'emailed' => $emailed,
+    'results' => $results,
+    'stats' => fetch_attendee_stats($pdo, $eventId),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/invitees/(\\d+)/resend$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $attendeeId = (int)$m[2];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_order_bank_transfer_columns($pdo);
+
+  $stmt = $pdo->prepare(
+    'SELECT a.id, a.order_id, o.payment_method
+     FROM attendees a
+     INNER JOIN orders o ON o.id = a.order_id
+     WHERE a.id = ? AND a.event_id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$attendeeId, $eventId]);
+  $row = $stmt->fetch();
+  if (!$row) {
+    json_response(404, ['error' => 'invitee_not_found', 'message' => 'Invitee not found.']);
+  }
+  if (trim((string)($row['payment_method'] ?? '')) !== 'vip_invite') {
+    json_response(400, [
+      'error' => 'not_vip_invitee',
+      'message' => 'This attendee is not a VIP invite pass.',
+    ]);
+  }
+
+  $orderId = (int)$row['order_id'];
+  $sent = false;
+  try {
+    $sent = send_vip_invite_pass_email($pdo, $orderId);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] vip invite resend failed order=%d: %s', $orderId, $e->getMessage()));
+  }
+  if (!$sent) {
+    json_response(500, [
+      'error' => 'email_send_failed',
+      'message' => 'Could not send the VIP pass email. Check the guest email and try again.',
+    ]);
+  }
+  json_response(200, ['ok' => true, 'emailSent' => true]);
+}
+
 if (preg_match('#^/events/(\\d+)/attendees\\.csv$#', $path, $m) && $method === 'GET') {
   $uid = require_organizer_user_id();
   $eventId = (int)$m[1];

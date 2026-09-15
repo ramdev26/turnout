@@ -11,6 +11,7 @@ import {
   ScanLine,
   Search,
   Shield,
+  Sparkles,
   Undo2,
   UserPlus,
   Users,
@@ -22,6 +23,7 @@ import { Attendee, CheckoutFieldDefinition, Event, Order } from '../types';
 import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel';
 import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
+import { InviteesPanel } from '../components/organizer/InviteesPanel';
 import { AttendeeDetailDrawer } from '../components/organizer/AttendeeDetailDrawer';
 import { ManualAddAttendeeModal } from '../components/organizer/ManualAddAttendeeModal';
 import { FlowPage, FlowStatCard, FlowAlert, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
@@ -41,7 +43,7 @@ type CheckinResult = {
   attendee?: Attendee;
 };
 
-type PanelView = 'scan' | 'list' | 'transfers';
+type PanelView = 'scan' | 'list' | 'transfers' | 'invitees';
 
 export const CheckInManager: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -63,7 +65,12 @@ export const CheckInManager: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab');
   const [panel, setPanel] = useState<PanelView>(
-    initialTab === 'transfers' || initialTab === 'list' || initialTab === 'scan' ? initialTab : 'scan'
+    initialTab === 'transfers' ||
+      initialTab === 'list' ||
+      initialTab === 'scan' ||
+      initialTab === 'invitees'
+      ? initialTab
+      : 'scan'
   );
   const [pendingTransfers, setPendingTransfers] = useState(0);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
@@ -324,6 +331,7 @@ export const CheckInManager: React.FC = () => {
                 { id: 'scan' as const, label: 'Scanner', icon: ScanLine },
                 { id: 'list' as const, label: 'Attendee list', icon: List },
                 { id: 'transfers' as const, label: 'Bank transfers', icon: Landmark },
+                { id: 'invitees' as const, label: 'Invitees', icon: Sparkles },
               ] as const
             ).map(({ id, label, icon: Icon }) => (
               <button
@@ -719,6 +727,32 @@ export const CheckInManager: React.FC = () => {
             />
           </div>
         )}
+
+        {panel === 'invitees' && eventId ? (
+          <div className="rounded-2xl border p-5 shadow-sm sm:p-6" style={cardStyle}>
+            <div className="mb-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold" style={{ color: ui.text }}>
+                <Sparkles className="h-5 w-5" style={{ color: ui.accent }} />
+                Invitees · VIP passes
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                Bulk-upload guests, generate complimentary check-in QR passes, and email a VIP card with event details.
+              </p>
+            </div>
+            <InviteesPanel
+              eventId={eventId}
+              ui={ui}
+              onFeedback={(m) => {
+                setErr(null);
+                setMsg(m);
+              }}
+              onError={(m) => {
+                setMsg(null);
+                setErr(m);
+              }}
+            />
+          </div>
+        ) : null}
 
         {selectedAttendee ? (
           <AttendeeDetailDrawer

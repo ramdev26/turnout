@@ -710,6 +710,7 @@ function mail_payment_mode_label(?string $method): string {
     'bank_transfer' => 'BANK TRANSFER',
     'free' => 'FREE',
     'complimentary' => 'COMPLIMENTARY',
+    'vip_invite' => 'VIP INVITE',
     'manual' => 'MANUAL',
     'manual_cash' => 'CASH',
     'manual_bank', 'manual_bank_transfer' => 'BANK TRANSFER',
@@ -1378,3 +1379,105 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
   );
 }
 
+
+function send_vip_invite_pass_email(PDO $pdo, int $orderId): bool {
+  $stmt = $pdo->prepare(
+    'SELECT o.id, o.buyer_name, o.buyer_email, o.payment_method, o.created_at,
+            e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url,
+            e.organizer_user_id
+     FROM orders o
+     INNER JOIN events e ON e.id = o.event_id
+     WHERE o.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$orderId]);
+  $order = $stmt->fetch();
+  if (!$order) {
+    return false;
+  }
+
+  $attStmt = $pdo->prepare(
+    'SELECT a.id, a.full_name, a.email, a.qr_token, t.name AS ticket_name
+     FROM attendees a
+     LEFT JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.order_id = ?
+     ORDER BY a.id ASC
+     LIMIT 1'
+  );
+  $attStmt->execute([$orderId]);
+  $pass = $attStmt->fetch();
+  if (!$pass) {
+    return false;
+  }
+
+  $toEmail = strtolower(trim((string)($pass['email'] ?? $order['buyer_email'] ?? '')));
+  if ($toEmail === '' || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+    return false;
+  }
+
+  $guestName = trim((string)($pass['full_name'] ?? $order['buyer_name'] ?? 'Guest'));
+  $eventTitle = (string)($order['event_title'] ?? 'Your event');
+  $eventWhen = mail_format_event_when((string)($order['event_date'] ?? ''));
+  $eventWhere = trim((string)($order['location'] ?? ''));
+  $ticketName = trim((string)($pass['ticket_name'] ?? 'VIP Pass'));
+  $qrToken = (string)($pass['qr_token'] ?? '');
+  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken) : '';
+  $bannerUrl = mail_absolute_asset_url((string)($order['banner_url'] ?? ''));
+  $ticketUrl = mail_order_success_url($orderId, null, [(int)$pass['id']]);
+  $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
+
+  $greeting = htmlspecialchars($guestName !== '' ? $guestName : 'there');
+  $eventTitleH = htmlspecialchars($eventTitle);
+  $eventWhenH = htmlspecialchars($eventWhen);
+  $eventWhereH = htmlspecialchars($eventWhere);
+  $ticketNameH = htmlspecialchars($ticketName !== '' ? $ticketName : 'VIP Pass');
+
+  $bannerHtml = $bannerUrl !== ''
+    ? '<img src="' . htmlspecialchars($bannerUrl) . '" alt="' . $eventTitleH . '" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />'
+    : '';
+
+  $qrHtml = $qrImg !== ''
+    ? '<div style="margin:18px auto 8px;width:200px;background:#ffffff;border-radius:16px;padding:14px;border:1px solid rgba(255,255,255,0.18);">' .
+      '<img src="' . htmlspecialchars($qrImg) . '" alt="Check-in QR" width="172" height="172" style="display:block;width:172px;height:172px;margin:0 auto;" />' .
+      '</div>' .
+      '<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.62);">Show this code at the door</div>'
+    : '';
+
+  $details =
+    '<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">' .
+    '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Guest</td>' .
+    '<td style="padding:8px 0;font-size:14px;font-weight:700;color:#f8fafc;text-align:right;">' . $greeting . '</td></tr>' .
+    '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Pass</td>' .
+    '<td style="padding:8px 0;font-size:14px;font-weight:700;color:#f8fafc;text-align:right;">' . $ticketNameH . '</td></tr>' .
+    ($eventWhenH !== ''
+      ? '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">When</td>' .
+        '<td style="padding:8px 0;font-size:14px;font-weight:600;color:#e2e8f0;text-align:right;">' . $eventWhenH . '</td></tr>'
+      : '') .
+    ($eventWhereH !== ''
+      ? '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Where</td>' .
+        '<td style="padding:8px 0;font-size:14px;font-weight:600;color:#e2e8f0;text-align:right;">' . $eventWhereH . '</td></tr>'
+      : '') .
+    '</table>';
+
+  $inner =
+    $bannerHtml .
+    '<div style="padding:0;background:linear-gradient(165deg,#0f172a 0%,#1e1b4b 48%,#312e81 100%);">' .
+    '<div style="padding:28px 28px 10px;text-align:center;">' .
+    '<div style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(250,204,21,0.16);border:1px solid rgba(250,204,21,0.35);color:#fde68a;font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;">VIP Invite</div>' .
+    '<h1 style="margin:16px 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:#ffffff;">You\'re on the list</h1>' .
+    '<p style="margin:0 auto;max-width:420px;font-size:15px;line-height:1.6;color:#cbd5e1;">Hi ' . $greeting .
+    ', your complimentary VIP pass for <strong style="color:#fff;">' . $eventTitleH . '</strong> is ready.</p>' .
+    $qrHtml .
+    '</div>' .
+    '<div style="padding:8px 28px 28px;">' .
+    '<div style="background:rgba(15,23,42,0.45);border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:18px;">' .
+    $details .
+    '</div>' .
+    mail_cta_button($ticketUrl, 'VIEW DIGITAL PASS', '#fbbf24', '#111827') .
+    '<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">Keep this email handy. Your QR is unique to you and works for door check-in.</p>' .
+    '</div></div>';
+
+  $subject = 'Your VIP pass for ' . $eventTitle;
+  $html = mail_transaction_layout($inner, 'Your VIP pass for ' . $eventTitle . ' is ready.', $organizerName);
+  return send_email($toEmail, $subject, $html, $pdo);
+}
