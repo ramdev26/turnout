@@ -33,6 +33,8 @@ import { TurnoutSelect } from '../ui/TurnoutSelect';
 import { formatApiError } from '../../utils/apiError';
 import { cn } from '../../utils/cn';
 import { absoluteAppUrl } from '../../lib/publicAppUrl';
+import { TURNOUT_BRAND } from '../../themes/brandColors';
+import { createPortal } from 'react-dom';
 
 const SAMPLE_INVITEE_CSV = `name,email,phone
 Jane Perera,jane@example.com,+94771234567
@@ -191,6 +193,17 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
   const accentBtn = accentButtonStyleFor(ui);
+  const solidPanelBg = ui.isDark ? TURNOUT_BRAND.teal900 : '#ffffff';
+  const solidMutedBg = ui.isDark ? TURNOUT_BRAND.teal800 : '#f4f4f5';
+  const solidPanelStyle: React.CSSProperties = {
+    backgroundColor: solidPanelBg,
+    borderColor: ui.borderColor,
+    color: ui.text,
+  };
+  const solidMutedStyle: React.CSSProperties = {
+    backgroundColor: solidMutedBg,
+    borderColor: ui.borderColor,
+  };
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketId, setTicketId] = useState('');
@@ -751,146 +764,161 @@ export function InviteesPanel({ eventId, ui, onFeedback, onError }: Props) {
         )}
       </div>
 
-      {passCard ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label="VIP pass card"
-          onClick={() => setPassCard(null)}
-        >
-          <div
-            className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border shadow-xl"
-            style={{ ...cardStyle, background: ui.cardBg || '#0f172a' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {passCard.event.bannerUrl ? (
-              <img
-                src={
-                  passCard.event.bannerUrl.startsWith('http')
-                    ? passCard.event.bannerUrl
-                    : toApiUrl(passCard.event.bannerUrl)
-                }
-                alt=""
-                className="h-28 w-full object-cover"
+      {passCard
+        ? createPortal(
+            <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-4">
+              <button
+                type="button"
+                aria-label="Close VIP pass card"
+                className="absolute inset-0 bg-black/60"
+                onClick={() => setPassCard(null)}
               />
-            ) : null}
-            <div className="space-y-4 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p
-                    className="text-[11px] font-bold uppercase tracking-[0.14em]"
-                    style={{ color: ui.accent }}
-                  >
-                    VIP Invite
-                  </p>
-                  <h3 className="mt-1 text-lg font-bold" style={{ color: ui.text }}>
-                    {passCard.event.title || 'Event pass'}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPassCard(null)}
-                  className="rounded-lg p-1.5"
-                  style={{ color: ui.textMuted }}
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="rounded-xl border p-4 text-center" style={cardMutedStyle}>
-                <p className="text-sm font-bold" style={{ color: ui.text }}>
-                  {passCard.invitee.fullName}
-                </p>
-                <p className="text-xs" style={{ color: ui.textMuted }}>
-                  {passCard.invitee.ticketName || 'VIP Pass'} · {passCard.invitee.email}
-                </p>
-                <div className="mx-auto mt-4 inline-flex rounded-xl bg-white p-3">
-                  <QRCodeCanvas
-                    value={passCard.invitee.qrToken}
-                    size={168}
-                    bgColor="#ffffff"
-                    fgColor="#0c1f24"
-                    level="H"
-                    includeMargin={false}
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="VIP pass card"
+                className="relative z-10 max-h-[min(92vh,800px)] w-full max-w-md overflow-y-auto rounded-t-2xl border shadow-2xl sm:rounded-2xl"
+                style={solidPanelStyle}
+              >
+                {passCard.event.bannerUrl ? (
+                  <img
+                    src={
+                      passCard.event.bannerUrl.startsWith('http')
+                        ? passCard.event.bannerUrl
+                        : toApiUrl(passCard.event.bannerUrl)
+                    }
+                    alt=""
+                    className="h-28 w-full object-cover"
                   />
+                ) : null}
+                <div className="space-y-4 p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p
+                        className="text-[11px] font-bold uppercase tracking-[0.14em]"
+                        style={{ color: ui.accent }}
+                      >
+                        VIP Invite
+                      </p>
+                      <h3 className="mt-1 text-lg font-bold" style={{ color: ui.text }}>
+                        {passCard.event.title || 'Event pass'}
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPassCard(null)}
+                      className="rounded-lg p-1.5"
+                      style={{ color: ui.textMuted }}
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border p-4 text-center" style={solidMutedStyle}>
+                    <p className="text-sm font-bold" style={{ color: ui.text }}>
+                      {passCard.invitee.fullName}
+                    </p>
+                    <p className="text-xs" style={{ color: ui.textMuted }}>
+                      {passCard.invitee.ticketName || 'VIP Pass'} · {passCard.invitee.email}
+                    </p>
+                    <div className="mx-auto mt-4 inline-flex rounded-xl bg-white p-3">
+                      <QRCodeCanvas
+                        value={passCard.invitee.qrToken}
+                        size={168}
+                        bgColor="#ffffff"
+                        fgColor="#0c1f24"
+                        level="H"
+                        includeMargin={false}
+                      />
+                    </div>
+                    <p
+                      className="mt-2 text-[11px] font-semibold uppercase tracking-wide"
+                      style={{ color: ui.textSubtle }}
+                    >
+                      Show this code at the door
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5 text-sm" style={{ color: ui.textMuted }}>
+                    {passCard.event.date ? (
+                      <p>
+                        <span className="font-semibold" style={{ color: ui.text }}>
+                          When ·{' '}
+                        </span>
+                        {format(new Date(passCard.event.date), 'EEE, d MMM yyyy · h:mm a')}
+                      </p>
+                    ) : null}
+                    {passCard.event.location ? (
+                      <p>
+                        <span className="font-semibold" style={{ color: ui.text }}>
+                          Where ·{' '}
+                        </span>
+                        {passCard.event.location}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-xl border p-3" style={solidMutedStyle}>
+                    <p
+                      className="text-[11px] font-semibold uppercase tracking-wide"
+                      style={{ color: ui.textSubtle }}
+                    >
+                      Shareable link
+                    </p>
+                    <p className="mt-1 break-all text-xs" style={{ color: ui.text }}>
+                      {passCard.shortUrl || passCard.url}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(passCard.shortUrl || passCard.url).then(
+                          () => onFeedback?.('Pass link copied'),
+                          () => onError?.('Could not copy link')
+                        );
+                      }}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold"
+                      style={{ ...solidMutedStyle, color: ui.text }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const link = passCard.shortUrl || passCard.url;
+                        const text = `Your VIP pass for ${passCard.event.title || 'the event'}: ${link}`;
+                        window.open(
+                          `https://wa.me/?text=${encodeURIComponent(text)}`,
+                          '_blank',
+                          'noopener,noreferrer'
+                        );
+                      }}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold"
+                      style={accentBtn}
+                    >
+                      Share on WhatsApp
+                    </button>
+                    <a
+                      href={passCard.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold"
+                      style={{ ...solidMutedStyle, color: ui.text }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open guest pass page
+                    </a>
+                  </div>
                 </div>
-                <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Show this code at the door
-                </p>
               </div>
-
-              <div className="space-y-1.5 text-sm" style={{ color: ui.textMuted }}>
-                {passCard.event.date ? (
-                  <p>
-                    <span className="font-semibold" style={{ color: ui.text }}>
-                      When ·{' '}
-                    </span>
-                    {format(new Date(passCard.event.date), 'EEE, d MMM yyyy · h:mm a')}
-                  </p>
-                ) : null}
-                {passCard.event.location ? (
-                  <p>
-                    <span className="font-semibold" style={{ color: ui.text }}>
-                      Where ·{' '}
-                    </span>
-                    {passCard.event.location}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="rounded-xl border p-3" style={cardMutedStyle}>
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Shareable link
-                </p>
-                <p className="mt-1 break-all text-xs" style={{ color: ui.text }}>
-                  {passCard.shortUrl || passCard.url}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(passCard.shortUrl || passCard.url).then(
-                      () => onFeedback?.('Pass link copied'),
-                      () => onError?.('Could not copy link')
-                    );
-                  }}
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold"
-                  style={{ ...cardStyle, color: ui.text }}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy link
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const link = passCard.shortUrl || passCard.url;
-                    const text = `Your VIP pass for ${passCard.event.title || 'the event'}: ${link}`;
-                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
-                  }}
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold"
-                  style={accentBtn}
-                >
-                  Share on WhatsApp
-                </button>
-                <a
-                  href={passCard.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold"
-                  style={{ ...cardStyle, color: ui.text }}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Open guest pass page
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
