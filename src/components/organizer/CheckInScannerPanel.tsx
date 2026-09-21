@@ -24,6 +24,13 @@ export type CheckInScannerPanelProps = {
   staffPin?: string | null;
   /** Per-volunteer browser session for scan history tracking. */
   volunteerSessionId?: string | null;
+  /**
+   * When set, every scan uses this handler (offline roster + queue) instead of the live API.
+   * Return the same shape as the online check-in response.
+   */
+  offlineCheckIn?: ((qrToken: string) => Promise<CheckinResult>) | null;
+  /** Shown under the status strip when offline mode is active. */
+  offlineModeActive?: boolean;
   className?: string;
   onCheckInSuccess?: (result: CheckinResult) => void;
 };
@@ -32,6 +39,8 @@ export const CheckInScannerPanel: React.FC<CheckInScannerPanelProps> = ({
   eventId,
   staffPin = null,
   volunteerSessionId = null,
+  offlineCheckIn = null,
+  offlineModeActive = false,
   className,
   onCheckInSuccess,
 }) => {
@@ -59,6 +68,8 @@ export const CheckInScannerPanel: React.FC<CheckInScannerPanelProps> = ({
   staffPinRef.current = staffPin;
   const volunteerSessionIdRef = useRef(volunteerSessionId);
   volunteerSessionIdRef.current = volunteerSessionId;
+  const offlineCheckInRef = useRef(offlineCheckIn);
+  offlineCheckInRef.current = offlineCheckIn;
 
   const playSuccessFeedback = () => {
     try {
@@ -95,14 +106,28 @@ export const CheckInScannerPanel: React.FC<CheckInScannerPanelProps> = ({
       lastScannedTokenRef.current = parsed.qrToken;
       cooldownUntilRef.current = now + SCAN_COOLDOWN_MS;
       setStatus('idle');
-      setStatusMsg('Checking in…');
+      setStatusMsg(offlineCheckInRef.current ? 'Checking in (offline)…' : 'Checking in…');
 
       try {
-        const body: { qrToken: string; staffPin?: string; volunteerSessionId?: string } = { qrToken: parsed.qrToken };
-        if (staffPinRef.current) body.staffPin = staffPinRef.current;
-        if (volunteerSessionIdRef.current) body.volunteerSessionId = volunteerSessionIdRef.current;
+        let res: CheckinResult;
+        if (offlineCheckInRef.current) {
+          res = await offlineCheckInRef.current(parsed.qrToken);
+          if (!res.ok) {
+            setStatus('error');
+            setStatusMsg(res.message || 'Check-in failed');
+            setLastAttendee(null);
+            lastScannedTokenRef.current = null;
+            return;
+          }
+        } else {
+          const body: { qrToken: string; staffPin?: string; volunteerSessionId?: string } = {
+            qrToken: parsed.qrToken,
+          };
+          if (staffPinRef.current) body.staffPin = staffPinRef.current;
+          if (volunteerSessionIdRef.current) body.volunteerSessionId = volunteerSessionIdRef.current;
+          res = await api.post<CheckinResult>(`/api/events/${eventId}/checkin`, body);
+        }
 
-        const res = await api.post<CheckinResult>(`/api/events/${eventId}/checkin`, body);
         setLastAttendee(res.attendee || null);
         if (res.alreadyCheckedIn) {
           setStatus('warning');
@@ -337,7 +362,9 @@ export const CheckInScannerPanel: React.FC<CheckInScannerPanelProps> = ({
       )}
 
       <p className="text-center text-xs" style={{ color: ui.textSubtle }}>
-        Hold steady, brighten the guest&apos;s screen, and fill the frame with the QR code.
+        {offlineModeActive
+          ? 'Offline mode — scans are saved on this device and sync when you have signal.'
+          : "Hold steady, brighten the guest's screen, and fill the frame with the QR code."}
       </p>
     </div>
   );

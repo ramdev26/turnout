@@ -5841,56 +5841,137 @@ if (preg_match('#^/events/(\\d+)/checkin/undo$#', $path, $m) && $method === 'POS
   json_response(200, ['ok' => true, 'attendee' => attendee_api_shape($a, $eventId)]);
 }
 
+if (preg_match('#^/events/(\\d+)/checkin/roster$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_checkin_access($pdo, $eventId, $body);
+
+  $afterId = (int)($body['afterId'] ?? 0);
+  $limit = (int)($body['limit'] ?? 1000);
+  $page = fetch_checkin_roster_page($pdo, $eventId, $afterId, $limit);
+  json_response(200, [
+    'ok' => true,
+    'attendees' => $page['attendees'],
+    'nextAfterId' => $page['nextAfterId'],
+    'hasMore' => $page['hasMore'],
+    'total' => $page['total'],
+    'downloadedAt' => gmdate('c'),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/checkin/roster/delta$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_checkin_access($pdo, $eventId, $body);
+
+  $since = trim((string)($body['since'] ?? ''));
+  if ($since === '') {
+    json_response(400, ['error' => 'invalid_since', 'message' => 'Provide since timestamp from last roster download.']);
+  }
+  $delta = fetch_checkin_roster_delta($pdo, $eventId, $since);
+  json_response(200, [
+    'ok' => true,
+    'updates' => $delta['updates'],
+    'serverTime' => $delta['serverTime'],
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/checkin/batch$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_checkin_access($pdo, $eventId, $body);
+
+  $scans = $body['scans'] ?? null;
+  if (!is_array($scans) || count($scans) < 1) {
+    json_response(400, ['error' => 'invalid_scans', 'message' => 'Provide at least one queued scan.']);
+  }
+  if (count($scans) > 200) {
+    json_response(400, ['error' => 'too_many_scans', 'message' => 'Sync at most 200 scans per request.']);
+  }
+
+  $volunteerSessionId = normalize_volunteer_session_id((string)($body['volunteerSessionId'] ?? ''));
+  $results = [];
+  $synced = 0;
+  $failed = 0;
+
+  foreach ($scans as $scan) {
+    if (!is_array($scan)) {
+      $results[] = [
+        'clientScanId' => null,
+        'ok' => false,
+        'error' => 'invalid_scan',
+        'message' => 'Invalid scan payload.',
+      ];
+      $failed++;
+      continue;
+    }
+
+    $clientScanId = trim((string)($scan['clientScanId'] ?? ''));
+    $qrToken = (string)($scan['qrToken'] ?? '');
+    $scannedAt = isset($scan['scannedAt']) ? (string)$scan['scannedAt'] : null;
+    $applied = apply_attendee_checkin($pdo, $eventId, $qrToken, $volunteerSessionId, $scannedAt);
+
+    if (!empty($applied['ok'])) {
+      $synced++;
+      $results[] = [
+        'clientScanId' => $clientScanId !== '' ? $clientScanId : null,
+        'ok' => true,
+        'alreadyCheckedIn' => !empty($applied['alreadyCheckedIn']),
+        'checkedInAt' => $applied['checkedInAt'] ?? null,
+        'attendee' => $applied['attendee'] ?? null,
+        'message' => $applied['message'] ?? null,
+      ];
+    } else {
+      $failed++;
+      $results[] = [
+        'clientScanId' => $clientScanId !== '' ? $clientScanId : null,
+        'ok' => false,
+        'error' => $applied['error'] ?? 'checkin_failed',
+        'message' => $applied['message'] ?? 'Check-in failed',
+      ];
+    }
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'results' => $results,
+    'synced' => $synced,
+    'failed' => $failed,
+  ]);
+}
+
 if (preg_match('#^/events/(\\d+)/checkin$#', $path, $m) && $method === 'POST') {
   $eventId = (int)$m[1];
   $body = read_json_body();
-  $token = normalize_qr_token_lookup((string)($body['qrToken'] ?? ''));
-  if ($token === '') json_response(400, ['error' => 'invalid_qr_token', 'message' => 'Scan a valid ticket QR code.']);
+  $token = (string)($body['qrToken'] ?? '');
+  if (normalize_qr_token_lookup($token) === '') {
+    json_response(400, ['error' => 'invalid_qr_token', 'message' => 'Scan a valid ticket QR code.']);
+  }
 
   $pdo = db();
   require_checkin_access($pdo, $eventId, $body);
 
-  $stmt2 = $pdo->prepare(
-    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
-     FROM attendees a
-     JOIN tickets t ON t.id = a.ticket_id
-     WHERE a.event_id = ? AND LOWER(a.qr_token) = ?
-     LIMIT 1'
-  );
-  $stmt2->execute([$eventId, $token]);
-  $a = $stmt2->fetch();
-  if (!$a) json_response(404, ['error' => 'attendee_not_found', 'message' => 'Ticket not found. Check the QR code or token.']);
+  $volunteerSessionId = (string)($body['volunteerSessionId'] ?? '');
+  $scannedAt = isset($body['scannedAt']) ? (string)$body['scannedAt'] : null;
+  $result = apply_attendee_checkin($pdo, $eventId, $token, $volunteerSessionId, $scannedAt);
 
-  $attendee = attendee_api_shape($a, $eventId);
-  $volunteerSessionId = normalize_volunteer_session_id((string)($body['volunteerSessionId'] ?? ''));
-
-  if ($a['checked_in_at']) {
-    if ($volunteerSessionId !== '') {
-      log_volunteer_checkin_scan($pdo, $eventId, $volunteerSessionId, $attendee, 'already_checked_in');
-    }
-    json_response(200, [
-      'ok' => true,
-      'alreadyCheckedIn' => true,
-      'checkedInAt' => $attendee['checkedInAt'],
-      'attendee' => $attendee,
-      'message' => $attendee['fullName'] . ' was already checked in.',
+  if (empty($result['ok'])) {
+    $status = ($result['error'] ?? '') === 'attendee_not_found' ? 404 : 400;
+    json_response($status, [
+      'error' => $result['error'] ?? 'checkin_failed',
+      'message' => $result['message'] ?? 'Check-in failed',
     ]);
   }
 
-  $now = date('Y-m-d H:i:s');
-  $upd = $pdo->prepare('UPDATE attendees SET checked_in_at = ? WHERE id = ?');
-  $upd->execute([$now, (int)$a['id']]);
-  $a['checked_in_at'] = $now;
-  $attendee = attendee_api_shape($a, $eventId);
-  if ($volunteerSessionId !== '') {
-    log_volunteer_checkin_scan($pdo, $eventId, $volunteerSessionId, $attendee, 'success');
-  }
   json_response(200, [
     'ok' => true,
-    'alreadyCheckedIn' => false,
-    'checkedInAt' => $attendee['checkedInAt'],
-    'attendee' => $attendee,
-    'message' => 'Welcome, ' . $attendee['fullName'] . '!',
+    'alreadyCheckedIn' => !empty($result['alreadyCheckedIn']),
+    'checkedInAt' => $result['checkedInAt'] ?? null,
+    'attendee' => $result['attendee'] ?? null,
+    'message' => $result['message'] ?? 'Checked in',
   ]);
 }
 

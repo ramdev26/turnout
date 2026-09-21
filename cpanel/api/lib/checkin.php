@@ -358,3 +358,181 @@ function fetch_attendee_stats(PDO $pdo, int $eventId): array {
     'pending' => max(0, $total - $checkedIn),
   ];
 }
+
+/** Compact roster row for offline door scanners (no custom fields). */
+function checkin_roster_row_shape(array $a, int $eventId): array {
+  return [
+    'id' => (string)$a['id'],
+    'eventId' => (string)$eventId,
+    'qrToken' => strtolower((string)$a['qr_token']),
+    'fullName' => (string)$a['full_name'],
+    'email' => (string)$a['email'],
+    'ticketName' => (string)($a['ticket_name'] ?? ''),
+    'checkedInAt' => !empty($a['checked_in_at']) ? gmdate('c', strtotime($a['checked_in_at'])) : null,
+  ];
+}
+
+/**
+ * Paginated offline roster download. Order by id ASC for stable cursors.
+ * @return array{attendees: array, nextAfterId: ?string, hasMore: bool, total: int}
+ */
+function fetch_checkin_roster_page(PDO $pdo, int $eventId, int $afterId = 0, int $limit = 1000): array {
+  if ($limit < 1) $limit = 1;
+  if ($limit > 2000) $limit = 2000;
+  if ($afterId < 0) $afterId = 0;
+
+  $countStmt = $pdo->prepare('SELECT COUNT(*) FROM attendees WHERE event_id = ?');
+  $countStmt->execute([$eventId]);
+  $total = (int)$countStmt->fetchColumn();
+
+  $stmt = $pdo->prepare(
+    'SELECT a.id, a.full_name, a.email, a.qr_token, a.checked_in_at, t.name AS ticket_name
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.event_id = ? AND a.id > ?
+     ORDER BY a.id ASC
+     LIMIT ' . (int)$limit
+  );
+  $stmt->execute([$eventId, $afterId]);
+
+  $attendees = [];
+  $lastId = $afterId;
+  while ($row = $stmt->fetch()) {
+    $attendees[] = checkin_roster_row_shape($row, $eventId);
+    $lastId = (int)$row['id'];
+  }
+
+  $hasMore = count($attendees) >= $limit;
+  return [
+    'attendees' => $attendees,
+    'nextAfterId' => $hasMore ? (string)$lastId : null,
+    'hasMore' => $hasMore,
+    'total' => $total,
+  ];
+}
+
+/**
+ * Delta of check-in status changes since a timestamp (for multi-device offline refresh).
+ * @return array{updates: array, serverTime: string}
+ */
+function fetch_checkin_roster_delta(PDO $pdo, int $eventId, string $sinceIso): array {
+  $sinceTs = strtotime($sinceIso);
+  if ($sinceTs === false) {
+    json_response(400, ['error' => 'invalid_since', 'message' => 'Provide a valid since timestamp.']);
+  }
+  // Look back 2 minutes to absorb clock skew / in-flight writes.
+  $sinceSql = gmdate('Y-m-d H:i:s', max(0, $sinceTs - 120));
+
+  $stmt = $pdo->prepare(
+    'SELECT a.id, a.full_name, a.email, a.qr_token, a.checked_in_at, t.name AS ticket_name
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.event_id = ? AND a.checked_in_at IS NOT NULL AND a.checked_in_at >= ?
+     ORDER BY a.checked_in_at ASC
+     LIMIT 5000'
+  );
+  $stmt->execute([$eventId, $sinceSql]);
+
+  $updates = [];
+  while ($row = $stmt->fetch()) {
+    $updates[] = checkin_roster_row_shape($row, $eventId);
+  }
+
+  return [
+    'updates' => $updates,
+    'serverTime' => gmdate('c'),
+  ];
+}
+
+function parse_offline_scanned_at(?string $raw): ?string {
+  if ($raw === null) return null;
+  $trimmed = trim($raw);
+  if ($trimmed === '') return null;
+  $ts = strtotime($trimmed);
+  if ($ts === false) return null;
+  $now = time();
+  // Reject far-future or older than 14 days.
+  if ($ts > $now + 300) return null;
+  if ($ts < $now - (14 * 86400)) return null;
+  return date('Y-m-d H:i:s', $ts);
+}
+
+/**
+ * Apply one check-in (online or offline sync). First writer wins on checked_in_at.
+ * @return array{ok: bool, alreadyCheckedIn: bool, message: string, attendee?: array, error?: string}
+ */
+function apply_attendee_checkin(
+  PDO $pdo,
+  int $eventId,
+  string $rawToken,
+  string $volunteerSessionId = '',
+  ?string $scannedAtRaw = null
+): array {
+  $token = normalize_qr_token_lookup($rawToken);
+  if ($token === '') {
+    return ['ok' => false, 'alreadyCheckedIn' => false, 'error' => 'invalid_qr_token', 'message' => 'Scan a valid ticket QR code.'];
+  }
+
+  $stmt = $pdo->prepare(
+    'SELECT a.id, a.ticket_id, a.full_name, a.email, a.phone, a.qr_token, a.checked_in_at, a.created_at, t.name AS ticket_name
+     FROM attendees a
+     JOIN tickets t ON t.id = a.ticket_id
+     WHERE a.event_id = ? AND LOWER(a.qr_token) = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$eventId, $token]);
+  $a = $stmt->fetch();
+  if (!$a) {
+    return ['ok' => false, 'alreadyCheckedIn' => false, 'error' => 'attendee_not_found', 'message' => 'Ticket not found. Check the QR code or token.'];
+  }
+
+  $attendee = attendee_api_shape($a, $eventId);
+  $sessionId = normalize_volunteer_session_id($volunteerSessionId);
+
+  if (!empty($a['checked_in_at'])) {
+    if ($sessionId !== '') {
+      log_volunteer_checkin_scan($pdo, $eventId, $sessionId, $attendee, 'already_checked_in');
+    }
+    return [
+      'ok' => true,
+      'alreadyCheckedIn' => true,
+      'checkedInAt' => $attendee['checkedInAt'],
+      'attendee' => $attendee,
+      'message' => $attendee['fullName'] . ' was already checked in.',
+    ];
+  }
+
+  $checkInAt = parse_offline_scanned_at($scannedAtRaw) ?? date('Y-m-d H:i:s');
+  $upd = $pdo->prepare('UPDATE attendees SET checked_in_at = ? WHERE id = ? AND checked_in_at IS NULL');
+  $upd->execute([$checkInAt, (int)$a['id']]);
+
+  if ($upd->rowCount() < 1) {
+    // Lost race — reload current state.
+    $stmt->execute([$eventId, $token]);
+    $a = $stmt->fetch() ?: $a;
+    $attendee = attendee_api_shape($a, $eventId);
+    if ($sessionId !== '') {
+      log_volunteer_checkin_scan($pdo, $eventId, $sessionId, $attendee, 'already_checked_in');
+    }
+    return [
+      'ok' => true,
+      'alreadyCheckedIn' => true,
+      'checkedInAt' => $attendee['checkedInAt'],
+      'attendee' => $attendee,
+      'message' => $attendee['fullName'] . ' was already checked in.',
+    ];
+  }
+
+  $a['checked_in_at'] = $checkInAt;
+  $attendee = attendee_api_shape($a, $eventId);
+  if ($sessionId !== '') {
+    log_volunteer_checkin_scan($pdo, $eventId, $sessionId, $attendee, 'success');
+  }
+  return [
+    'ok' => true,
+    'alreadyCheckedIn' => false,
+    'checkedInAt' => $attendee['checkedInAt'],
+    'attendee' => $attendee,
+    'message' => 'Welcome, ' . $attendee['fullName'] . '!',
+  ];
+}

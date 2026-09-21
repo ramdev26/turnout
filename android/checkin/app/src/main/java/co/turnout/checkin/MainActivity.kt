@@ -44,9 +44,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     else -> {
+                        val offlineState by vm.offlineState.collectAsState()
                         ScannerScreen(
                             eventTitle = session.eventTitle,
                             scannerState = scannerState,
+                            offlineEnabled = session.offlineEnabled,
+                            offlineState = offlineState,
+                            onToggleOffline = vm::setOfflineEnabled,
+                            onDownloadRoster = vm::downloadRoster,
+                            onSyncPending = { vm.syncPending(silent = false) },
                             onScan = vm::onQrScanned,
                             onManualSubmit = vm::submitManualToken,
                             onSignOut = vm::signOut,

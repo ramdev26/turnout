@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel';
+import { OfflineCheckInControls } from '../components/organizer/OfflineCheckInControls';
 import { VolunteerScanHistory } from '../components/organizer/VolunteerScanHistory';
 import { clearVolunteerSessionId, getOrCreateVolunteerSessionId } from '../lib/volunteerSession';
+import { useOfflineCheckIn } from '../lib/useOfflineCheckIn';
 import { Lock } from 'lucide-react';
 import { accentButtonStyleFor } from '../themes/flowUi';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
@@ -20,6 +22,12 @@ export const StaffCheckInScanner: React.FC = () => {
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [volunteerSessionId, setVolunteerSessionId] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+
+  const offline = useOfflineCheckIn({
+    eventId: eventId || '',
+    staffPin: storedPin,
+    volunteerSessionId,
+  });
 
   const verifyPin = useCallback(async (pinValue: string, showErrors = true) => {
     if (!eventId) return false;
@@ -140,7 +148,7 @@ export const StaffCheckInScanner: React.FC = () => {
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest" style={{ color: ui.accent }}>
-              Door check-in
+              Door check-in{offline.offlineEnabled ? ' · Offline' : ''}
             </p>
             <h1 className="text-lg font-semibold">{eventTitle || 'Event'}</h1>
           </div>
@@ -151,13 +159,46 @@ export const StaffCheckInScanner: React.FC = () => {
       </header>
 
       <main className="mx-auto max-w-lg space-y-4 px-4 py-4">
+        <OfflineCheckInControls
+          offlineEnabled={offline.offlineEnabled}
+          onToggle={offline.setOfflineEnabled}
+          rosterCount={offline.rosterCount}
+          rosterTotal={offline.rosterTotal}
+          pendingCount={offline.pendingCount}
+          downloadedAt={offline.downloadedAt}
+          isOnline={offline.isOnline}
+          downloading={offline.downloading}
+          syncing={offline.syncing}
+          hasRoster={offline.hasRoster}
+          statusMsg={offline.statusMsg}
+          error={offline.error}
+          onDownload={() => void offline.downloadRoster()}
+          onSync={() => void offline.syncPending()}
+        />
         <CheckInScannerPanel
           eventId={eventId}
           staffPin={storedPin}
           volunteerSessionId={volunteerSessionId}
+          offlineModeActive={offline.offlineEnabled}
+          offlineCheckIn={
+            offline.offlineEnabled
+              ? async (qrToken) => {
+                  const res = await offline.performOfflineCheckIn(qrToken);
+                  if (!res.ok) {
+                    return { ok: false, message: res.message };
+                  }
+                  return {
+                    ok: true,
+                    alreadyCheckedIn: res.alreadyCheckedIn,
+                    message: res.message,
+                    attendee: res.attendee,
+                  };
+                }
+              : null
+          }
           onCheckInSuccess={() => setHistoryRefreshKey((k) => k + 1)}
         />
-        {volunteerSessionId && (
+        {volunteerSessionId && !offline.offlineEnabled && (
           <VolunteerScanHistory
             eventId={eventId}
             staffPin={storedPin}
