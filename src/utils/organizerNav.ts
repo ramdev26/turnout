@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Plus,
   Settings,
+  Tag,
   Wallet,
 } from 'lucide-react';
 import type { AppNavLink } from './appNav';
@@ -21,6 +22,7 @@ export function eventWorkspaceNav(eventId: string): AppNavLink[] {
   return [
     { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', icon: Settings, exact: true },
     { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in', icon: CalendarCheck },
+    { to: `/dashboard/events/${eventId}/coupons`, label: 'Coupons', icon: Tag },
   ];
 }
 
