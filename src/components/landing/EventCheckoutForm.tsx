@@ -85,6 +85,17 @@ export const EventCheckoutForm: React.FC<Props> = ({
   const [acceptedEventPolicy, setAcceptedEventPolicy] = useState(false);
   const [policyViewer, setPolicyViewer] = useState<{ title: string; html: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'payhere' | 'bank_transfer'>('payhere');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponApplying, setCouponApplying] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountAmount: number;
+    subtotal: number;
+    total: number;
+  } | null>(null);
+
+  const payableTotal = appliedCoupon ? appliedCoupon.total : totalAmount;
 
   const { register, handleSubmit, reset, watch } = useForm<{
     buyerName: string;
@@ -108,6 +119,55 @@ export const EventCheckoutForm: React.FC<Props> = ({
   const buyerPhone = watch('buyerPhone');
 
   const hasSelectedTickets = orderItems.length > 0;
+
+  useEffect(() => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+    setCouponInput('');
+  }, [totalAmount, orderItems]);
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) {
+      setCouponError('Enter a coupon code.');
+      return;
+    }
+    if (!hasSelectedTickets) {
+      setCouponError('Select tickets before applying a coupon.');
+      return;
+    }
+    setCouponApplying(true);
+    setCouponError(null);
+    try {
+      const res = await api.post<{
+        code: string;
+        discountAmount: number;
+        subtotal: number;
+        total: number;
+      }>(`/api/events/${event.id}/coupons/apply`, {
+        code,
+        tickets: orderItems.map((it) => ({ ticketId: it.ticketId, quantity: it.quantity })),
+      });
+      setAppliedCoupon({
+        code: res.code,
+        discountAmount: res.discountAmount,
+        subtotal: res.subtotal,
+        total: res.total,
+      });
+      setCouponInput(res.code);
+    } catch (e) {
+      setAppliedCoupon(null);
+      setCouponError(formatApiError(e, 'Could not apply coupon'));
+    } finally {
+      setCouponApplying(false);
+    }
+  };
+
+  const clearCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+    setCouponInput('');
+  };
 
   const orderLines = useMemo(
     () =>
@@ -348,7 +408,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
         }
       }
 
-      if (totalAmount <= 0) {
+      if (payableTotal <= 0) {
         const res = await api.post<{ orderId: string; accessToken?: string }>('/api/orders', {
           eventId: event.id,
           buyerName: values.buyerName,
@@ -356,6 +416,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           buyerPhone: values.buyerPhone,
           tickets: orderItems,
           attendees,
+          couponCode: appliedCoupon?.code || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
@@ -372,6 +433,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           buyerPhone: values.buyerPhone,
           tickets: orderItems,
           attendees,
+          couponCode: appliedCoupon?.code || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
@@ -389,6 +451,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           buyerPhone: values.buyerPhone,
           tickets: orderItems,
           attendees,
+          couponCode: appliedCoupon?.code || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
@@ -456,10 +519,76 @@ export const EventCheckoutForm: React.FC<Props> = ({
           </span>
         </div>
       ))}
+
+      {totalAmount > 0 ? (
+        <div className="mt-3 space-y-2 border-t pt-3" style={{ borderColor: 'var(--landing-border)' }}>
+          <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
+            Coupon code
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={couponInput}
+              onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+              placeholder="Enter code"
+              disabled={!!appliedCoupon || couponApplying}
+              className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm font-mono uppercase tracking-wide outline-none"
+              style={inputStyle}
+            />
+            {appliedCoupon ? (
+              <button
+                type="button"
+                onClick={clearCoupon}
+                className="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold"
+                style={{ borderColor: 'var(--landing-border)', color: 'var(--landing-text)' }}
+              >
+                Remove
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void applyCoupon()}
+                disabled={couponApplying || !couponInput.trim()}
+                className="shrink-0 rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-50"
+                style={{
+                  background: 'var(--landing-accent-readable, var(--primary))',
+                  color: 'var(--landing-accent-ink, #0a2426)',
+                }}
+              >
+                {couponApplying ? '…' : 'Apply'}
+              </button>
+            )}
+          </div>
+          {couponError ? (
+            <p className="text-xs font-medium" style={{ color: '#dc2626' }}>
+              {couponError}
+            </p>
+          ) : null}
+          {appliedCoupon ? (
+            <p className="text-xs font-medium" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
+              {appliedCoupon.code} applied · −{formatLKRWhole(appliedCoupon.discountAmount)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {appliedCoupon ? (
+        <div className="mt-2 flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+          <span>Subtotal</span>
+          <span>{formatLKRWhole(appliedCoupon.subtotal)}</span>
+        </div>
+      ) : null}
+      {appliedCoupon ? (
+        <div className="flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+          <span>Discount</span>
+          <span>−{formatLKRWhole(appliedCoupon.discountAmount)}</span>
+        </div>
+      ) : null}
+
       <div className="mt-2 flex justify-between border-t pt-2 font-semibold" style={{ borderColor: 'var(--landing-border)' }}>
         <span>Total</span>
         <span style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
-          {totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}
+          {payableTotal <= 0 ? 'Free' : formatLKRWhole(payableTotal)}
         </span>
       </div>
     </div>
@@ -524,11 +653,11 @@ export const EventCheckoutForm: React.FC<Props> = ({
     ? 'Processing…'
     : !prefillReady
       ? 'Preparing…'
-      : totalAmount <= 0
+      : payableTotal <= 0
         ? 'Confirm registration'
         : paymentMethod === 'bank_transfer' && event.allowBankTransfer
           ? 'Continue · bank transfer'
-          : `Pay ${formatLKRWhole(totalAmount)}`;
+          : `Pay ${formatLKRWhole(payableTotal)}`;
 
   const submitButton = (
     <button
@@ -541,7 +670,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
   );
 
   const paymentMethodBlock =
-    totalAmount > 0 && (event.allowPayhere !== false || event.allowBankTransfer) ? (
+    payableTotal > 0 && (event.allowPayhere !== false || event.allowBankTransfer) ? (
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
           How will you pay?

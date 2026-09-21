@@ -22,6 +22,7 @@ require __DIR__ . '/lib/admin_analytics.php';
 require __DIR__ . '/lib/core_schema.php';
 require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
+require __DIR__ . '/lib/coupons.php';
 
 set_cors_headers_for_same_domain();
 
@@ -2544,8 +2545,14 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $checkoutFields = checkout_fields_from_event_row($ev);
   validate_attendees_for_order($normalized['items'], $attendees, $checkoutFields);
-  $totalCents = (int)$normalized['totalCents'];
+  $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
+  ensure_order_coupon_columns($pdo);
+  $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
+  $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
+  $totalCents = (int)$priced['totalCents'];
+  $discountCents = (int)$priced['discountCents'];
+  $couponRow = $priced['coupon'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'payhere_requires_positive_amount']);
@@ -2568,6 +2575,10 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'payhere');
+    attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    if ($couponRow) {
+      increment_coupon_used_count($pdo, (int)$couponRow['id']);
+    }
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([
@@ -3855,6 +3866,272 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)/delete$#', $path, $m) && $method
   json_response(200, ['ok' => true]);
 }
 
+// ---- Event coupons ----
+if (preg_match('#^/events/(\\d+)/coupons$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  ensure_event_coupons_table($pdo);
+
+  $stmt = $pdo->prepare('SELECT * FROM event_coupons WHERE event_id = ? ORDER BY id DESC');
+  $stmt->execute([$eventId]);
+  $coupons = [];
+  while ($row = $stmt->fetch()) {
+    $coupons[] = coupon_api_shape($row);
+  }
+  json_response(200, ['coupons' => $coupons]);
+}
+
+if (preg_match('#^/events/(\\d+)/coupons$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_coupons_table($pdo);
+
+  $code = normalize_coupon_code((string)($body['code'] ?? ''));
+  $discountType = strtolower(trim((string)($body['discountType'] ?? 'percent')));
+  if (!in_array($discountType, ['percent', 'fixed'], true)) {
+    json_response(400, ['error' => 'invalid_discount_type', 'message' => 'Choose percent or fixed discount.']);
+  }
+  if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,64}$/', $code)) {
+    json_response(400, [
+      'error' => 'invalid_coupon_code',
+      'message' => 'Code must be 2–64 characters (letters, numbers, _ or -).',
+    ]);
+  }
+
+  $discountPercent = 0.0;
+  $discountValueCents = 0;
+  if ($discountType === 'percent') {
+    $discountPercent = (float)($body['discountPercent'] ?? $body['discountValue'] ?? 0);
+    if ($discountPercent <= 0 || $discountPercent > 100) {
+      json_response(400, ['error' => 'invalid_discount', 'message' => 'Percent discount must be between 1 and 100.']);
+    }
+  } else {
+    $amount = (float)($body['discountValue'] ?? 0);
+    if ($amount <= 0) {
+      json_response(400, ['error' => 'invalid_discount', 'message' => 'Fixed discount must be greater than 0.']);
+    }
+    $discountValueCents = (int)round($amount * 100);
+  }
+
+  $maxUses = array_key_exists('maxUses', $body) && $body['maxUses'] !== null && $body['maxUses'] !== ''
+    ? (int)$body['maxUses']
+    : null;
+  if ($maxUses !== null && $maxUses < 1) {
+    json_response(400, ['error' => 'invalid_max_uses', 'message' => 'Max uses must be at least 1, or leave blank for unlimited.']);
+  }
+
+  $minOrderAmount = array_key_exists('minOrderAmount', $body) && $body['minOrderAmount'] !== null && $body['minOrderAmount'] !== ''
+    ? (float)$body['minOrderAmount']
+    : null;
+  $minOrderCents = $minOrderAmount !== null ? (int)round(max(0, $minOrderAmount) * 100) : null;
+
+  $startsAt = parse_optional_datetime_input($body['startsAt'] ?? null);
+  $endsAt = parse_optional_datetime_input($body['endsAt'] ?? null);
+  if ($startsAt && $endsAt && strtotime($endsAt) < strtotime($startsAt)) {
+    json_response(400, ['error' => 'invalid_date_range', 'message' => 'End date must be after start date.']);
+  }
+
+  $active = !array_key_exists('active', $body) || !empty($body['active']);
+
+  try {
+    $ins = $pdo->prepare(
+      'INSERT INTO event_coupons
+        (event_id, code, discount_type, discount_value_cents, discount_percent, max_uses, min_order_cents, starts_at, ends_at, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $ins->execute([
+      $eventId,
+      $code,
+      $discountType,
+      $discountValueCents,
+      $discountPercent,
+      $maxUses,
+      $minOrderCents,
+      $startsAt,
+      $endsAt,
+      $active ? 1 : 0,
+    ]);
+    $id = (int)$pdo->lastInsertId();
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] coupon create failed: %s', $e->getMessage()));
+    json_response(400, [
+      'error' => 'coupon_create_failed',
+      'message' => 'Could not create coupon. That code may already exist for this event.',
+    ]);
+  }
+
+  $stmt = $pdo->prepare('SELECT * FROM event_coupons WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$id, $eventId]);
+  $row = $stmt->fetch();
+  json_response(201, ['coupon' => coupon_api_shape($row)]);
+}
+
+if (preg_match('#^/events/(\\d+)/coupons/(\\d+)$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $couponId = (int)$m[2];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_coupons_table($pdo);
+
+  $stmt = $pdo->prepare('SELECT * FROM event_coupons WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$couponId, $eventId]);
+  $existing = $stmt->fetch();
+  if (!$existing) {
+    json_response(404, ['error' => 'coupon_not_found', 'message' => 'Coupon not found.']);
+  }
+
+  $code = array_key_exists('code', $body)
+    ? normalize_coupon_code((string)$body['code'])
+    : (string)$existing['code'];
+  if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,64}$/', $code)) {
+    json_response(400, [
+      'error' => 'invalid_coupon_code',
+      'message' => 'Code must be 2–64 characters (letters, numbers, _ or -).',
+    ]);
+  }
+
+  $discountType = array_key_exists('discountType', $body)
+    ? strtolower(trim((string)$body['discountType']))
+    : strtolower(trim((string)$existing['discount_type']));
+  if (!in_array($discountType, ['percent', 'fixed'], true)) {
+    json_response(400, ['error' => 'invalid_discount_type', 'message' => 'Choose percent or fixed discount.']);
+  }
+
+  $discountPercent = (float)($existing['discount_percent'] ?? 0);
+  $discountValueCents = (int)($existing['discount_value_cents'] ?? 0);
+  if ($discountType === 'percent') {
+    if (array_key_exists('discountPercent', $body) || array_key_exists('discountValue', $body)) {
+      $discountPercent = (float)($body['discountPercent'] ?? $body['discountValue'] ?? 0);
+    }
+    $discountValueCents = 0;
+    if ($discountPercent <= 0 || $discountPercent > 100) {
+      json_response(400, ['error' => 'invalid_discount', 'message' => 'Percent discount must be between 1 and 100.']);
+    }
+  } else {
+    if (array_key_exists('discountValue', $body)) {
+      $discountValueCents = (int)round(((float)$body['discountValue']) * 100);
+    }
+    $discountPercent = 0;
+    if ($discountValueCents <= 0) {
+      json_response(400, ['error' => 'invalid_discount', 'message' => 'Fixed discount must be greater than 0.']);
+    }
+  }
+
+  $maxUses = $existing['max_uses'];
+  if (array_key_exists('maxUses', $body)) {
+    $maxUses = $body['maxUses'] === null || $body['maxUses'] === '' ? null : (int)$body['maxUses'];
+    if ($maxUses !== null && $maxUses < 1) {
+      json_response(400, ['error' => 'invalid_max_uses', 'message' => 'Max uses must be at least 1, or leave blank for unlimited.']);
+    }
+  }
+
+  $minOrderCents = $existing['min_order_cents'];
+  if (array_key_exists('minOrderAmount', $body)) {
+    $minOrderCents = $body['minOrderAmount'] === null || $body['minOrderAmount'] === ''
+      ? null
+      : (int)round(max(0, (float)$body['minOrderAmount']) * 100);
+  }
+
+  $startsAt = array_key_exists('startsAt', $body)
+    ? parse_optional_datetime_input($body['startsAt'])
+    : ($existing['starts_at'] ?: null);
+  $endsAt = array_key_exists('endsAt', $body)
+    ? parse_optional_datetime_input($body['endsAt'])
+    : ($existing['ends_at'] ?: null);
+  if ($startsAt && $endsAt && strtotime((string)$endsAt) < strtotime((string)$startsAt)) {
+    json_response(400, ['error' => 'invalid_date_range', 'message' => 'End date must be after start date.']);
+  }
+
+  $active = array_key_exists('active', $body) ? (!empty($body['active']) ? 1 : 0) : (int)(bool)$existing['active'];
+
+  try {
+    $upd = $pdo->prepare(
+      'UPDATE event_coupons
+       SET code = ?, discount_type = ?, discount_value_cents = ?, discount_percent = ?,
+           max_uses = ?, min_order_cents = ?, starts_at = ?, ends_at = ?, active = ?
+       WHERE id = ? AND event_id = ?'
+    );
+    $upd->execute([
+      $code,
+      $discountType,
+      $discountValueCents,
+      $discountPercent,
+      $maxUses,
+      $minOrderCents,
+      $startsAt,
+      $endsAt,
+      $active,
+      $couponId,
+      $eventId,
+    ]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] coupon update failed: %s', $e->getMessage()));
+    json_response(400, [
+      'error' => 'coupon_update_failed',
+      'message' => 'Could not update coupon. That code may already exist for this event.',
+    ]);
+  }
+
+  $stmt = $pdo->prepare('SELECT * FROM event_coupons WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$couponId, $eventId]);
+  json_response(200, ['coupon' => coupon_api_shape($stmt->fetch())]);
+}
+
+if (preg_match('#^/events/(\\d+)/coupons/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $couponId = (int)$m[2];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_coupons_table($pdo);
+
+  $del = $pdo->prepare('DELETE FROM event_coupons WHERE id = ? AND event_id = ?');
+  $del->execute([$couponId, $eventId]);
+  if ($del->rowCount() < 1) {
+    json_response(404, ['error' => 'coupon_not_found', 'message' => 'Coupon not found.']);
+  }
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  ensure_event_coupons_table($pdo);
+  require_publishable_event($pdo, $eventId);
+
+  $items = $body['tickets'] ?? [];
+  if (!is_array($items) || count($items) < 1) {
+    json_response(400, ['error' => 'invalid_order_items', 'message' => 'Add tickets before applying a coupon.']);
+  }
+  $code = (string)($body['code'] ?? $body['couponCode'] ?? '');
+  $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
+  $subtotalCents = (int)$normalized['totalCents'];
+  $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $code);
+  $coupon = $priced['coupon'];
+  if (!$coupon) {
+    json_response(400, ['error' => 'invalid_coupon_code', 'message' => 'Enter a coupon code.']);
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'code' => (string)$coupon['code'],
+    'discountType' => strtolower((string)$coupon['discount_type']) === 'fixed' ? 'fixed' : 'percent',
+    'discountPercent' => (float)($coupon['discount_percent'] ?? 0),
+    'discountValue' => ((int)($coupon['discount_value_cents'] ?? 0)) / 100,
+    'subtotal' => $subtotalCents / 100,
+    'discountAmount' => ((int)$priced['discountCents']) / 100,
+    'total' => ((int)$priced['totalCents']) / 100,
+  ]);
+}
+
 // ---- Orders ----
 if ($path === '/orders' && $method === 'POST') {
   $body = read_json_body();
@@ -3873,11 +4150,17 @@ if ($path === '/orders' && $method === 'POST') {
   $pdo = db();
   ensure_order_policy_acceptance_columns($pdo);
   ensure_order_bank_transfer_columns($pdo);
+  ensure_order_coupon_columns($pdo);
   $ev = require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
-  $totalCents = (int)$normalized['totalCents'];
+  $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
-  if ($totalCents > 0) {
+  $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
+  $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
+  $totalCents = (int)$priced['totalCents'];
+  $discountCents = (int)$priced['discountCents'];
+  $couponRow = $priced['coupon'];
+  if ($subtotalCents > 0 && $totalCents > 0) {
     json_response(400, ['error' => 'paid_orders_use_payhere', 'message' => 'Use PayHere checkout for paid tickets.']);
   }
 
@@ -3904,6 +4187,10 @@ if ($path === '/orders' && $method === 'POST') {
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'free');
+    attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    if ($couponRow) {
+      increment_coupon_used_count($pdo, (int)$couponRow['id']);
+    }
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
     increment_ticket_sold_counts($pdo, $normalizedItems);
 
@@ -3932,6 +4219,8 @@ if ($path === '/orders' && $method === 'POST') {
     json_response(201, [
       'orderId' => (string)$orderId,
       'accessToken' => issue_order_access_token($orderId),
+      'discountAmount' => $discountCents / 100,
+      'couponCode' => $couponRow ? (string)$couponRow['code'] : null,
     ]);
   } catch (Exception $e) {
     $pdo->rollBack();
@@ -3981,8 +4270,14 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $checkoutFields = checkout_fields_from_event_row($ev);
   validate_attendees_for_order($normalized['items'], $attendees, $checkoutFields);
-  $totalCents = (int)$normalized['totalCents'];
+  $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
+  ensure_order_coupon_columns($pdo);
+  $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
+  $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
+  $totalCents = (int)$priced['totalCents'];
+  $discountCents = (int)$priced['discountCents'];
+  $couponRow = $priced['coupon'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'bank_transfer_requires_positive_amount']);
@@ -4005,6 +4300,10 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'bank_transfer');
+    attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    if ($couponRow) {
+      increment_coupon_used_count($pdo, (int)$couponRow['id']);
+    }
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([
@@ -4032,6 +4331,8 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     'paymentMethod' => 'bank_transfer',
     'bankTransfer' => $bankDetails,
     'totalAmount' => $totalCents / 100,
+    'discountAmount' => $discountCents / 100,
+    'couponCode' => $couponRow ? (string)$couponRow['code'] : null,
   ]);
 }
 

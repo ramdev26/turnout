@@ -20,6 +20,7 @@ import { parseAuthPayload } from './api/authResponse';
 import { clearAuthToken, getAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
 import { CheckInManager } from './pages/CheckInManager';
+import { EventCoupons } from './pages/EventCoupons';
 import { StaffCheckInScanner } from './pages/StaffCheckInScanner';
 import { AttendeeLogin } from './pages/AttendeeLogin';
 import { AttendeeSignup } from './pages/AttendeeSignup';
@@ -432,6 +433,14 @@ export default function App() {
             element={
               <RequireOrganizer>
                 <CheckInManager />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/dashboard/events/:eventId/coupons"
+            element={
+              <RequireOrganizer>
+                <EventCoupons />
               </RequireOrganizer>
             }
           />
