@@ -24,15 +24,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import co.turnout.checkin.OfflineUiState
 import co.turnout.checkin.ScanStatus
 import co.turnout.checkin.ScannerUiState
 import co.turnout.checkin.ui.theme.TurnoutColors
@@ -61,6 +68,11 @@ import java.util.concurrent.Executors
 fun ScannerScreen(
     eventTitle: String,
     scannerState: ScannerUiState,
+    offlineEnabled: Boolean,
+    offlineState: OfflineUiState,
+    onToggleOffline: (Boolean) -> Unit,
+    onDownloadRoster: () -> Unit,
+    onSyncPending: () -> Unit,
     onScan: (String) -> Unit,
     onManualSubmit: (String) -> Unit,
     onSignOut: () -> Unit,
@@ -97,7 +109,8 @@ fun ScannerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(TurnoutColors.Teal900),
+            .background(TurnoutColors.Teal900)
+            .verticalScroll(rememberScrollState()),
     ) {
         Row(
             modifier = Modifier
@@ -108,7 +121,7 @@ fun ScannerScreen(
         ) {
             Column {
                 Text(
-                    text = "DOOR CHECK-IN",
+                    text = if (offlineEnabled) "DOOR CHECK-IN · OFFLINE" else "DOOR CHECK-IN",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = TurnoutColors.Lime500,
@@ -125,10 +138,22 @@ fun ScannerScreen(
             }
         }
 
+        OfflinePanel(
+            offlineEnabled = offlineEnabled,
+            state = offlineState,
+            onToggle = onToggleOffline,
+            onDownload = onDownloadRoster,
+            onSync = onSyncPending,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 12.dp),
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .height(320.dp)
                 .padding(horizontal = 16.dp)
                 .background(TurnoutColors.Ink, RoundedCornerShape(24.dp)),
         ) {
@@ -196,6 +221,121 @@ fun ScannerScreen(
             }
         } else {
             Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun OfflinePanel(
+    offlineEnabled: Boolean,
+    state: OfflineUiState,
+    onToggle: (Boolean) -> Unit,
+    onDownload: () -> Unit,
+    onSync: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .background(TurnoutColors.Ink.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+            .border(1.dp, TurnoutColors.TextSubtle.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+            .padding(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CloudOff, contentDescription = null, tint = TurnoutColors.Lime500)
+                Column(modifier = Modifier.padding(start = 10.dp)) {
+                    Text(
+                        text = "Offline scans",
+                        color = TurnoutColors.Text,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Download once, scan without signal, sync later",
+                        color = TurnoutColors.TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            TextButton(onClick = { onToggle(!offlineEnabled) }) {
+                Text(
+                    text = if (offlineEnabled) "On" else "Off",
+                    color = if (offlineEnabled) TurnoutColors.Lime500 else TurnoutColors.TextMuted,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
+        if (offlineEnabled) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Roster ${state.rosterCount}" +
+                    if (state.rosterTotal > 0 && state.rosterTotal != state.rosterCount) {
+                        " / ${state.rosterTotal}"
+                    } else {
+                        ""
+                    } +
+                    " · Pending ${state.pendingCount}",
+                color = TurnoutColors.TextMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onDownload,
+                    enabled = !state.downloading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TurnoutColors.Lime500,
+                        contentColor = TurnoutColors.Teal900,
+                    ),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        if (state.downloading) "Downloading…"
+                        else if (state.hasRoster) "Refresh roster"
+                        else "Download roster",
+                    )
+                }
+                OutlinedButton(
+                    onClick = onSync,
+                    enabled = !state.syncing && state.pendingCount > 0,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        if (state.syncing) "Syncing…"
+                        else if (state.pendingCount > 0) "Sync ${state.pendingCount}"
+                        else "Synced",
+                        color = TurnoutColors.Text,
+                    )
+                }
+            }
+            state.statusMessage?.let {
+                Text(
+                    text = it,
+                    color = TurnoutColors.Lime500,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            state.error?.let {
+                Text(
+                    text = it,
+                    color = TurnoutColors.Error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+            if (!state.hasRoster) {
+                Text(
+                    text = "Download the roster while you still have signal.",
+                    color = TurnoutColors.Warning,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
 }

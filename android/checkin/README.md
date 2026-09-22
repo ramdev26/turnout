@@ -9,12 +9,13 @@ Staff QR scanner for door check-in. Uses the same **Turnout teal + lime** brandi
 - Scan ticket QR codes with the rear camera (ML Kit)
 - Manual token entry fallback
 - Success / already checked-in / error feedback (matches web scanner)
+- **Offline scans** for large venues / weak signal: download the attendee roster, check guests in locally, then sync when online
 
 ## Requirements
 
 - Android 8.0+ (API 26)
 - Camera permission
-- Internet access to your Turnout API host
+- Internet access to download the roster and sync (scanning itself works offline once the roster is on the phone)
 
 ## Install Android SDK (command line)
 
@@ -138,10 +139,20 @@ Install on a phone: `adb install -r TurnoutCheckIn-debug.apk`
 2. In the app, enter your production API URL and event ID.
 3. Enter the staff PIN → start scanning ticket QRs from the order confirmation page.
 
+### Offline mode (10k+ / weak signal)
+
+1. While you still have network: turn **Offline scans** on → tap **Download roster**.
+2. Scan at the door even if the signal drops — check-ins are stored on the phone.
+3. When online again, tap **Sync** (or wait for auto-sync) to push queued scans to Turnout.
+4. Refresh the roster periodically so other door phones’ check-ins appear as “already checked in”.
+
 ## API endpoints used
 
 - `POST /api/events/{eventId}/checkin/verify-pin` — `{ "staffPin": "123456" }`
 - `POST /api/events/{eventId}/checkin` — `{ "qrToken": "…", "staffPin": "123456" }`
+- `POST /api/events/{eventId}/checkin/roster` — paginated offline roster download
+- `POST /api/events/{eventId}/checkin/roster/delta` — check-in status updates since last sync
+- `POST /api/events/{eventId}/checkin/batch` — sync queued offline scans
 
 No organizer login cookie is required when the staff PIN is valid.
 

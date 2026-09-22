@@ -3,6 +3,7 @@ package co.turnout.checkin.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -17,6 +18,7 @@ data class CheckInSession(
     val eventId: String = "",
     val staffPin: String = "",
     val eventTitle: String = "",
+    val offlineEnabled: Boolean = false,
 ) {
     val isConfigured: Boolean get() = apiBaseUrl.isNotBlank() && eventId.isNotBlank()
     val isUnlocked: Boolean get() = isConfigured && staffPin.length >= 4
@@ -27,6 +29,7 @@ class SessionStore(private val context: Context) {
     private val eventIdKey = stringPreferencesKey("event_id")
     private val staffPinKey = stringPreferencesKey("staff_pin")
     private val eventTitleKey = stringPreferencesKey("event_title")
+    private val offlineEnabledKey = booleanPreferencesKey("offline_enabled")
 
     val session: Flow<CheckInSession> = context.dataStore.data.map { prefs ->
         CheckInSession(
@@ -34,6 +37,7 @@ class SessionStore(private val context: Context) {
             eventId = prefs[eventIdKey].orEmpty(),
             staffPin = prefs[staffPinKey].orEmpty(),
             eventTitle = prefs[eventTitleKey].orEmpty(),
+            offlineEnabled = prefs[offlineEnabledKey] ?: false,
         )
     }
 
@@ -43,6 +47,7 @@ class SessionStore(private val context: Context) {
             prefs[eventIdKey] = eventId.trim()
             prefs[staffPinKey] = ""
             prefs[eventTitleKey] = ""
+            prefs[offlineEnabledKey] = false
         }
     }
 
@@ -50,6 +55,12 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[staffPinKey] = staffPin
             prefs[eventTitleKey] = eventTitle
+        }
+    }
+
+    suspend fun setOfflineEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[offlineEnabledKey] = enabled
         }
     }
 

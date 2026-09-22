@@ -22,6 +22,7 @@ import { api, toApiUrl } from '../api/client';
 import { Attendee, CheckoutFieldDefinition, Event, Order } from '../types';
 import { OrganizerFlowShell } from '../components/organizer/OrganizerFlowShell';
 import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel';
+import { OfflineCheckInControls } from '../components/organizer/OfflineCheckInControls';
 import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
 import { InviteesPanel } from '../components/organizer/InviteesPanel';
 import { AttendeeDetailDrawer } from '../components/organizer/AttendeeDetailDrawer';
@@ -33,6 +34,7 @@ import { accentButtonStyleFor, cardMutedStyleFor, cardStyleFor, fieldClassFor, f
 import { parseQrCheckInPayload } from '../utils/qrCheckIn';
 import { absoluteAppUrl } from '../lib/publicAppUrl';
 import { normalizeCheckoutFields } from '../utils/checkoutFields';
+import { useOfflineCheckIn } from '../lib/useOfflineCheckIn';
 
 type AttendeeStats = { total: number; checkedIn: number; pending: number };
 type CheckinConfig = { staffPin: string; staffUrl: string };
@@ -79,6 +81,7 @@ export const CheckInManager: React.FC = () => {
   const hasLoadedOnceRef = useRef(false);
 
   const { eventId } = useParams<{ eventId: string }>();
+  const offline = useOfflineCheckIn({ eventId: eventId || '' });
 
   const selectPanel = (id: PanelView) => {
     setPanel(id);
@@ -286,9 +289,25 @@ export const CheckInManager: React.FC = () => {
       setLastCheckIn(res.attendee || null);
       setMsg(res.message || (res.alreadyCheckedIn ? 'Already checked in' : 'Checked in successfully'));
       setErr(null);
-      void load({ background: true });
+      if (res.attendee && !res.alreadyCheckedIn) {
+        setAttendees((prev) => {
+          const idx = prev.findIndex((a) => a.id === res.attendee!.id || a.qrToken === res.attendee!.qrToken);
+          if (idx < 0) return prev;
+          const next = [...prev];
+          next[idx] = { ...next[idx], checkedInAt: res.attendee!.checkedInAt || new Date().toISOString() };
+          return next;
+        });
+        setStats((s) => ({
+          ...s,
+          checkedIn: Math.min(s.total, s.checkedIn + 1),
+          pending: Math.max(0, s.pending - 1),
+        }));
+      }
+      if (!offline.offlineEnabled) {
+        void load({ background: true });
+      }
     },
-    [load]
+    [load, offline.offlineEnabled]
   );
 
   const pct = stats.total > 0 ? Math.round((stats.checkedIn / stats.total) * 100) : 0;
@@ -396,7 +415,41 @@ export const CheckInManager: React.FC = () => {
 
         {panel === 'scan' && (
           <div className="space-y-6">
-            <CheckInScannerPanel eventId={eventId} onCheckInSuccess={onScannerSuccess} />
+            <OfflineCheckInControls
+              offlineEnabled={offline.offlineEnabled}
+              onToggle={offline.setOfflineEnabled}
+              rosterCount={offline.rosterCount}
+              rosterTotal={offline.rosterTotal}
+              pendingCount={offline.pendingCount}
+              downloadedAt={offline.downloadedAt}
+              isOnline={offline.isOnline}
+              downloading={offline.downloading}
+              syncing={offline.syncing}
+              hasRoster={offline.hasRoster}
+              statusMsg={offline.statusMsg}
+              error={offline.error}
+              onDownload={() => void offline.downloadRoster()}
+              onSync={() => void offline.syncPending()}
+            />
+            <CheckInScannerPanel
+              eventId={eventId!}
+              offlineModeActive={offline.offlineEnabled}
+              offlineCheckIn={
+                offline.offlineEnabled
+                  ? async (token) => {
+                      const res = await offline.performOfflineCheckIn(token);
+                      if (!res.ok) return { ok: false, message: res.message };
+                      return {
+                        ok: true,
+                        alreadyCheckedIn: res.alreadyCheckedIn,
+                        message: res.message,
+                        attendee: res.attendee,
+                      };
+                    }
+                  : null
+              }
+              onCheckInSuccess={onScannerSuccess}
+            />
 
             <div className="rounded-2xl border p-5 shadow-sm" style={cardStyle}>
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -406,7 +459,7 @@ export const CheckInManager: React.FC = () => {
                     Volunteer door access
                   </div>
                   <p className="mt-1 max-w-xl text-sm" style={{ color: ui.textMuted }}>
-                    Share the PIN with volunteers on a separate phone. They can open the volunteer link below — no organizer login needed.
+                    Share the PIN with volunteers on a separate phone. They can open the volunteer link below — no organizer login needed. Enable Offline scans on each door phone for large venues with weak signal.
                   </p>
                 </div>
                 <button
