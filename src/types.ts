@@ -258,6 +258,9 @@ export type CheckoutFieldDefinition = {
   options?: CheckoutFieldOption[];
 };
 
+/** Button drop-shadow presets for landing CTAs. */
+export type LandingButtonShadow = 'none' | 'soft' | 'medium' | 'strong';
+
 export interface EventCustomization {
   themeId?: EventThemeId;
   /** Event category label (Music, Sports, etc.) — separate from design colours */
@@ -281,11 +284,33 @@ export interface EventCustomization {
   borderColor?: string;
   headerBgColor?: string;
   footerBgColor?: string;
-  /** Deep type scale overrides (px). When unset, templates keep their default clamps. */
+  /** Typography role colours (H1 = headingColor; P = bodyTextColor). */
+  h2Color?: string;
+  h3Color?: string;
+  buttonTextColor?: string;
+  iconColor?: string;
+  linkColor?: string;
+  /** Main image / event banner outline. */
+  bannerOutlineColor?: string;
+  bannerOutlineWidth?: number;
+  /** Per-role font keys (fallback to page fontFamily). */
+  h1FontFamily?: string;
+  h2FontFamily?: string;
+  h3FontFamily?: string;
+  bodyFontFamily?: string;
+  buttonFontFamily?: string;
+  /** Deep type scale overrides (px). Existing h1/h2/body/small are DESKTOP sizes. */
   h1FontSize?: number;
   h2FontSize?: number;
   bodyFontSize?: number;
   smallFontSize?: number;
+  h1FontSizeMobile?: number;
+  h2FontSizeMobile?: number;
+  h3FontSize?: number;
+  h3FontSizeMobile?: number;
+  bodyFontSizeMobile?: number;
+  buttonFontSize?: number;
+  buttonFontSizeMobile?: number;
   /** Per-element type emphasis (bold / italic / underline). */
   h1Bold?: boolean;
   h1Italic?: boolean;
@@ -299,6 +324,17 @@ export interface EventCustomization {
   smallBold?: boolean;
   smallItalic?: boolean;
   smallUnderline?: boolean;
+  h3Bold?: boolean;
+  h3Italic?: boolean;
+  h3Underline?: boolean;
+  buttonTextBold?: boolean;
+  buttonTextItalic?: boolean;
+  buttonTextUnderline?: boolean;
+  /** Button chrome */
+  buttonRadius?: number;
+  buttonOutlineWidth?: number;
+  buttonOutlineColor?: string;
+  buttonShadow?: LandingButtonShadow;
   /** Per-event ticket / attendance policy (HTML). Falls back to platform default when empty. */
   eventPolicyHtml?: string;
   /** When true, the event date/time is "to be announced" (no fixed schedule) */

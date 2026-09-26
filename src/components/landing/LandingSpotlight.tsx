@@ -171,7 +171,7 @@ function SpotlightAbout({ event }: { event: Event }) {
   if (!desc) return null;
   return (
     <section id="landing-about" className="sp-block scroll-mt-28">
-      <h2 className="sp-h2">About this event</h2>
+      <h2 className="sp-h2 landing-type-h2">About this event</h2>
       <p className="sp-body">{desc}</p>
     </section>
   );
@@ -192,7 +192,7 @@ function SpotlightLocation({ event }: { event: Event }) {
   return (
     <section id="landing-venue" className="sp-block scroll-mt-28">
       <div className="sp-location-head">
-        <h2 className="sp-h2">{online ? 'Online event' : 'Location'}</h2>
+        <h2 className="sp-h2 landing-type-h2">{online ? 'Online event' : 'Location'}</h2>
         {joinUrl ? (
           <a href={joinUrl} target="_blank" rel="noopener noreferrer" className="sp-nav-link">
             Join {platformLabel} <Video className="h-3.5 w-3.5" />
@@ -364,7 +364,7 @@ function SpotlightBookingRail({
           <strong>{formatFromPrice(tickets)}</strong>
         </div>
 
-        <button type="button" className="sp-cta" onClick={onGetTickets}>
+        <button type="button" className="sp-cta landing-type-button" onClick={onGetTickets}>
           Get Tickets
           <ArrowRight className="h-4 w-4" />
         </button>
@@ -408,7 +408,7 @@ function SpotlightMobileBar({
           <p className="sp-mobilebar-label">From</p>
           <p className="sp-mobilebar-price">{formatFromPrice(tickets)}</p>
         </div>
-        <button type="button" className="sp-cta sp-cta--sm" onClick={onGetTickets}>
+        <button type="button" className="sp-cta sp-cta--sm landing-type-button" onClick={onGetTickets}>
           Get Tickets
         </button>
       </div>
@@ -457,7 +457,7 @@ export function LandingSpotlightPage({
                 </p>
               ) : null}
 
-              <h1 className="sp-title">{title}</h1>
+              <h1 className="sp-title landing-type-h1">{title}</h1>
               {teaser ? (
                 <p className="sp-teaser">
                   {teaser}
@@ -485,7 +485,7 @@ export function LandingSpotlightPage({
 
                 <section id="landing-tickets" className="sp-block scroll-mt-28">
                   <div className="sp-tickets-head">
-                    <h2 className="sp-h2">Choose your tickets</h2>
+                    <h2 className="sp-h2 landing-type-h2">Choose your tickets</h2>
                     <p className="sp-muted">Select seats, then continue to secure checkout.</p>
                   </div>
 
@@ -514,7 +514,7 @@ export function LandingSpotlightPage({
                       </div>
                       <button
                         type="button"
-                        className="sp-cta sp-cta--sm"
+                        className="sp-cta sp-cta--sm landing-type-button"
                         onClick={onCheckout}
                         disabled={isPurchasing}
                       >
