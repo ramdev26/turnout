@@ -1,6 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Palette, Type as TypeIcon, RotateCcw, X, Bold, Italic, Underline } from 'lucide-react';
-import { LANDING_FONTS, LANDING_FONT_KEYS, loadLandingFont, resolveLandingFontKey, type LandingFontKey } from '../../themes/landingFonts';
+import {
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Palette,
+  Type as TypeIcon,
+  RotateCcw,
+  X,
+  Bold,
+  Italic,
+  Underline,
+  Square,
+} from 'lucide-react';
+import {
+  LANDING_FONTS,
+  LANDING_FONT_KEYS,
+  loadLandingFont,
+  resolveLandingFontKey,
+  type LandingFontKey,
+} from '../../themes/landingFonts';
 import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
 import {
   LANDING_DESIGN_OVERRIDE_RESET,
@@ -11,7 +29,7 @@ import type { LandingButtonShadow } from '../../types';
 import { cn } from '../../utils/cn';
 import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
 
-type DockControl = 'colour' | 'size' | 'font' | 'style' | null;
+type DockControl = 'pageColors' | 'textColors' | 'fonts' | 'textStyle' | 'buttonStyle' | null;
 
 const DOCK_BG = 'rgba(21, 22, 26, 0.96)';
 const DOCK_BORDER = 'rgba(255, 255, 255, 0.14)';
@@ -25,7 +43,6 @@ const GLOW = '0 0 0 1px rgba(16,185,129,0.35), 0 10px 28px rgba(16,185,129,0.18)
 const BUTTON_SHADOWS: { id: LandingButtonShadow; label: string }[] = [
   { id: 'none', label: 'None' },
   { id: 'soft', label: 'Soft' },
-  { id: 'medium', label: 'Medium' },
   { id: 'strong', label: 'Strong' },
 ];
 
@@ -96,7 +113,7 @@ function FontSizeRow({
   min: number;
   max: number;
   onChange: (px: number) => void;
-  onClear: () => void;
+  onClear?: () => void;
 }) {
   const current = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   return (
@@ -109,7 +126,7 @@ function FontSizeRow({
           <span className="font-mono text-[10px]" style={{ color: TEXT_SUBTLE }}>
             {typeof value === 'number' ? `${Math.round(value)}px` : `Auto · ${fallback}px`}
           </span>
-          {typeof value === 'number' ? (
+          {typeof value === 'number' && onClear ? (
             <button type="button" onClick={onClear} className="rounded px-1.5 py-1 text-[10px] font-semibold" style={{ color: TEXT_MUTED }}>
               Auto
             </button>
@@ -126,26 +143,6 @@ function FontSizeRow({
         className="w-full accent-emerald-400"
         aria-label={label}
       />
-    </div>
-  );
-}
-
-function RoleSizeBlock({
-  title,
-  mobile,
-  desktop,
-}: {
-  title: string;
-  mobile: React.ReactNode;
-  desktop: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5 rounded-xl border p-2" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
-      <p className="px-0.5 text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: TEXT_SUBTLE }}>
-        {title}
-      </p>
-      {mobile}
-      {desktop}
     </div>
   );
 }
@@ -222,16 +219,26 @@ function TypeStyleRow({
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-0.5 pt-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: TEXT_SUBTLE }}>
+      {children}
+    </p>
+  );
+}
+
 function RoleFontPicker({
   label,
   value,
   pageFont,
   onChange,
+  allowClear = true,
 }: {
   label: string;
   value: LandingFontKey | undefined;
   pageFont: LandingFontKey;
   onChange: (next: LandingFontKey | undefined) => void;
+  allowClear?: boolean;
 }) {
   const active = value || pageFont;
   return (
@@ -240,43 +247,109 @@ function RoleFontPicker({
         <p className="text-xs font-semibold" style={{ color: TEXT }}>
           {label}
         </p>
-        <span className="text-[10px]" style={{ color: TEXT_SUBTLE }}>
-          {value ? LANDING_FONTS[value].name : 'Same as page'}
+        <span className="truncate text-[10px]" style={{ color: TEXT_SUBTLE, fontFamily: LANDING_FONTS[active].display }}>
+          {value ? LANDING_FONTS[value].name : allowClear ? `Auto · ${LANDING_FONTS[pageFont].name}` : LANDING_FONTS[pageFont].name}
         </span>
       </div>
-      <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          onClick={() => onChange(undefined)}
-          className="flex min-h-[36px] items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition hover:bg-white/10"
-        >
-          <span className="text-xs font-medium" style={{ color: TEXT }}>
-            Same as page
-          </span>
-          {!value ? <Check className="h-3.5 w-3.5" style={{ color: '#6ee7b7' }} /> : null}
-        </button>
+      <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto">
+        {allowClear ? (
+          <button
+            type="button"
+            onClick={() => onChange(undefined)}
+            className="flex min-h-[32px] items-center justify-between rounded-md px-2 py-1 text-left transition hover:bg-white/10"
+          >
+            <span className="text-xs font-medium" style={{ color: TEXT }}>
+              Same as page
+            </span>
+            {!value ? <Check className="h-3.5 w-3.5" style={{ color: '#6ee7b7' }} /> : null}
+          </button>
+        ) : null}
         {LANDING_FONT_KEYS.map((key) => {
           const font = LANDING_FONTS[key];
-          const selected = value === key;
+          const selected = allowClear ? value === key : active === key;
           return (
             <button
               key={key}
               type="button"
               onMouseEnter={() => loadLandingFont(key)}
               onFocus={() => loadLandingFont(key)}
-              onClick={() => onChange(key)}
-              className="flex min-h-[36px] items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition hover:bg-white/10"
+              onClick={() => {
+                loadLandingFont(key);
+                onChange(key);
+              }}
+              className="flex min-h-[32px] items-center justify-between rounded-md px-2 py-1 text-left transition hover:bg-white/10"
+              style={{ background: selected ? 'rgba(16,185,129,0.16)' : undefined }}
             >
-              <span className="text-xs" style={{ color: TEXT, fontFamily: font.display }}>
+              <span className="truncate text-sm" style={{ color: TEXT, fontFamily: font.display }}>
                 {font.name}
               </span>
-              {selected || (!value && key === pageFont && active === key) ? (
-                selected ? <Check className="h-3.5 w-3.5" style={{ color: '#6ee7b7' }} /> : null
-              ) : null}
+              {selected ? <Check className="h-3.5 w-3.5 shrink-0" style={{ color: '#6ee7b7' }} /> : null}
             </button>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function RoleTypeBlock({
+  title,
+  bold,
+  italic,
+  underline,
+  onStyleChange,
+  deskValue,
+  deskFallback,
+  deskMin,
+  deskMax,
+  onDeskChange,
+  onDeskClear,
+  mobileValue,
+  mobileFallback,
+  mobileMin,
+  mobileMax,
+  onMobileChange,
+  onMobileClear,
+}: {
+  title: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  onStyleChange: (patch: { bold?: boolean; italic?: boolean; underline?: boolean }) => void;
+  deskValue: number | undefined;
+  deskFallback: number;
+  deskMin: number;
+  deskMax: number;
+  onDeskChange: (px: number) => void;
+  onDeskClear: () => void;
+  mobileValue: number | undefined;
+  mobileFallback: number;
+  mobileMin: number;
+  mobileMax: number;
+  onMobileChange: (px: number) => void;
+  onMobileClear: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-xl border p-2" style={{ borderColor: 'rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.03)' }}>
+      <TypeStyleRow label={title} bold={bold} italic={italic} underline={underline} onChange={onStyleChange} />
+      <FontSizeRow
+        label="Desk"
+        value={deskValue}
+        fallback={deskFallback}
+        min={deskMin}
+        max={deskMax}
+        onChange={onDeskChange}
+        onClear={onDeskClear}
+      />
+      <FontSizeRow
+        label="Mobile"
+        value={mobileValue}
+        fallback={mobileFallback}
+        min={mobileMin}
+        max={mobileMax}
+        onChange={onMobileChange}
+        onClear={onMobileClear}
+      />
     </div>
   );
 }
@@ -433,7 +506,7 @@ function Segment({
       }}
     >
       <span className="shrink-0">{icon}</span>
-      <span className="text-sm font-medium" style={{ color: TEXT }}>
+      <span className="min-w-0 text-sm font-medium" style={{ color: TEXT }}>
         {label}
       </span>
       <span className="ml-auto flex min-w-0 items-center gap-1">
@@ -450,18 +523,21 @@ function Popover({
   children,
   title,
   align = 'left',
+  className,
   onClose,
 }: {
   children: React.ReactNode;
   title: string;
-  align?: 'left' | 'center';
+  align?: 'left' | 'center' | 'right';
+  className?: string;
   onClose: () => void;
 }) {
   return (
     <div
       className={cn(
-        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(70vh,520px)] w-[min(94vw,400px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
-        align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0'
+        'absolute bottom-[calc(100%+10px)] z-50 max-h-[min(70vh,520px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl p-3 shadow-2xl',
+        align === 'center' ? 'left-1/2 -translate-x-1/2' : align === 'right' ? 'right-0' : 'left-0',
+        className,
       )}
       style={{ background: DOCK_BG, border: `1px solid ${DOCK_BORDER}`, backdropFilter: 'blur(20px)' }}
     >
@@ -478,14 +554,6 @@ function Popover({
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="px-0.5 pt-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: TEXT_SUBTLE }}>
-      {children}
-    </p>
-  );
-}
-
 export function LandingDesignDock({
   design,
   onDesignChange,
@@ -495,19 +563,16 @@ export function LandingDesignDock({
 }) {
   const [open, setOpen] = useState<DockControl>(null);
   const [expanded, setExpanded] = useState(false);
+  const [captionOpen, setCaptionOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const update = (patch: Partial<LandingDesignValue>) => onDesignChange({ ...design, ...patch });
   const toggle = (control: DockControl) => setOpen((cur) => (cur === control ? null : control));
 
   const selectTemplate = (templateId: LandingDesignValue['templateId']) => {
+    // Keep organizer colour / font / size draft when switching layouts.
     onDesignChange({ ...design, templateId });
     setOpen(null);
-  };
-
-  const previewFont = (key: LandingFontKey) => {
-    loadLandingFont(key);
-    onDesignChange({ ...design, fontFamily: key });
   };
 
   const resetToDefault = () => {
@@ -530,6 +595,7 @@ export function LandingDesignDock({
       const target = e.target as Node | null;
       if (!target) return;
       if (rootRef.current?.contains(target)) return;
+      // Portaled colour / datetime pickers live outside the dock root.
       if (target instanceof Element && target.closest('[data-turnout-picker]')) return;
       setOpen(null);
     };
@@ -544,21 +610,26 @@ export function LandingDesignDock({
     };
   }, [open]);
 
-  const colourValue = asHex(design.buttonColor || design.primaryColor, design.primaryColor);
-  const sizeValue =
+  const pageColorsValue = asHex(design.primaryColor, '#059669');
+  const textColorsValue = design.headingColor ? asHex(design.headingColor, '#0f172a') : 'Auto';
+
+  const firstFontOverride =
+    design.h1FontFamily || design.h2FontFamily || design.h3FontFamily || design.bodyFontFamily || design.buttonFontFamily;
+  const fontKey = resolveLandingFontKey(firstFontOverride || design.fontFamily);
+  const fontsValue = LANDING_FONTS[fontKey].name;
+
+  const textStyleCustom = !!(
     design.h1FontSize ||
     design.h2FontSize ||
     design.h3FontSize ||
     design.bodyFontSize ||
+    design.smallFontSize ||
     design.buttonFontSize ||
     design.h1FontSizeMobile ||
     design.h2FontSizeMobile ||
     design.h3FontSizeMobile ||
     design.bodyFontSizeMobile ||
-    design.buttonFontSizeMobile
-      ? 'Custom'
-      : 'Auto';
-  const styleValue =
+    design.buttonFontSizeMobile ||
     design.h1Bold ||
     design.h1Italic ||
     design.h1Underline ||
@@ -571,24 +642,23 @@ export function LandingDesignDock({
     design.bodyBold ||
     design.bodyItalic ||
     design.bodyUnderline ||
+    design.smallBold ||
+    design.smallItalic ||
+    design.smallUnderline ||
     design.buttonTextBold ||
     design.buttonTextItalic ||
-    design.buttonTextUnderline ||
-    design.buttonRadius != null ||
-    design.buttonOutlineWidth != null ||
-    design.buttonOutlineColor ||
-    design.buttonShadow
-      ? 'Custom'
-      : 'Default';
-  const fontKey = resolveLandingFontKey(design.fontFamily);
-  const fontValue =
-    design.h1FontFamily || design.h2FontFamily || design.h3FontFamily || design.bodyFontFamily || design.buttonFontFamily
-      ? 'Mixed'
-      : LANDING_FONTS[fontKey].name;
+    design.buttonTextUnderline
+  );
+  const textStyleValue = textStyleCustom ? 'Custom' : 'Default';
+
+  const edgesLabel = typeof design.buttonRadius === 'number' ? `${Math.round(design.buttonRadius)}px` : 'Auto';
+  const shadowLabel = design.buttonShadow || 'Auto';
+  const buttonStyleValue = `${edgesLabel} · ${shadowLabel}`;
+
   const templateValue = LANDING_LAYOUT_TEMPLATES.find((t) => t.id === design.templateId)?.name ?? 'Showcase';
   const summary = useMemo(
-    () => `${templateValue} · ${fontValue} · ${sizeValue} · ${styleValue}`,
-    [templateValue, fontValue, sizeValue, styleValue]
+    () => `${templateValue} · ${fontsValue} · ${textStyleValue} · ${buttonStyleValue}`,
+    [templateValue, fontsValue, textStyleValue, buttonStyleValue]
   );
 
   if (!expanded) {
@@ -615,7 +685,7 @@ export function LandingDesignDock({
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4"
     >
       <div
-        className="landing-fade-in pointer-events-auto w-full max-w-4xl rounded-2xl px-3 pb-3 pt-2 shadow-2xl sm:px-4 sm:pb-4"
+        className="landing-fade-in pointer-events-auto w-full max-w-5xl rounded-2xl px-3 pb-3 pt-2 shadow-2xl sm:px-4 sm:pb-4"
         style={{
           background: DOCK_BG,
           border: `1px solid ${DOCK_BORDER}`,
@@ -681,7 +751,8 @@ export function LandingDesignDock({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {/* Page Colors */}
           <div className="relative col-span-1">
             <Segment
               icon={
@@ -690,15 +761,24 @@ export function LandingDesignDock({
                   style={{ background: design.primaryColor }}
                 />
               }
-              label="Colours"
-              value={colourValue}
-              active={open === 'colour'}
-              onClick={() => toggle('colour')}
+              label="Page Colors"
+              value={pageColorsValue}
+              active={open === 'pageColors'}
+              onClick={() => toggle('pageColors')}
             />
-            {open === 'colour' && (
-              <Popover title="Colours" onClose={() => setOpen(null)}>
+            {open === 'pageColors' && (
+              <Popover title="Page Colors" onClose={() => setOpen(null)}>
                 <div className="space-y-2">
-                  <SectionLabel>Brand</SectionLabel>
+                  <SectionLabel>Header Bar</SectionLabel>
+                  <ColorRow
+                    label="Header"
+                    value={design.headerBgColor}
+                    fallback="#ffffff"
+                    onChange={(hex) => update({ headerBgColor: hex })}
+                    onClear={() => update({ headerBgColor: undefined })}
+                  />
+
+                  <SectionLabel>Outlines / Accents</SectionLabel>
                   <ColorRow
                     label="Primary"
                     value={design.primaryColor}
@@ -711,17 +791,8 @@ export function LandingDesignDock({
                     fallback="#10b981"
                     onChange={(hex) => update({ secondaryColor: hex })}
                   />
-
-                  <SectionLabel>Page colours</SectionLabel>
                   <ColorRow
-                    label="Header bar"
-                    value={design.headerBgColor}
-                    fallback="#ffffff"
-                    onChange={(hex) => update({ headerBgColor: hex })}
-                    onClear={() => update({ headerBgColor: undefined })}
-                  />
-                  <ColorRow
-                    label="Outlines / accents"
+                    label="Borders"
                     value={design.borderColor}
                     fallback="#d8e0ec"
                     onChange={(hex) => update({ borderColor: hex })}
@@ -743,6 +814,8 @@ export function LandingDesignDock({
                     onChange={(px) => update({ bannerOutlineWidth: px })}
                     onClear={() => update({ bannerOutlineWidth: undefined })}
                   />
+
+                  <SectionLabel>Page Background</SectionLabel>
                   <ColorRow
                     label="Page background"
                     value={design.pageBackgroundColor}
@@ -750,20 +823,24 @@ export function LandingDesignDock({
                     onChange={(hex) => update({ pageBackgroundColor: hex })}
                     onClear={() => update({ pageBackgroundColor: undefined })}
                   />
+
+                  <SectionLabel>Section Backgrounds</SectionLabel>
                   <ColorRow
-                    label="Section backgrounds"
+                    label="Cards / sections"
                     value={design.surfaceColor}
                     fallback="#ffffff"
                     onChange={(hex) => update({ surfaceColor: hex })}
                     onClear={() => update({ surfaceColor: undefined })}
                   />
                   <ColorRow
-                    label="Muted sections"
+                    label="Muted surfaces"
                     value={design.surfaceMutedColor}
                     fallback="#f4f6fa"
                     onChange={(hex) => update({ surfaceMutedColor: hex })}
                     onClear={() => update({ surfaceMutedColor: undefined })}
                   />
+
+                  <SectionLabel>Button</SectionLabel>
                   <ColorRow
                     label="Button"
                     value={design.buttonColor}
@@ -771,6 +848,8 @@ export function LandingDesignDock({
                     onChange={(hex) => update({ buttonColor: hex })}
                     onClear={() => update({ buttonColor: undefined })}
                   />
+
+                  <SectionLabel>Icons</SectionLabel>
                   <ColorRow
                     label="Icons"
                     value={design.iconColor}
@@ -778,6 +857,8 @@ export function LandingDesignDock({
                     onChange={(hex) => update({ iconColor: hex })}
                     onClear={() => update({ iconColor: undefined })}
                   />
+
+                  <SectionLabel>Links</SectionLabel>
                   <ColorRow
                     label="Links"
                     value={design.linkColor}
@@ -785,6 +866,8 @@ export function LandingDesignDock({
                     onChange={(hex) => update({ linkColor: hex })}
                     onClear={() => update({ linkColor: undefined })}
                   />
+
+                  <SectionLabel>Footer</SectionLabel>
                   <ColorRow
                     label="Footer"
                     value={design.footerBgColor}
@@ -792,38 +875,53 @@ export function LandingDesignDock({
                     onChange={(hex) => update({ footerBgColor: hex })}
                     onClear={() => update({ footerBgColor: undefined })}
                   />
+                </div>
+              </Popover>
+            )}
+          </div>
 
-                  <SectionLabel>Text colours</SectionLabel>
+          {/* Text Colors */}
+          <div className="relative col-span-1">
+            <Segment
+              icon={<TypeIcon className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
+              label="Text Colors"
+              value={textColorsValue}
+              active={open === 'textColors'}
+              onClick={() => toggle('textColors')}
+            />
+            {open === 'textColors' && (
+              <Popover title="Text Colors" onClose={() => setOpen(null)}>
+                <div className="space-y-2">
                   <ColorRow
-                    label="H1 · Event title"
+                    label="H1"
                     value={design.headingColor}
                     fallback={design.bodyTextColor || '#0f172a'}
                     onChange={(hex) => update({ headingColor: hex })}
                     onClear={() => update({ headingColor: undefined })}
                   />
                   <ColorRow
-                    label="H2 · Subheadings"
+                    label="H2"
                     value={design.h2Color}
                     fallback={design.mutedTextColor || design.headingColor || '#0f172a'}
                     onChange={(hex) => update({ h2Color: hex })}
                     onClear={() => update({ h2Color: undefined })}
                   />
                   <ColorRow
-                    label="H3 · Date / location / price"
+                    label="H3"
                     value={design.h3Color}
                     fallback={design.mutedTextColor || '#64748b'}
                     onChange={(hex) => update({ h3Color: hex })}
                     onClear={() => update({ h3Color: undefined })}
                   />
                   <ColorRow
-                    label="P · Body"
+                    label="P"
                     value={design.bodyTextColor}
                     fallback="#0f172a"
                     onChange={(hex) => update({ bodyTextColor: hex })}
                     onClear={() => update({ bodyTextColor: undefined })}
                   />
                   <ColorRow
-                    label="Button text"
+                    label="BUTTON TEXT"
                     value={design.buttonTextColor}
                     fallback="#ffffff"
                     onChange={(hex) => update({ buttonTextColor: hex })}
@@ -841,220 +939,59 @@ export function LandingDesignDock({
             )}
           </div>
 
-          <div className="relative col-span-1">
-            <Segment
-              icon={<TypeIcon className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
-              label="Size"
-              value={sizeValue}
-              active={open === 'size'}
-              onClick={() => toggle('size')}
-            />
-            {open === 'size' && (
-              <Popover title="Size" align="center" onClose={() => setOpen(null)}>
-                <div className="space-y-2">
-                  <RoleSizeBlock
-                    title="H1 · Event title"
-                    mobile={
-                      <FontSizeRow
-                        label="Mobile"
-                        value={design.h1FontSizeMobile}
-                        fallback={28}
-                        min={18}
-                        max={56}
-                        onChange={(px) => update({ h1FontSizeMobile: px })}
-                        onClear={() => update({ h1FontSizeMobile: undefined })}
-                      />
-                    }
-                    desktop={
-                      <FontSizeRow
-                        label="Desktop"
-                        value={design.h1FontSize}
-                        fallback={40}
-                        min={22}
-                        max={72}
-                        onChange={(px) => update({ h1FontSize: px })}
-                        onClear={() => update({ h1FontSize: undefined })}
-                      />
-                    }
-                  />
-                  <RoleSizeBlock
-                    title="H2 · Subheadings"
-                    mobile={
-                      <FontSizeRow
-                        label="Mobile"
-                        value={design.h2FontSizeMobile}
-                        fallback={18}
-                        min={14}
-                        max={40}
-                        onChange={(px) => update({ h2FontSizeMobile: px })}
-                        onClear={() => update({ h2FontSizeMobile: undefined })}
-                      />
-                    }
-                    desktop={
-                      <FontSizeRow
-                        label="Desktop"
-                        value={design.h2FontSize}
-                        fallback={24}
-                        min={16}
-                        max={48}
-                        onChange={(px) => update({ h2FontSize: px })}
-                        onClear={() => update({ h2FontSize: undefined })}
-                      />
-                    }
-                  />
-                  <RoleSizeBlock
-                    title="H3 · Date / location / price"
-                    mobile={
-                      <FontSizeRow
-                        label="Mobile"
-                        value={design.h3FontSizeMobile}
-                        fallback={13}
-                        min={10}
-                        max={28}
-                        onChange={(px) => update({ h3FontSizeMobile: px })}
-                        onClear={() => update({ h3FontSizeMobile: undefined })}
-                      />
-                    }
-                    desktop={
-                      <FontSizeRow
-                        label="Desktop"
-                        value={design.h3FontSize}
-                        fallback={design.smallFontSize || 16}
-                        min={12}
-                        max={32}
-                        onChange={(px) => update({ h3FontSize: px })}
-                        onClear={() => update({ h3FontSize: undefined })}
-                      />
-                    }
-                  />
-                  <RoleSizeBlock
-                    title="P · Body"
-                    mobile={
-                      <FontSizeRow
-                        label="Mobile"
-                        value={design.bodyFontSizeMobile}
-                        fallback={14}
-                        min={11}
-                        max={22}
-                        onChange={(px) => update({ bodyFontSizeMobile: px })}
-                        onClear={() => update({ bodyFontSizeMobile: undefined })}
-                      />
-                    }
-                    desktop={
-                      <FontSizeRow
-                        label="Desktop"
-                        value={design.bodyFontSize}
-                        fallback={16}
-                        min={12}
-                        max={24}
-                        onChange={(px) => update({ bodyFontSize: px })}
-                        onClear={() => update({ bodyFontSize: undefined })}
-                      />
-                    }
-                  />
-                  <RoleSizeBlock
-                    title="Button text"
-                    mobile={
-                      <FontSizeRow
-                        label="Mobile"
-                        value={design.buttonFontSizeMobile}
-                        fallback={12}
-                        min={10}
-                        max={22}
-                        onChange={(px) => update({ buttonFontSizeMobile: px })}
-                        onClear={() => update({ buttonFontSizeMobile: undefined })}
-                      />
-                    }
-                    desktop={
-                      <FontSizeRow
-                        label="Desktop"
-                        value={design.buttonFontSize}
-                        fallback={14}
-                        min={10}
-                        max={24}
-                        onChange={(px) => update({ buttonFontSize: px })}
-                        onClear={() => update({ buttonFontSize: undefined })}
-                      />
-                    }
-                  />
-                </div>
-              </Popover>
-            )}
-          </div>
-
+          {/* Fonts */}
           <div className="relative col-span-1">
             <Segment
               icon={
-                <span className="text-sm font-semibold" style={{ color: TEXT, fontFamily: LANDING_FONTS[fontKey].display }}>
+                <span className="text-sm font-semibold" style={{ color: TEXT, fontFamily: LANDING_FONTS[resolveLandingFontKey(design.fontFamily)].display }}>
                   Ag
                 </span>
               }
-              label="Font"
-              value={fontValue}
-              active={open === 'font'}
-              onClick={() => toggle('font')}
+              label="Fonts"
+              value={fontsValue}
+              active={open === 'fonts'}
+              onClick={() => toggle('fonts')}
             />
-            {open === 'font' && (
-              <Popover title="Font" align="center" onClose={() => setOpen(null)}>
+            {open === 'fonts' && (
+              <Popover title="Fonts" align="center" onClose={() => setOpen(null)}>
                 <div className="space-y-2">
-                  <SectionLabel>Page font</SectionLabel>
-                  <div className="flex flex-col gap-1 rounded-lg border p-1.5" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
-                    {LANDING_FONT_KEYS.map((key) => {
-                      const font = LANDING_FONTS[key];
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onMouseEnter={() => previewFont(key)}
-                          onFocus={() => previewFont(key)}
-                          onClick={() => {
-                            previewFont(key);
-                          }}
-                          className="flex min-h-[40px] items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition hover:bg-white/10"
-                        >
-                          <span>
-                            <span className="block text-sm leading-tight" style={{ color: TEXT, fontFamily: font.display }}>
-                              {font.name}
-                            </span>
-                            <span className="block text-[10px]" style={{ color: TEXT_MUTED }}>
-                              {font.vibe}
-                            </span>
-                          </span>
-                          {fontKey === key && <Check className="h-4 w-4" style={{ color: design.primaryColor }} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <SectionLabel>Per role</SectionLabel>
                   <RoleFontPicker
-                    label="H1 · Event title"
+                    label="All text"
+                    value={design.fontFamily}
+                    pageFont={resolveLandingFontKey(design.fontFamily)}
+                    allowClear={false}
+                    onChange={(next) => {
+                      if (next) update({ fontFamily: next });
+                    }}
+                  />
+                  <RoleFontPicker
+                    label="H1"
                     value={design.h1FontFamily}
-                    pageFont={fontKey}
+                    pageFont={resolveLandingFontKey(design.fontFamily)}
                     onChange={(next) => update({ h1FontFamily: next })}
                   />
                   <RoleFontPicker
-                    label="H2 · Subheadings"
+                    label="H2"
                     value={design.h2FontFamily}
-                    pageFont={fontKey}
+                    pageFont={resolveLandingFontKey(design.fontFamily)}
                     onChange={(next) => update({ h2FontFamily: next })}
                   />
                   <RoleFontPicker
-                    label="H3 · Date / location / price"
+                    label="H3"
                     value={design.h3FontFamily}
-                    pageFont={fontKey}
+                    pageFont={resolveLandingFontKey(design.fontFamily)}
                     onChange={(next) => update({ h3FontFamily: next })}
                   />
                   <RoleFontPicker
-                    label="P · Body"
+                    label="P"
                     value={design.bodyFontFamily}
-                    pageFont={fontKey}
+                    pageFont={resolveLandingFontKey(design.fontFamily)}
                     onChange={(next) => update({ bodyFontFamily: next })}
                   />
                   <RoleFontPicker
-                    label="Button text"
+                    label="BUTTON TEXT"
                     value={design.buttonFontFamily}
-                    pageFont={fontKey}
+                    pageFont={resolveLandingFontKey(design.fontFamily)}
                     onChange={(next) => update({ buttonFontFamily: next })}
                   />
                 </div>
@@ -1062,94 +999,219 @@ export function LandingDesignDock({
             )}
           </div>
 
+          {/* Text Style */}
           <div className="relative col-span-1">
             <Segment
               icon={<Bold className="h-3.5 w-3.5" style={{ color: TEXT_MUTED }} />}
-              label="Style"
-              value={styleValue}
-              active={open === 'style'}
-              onClick={() => toggle('style')}
+              label="Text Style"
+              value={textStyleValue}
+              active={open === 'textStyle'}
+              onClick={() => toggle('textStyle')}
             />
-            {open === 'style' && (
-              <Popover title="Style" onClose={() => setOpen(null)}>
-                <div className="space-y-2">
-                  <SectionLabel>Text style</SectionLabel>
-                  <TypeStyleRow
-                    label="H1 · Event title"
+            {open === 'textStyle' && (
+              <Popover
+                title="Text Style"
+                align="center"
+                className="w-[min(94vw,420px)]"
+                onClose={() => setOpen(null)}
+              >
+                <div className="space-y-2.5">
+                  <RoleTypeBlock
+                    title="H1"
                     bold={design.h1Bold}
                     italic={design.h1Italic}
                     underline={design.h1Underline}
-                    onChange={(patch) =>
+                    onStyleChange={(patch) =>
                       update({
                         h1Bold: patch.bold || undefined,
                         h1Italic: patch.italic || undefined,
                         h1Underline: patch.underline || undefined,
                       })
                     }
+                    deskValue={design.h1FontSize}
+                    deskFallback={40}
+                    deskMin={22}
+                    deskMax={72}
+                    onDeskChange={(px) => update({ h1FontSize: px })}
+                    onDeskClear={() => update({ h1FontSize: undefined })}
+                    mobileValue={design.h1FontSizeMobile}
+                    mobileFallback={28}
+                    mobileMin={18}
+                    mobileMax={56}
+                    onMobileChange={(px) => update({ h1FontSizeMobile: px })}
+                    onMobileClear={() => update({ h1FontSizeMobile: undefined })}
                   />
-                  <TypeStyleRow
-                    label="H2 · Subheadings"
+                  <RoleTypeBlock
+                    title="H2"
                     bold={design.h2Bold}
                     italic={design.h2Italic}
                     underline={design.h2Underline}
-                    onChange={(patch) =>
+                    onStyleChange={(patch) =>
                       update({
                         h2Bold: patch.bold || undefined,
                         h2Italic: patch.italic || undefined,
                         h2Underline: patch.underline || undefined,
                       })
                     }
+                    deskValue={design.h2FontSize}
+                    deskFallback={24}
+                    deskMin={16}
+                    deskMax={48}
+                    onDeskChange={(px) => update({ h2FontSize: px })}
+                    onDeskClear={() => update({ h2FontSize: undefined })}
+                    mobileValue={design.h2FontSizeMobile}
+                    mobileFallback={20}
+                    mobileMin={14}
+                    mobileMax={36}
+                    onMobileChange={(px) => update({ h2FontSizeMobile: px })}
+                    onMobileClear={() => update({ h2FontSizeMobile: undefined })}
                   />
-                  <TypeStyleRow
-                    label="H3 · Date / location / price"
+                  <RoleTypeBlock
+                    title="H3"
                     bold={design.h3Bold}
                     italic={design.h3Italic}
                     underline={design.h3Underline}
-                    onChange={(patch) =>
+                    onStyleChange={(patch) =>
                       update({
                         h3Bold: patch.bold || undefined,
                         h3Italic: patch.italic || undefined,
                         h3Underline: patch.underline || undefined,
                       })
                     }
+                    deskValue={design.h3FontSize}
+                    deskFallback={18}
+                    deskMin={14}
+                    deskMax={36}
+                    onDeskChange={(px) => update({ h3FontSize: px })}
+                    onDeskClear={() => update({ h3FontSize: undefined })}
+                    mobileValue={design.h3FontSizeMobile}
+                    mobileFallback={16}
+                    mobileMin={12}
+                    mobileMax={28}
+                    onMobileChange={(px) => update({ h3FontSizeMobile: px })}
+                    onMobileClear={() => update({ h3FontSizeMobile: undefined })}
                   />
-                  <TypeStyleRow
-                    label="P · Body"
+                  <RoleTypeBlock
+                    title="P"
                     bold={design.bodyBold}
                     italic={design.bodyItalic}
                     underline={design.bodyUnderline}
-                    onChange={(patch) =>
+                    onStyleChange={(patch) =>
                       update({
                         bodyBold: patch.bold || undefined,
                         bodyItalic: patch.italic || undefined,
                         bodyUnderline: patch.underline || undefined,
                       })
                     }
+                    deskValue={design.bodyFontSize}
+                    deskFallback={16}
+                    deskMin={12}
+                    deskMax={24}
+                    onDeskChange={(px) => update({ bodyFontSize: px })}
+                    onDeskClear={() => update({ bodyFontSize: undefined })}
+                    mobileValue={design.bodyFontSizeMobile}
+                    mobileFallback={15}
+                    mobileMin={12}
+                    mobileMax={20}
+                    onMobileChange={(px) => update({ bodyFontSizeMobile: px })}
+                    onMobileClear={() => update({ bodyFontSizeMobile: undefined })}
                   />
-                  <TypeStyleRow
-                    label="Button text"
+                  <RoleTypeBlock
+                    title="BUTTON TEXT"
                     bold={design.buttonTextBold}
                     italic={design.buttonTextItalic}
                     underline={design.buttonTextUnderline}
-                    onChange={(patch) =>
+                    onStyleChange={(patch) =>
                       update({
                         buttonTextBold: patch.bold || undefined,
                         buttonTextItalic: patch.italic || undefined,
                         buttonTextUnderline: patch.underline || undefined,
                       })
                     }
+                    deskValue={design.buttonFontSize}
+                    deskFallback={14}
+                    deskMin={11}
+                    deskMax={24}
+                    onDeskChange={(px) => update({ buttonFontSize: px })}
+                    onDeskClear={() => update({ buttonFontSize: undefined })}
+                    mobileValue={design.buttonFontSizeMobile}
+                    mobileFallback={13}
+                    mobileMin={11}
+                    mobileMax={20}
+                    onMobileChange={(px) => update({ buttonFontSizeMobile: px })}
+                    onMobileClear={() => update({ buttonFontSizeMobile: undefined })}
                   />
 
-                  <SectionLabel>Button style</SectionLabel>
+                  <div className="rounded-xl border" style={{ borderColor: 'rgba(255,255,255,0.10)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCaptionOpen((v) => !v)}
+                      className="flex w-full items-center justify-between px-2.5 py-2 text-left"
+                    >
+                      <span className="text-xs font-semibold" style={{ color: TEXT }}>
+                        Caption / small
+                      </span>
+                      <ChevronDown
+                        className={cn('h-3.5 w-3.5 transition', captionOpen && 'rotate-180')}
+                        style={{ color: TEXT_MUTED }}
+                      />
+                    </button>
+                    {captionOpen ? (
+                      <div className="space-y-2 border-t px-2 pb-2 pt-2" style={{ borderColor: 'rgba(255,255,255,0.10)' }}>
+                        <TypeStyleRow
+                          label="Caption"
+                          bold={design.smallBold}
+                          italic={design.smallItalic}
+                          underline={design.smallUnderline}
+                          onChange={(patch) =>
+                            update({
+                              smallBold: patch.bold || undefined,
+                              smallItalic: patch.italic || undefined,
+                              smallUnderline: patch.underline || undefined,
+                            })
+                          }
+                        />
+                        <FontSizeRow
+                          label="Size"
+                          value={design.smallFontSize}
+                          fallback={13}
+                          min={10}
+                          max={18}
+                          onChange={(px) => update({ smallFontSize: px })}
+                          onClear={() => update({ smallFontSize: undefined })}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </Popover>
+            )}
+          </div>
+
+          {/* Button Style */}
+          <div className="relative col-span-1">
+            <Segment
+              icon={<Square className="h-3.5 w-3.5 rounded-sm" style={{ color: TEXT_MUTED }} />}
+              label="Button Style"
+              value={buttonStyleValue}
+              active={open === 'buttonStyle'}
+              onClick={() => toggle('buttonStyle')}
+            />
+            {open === 'buttonStyle' && (
+              <Popover title="Button Style" align="right" onClose={() => setOpen(null)}>
+                <div className="space-y-2">
                   <FontSizeRow
-                    label="Edges (radius)"
+                    label="Edges"
                     value={design.buttonRadius}
-                    fallback={999}
+                    fallback={12}
                     min={0}
                     max={48}
                     onChange={(px) => update({ buttonRadius: px })}
                     onClear={() => update({ buttonRadius: undefined })}
                   />
+                  <p className="px-0.5 text-[10px]" style={{ color: TEXT_SUBTLE }}>
+                    Tip: 48px is fully rounded; use Auto for template default.
+                  </p>
                   <FontSizeRow
                     label="Outline weight"
                     value={design.buttonOutlineWidth}
@@ -1160,9 +1222,9 @@ export function LandingDesignDock({
                     onClear={() => update({ buttonOutlineWidth: undefined })}
                   />
                   <ColorRow
-                    label="Outline colour"
+                    label="Outline color"
                     value={design.buttonOutlineColor}
-                    fallback={design.borderColor || '#d8e0ec'}
+                    fallback={design.borderColor || design.primaryColor}
                     onChange={(hex) => update({ buttonOutlineColor: hex })}
                     onClear={() => update({ buttonOutlineColor: undefined })}
                   />
@@ -1170,20 +1232,19 @@ export function LandingDesignDock({
                     <p className="mb-2 text-xs font-semibold" style={{ color: TEXT }}>
                       Shadow
                     </p>
-                    <div className="grid grid-cols-4 gap-1.5">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {BUTTON_SHADOWS.map((opt) => {
-                        const active = (design.buttonShadow || 'medium') === opt.id && !!design.buttonShadow;
-                        const isDefault = !design.buttonShadow && opt.id === 'medium';
+                        const active = design.buttonShadow === opt.id;
                         return (
                           <button
                             key={opt.id}
                             type="button"
                             onClick={() => update({ buttonShadow: opt.id })}
-                            className="rounded-lg border px-1.5 py-2 text-[10px] font-semibold transition"
+                            className="rounded-lg border px-2 py-2 text-xs font-semibold transition"
                             style={{
-                              borderColor: active || isDefault ? 'rgba(16,185,129,0.55)' : 'rgba(255,255,255,0.14)',
-                              background: active || isDefault ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.06)',
-                              color: active || isDefault ? '#6ee7b7' : TEXT_MUTED,
+                              borderColor: active ? 'rgba(16,185,129,0.55)' : 'rgba(255,255,255,0.14)',
+                              background: active ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.06)',
+                              color: active ? '#6ee7b7' : TEXT_MUTED,
                             }}
                           >
                             {opt.label}
@@ -1194,11 +1255,11 @@ export function LandingDesignDock({
                     {design.buttonShadow ? (
                       <button
                         type="button"
-                        className="mt-1.5 text-[10px] font-semibold"
-                        style={{ color: TEXT_MUTED }}
                         onClick={() => update({ buttonShadow: undefined })}
+                        className="mt-1.5 rounded px-1.5 py-1 text-[10px] font-semibold"
+                        style={{ color: TEXT_MUTED }}
                       >
-                        Reset to auto
+                        Auto
                       </button>
                     ) : null}
                   </div>
