@@ -448,6 +448,20 @@
   line-height: 1.65;
 }
 
+.landing-type-button {
+  font-family: var(--landing-button-font, var(--landing-font-body));
+  font-size: var(--landing-button-size-mobile, var(--landing-button-size, inherit));
+  font-weight: var(--landing-button-weight, inherit);
+  font-style: var(--landing-button-style, normal);
+  text-decoration: var(--landing-button-decoration, none);
+  color: var(--landing-on-button, inherit);
+  border-radius: var(--landing-button-radius, var(--landing-radius, 1.25rem));
+  border-width: var(--landing-button-outline-width, 0);
+  border-style: solid;
+  border-color: var(--landing-button-outline-color, transparent);
+  box-shadow: var(--landing-button-shadow, unset);
+}
+
 .landing-icon {
   color: var(--landing-icon, var(--showcase-accent, var(--primary)));
 }
@@ -464,6 +478,9 @@
   }
   .landing-type-p {
     font-size: var(--landing-body-size, inherit);
+  }
+  .landing-type-button {
+    font-size: var(--landing-button-size, inherit);
   }
 }
 

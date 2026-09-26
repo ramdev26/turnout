@@ -512,13 +512,9 @@ export function TicketsList({
                   <p className="landing-type-p mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {ticket.description || 'Full event access'}
                   </p>
-<<<<<<< HEAD
-                  <TicketPriceDisplay ticket={ticket} size="lg" />
-=======
-                  <p className="landing-type-h3 mt-2 text-lg sm:text-xl">
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
-                  </p>
->>>>>>> abbb817 (Apply typography role classes across shared landing helpers)
+                  <div className="landing-type-h3 mt-2">
+                    <TicketPriceDisplay ticket={ticket} size="lg" />
+                  </div>
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 sm:pt-1">
@@ -603,13 +599,8 @@ export function CheckoutPanel({
                 <span className="landing-type-p" style={{ color: 'var(--landing-text-muted)' }}>
                   {t.name} ×{selectedTickets[t.id]}
                 </span>
-<<<<<<< HEAD
-                <span className="font-semibold tabular-nums" style={{ color: 'var(--landing-text)' }}>
+                <span className="landing-type-h3 font-semibold tabular-nums" style={{ color: 'var(--landing-text)' }}>
                   {formatLKRWhole(ticketLineTotal(t, selectedTickets[t.id]))}
-=======
-                <span className="landing-type-h3 font-semibold tabular-nums">
-                  {formatLKRWhole(t.price * selectedTickets[t.id])}
->>>>>>> abbb817 (Apply typography role classes across shared landing helpers)
                 </span>
               </div>
             ))}

@@ -336,13 +336,9 @@ function ShowcaseTickets({
                   <p className="landing-type-p mt-0.5 text-xs sm:text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                     {summary}
                   </p>
-<<<<<<< HEAD
-                  <TicketPriceDisplay ticket={ticket} size="lg" />
-=======
-                  <p className="landing-type-h3 mt-2 text-lg sm:text-xl">
-                    {ticket.price <= 0 ? 'Complimentary' : formatLKRWhole(ticket.price)}
-                  </p>
->>>>>>> 9dd6fab (Implement design customize blueprint with typography roles)
+                  <div className="landing-type-h3 mt-2">
+                    <TicketPriceDisplay ticket={ticket} size="lg" />
+                  </div>
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 sm:pt-1">
