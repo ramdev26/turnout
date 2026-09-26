@@ -499,14 +499,14 @@ function Segment({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-[46px] w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:brightness-110"
+      className="flex min-h-[46px] w-full items-center gap-1.5 rounded-xl px-2.5 py-2.5 text-left transition hover:brightness-110 sm:gap-2 sm:px-3"
       style={{
         background: active ? 'rgba(255,255,255,0.12)' : SEG_BG,
         border: `1px solid ${SEG_BORDER}`,
       }}
     >
       <span className="shrink-0">{icon}</span>
-      <span className="min-w-0 text-sm font-medium" style={{ color: TEXT }}>
+      <span className="shrink-0 whitespace-nowrap text-sm font-medium" style={{ color: TEXT }}>
         {label}
       </span>
       <span className="ml-auto flex min-w-0 items-center gap-1">
