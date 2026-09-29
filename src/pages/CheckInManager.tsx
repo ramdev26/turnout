@@ -12,6 +12,7 @@ import {
   Search,
   Shield,
   Sparkles,
+  KeyRound,
   Undo2,
   UserPlus,
   Users,
@@ -25,6 +26,7 @@ import { CheckInScannerPanel } from '../components/organizer/CheckInScannerPanel
 import { OfflineCheckInControls } from '../components/organizer/OfflineCheckInControls';
 import { BankTransferOrdersPanel } from '../components/organizer/BankTransferOrdersPanel';
 import { InviteesPanel } from '../components/organizer/InviteesPanel';
+import { AccessCodesPanel } from '../components/organizer/AccessCodesPanel';
 import { AttendeeDetailDrawer } from '../components/organizer/AttendeeDetailDrawer';
 import { ManualAddAttendeeModal } from '../components/organizer/ManualAddAttendeeModal';
 import { FlowPage, FlowStatCard, FlowAlert, FlowButton, APP_FLOW_UI } from '../components/flow/FlowPrimitives';
@@ -45,7 +47,7 @@ type CheckinResult = {
   attendee?: Attendee;
 };
 
-type PanelView = 'scan' | 'list' | 'transfers' | 'invitees';
+type PanelView = 'scan' | 'list' | 'transfers' | 'invitees' | 'access';
 
 export const CheckInManager: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -70,13 +72,15 @@ export const CheckInManager: React.FC = () => {
     initialTab === 'transfers' ||
       initialTab === 'list' ||
       initialTab === 'scan' ||
-      initialTab === 'invitees'
+      initialTab === 'invitees' ||
+      initialTab === 'access'
       ? initialTab
       : 'scan'
   );
   const [pendingTransfers, setPendingTransfers] = useState(0);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
   const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldDefinition[]>([]);
+  const [eventSlug, setEventSlug] = useState<string | null>(null);
   const [showAddAttendee, setShowAddAttendee] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
@@ -164,6 +168,7 @@ export const CheckInManager: React.FC = () => {
         const res = await api.get<{ event: Event }>(`/api/events/${eventId}`);
         if (!cancelled) {
           setCheckoutFields(normalizeCheckoutFields(res.event?.customization?.checkoutFields));
+          setEventSlug(res.event?.slug || null);
         }
       } catch {
         if (!cancelled) setCheckoutFields([]);
@@ -351,6 +356,7 @@ export const CheckInManager: React.FC = () => {
                 { id: 'list' as const, label: 'Attendee list', icon: List },
                 { id: 'transfers' as const, label: 'Bank transfers', icon: Landmark },
                 { id: 'invitees' as const, label: 'Invitees', icon: Sparkles },
+                { id: 'access' as const, label: 'Access codes', icon: KeyRound },
               ] as const
             ).map(({ id, label, icon: Icon }) => (
               <button
@@ -794,6 +800,33 @@ export const CheckInManager: React.FC = () => {
             </div>
             <InviteesPanel
               eventId={eventId}
+              ui={ui}
+              onFeedback={(m) => {
+                setErr(null);
+                setMsg(m);
+              }}
+              onError={(m) => {
+                setMsg(null);
+                setErr(m);
+              }}
+            />
+          </div>
+        ) : null}
+
+        {panel === 'access' && eventId ? (
+          <div className="rounded-2xl border p-5 shadow-sm sm:p-6" style={cardStyle}>
+            <div className="mb-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold" style={{ color: ui.text }}>
+                <KeyRound className="h-5 w-5" style={{ color: ui.accent }} />
+                Access codes · private events
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+                Lock the landing page behind shared or single-use codes. Generate in bulk or import a CSV for invite-only events.
+              </p>
+            </div>
+            <AccessCodesPanel
+              eventId={eventId}
+              eventSlug={eventSlug}
               ui={ui}
               onFeedback={(m) => {
                 setErr(null);

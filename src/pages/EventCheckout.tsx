@@ -5,11 +5,23 @@ import { api } from '../api/client';
 import { landingCssVars, normalizeLandingCustomization } from '../themes/eventThemes';
 import { loadLandingFont } from '../themes/landingFonts';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
+import { EventAccessGate } from '../components/landing/EventAccessGate';
 import { loadCheckoutCart, clearCheckoutCart } from '../utils/checkoutCart';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
+import {
+  getEventAccessToken,
+  setEventAccessToken,
+  setPendingEventAccessContext,
+} from '../lib/eventAccessToken';
 
 type LocationState = {
   selectedTickets?: Record<string, number>;
+};
+
+type EventFetchResult = {
+  event: Event;
+  accessRequired?: boolean;
+  accessToken?: string | null;
 };
 
 export const EventCheckout: React.FC = () => {
@@ -21,33 +33,55 @@ export const EventCheckout: React.FC = () => {
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number> | null>(null);
+  const [accessRequired, setAccessRequired] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const backHref = eventId ? `/events/${eventId}` : slug ? `/e/${slug}` : '/';
+
+  const finishLoad = async (nextEvent: Event) => {
+    setPendingEventAccessContext(nextEvent.id);
+    const ticketRes = await api.get<{ tickets: Ticket[] }>(`/api/events/${nextEvent.id}/tickets`);
+    setEvent(nextEvent);
+    setTickets(ticketRes.tickets || []);
+    setAccessRequired(false);
+
+    const fromState = locationState?.selectedTickets;
+    const fromCart = loadCheckoutCart(nextEvent.id)?.selectedTickets;
+    const selected = fromState && Object.keys(fromState).length > 0 ? fromState : fromCart ?? null;
+
+    if (!selected || !Object.values(selected).some((qty) => qty > 0)) {
+      navigate(backHref, { replace: true });
+      return;
+    }
+
+    setSelectedTickets(selected);
+  };
 
   useEffect(() => {
     const fetchEventData = async () => {
       if (!eventId && !slug) return;
       try {
+        if (eventId && getEventAccessToken(eventId)) {
+          setPendingEventAccessContext(eventId);
+        }
         const eventRes = eventId
-          ? await api.get<{ event: Event }>(`/api/events/${eventId}`)
-          : await api.get<{ event: Event }>(`/api/events/slug/${slug}`);
-        const ticketRes = await api.get<{ tickets: Ticket[] }>(`/api/events/${eventRes.event.id}/tickets`);
-        setEvent(eventRes.event);
-        setTickets(ticketRes.tickets);
+          ? await api.get<EventFetchResult>(`/api/events/${eventId}`)
+          : await api.get<EventFetchResult>(`/api/events/slug/${slug}`);
 
-        const fromState = locationState?.selectedTickets;
-        const fromCart = loadCheckoutCart(eventRes.event.id)?.selectedTickets;
-        const selected = fromState && Object.keys(fromState).length > 0 ? fromState : fromCart ?? null;
+        if (eventRes.accessToken) {
+          setEventAccessToken(eventRes.event.id, eventRes.accessToken);
+        }
 
-        if (!selected || !Object.values(selected).some((qty) => qty > 0)) {
-          navigate(eventId ? `/events/${eventId}` : `/e/${slug}`, { replace: true });
+        if (eventRes.accessRequired || eventRes.event.accessRequired) {
+          setEvent(eventRes.event);
+          setAccessRequired(true);
           return;
         }
 
-        setSelectedTickets(selected);
+        await finishLoad(eventRes.event);
       } catch (error) {
         console.error('Error fetching event for checkout:', error);
+        setEvent(null);
       } finally {
         setLoading(false);
       }
@@ -90,7 +124,7 @@ export const EventCheckout: React.FC = () => {
     ? landingCssVars(event.customization, event.templateId)
     : landingCssVars(undefined);
 
-  if (loading || (event && selectedTickets === null)) {
+  if (loading || (event && !accessRequired && selectedTickets === null)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-4">
@@ -115,6 +149,23 @@ export const EventCheckout: React.FC = () => {
           </Link>
         </div>
       </div>
+    );
+  }
+
+  if (accessRequired) {
+    return (
+      <EventAccessGate
+        event={event}
+        onUnlocked={async (unlocked, token) => {
+          setLoading(true);
+          try {
+            if (token) setEventAccessToken(unlocked.id, token);
+            await finishLoad(unlocked);
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     );
   }
 

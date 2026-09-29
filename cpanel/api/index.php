@@ -23,6 +23,7 @@ require __DIR__ . '/lib/core_schema.php';
 require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
 require __DIR__ . '/lib/coupons.php';
+require __DIR__ . '/lib/access_codes.php';
 
 set_cors_headers_for_same_domain();
 
@@ -3176,6 +3177,7 @@ if ($path === '/public/events' && $method === 'GET') {
   $stmt = $pdo->query($sql);
   $events = [];
   while ($row = $stmt->fetch()) {
+    if (event_private_access_enabled($row)) continue;
     $events[] = map_public_event_row($row, $pdo);
   }
   json_response(200, ['events' => $events]);
@@ -3187,17 +3189,57 @@ if (preg_match('#^/events/(\\d+)$#', $path, $m) && $method === 'GET') {
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
   if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
-  json_response(200, ['event' => map_public_event_row($row, $pdo)]);
+
+  // Private events: organizers see full payload; public needs a valid access token/code.
+  if (event_private_access_enabled($row) && !viewer_has_event_access($pdo, $row)) {
+    $code = trim((string)($_GET['code'] ?? ''));
+    if ($code !== '') {
+      $unlocked = try_unlock_event_access($pdo, $row, $code, true);
+      if (!empty($unlocked['ok'])) {
+        json_response(200, [
+          'event' => map_public_event_row($row, $pdo),
+          'accessToken' => $unlocked['token'] ?? null,
+          'accessRequired' => false,
+        ]);
+      }
+    }
+    json_response(200, [
+      'event' => map_private_event_stub($row),
+      'accessRequired' => true,
+    ]);
+  }
+
+  json_response(200, ['event' => map_public_event_row($row, $pdo), 'accessRequired' => false]);
 }
 
 // Public by slug
 if (preg_match('#^/events/slug/([a-z0-9-]+)$#', $path, $m) && $method === 'GET') {
   $slug = $m[1];
-  $stmt = db()->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
   $stmt->execute([$slug]);
   $row = $stmt->fetch();
   if (!$row || !is_event_publicly_visible($row)) json_response(404, ['error' => 'event_not_found']);
-  json_response(200, ['event' => map_public_event_row($row, db())]);
+
+  if (event_private_access_enabled($row) && !viewer_has_event_access($pdo, $row)) {
+    $code = trim((string)($_GET['code'] ?? ''));
+    if ($code !== '') {
+      $unlocked = try_unlock_event_access($pdo, $row, $code, true);
+      if (!empty($unlocked['ok'])) {
+        json_response(200, [
+          'event' => map_public_event_row($row, $pdo),
+          'accessToken' => $unlocked['token'] ?? null,
+          'accessRequired' => false,
+        ]);
+      }
+    }
+    json_response(200, [
+      'event' => map_private_event_stub($row),
+      'accessRequired' => true,
+    ]);
+  }
+
+  json_response(200, ['event' => map_public_event_row($row, $pdo), 'accessRequired' => false]);
 }
 
 // Organizer: update slug
@@ -3775,11 +3817,12 @@ if (preg_match('#^/events/(\\d+)/tickets$#', $path, $m) && $method === 'GET') {
   ensure_ticket_early_bird_columns($pdo);
   $row = load_event_row_or_404($pdo, $eventId);
   if (!can_view_event_row($row, current_user_id())) json_response(404, ['error' => 'event_not_found']);
+  require_event_public_access($pdo, $row);
   $stmt = $pdo->prepare('SELECT * FROM tickets WHERE event_id = ? ORDER BY id ASC');
   $stmt->execute([$eventId]);
   $tickets = [];
-  while ($row = $stmt->fetch()) {
-    $tickets[] = ticket_to_api_shape($row);
+  while ($ticketRow = $stmt->fetch()) {
+    $tickets[] = ticket_to_api_shape($ticketRow);
   }
   json_response(200, ['tickets' => $tickets]);
 }
@@ -3911,6 +3954,203 @@ if (preg_match('#^/events/(\\d+)/tickets/(\\d+)/delete$#', $path, $m) && $method
   $del = $pdo->prepare('DELETE FROM tickets WHERE id = ? AND event_id = ?');
   $del->execute([$ticketId, $eventId]);
   json_response(200, ['ok' => true]);
+}
+
+// ---- Private event access codes ----
+if (preg_match('#^/events/(\\d+)/access-codes$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  $row = load_event_row_or_404($pdo, $eventId);
+  json_response(200, [
+    'privateAccess' => event_private_access_enabled($row),
+    'codes' => list_event_access_codes($pdo, $eventId),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/access-codes/settings$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  $enabled = !empty($body['privateAccess']);
+  set_event_private_access($pdo, $eventId, $enabled);
+  json_response(200, [
+    'ok' => true,
+    'privateAccess' => $enabled,
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/access-codes$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+
+  $customCode = isset($body['code']) ? normalize_access_code((string)$body['code']) : '';
+  $count = (int)($body['count'] ?? ($customCode !== '' ? 1 : 1));
+  if ($customCode !== '') $count = 1;
+  $maxUses = array_key_exists('maxUses', $body)
+    ? ($body['maxUses'] === null || $body['maxUses'] === '' ? null : max(1, (int)$body['maxUses']))
+    : 1;
+  $label = isset($body['label']) ? trim((string)$body['label']) : null;
+  $expiresAt = parse_access_expires_at(isset($body['expiresAt']) ? (string)$body['expiresAt'] : null);
+
+  $created = create_event_access_codes(
+    $pdo,
+    $eventId,
+    $count,
+    $maxUses,
+    $expiresAt,
+    $label,
+    $uid,
+    $customCode !== '' ? $customCode : null
+  );
+  json_response(201, ['ok' => true, 'codes' => $created, 'created' => count($created)]);
+}
+
+if (preg_match('#^/events/(\\d+)/access-codes/bulk$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+
+  $maxUses = array_key_exists('maxUses', $body)
+    ? ($body['maxUses'] === null || $body['maxUses'] === '' ? null : max(1, (int)$body['maxUses']))
+    : 1;
+  $expiresAt = parse_access_expires_at(isset($body['expiresAt']) ? (string)$body['expiresAt'] : null);
+  $labelPrefix = isset($body['label']) ? trim((string)$body['label']) : null;
+
+  // Mode A: generate N random codes
+  if (isset($body['count']) && !isset($body['codes'])) {
+    $count = (int)$body['count'];
+    $created = create_event_access_codes($pdo, $eventId, $count, $maxUses, $expiresAt, $labelPrefix, $uid, null);
+    json_response(201, ['ok' => true, 'codes' => $created, 'created' => count($created)]);
+  }
+
+  // Mode B: explicit code list (optional labels)
+  $rawCodes = $body['codes'] ?? null;
+  if (!is_array($rawCodes) || count($rawCodes) < 1) {
+    json_response(400, ['error' => 'empty_codes', 'message' => 'Provide count or a list of codes.']);
+  }
+  if (count($rawCodes) > 500) {
+    json_response(400, ['error' => 'too_many_codes', 'message' => 'Upload at most 500 codes at a time.']);
+  }
+
+  $created = [];
+  $failed = [];
+  foreach ($rawCodes as $item) {
+    $code = '';
+    $label = $labelPrefix;
+    if (is_string($item)) {
+      $code = normalize_access_code($item);
+    } elseif (is_array($item)) {
+      $code = normalize_access_code((string)($item['code'] ?? ''));
+      if (isset($item['label']) && trim((string)$item['label']) !== '') {
+        $label = trim((string)$item['label']);
+      }
+    }
+    if ($code === '' || strlen($code) < 4) {
+      $failed[] = ['code' => is_string($item) ? $item : ($item['code'] ?? ''), 'error' => 'invalid_access_code'];
+      continue;
+    }
+    try {
+      $batch = create_event_access_codes($pdo, $eventId, 1, $maxUses, $expiresAt, $label, $uid, $code, true);
+      if (count($batch) < 1) {
+        $failed[] = ['code' => $code, 'error' => 'code_exists'];
+      } else {
+        $created = array_merge($created, $batch);
+      }
+    } catch (Throwable $e) {
+      $failed[] = ['code' => $code, 'error' => 'create_failed'];
+    }
+  }
+
+  json_response(201, [
+    'ok' => true,
+    'codes' => $created,
+    'created' => count($created),
+    'failed' => $failed,
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/access-codes/(\\d+)/revoke$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $codeId = (int)$m[2];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  $ok = revoke_event_access_code($pdo, $eventId, $codeId);
+  if (!$ok) json_response(404, ['error' => 'access_code_not_found', 'message' => 'Code not found or already revoked.']);
+  json_response(200, ['ok' => true]);
+}
+
+if (preg_match('#^/events/(\\d+)/access/unlock$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  $row = load_event_row_or_404($pdo, $eventId);
+  if (!is_event_publicly_visible($row) && !can_view_event_row($row, current_user_id())) {
+    json_response(404, ['error' => 'event_not_found']);
+  }
+  if (!event_private_access_enabled($row)) {
+    json_response(200, [
+      'ok' => true,
+      'accessRequired' => false,
+      'event' => map_public_event_row($row, $pdo),
+    ]);
+  }
+  $code = (string)($body['code'] ?? '');
+  $unlocked = try_unlock_event_access($pdo, $row, $code, true);
+  if (empty($unlocked['ok'])) {
+    json_response(403, [
+      'error' => $unlocked['error'] ?? 'invalid_access_code',
+      'message' => $unlocked['message'] ?? 'Invalid access code.',
+    ]);
+  }
+  json_response(200, [
+    'ok' => true,
+    'accessRequired' => false,
+    'accessToken' => $unlocked['token'] ?? null,
+    'event' => map_public_event_row($row, $pdo),
+  ]);
+}
+
+if (preg_match('#^/events/slug/([a-z0-9-]+)/access/unlock$#', $path, $m) && $method === 'POST') {
+  $slug = $m[1];
+  $body = read_json_body();
+  $pdo = db();
+  $stmt = $pdo->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
+  $stmt->execute([$slug]);
+  $row = $stmt->fetch();
+  if (!$row || (!is_event_publicly_visible($row) && !can_view_event_row($row, current_user_id()))) {
+    json_response(404, ['error' => 'event_not_found']);
+  }
+  if (!event_private_access_enabled($row)) {
+    json_response(200, [
+      'ok' => true,
+      'accessRequired' => false,
+      'event' => map_public_event_row($row, $pdo),
+    ]);
+  }
+  $code = (string)($body['code'] ?? '');
+  $unlocked = try_unlock_event_access($pdo, $row, $code, true);
+  if (empty($unlocked['ok'])) {
+    json_response(403, [
+      'error' => $unlocked['error'] ?? 'invalid_access_code',
+      'message' => $unlocked['message'] ?? 'Invalid access code.',
+    ]);
+  }
+  json_response(200, [
+    'ok' => true,
+    'accessRequired' => false,
+    'accessToken' => $unlocked['token'] ?? null,
+    'event' => map_public_event_row($row, $pdo),
+  ]);
 }
 
 // ---- Event coupons ----

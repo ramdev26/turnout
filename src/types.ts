@@ -272,6 +272,8 @@ export interface EventCustomization {
   displayMode?: LandingDisplayMode;
   /** Landing surface style: frosted glass, clean minimal, or bold solid */
   landingStyle?: LandingStyle;
+  /** When true, public landing/checkout requires a valid access code. */
+  privateAccess?: boolean;
   /** Deep colour overrides — when set, win over derived theme surfaces */
   buttonColor?: string;
   headingColor?: string;
@@ -459,6 +461,9 @@ export interface Event {
   customDomain?: string | null;
   status: 'draft' | 'published' | 'cancelled';
   createdAt: string;
+  /** Present on private-access stub payloads until the viewer unlocks. */
+  privateAccess?: boolean;
+  accessRequired?: boolean;
 }
 
 export interface TicketEarlyBird {

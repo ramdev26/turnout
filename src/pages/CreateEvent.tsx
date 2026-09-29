@@ -603,6 +603,7 @@ export const CreateEvent: React.FC = () => {
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
         layout: 'centered',
+        privateAccess: visibility === 'private',
         customDomain: data.useCustomDomain ? (data.customDomain || '').trim() : undefined,
         dnsProvider: data.useCustomDomain ? data.dnsProvider : undefined,
         dnsRecordType: data.useCustomDomain ? data.dnsRecordType : undefined,
@@ -839,7 +840,7 @@ export const CreateEvent: React.FC = () => {
               style={{ ...cardStyle, color: ui.text }}
             >
               <Globe className="h-3.5 w-3.5" style={{ color: ui.textSubtle }} />
-              {visibility === 'public' ? 'Public' : 'Private'}
+              {visibility === 'public' ? 'Public' : 'Private · codes'}
             </button>
           </div>
         </div>
@@ -920,7 +921,7 @@ export const CreateEvent: React.FC = () => {
                 <ul className="mt-2 space-y-1.5 text-xs leading-relaxed" style={{ color: ui.textMuted }}>
                   <li>Use a clear banner image to boost conversions.</li>
                   <li>{ticketMode === 'paid' ? 'Add at least one paid ticket tier.' : 'Switch to Paid when you need pricing tiers.'}</li>
-                  <li>{visibility === 'public' ? 'This event is currently visible to everyone.' : 'This event is private right now.'}</li>
+                  <li>{visibility === 'public' ? 'This event is currently visible to everyone.' : 'Private — guests will need an access code (manage under Check-in → Access codes).'}</li>
                 </ul>
               </div>
 
@@ -954,7 +955,7 @@ export const CreateEvent: React.FC = () => {
                   style={{ ...cardStyle, color: ui.text }}
                 >
                   <Globe className="h-3.5 w-3.5" />
-                  {visibility === 'public' ? 'Public' : 'Private'}
+                  {visibility === 'public' ? 'Public' : 'Private · codes'}
                 </button>
               </div>
 
