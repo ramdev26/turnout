@@ -821,7 +821,7 @@ export const CheckInManager: React.FC = () => {
                 Access codes · private events
               </h2>
               <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                Lock the landing page behind shared or single-use codes. Generate in bulk or import a CSV for invite-only events.
+                Lock the landing page behind single-use codes. Each code expires after one unlock — generate in bulk or import a CSV for invite-only events.
               </p>
             </div>
             <AccessCodesPanel

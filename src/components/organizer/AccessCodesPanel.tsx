@@ -21,7 +21,6 @@ import {
   fieldStyleFor,
 } from '../../themes/flowUi';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../flow/FlowPrimitives';
-import { TurnoutSelect } from '../ui/TurnoutSelect';
 import { formatApiError } from '../../utils/apiError';
 import { cn } from '../../utils/cn';
 import { absoluteAppUrl } from '../../lib/publicAppUrl';
@@ -47,8 +46,6 @@ type Props = {
   onFeedback?: (msg: string) => void;
   onError?: (msg: string) => void;
 };
-
-type UseMode = 'single' | 'limited' | 'unlimited';
 
 const SAMPLE_CODES_CSV = `code,label
 VIP-ALPHA,Press guest
@@ -148,8 +145,8 @@ function fromLocalInputValue(local: string): string | null {
 }
 
 function usesLabel(c: EventAccessCode): string {
-  if (c.maxUses == null) return `${c.usedCount} uses · unlimited`;
-  return `${c.usedCount} / ${c.maxUses} uses`;
+  if (c.usedCount >= 1) return 'Used · expired for further tries';
+  return 'Single use · unused';
 }
 
 export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }: Props) {
@@ -181,8 +178,6 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
   const [customCode, setCustomCode] = useState('');
   const [label, setLabel] = useState('');
   const [bulkCount, setBulkCount] = useState('10');
-  const [useMode, setUseMode] = useState<UseMode>('single');
-  const [maxUses, setMaxUses] = useState('1');
   const [expiresAt, setExpiresAt] = useState('');
   const [pendingUpload, setPendingUpload] = useState<{ code: string; label?: string }[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
@@ -193,13 +188,6 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
     if (eventSlug) return absoluteAppUrl(`/e/${eventSlug}`);
     return absoluteAppUrl(`/events/${eventId}`);
   }, [eventId, eventSlug]);
-
-  const resolvedMaxUses = useMemo(() => {
-    if (useMode === 'unlimited') return null;
-    if (useMode === 'single') return 1;
-    const n = Number(maxUses);
-    return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
-  }, [useMode, maxUses]);
 
   const visibleCodes = useMemo(() => {
     if (showInactive) return codes;
@@ -256,7 +244,7 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
         {
           code: code || undefined,
           label: label.trim() || undefined,
-          maxUses: resolvedMaxUses,
+          maxUses: 1,
           expiresAt: fromLocalInputValue(expiresAt),
           count: 1,
         }
@@ -290,7 +278,7 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
         {
           count,
           label: label.trim() || undefined,
-          maxUses: resolvedMaxUses,
+          maxUses: 1,
           expiresAt: fromLocalInputValue(expiresAt),
         }
       );
@@ -317,7 +305,7 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
         failed?: { code: string; error: string }[];
       }>(`/api/events/${eventId}/access-codes/bulk`, {
         codes: rows,
-        maxUses: resolvedMaxUses,
+        maxUses: 1,
         expiresAt: fromLocalInputValue(expiresAt),
         label: label.trim() || undefined,
       });
@@ -435,7 +423,8 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
             </p>
             <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
               When enabled, guests must enter a valid access code before the event page and checkout open.
-              The event is also hidden from public listings.
+              Each code works once — after unlock it expires for further tries. Private events are hidden from
+              public listings.
             </p>
           </div>
           <button
@@ -488,57 +477,23 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
                 style={fieldStyle}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <FlowLabel>Use limit</FlowLabel>
-                <TurnoutSelect
-                  value={useMode}
-                  onChange={(v) => setUseMode(v as UseMode)}
-                  options={[
-                    { value: 'single', label: 'Single use' },
-                    { value: 'limited', label: 'Limited uses' },
-                    { value: 'unlimited', label: 'Unlimited' },
-                  ]}
-                  tone={ui.isDark ? 'dark' : 'light'}
-                />
-              </div>
-              {useMode === 'limited' ? (
-                <div>
-                  <FlowLabel>Max uses</FlowLabel>
-                  <FlowInput
-                    type="number"
-                    min={1}
-                    value={maxUses}
-                    onChange={(e) => setMaxUses(e.target.value)}
-                    className={fieldClass}
-                    style={fieldStyle}
-                  />
-                </div>
-              ) : (
-                <div>
-                  <FlowLabel>Expires (optional)</FlowLabel>
-                  <FlowInput
-                    type="datetime-local"
-                    value={expiresAt}
-                    onChange={(e) => setExpiresAt(e.target.value)}
-                    className={fieldClass}
-                    style={fieldStyle}
-                  />
-                </div>
-              )}
+            <div
+              className="rounded-xl border px-3 py-2.5 text-sm"
+              style={{ ...cardMutedStyle, color: ui.textMuted }}
+            >
+              Each code is <span style={{ color: ui.text, fontWeight: 700 }}>one-time use</span>. After a guest
+              unlocks with it, that code expires and will not work for further tries.
             </div>
-            {useMode === 'limited' ? (
-              <div>
-                <FlowLabel>Expires (optional)</FlowLabel>
-                <FlowInput
-                  type="datetime-local"
-                  value={expiresAt}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                  className={fieldClass}
-                  style={fieldStyle}
-                />
-              </div>
-            ) : null}
+            <div>
+              <FlowLabel>Expires (optional)</FlowLabel>
+              <FlowInput
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className={fieldClass}
+                style={fieldStyle}
+              />
+            </div>
             <div className="flex flex-wrap gap-2 pt-1">
               <FlowButton onClick={() => void createOne()} disabled={generating}>
                 {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -563,7 +518,7 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
                 </FlowButton>
               </div>
               <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
-                Creates up to 500 unique codes using the use limit and expiry above.
+                Creates up to 500 unique single-use codes (optional expiry above).
               </p>
             </div>
           </div>
@@ -685,7 +640,7 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
               const link = `${landingBase}?code=${encodeURIComponent(c.code)}`;
               const expired =
                 !!c.expiresAt && !Number.isNaN(Date.parse(c.expiresAt)) && Date.parse(c.expiresAt) < Date.now();
-              const exhausted = c.maxUses != null && c.usedCount >= c.maxUses;
+              const exhausted = c.usedCount >= 1;
               return (
                 <div
                   key={c.id}
@@ -707,7 +662,7 @@ export function AccessCodesPanel({ eventId, eventSlug, ui, onFeedback, onError }
                         </span>
                       ) : exhausted ? (
                         <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-amber-600 bg-amber-500/10">
-                          Used up
+                          Used
                         </span>
                       ) : (
                         <span

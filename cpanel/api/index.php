@@ -3993,9 +3993,8 @@ if (preg_match('#^/events/(\\d+)/access-codes$#', $path, $m) && $method === 'POS
   $customCode = isset($body['code']) ? normalize_access_code((string)$body['code']) : '';
   $count = (int)($body['count'] ?? ($customCode !== '' ? 1 : 1));
   if ($customCode !== '') $count = 1;
-  $maxUses = array_key_exists('maxUses', $body)
-    ? ($body['maxUses'] === null || $body['maxUses'] === '' ? null : max(1, (int)$body['maxUses']))
-    : 1;
+  // Always single-use: one successful unlock expires the code for further tries.
+  $maxUses = 1;
   $label = isset($body['label']) ? trim((string)$body['label']) : null;
   $expiresAt = parse_access_expires_at(isset($body['expiresAt']) ? (string)$body['expiresAt'] : null);
 
@@ -4019,9 +4018,8 @@ if (preg_match('#^/events/(\\d+)/access-codes/bulk$#', $path, $m) && $method ===
   $pdo = db();
   require_event_owner($pdo, $eventId, $uid, 'editor');
 
-  $maxUses = array_key_exists('maxUses', $body)
-    ? ($body['maxUses'] === null || $body['maxUses'] === '' ? null : max(1, (int)$body['maxUses']))
-    : 1;
+  // Always single-use: one successful unlock expires the code for further tries.
+  $maxUses = 1;
   $expiresAt = parse_access_expires_at(isset($body['expiresAt']) ? (string)$body['expiresAt'] : null);
   $labelPrefix = isset($body['label']) ? trim((string)$body['label']) : null;
 

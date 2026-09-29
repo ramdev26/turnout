@@ -139,9 +139,8 @@ function access_code_is_usable(array $r): bool {
     $exp = strtotime((string)$r['expires_at']);
     if ($exp !== false && $exp < time()) return false;
   }
-  if ($r['max_uses'] !== null && (int)$r['max_uses'] > 0) {
-    if ((int)($r['used_count'] ?? 0) >= (int)$r['max_uses']) return false;
-  }
+  // Access codes are always one-time use — once unlocked, further tries fail.
+  if ((int)($r['used_count'] ?? 0) >= 1) return false;
   return true;
 }
 
@@ -256,17 +255,18 @@ function try_unlock_event_access(PDO $pdo, array $row, string $rawCode, bool $co
     return ['ok' => false, 'error' => 'invalid_access_code', 'message' => 'That access code is not valid for this event.'];
   }
   if (!access_code_is_usable($codeRow)) {
-    return ['ok' => false, 'error' => 'access_code_unavailable', 'message' => 'This access code has expired, been revoked, or reached its use limit.'];
+    return ['ok' => false, 'error' => 'access_code_unavailable', 'message' => 'This access code has already been used, expired, or been revoked.'];
   }
 
-  if ($consume && $codeRow['max_uses'] !== null && (int)$codeRow['max_uses'] > 0) {
+  // Always consume on successful unlock so the code cannot be tried again.
+  if ($consume) {
     $upd = $pdo->prepare(
       'UPDATE event_access_codes SET used_count = used_count + 1
-       WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses) AND revoked_at IS NULL'
+       WHERE id = ? AND used_count = 0 AND revoked_at IS NULL'
     );
     $upd->execute([(int)$codeRow['id']]);
     if ($upd->rowCount() < 1) {
-      return ['ok' => false, 'error' => 'access_code_unavailable', 'message' => 'This access code has reached its use limit.'];
+      return ['ok' => false, 'error' => 'access_code_unavailable', 'message' => 'This access code has already been used.'];
     }
   }
 
@@ -330,6 +330,8 @@ function create_event_access_codes(
   if ($count > 500) {
     json_response(400, ['error' => 'too_many_codes', 'message' => 'Generate at most 500 codes at a time.']);
   }
+  // Access codes are always single-use, regardless of caller input.
+  $maxUses = 1;
 
   $ins = $pdo->prepare(
     'INSERT INTO event_access_codes (event_id, code, label, max_uses, expires_at, created_by_user_id)
