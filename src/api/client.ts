@@ -4,6 +4,7 @@ export type ApiError = {
 };
 
 import { getAuthToken } from './authToken';
+import { getEventAccessHeaderForApiPath } from '../lib/eventAccessToken';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 const API_TIMEOUT_MS = 30000;
@@ -95,6 +96,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...getEventAccessHeaderForApiPath(path),
         ...(init.headers || {}),
       },
       credentials: 'include',

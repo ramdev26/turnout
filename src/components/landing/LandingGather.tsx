@@ -234,7 +234,7 @@ function GatherRegisterCard({
 
         <button
           type="button"
-          className="gt-cta"
+          className="gt-cta landing-type-button"
           disabled={ended || isPurchasing || !hasSelection}
           onClick={onCheckout}
         >
@@ -315,7 +315,7 @@ export function LandingGatherPage(props: LandingTemplateProps) {
           </aside>
 
           <main className="gt-main">
-            <h1 className="gt-title">{title}</h1>
+            <h1 className="gt-title landing-type-h1">{title}</h1>
             <div className="gt-mobile-only">
               <GatherHostInline event={event} />
             </div>

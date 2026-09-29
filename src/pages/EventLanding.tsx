@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Event, Ticket, OrderItem } from '../types';
 import { api } from '../api/client';
 import { getLandingTemplateForEvent } from '../templates/templates';
@@ -9,13 +9,29 @@ import { formatLKRWhole } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
+import { EventAccessGate } from '../components/landing/EventAccessGate';
 import { saveCheckoutCart } from '../utils/checkoutCart';
+import {
+  getEventAccessToken,
+  setEventAccessToken,
+  setPendingEventAccessContext,
+} from '../lib/eventAccessToken';
+
+type EventFetchResult = {
+  event: Event;
+  accessRequired?: boolean;
+  accessToken?: string | null;
+};
 
 export const EventLanding: React.FC = () => {
   const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const codeFromUrl = (searchParams.get('code') || '').trim();
+
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [accessRequired, setAccessRequired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -35,24 +51,70 @@ export const EventLanding: React.FC = () => {
     [selectedTickets, tickets]
   );
 
+  const loadTickets = async (id: string) => {
+    const ticketRes = await api.get<{ tickets: Ticket[] }>(`/api/events/${id}/tickets`);
+    setTickets(ticketRes.tickets || []);
+  };
+
+  const applyUnlockedEvent = async (next: Event, accessToken?: string | null) => {
+    if (accessToken) {
+      setEventAccessToken(next.id, accessToken);
+    }
+    setPendingEventAccessContext(next.id);
+    setEvent(next);
+    setAccessRequired(false);
+    await loadTickets(next.id);
+  };
+
   useEffect(() => {
     const fetchEventData = async () => {
       if (!eventId && !slug) return;
+      setLoading(true);
       try {
+        const query = codeFromUrl ? `?code=${encodeURIComponent(codeFromUrl)}` : '';
+        // If we already have a stored token for a known event id, attach context early.
+        if (eventId && getEventAccessToken(eventId)) {
+          setPendingEventAccessContext(eventId);
+        }
+
         const eventRes = eventId
-          ? await api.get<{ event: Event }>(`/api/events/${eventId}`)
-          : await api.get<{ event: Event }>(`/api/events/slug/${slug}`);
-        const ticketRes = await api.get<{ tickets: Ticket[] }>(`/api/events/${eventRes.event.id}/tickets`);
-        setEvent(eventRes.event);
-        setTickets(ticketRes.tickets);
+          ? await api.get<EventFetchResult>(`/api/events/${eventId}${query}`)
+          : await api.get<EventFetchResult>(`/api/events/slug/${slug}${query}`);
+
+        const nextEvent = eventRes.event;
+        if (eventRes.accessToken) {
+          setEventAccessToken(nextEvent.id, eventRes.accessToken);
+          setPendingEventAccessContext(nextEvent.id);
+        } else if (getEventAccessToken(nextEvent.id)) {
+          setPendingEventAccessContext(nextEvent.id);
+        }
+
+        if (eventRes.accessRequired || nextEvent.accessRequired) {
+          setEvent(nextEvent);
+          setAccessRequired(true);
+          setTickets([]);
+          return;
+        }
+
+        setEvent(nextEvent);
+        setAccessRequired(false);
+        await loadTickets(nextEvent.id);
+
+        if (codeFromUrl) {
+          const next = new URLSearchParams(searchParams);
+          next.delete('code');
+          setSearchParams(next, { replace: true });
+        }
       } catch (error) {
         console.error('Error fetching event:', error);
+        setEvent(null);
       } finally {
         setLoading(false);
       }
     };
 
     void fetchEventData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, slug]);
 
   useEffect(() => {
@@ -134,6 +196,28 @@ export const EventLanding: React.FC = () => {
           </Link>
         </div>
       </div>
+    );
+  }
+
+  if (accessRequired) {
+    return (
+      <EventAccessGate
+        event={event}
+        initialCode={codeFromUrl}
+        onUnlocked={async (unlocked, token) => {
+          setLoading(true);
+          try {
+            await applyUnlockedEvent(unlocked, token);
+            if (codeFromUrl) {
+              const next = new URLSearchParams(searchParams);
+              next.delete('code');
+              setSearchParams(next, { replace: true });
+            }
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     );
   }
 

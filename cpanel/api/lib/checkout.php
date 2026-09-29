@@ -53,6 +53,9 @@ function require_publishable_event(PDO $pdo, int $eventId): array {
   if (!$row || !is_event_publicly_visible($row)) {
     json_response(404, ['error' => 'event_not_found']);
   }
+  if (function_exists('require_event_public_access')) {
+    require_event_public_access($pdo, $row);
+  }
   return $row;
 }
 

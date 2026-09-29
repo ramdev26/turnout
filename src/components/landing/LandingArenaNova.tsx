@@ -153,7 +153,7 @@ function ArenaNovaEventIntro({ event }: { event: Event }) {
   return (
     <div className="landing-arena-intro">
       <p className="landing-arena-organizer">{brand.name.toUpperCase()}</p>
-      <h1 className="landing-arena-title">{title}</h1>
+      <h1 className="landing-arena-title landing-type-h1">{title}</h1>
       {lead ? <p className="landing-arena-lead">{lead}</p> : null}
     </div>
   );
@@ -170,7 +170,7 @@ function ArenaNovaAbout({ event }: { event: Event }) {
 
   return (
     <section className="landing-arena-about" id="landing-about">
-      <h2 className="landing-arena-about-title">About this event</h2>
+      <h2 className="landing-arena-about-title landing-type-h2">About this event</h2>
       <div className="landing-arena-about-card">
         <p
           className={`landing-arena-about-text${canExpand && !expanded ? ' is-clamped' : ''}`}
@@ -433,7 +433,7 @@ function ArenaNovaSummary({
         <span className="font-bold">Total</span>
         <span className="text-lg font-extrabold tabular-nums">{totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}</span>
       </div>
-      <button type="button" className="landing-arena-checkout-btn" onClick={onCheckout} disabled={isPurchasing}>
+      <button type="button" className="landing-arena-checkout-btn landing-type-button" onClick={onCheckout} disabled={isPurchasing}>
         {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : 'Proceed to payment'}
         {!isPurchasing ? <ArrowRight className="h-4 w-4" /> : null}
       </button>
@@ -473,7 +473,7 @@ export function LandingArenaNovaPage({
             <ArenaNovaAbout event={event} />
 
             <div className="landing-arena-section-head">
-              <h2 className="landing-arena-section-title">Choose your tickets</h2>
+              <h2 className="landing-arena-section-title landing-type-h2">Choose your tickets</h2>
               <span className="landing-arena-currency">Pay in LKR</span>
             </div>
 

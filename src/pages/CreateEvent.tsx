@@ -546,10 +546,29 @@ export const CreateEvent: React.FC = () => {
         borderColor: design.borderColor,
         headerBgColor: design.headerBgColor,
         footerBgColor: design.footerBgColor,
+        h2Color: design.h2Color,
+        h3Color: design.h3Color,
+        buttonTextColor: design.buttonTextColor,
+        iconColor: design.iconColor,
+        linkColor: design.linkColor,
+        bannerOutlineColor: design.bannerOutlineColor,
+        bannerOutlineWidth: design.bannerOutlineWidth,
+        h1FontFamily: design.h1FontFamily,
+        h2FontFamily: design.h2FontFamily,
+        h3FontFamily: design.h3FontFamily,
+        bodyFontFamily: design.bodyFontFamily,
+        buttonFontFamily: design.buttonFontFamily,
         h1FontSize: design.h1FontSize,
         h2FontSize: design.h2FontSize,
         bodyFontSize: design.bodyFontSize,
         smallFontSize: design.smallFontSize,
+        h1FontSizeMobile: design.h1FontSizeMobile,
+        h2FontSizeMobile: design.h2FontSizeMobile,
+        h3FontSize: design.h3FontSize,
+        h3FontSizeMobile: design.h3FontSizeMobile,
+        bodyFontSizeMobile: design.bodyFontSizeMobile,
+        buttonFontSize: design.buttonFontSize,
+        buttonFontSizeMobile: design.buttonFontSizeMobile,
         h1Bold: design.h1Bold,
         h1Italic: design.h1Italic,
         h1Underline: design.h1Underline,
@@ -562,6 +581,16 @@ export const CreateEvent: React.FC = () => {
         smallBold: design.smallBold,
         smallItalic: design.smallItalic,
         smallUnderline: design.smallUnderline,
+        h3Bold: design.h3Bold,
+        h3Italic: design.h3Italic,
+        h3Underline: design.h3Underline,
+        buttonTextBold: design.buttonTextBold,
+        buttonTextItalic: design.buttonTextItalic,
+        buttonTextUnderline: design.buttonTextUnderline,
+        buttonRadius: design.buttonRadius,
+        buttonOutlineWidth: design.buttonOutlineWidth,
+        buttonOutlineColor: design.buttonOutlineColor,
+        buttonShadow: design.buttonShadow,
         eventPolicyHtml: DEFAULT_EVENT_POLICY_HTML,
         scheduleTba: !hasSchedule,
         locationTba: !!data.locationTba,
@@ -574,6 +603,7 @@ export const CreateEvent: React.FC = () => {
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
         layout: 'centered',
+        privateAccess: visibility === 'private',
         customDomain: data.useCustomDomain ? (data.customDomain || '').trim() : undefined,
         dnsProvider: data.useCustomDomain ? data.dnsProvider : undefined,
         dnsRecordType: data.useCustomDomain ? data.dnsRecordType : undefined,
@@ -810,7 +840,7 @@ export const CreateEvent: React.FC = () => {
               style={{ ...cardStyle, color: ui.text }}
             >
               <Globe className="h-3.5 w-3.5" style={{ color: ui.textSubtle }} />
-              {visibility === 'public' ? 'Public' : 'Private'}
+              {visibility === 'public' ? 'Public' : 'Private · codes'}
             </button>
           </div>
         </div>
@@ -891,7 +921,7 @@ export const CreateEvent: React.FC = () => {
                 <ul className="mt-2 space-y-1.5 text-xs leading-relaxed" style={{ color: ui.textMuted }}>
                   <li>Use a clear banner image to boost conversions.</li>
                   <li>{ticketMode === 'paid' ? 'Add at least one paid ticket tier.' : 'Switch to Paid when you need pricing tiers.'}</li>
-                  <li>{visibility === 'public' ? 'This event is currently visible to everyone.' : 'This event is private right now.'}</li>
+                  <li>{visibility === 'public' ? 'This event is currently visible to everyone.' : 'Private — guests will need an access code (manage under Check-in → Access codes).'}</li>
                 </ul>
               </div>
 
@@ -925,7 +955,7 @@ export const CreateEvent: React.FC = () => {
                   style={{ ...cardStyle, color: ui.text }}
                 >
                   <Globe className="h-3.5 w-3.5" />
-                  {visibility === 'public' ? 'Public' : 'Private'}
+                  {visibility === 'public' ? 'Public' : 'Private · codes'}
                 </button>
               </div>
 

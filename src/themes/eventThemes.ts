@@ -583,10 +583,28 @@ export function landingCssVars(
   const borderColor = storedHexColor(c.borderColor);
   const headerBgColor = storedHexColor(c.headerBgColor);
   const footerBgColor = storedHexColor(c.footerBgColor);
+  const h2Color = storedHexColor(c.h2Color);
+  const h3Color = storedHexColor(c.h3Color);
+  const buttonTextColor = storedHexColor(c.buttonTextColor);
+  const iconColor = storedHexColor(c.iconColor);
+  const linkColor = storedHexColor(c.linkColor);
+  const bannerOutlineColor = storedHexColor(c.bannerOutlineColor);
+  const buttonOutlineColor = storedHexColor(c.buttonOutlineColor);
+
   const h1FontSize = storedFontSizePx(c.h1FontSize, 20, 96);
   const h2FontSize = storedFontSizePx(c.h2FontSize, 14, 64);
   const bodyFontSize = storedFontSizePx(c.bodyFontSize, 12, 28);
   const smallFontSize = storedFontSizePx(c.smallFontSize, 10, 20);
+  const h1FontSizeMobile = storedFontSizePx(c.h1FontSizeMobile, 16, 72);
+  const h2FontSizeMobile = storedFontSizePx(c.h2FontSizeMobile, 12, 48);
+  const h3FontSize = storedFontSizePx(c.h3FontSize, 10, 40) ?? smallFontSize;
+  const h3FontSizeMobile = storedFontSizePx(c.h3FontSizeMobile, 10, 32);
+  const bodyFontSizeMobile = storedFontSizePx(c.bodyFontSizeMobile, 11, 24);
+  const buttonFontSize = storedFontSizePx(c.buttonFontSize, 10, 28);
+  const buttonFontSizeMobile = storedFontSizePx(c.buttonFontSizeMobile, 10, 24);
+  const bannerOutlineWidth = storedFontSizePx(c.bannerOutlineWidth, 0, 24);
+  const buttonRadius = storedFontSizePx(c.buttonRadius, 0, 999);
+  const buttonOutlineWidth = storedFontSizePx(c.buttonOutlineWidth, 0, 12);
 
   const buttonFill = buttonColor || accentReadable;
   const onButton = isLightHex(buttonFill) ? TURNOUT_BRAND.ink : '#ffffff';
@@ -600,6 +618,41 @@ export function landingCssVars(
   const headerBg = headerBgColor || surfaceBg;
   const footerBg = footerBgColor || `color-mix(in srgb, ${surfaceBg} 55%, transparent)`;
 
+  const h2Tone = h2Color || textMuted || heading;
+  const h3Tone = h3Color || textMuted || heading;
+  const buttonText = buttonTextColor || onButton;
+  const iconTone = iconColor || accentReadable;
+  const linkTone = linkColor || accentReadable;
+  const bannerOutline = bannerOutlineColor || border;
+
+  const resolveRoleFont = (
+    roleKey: string | undefined,
+    fallbackStack: string,
+    preferDisplay: boolean
+  ): string => {
+    if (!roleKey?.trim()) return fallbackStack;
+    const resolved = resolveLandingFont(roleKey);
+    return preferDisplay ? resolved.display : resolved.body;
+  };
+
+  const h1Font = resolveRoleFont(c.h1FontFamily, font.display, true);
+  const h2Font = resolveRoleFont(c.h2FontFamily, font.display, true);
+  const h3Font = resolveRoleFont(c.h3FontFamily, font.display, true);
+  const bodyFont = resolveRoleFont(c.bodyFontFamily, font.body, false);
+  const buttonFont = resolveRoleFont(c.buttonFontFamily, font.body, false);
+
+  const buttonShadowPreset = c.buttonShadow;
+  const buttonShadowCss =
+    buttonShadowPreset === 'none'
+      ? 'none'
+      : buttonShadowPreset === 'soft'
+        ? `0 2px 10px color-mix(in srgb, ${buttonFill} 22%, transparent)`
+        : buttonShadowPreset === 'strong'
+          ? `0 10px 36px color-mix(in srgb, ${buttonFill} 48%, transparent), 0 2px 0 rgba(0,0,0,0.06)`
+          : buttonShadowPreset === 'medium'
+            ? `0 4px 20px color-mix(in srgb, ${buttonFill} 35%, transparent)`
+            : undefined;
+
   return {
     ['--primary' as string]: primary,
     ['--secondary' as string]: secondary,
@@ -607,12 +660,21 @@ export function landingCssVars(
     ['--landing-on-primary' as string]: buttonColor ? onButton : onPrimary,
     ['--landing-button' as string]: buttonFill,
     ['--landing-on-button' as string]: onButton,
+    ['--landing-button-text' as string]: buttonText,
     ['--landing-page-bg' as string]: pageBg,
     ['--landing-surface' as string]: surfaceBg,
     ['--landing-surface-muted' as string]: surfaceMutedBg,
     ['--landing-text' as string]: textColor,
     ['--landing-text-muted' as string]: textMuted,
     ['--landing-heading' as string]: heading,
+    ['--landing-h1-color' as string]: heading,
+    ['--landing-h2-color' as string]: h2Tone,
+    ['--landing-h3-color' as string]: h3Tone,
+    ['--landing-p-color' as string]: textColor,
+    ['--landing-icon' as string]: iconTone,
+    ['--landing-link' as string]: linkTone,
+    ['--landing-banner-outline' as string]: bannerOutline,
+    ['--landing-banner-outline-width' as string]: `${bannerOutlineWidth ?? 1}px`,
     ['--landing-border' as string]: border,
     ['--landing-header-bg' as string]: headerBg,
     ['--landing-footer-bg' as string]: footerBg,
@@ -626,23 +688,50 @@ export function landingCssVars(
     ['--landing-radius' as string]: radius,
     ['--landing-font-display' as string]: font.display,
     ['--landing-font-body' as string]: font.body,
+    ['--landing-h1-font' as string]: h1Font,
+    ['--landing-h2-font' as string]: h2Font,
+    ['--landing-h3-font' as string]: h3Font,
+    ['--landing-p-font' as string]: bodyFont,
+    ['--landing-body-font' as string]: bodyFont,
+    ['--landing-button-font' as string]: buttonFont,
     ['--landing-accent' as string]: primary,
     ['--primary-on' as string]: buttonColor ? onButton : onPrimary,
     ...(h1FontSize ? { ['--landing-h1-size' as string]: `${h1FontSize}px` } : {}),
+    ...(h1FontSizeMobile ? { ['--landing-h1-size-mobile' as string]: `${h1FontSizeMobile}px` } : {}),
     ...(h2FontSize ? { ['--landing-h2-size' as string]: `${h2FontSize}px` } : {}),
+    ...(h2FontSizeMobile ? { ['--landing-h2-size-mobile' as string]: `${h2FontSizeMobile}px` } : {}),
+    ...(h3FontSize ? { ['--landing-h3-size' as string]: `${h3FontSize}px` } : {}),
+    ...(h3FontSizeMobile ? { ['--landing-h3-size-mobile' as string]: `${h3FontSizeMobile}px` } : {}),
     ...(bodyFontSize ? { ['--landing-body-size' as string]: `${bodyFontSize}px` } : {}),
+    ...(bodyFontSizeMobile ? { ['--landing-body-size-mobile' as string]: `${bodyFontSizeMobile}px` } : {}),
     ...(smallFontSize ? { ['--landing-small-size' as string]: `${smallFontSize}px` } : {}),
+    ...(buttonFontSize ? { ['--landing-button-size' as string]: `${buttonFontSize}px` } : {}),
+    ...(buttonFontSizeMobile ? { ['--landing-button-size-mobile' as string]: `${buttonFontSizeMobile}px` } : {}),
+    ...(buttonRadius != null ? { ['--landing-button-radius' as string]: `${buttonRadius}px` } : {}),
+    ...(buttonOutlineWidth != null
+      ? { ['--landing-button-outline-width' as string]: `${buttonOutlineWidth}px` }
+      : {}),
+    ...(buttonOutlineColor
+      ? { ['--landing-button-outline-color' as string]: buttonOutlineColor }
+      : {}),
+    ...(buttonShadowCss ? { ['--landing-button-shadow' as string]: buttonShadowCss } : {}),
     ...(c.h1Bold ? { ['--landing-h1-weight' as string]: '800' } : {}),
     ...(c.h1Italic ? { ['--landing-h1-style' as string]: 'italic' } : {}),
     ...(c.h1Underline ? { ['--landing-h1-decoration' as string]: 'underline' } : {}),
     ...(c.h2Bold ? { ['--landing-h2-weight' as string]: '700' } : {}),
     ...(c.h2Italic ? { ['--landing-h2-style' as string]: 'italic' } : {}),
     ...(c.h2Underline ? { ['--landing-h2-decoration' as string]: 'underline' } : {}),
+    ...(c.h3Bold ? { ['--landing-h3-weight' as string]: '700' } : {}),
+    ...(c.h3Italic ? { ['--landing-h3-style' as string]: 'italic' } : {}),
+    ...(c.h3Underline ? { ['--landing-h3-decoration' as string]: 'underline' } : {}),
     ...(c.bodyBold ? { ['--landing-body-weight' as string]: '700' } : {}),
     ...(c.bodyItalic ? { ['--landing-body-style' as string]: 'italic' } : {}),
     ...(c.bodyUnderline ? { ['--landing-body-decoration' as string]: 'underline' } : {}),
     ...(c.smallBold ? { ['--landing-small-weight' as string]: '700' } : {}),
     ...(c.smallItalic ? { ['--landing-small-style' as string]: 'italic' } : {}),
     ...(c.smallUnderline ? { ['--landing-small-decoration' as string]: 'underline' } : {}),
+    ...(c.buttonTextBold ? { ['--landing-button-weight' as string]: '800' } : {}),
+    ...(c.buttonTextItalic ? { ['--landing-button-style' as string]: 'italic' } : {}),
+    ...(c.buttonTextUnderline ? { ['--landing-button-decoration' as string]: 'underline' } : {}),
   };
 }

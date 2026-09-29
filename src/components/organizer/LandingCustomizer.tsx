@@ -9,9 +9,11 @@ import {
   resolveLandingFontKey,
   type LandingFontKey,
 } from '../../themes/landingFonts';
-import type { LandingDisplayMode, LandingStyle } from '../../types';
+import type { LandingButtonShadow, LandingDisplayMode, LandingStyle } from '../../types';
 import type { LayoutTemplateId } from '../../templates/templates';
 import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
+
+export type { LandingButtonShadow };
 
 export type LandingDesignValue = {
   templateId: LayoutTemplateId;
@@ -32,11 +34,33 @@ export type LandingDesignValue = {
   borderColor?: string;
   headerBgColor?: string;
   footerBgColor?: string;
-  /** Type scale overrides in px. */
+  /** Typography role colours (H1 = headingColor; P = bodyTextColor). */
+  h2Color?: string;
+  h3Color?: string;
+  buttonTextColor?: string;
+  iconColor?: string;
+  linkColor?: string;
+  /** Main image / event banner outline. */
+  bannerOutlineColor?: string;
+  bannerOutlineWidth?: number;
+  /** Per-role fonts (undefined = same as page fontFamily). */
+  h1FontFamily?: LandingFontKey;
+  h2FontFamily?: LandingFontKey;
+  h3FontFamily?: LandingFontKey;
+  bodyFontFamily?: LandingFontKey;
+  buttonFontFamily?: LandingFontKey;
+  /** Type scale overrides in px. Existing h1/h2/body/small = DESKTOP. */
   h1FontSize?: number;
   h2FontSize?: number;
   bodyFontSize?: number;
   smallFontSize?: number;
+  h1FontSizeMobile?: number;
+  h2FontSizeMobile?: number;
+  h3FontSize?: number;
+  h3FontSizeMobile?: number;
+  bodyFontSizeMobile?: number;
+  buttonFontSize?: number;
+  buttonFontSizeMobile?: number;
   /** Per-element type emphasis. */
   h1Bold?: boolean;
   h1Italic?: boolean;
@@ -50,6 +74,76 @@ export type LandingDesignValue = {
   smallBold?: boolean;
   smallItalic?: boolean;
   smallUnderline?: boolean;
+  h3Bold?: boolean;
+  h3Italic?: boolean;
+  h3Underline?: boolean;
+  buttonTextBold?: boolean;
+  buttonTextItalic?: boolean;
+  buttonTextUnderline?: boolean;
+  /** Button chrome */
+  buttonRadius?: number;
+  buttonOutlineWidth?: number;
+  buttonOutlineColor?: string;
+  buttonShadow?: LandingButtonShadow;
+};
+
+/** Clears deep customize overrides when resetting to a template. */
+export const LANDING_DESIGN_OVERRIDE_RESET: Partial<LandingDesignValue> = {
+  buttonColor: undefined,
+  headingColor: undefined,
+  bodyTextColor: undefined,
+  mutedTextColor: undefined,
+  pageBackgroundColor: undefined,
+  surfaceColor: undefined,
+  surfaceMutedColor: undefined,
+  borderColor: undefined,
+  headerBgColor: undefined,
+  footerBgColor: undefined,
+  h2Color: undefined,
+  h3Color: undefined,
+  buttonTextColor: undefined,
+  iconColor: undefined,
+  linkColor: undefined,
+  bannerOutlineColor: undefined,
+  bannerOutlineWidth: undefined,
+  h1FontFamily: undefined,
+  h2FontFamily: undefined,
+  h3FontFamily: undefined,
+  bodyFontFamily: undefined,
+  buttonFontFamily: undefined,
+  h1FontSize: undefined,
+  h2FontSize: undefined,
+  bodyFontSize: undefined,
+  smallFontSize: undefined,
+  h1FontSizeMobile: undefined,
+  h2FontSizeMobile: undefined,
+  h3FontSize: undefined,
+  h3FontSizeMobile: undefined,
+  bodyFontSizeMobile: undefined,
+  buttonFontSize: undefined,
+  buttonFontSizeMobile: undefined,
+  h1Bold: undefined,
+  h1Italic: undefined,
+  h1Underline: undefined,
+  h2Bold: undefined,
+  h2Italic: undefined,
+  h2Underline: undefined,
+  bodyBold: undefined,
+  bodyItalic: undefined,
+  bodyUnderline: undefined,
+  smallBold: undefined,
+  smallItalic: undefined,
+  smallUnderline: undefined,
+  h3Bold: undefined,
+  h3Italic: undefined,
+  h3Underline: undefined,
+  buttonTextBold: undefined,
+  buttonTextItalic: undefined,
+  buttonTextUnderline: undefined,
+  buttonRadius: undefined,
+  buttonOutlineWidth: undefined,
+  buttonOutlineColor: undefined,
+  buttonShadow: undefined,
 };
 
 export { LANDING_LAYOUT_TEMPLATES } from '../../templates/templates';
@@ -121,17 +215,23 @@ export function LandingCustomizer({
         <div className="grid gap-2 sm:grid-cols-2">
           {(
             [
-              ['primaryColor', 'Accent', value.primaryColor, '#059669', false],
-              ['secondaryColor', 'Secondary', value.secondaryColor, '#10b981', false],
-              ['buttonColor', 'Button', value.buttonColor, value.primaryColor, true],
-              ['headingColor', 'Headings', value.headingColor, value.bodyTextColor || '#0f172a', true],
-              ['bodyTextColor', 'Body text', value.bodyTextColor, '#0f172a', true],
-              ['mutedTextColor', 'Muted text', value.mutedTextColor, '#64748b', true],
+              ['primaryColor', 'Brand primary', value.primaryColor, '#059669', false],
+              ['secondaryColor', 'Brand secondary', value.secondaryColor, '#10b981', false],
+              ['headerBgColor', 'Header bar', value.headerBgColor, '#ffffff', true],
+              ['borderColor', 'Outlines / accents', value.borderColor, '#d8e0ec', true],
+              ['bannerOutlineColor', 'Banner outline', value.bannerOutlineColor, value.borderColor || '#d8e0ec', true],
               ['pageBackgroundColor', 'Page background', value.pageBackgroundColor, '#ffffff', true],
-              ['surfaceColor', 'Cards / sections', value.surfaceColor, '#ffffff', true],
-              ['surfaceMutedColor', 'Muted surfaces', value.surfaceMutedColor, '#f4f6fa', true],
-              ['borderColor', 'Borders', value.borderColor, '#d8e0ec', true],
-              ['headerBgColor', 'Header', value.headerBgColor, '#ffffff', true],
+              ['surfaceColor', 'Section backgrounds', value.surfaceColor, '#ffffff', true],
+              ['surfaceMutedColor', 'Muted sections', value.surfaceMutedColor, '#f4f6fa', true],
+              ['buttonColor', 'Button', value.buttonColor, value.primaryColor, true],
+              ['iconColor', 'Icons', value.iconColor, value.primaryColor, true],
+              ['linkColor', 'Links', value.linkColor, value.primaryColor, true],
+              ['headingColor', 'H1 (event title)', value.headingColor, value.bodyTextColor || '#0f172a', true],
+              ['h2Color', 'H2 (subheadings)', value.h2Color, value.mutedTextColor || value.headingColor || '#0f172a', true],
+              ['h3Color', 'H3 (date / location / price)', value.h3Color, value.mutedTextColor || '#64748b', true],
+              ['bodyTextColor', 'P (body)', value.bodyTextColor, '#0f172a', true],
+              ['buttonTextColor', 'Button text', value.buttonTextColor, '#ffffff', true],
+              ['mutedTextColor', 'Muted text', value.mutedTextColor, '#64748b', true],
               ['footerBgColor', 'Footer', value.footerBgColor, '#ffffff', true],
             ] as const
           ).map(([key, label, current, fallback, clearable]) => (
@@ -170,10 +270,16 @@ export function LandingCustomizer({
         <div className="space-y-3">
           {(
             [
-              ['h1FontSize', 'Heading (H1)', value.h1FontSize, 40, 22, 72],
-              ['h2FontSize', 'Subheading (H2)', value.h2FontSize, 24, 16, 48],
-              ['bodyFontSize', 'Paragraph', value.bodyFontSize, 16, 12, 24],
-              ['smallFontSize', 'Small / caption', value.smallFontSize, 13, 10, 18],
+              ['h1FontSizeMobile', 'H1 · Mobile', value.h1FontSizeMobile, 28, 18, 56],
+              ['h1FontSize', 'H1 · Desktop', value.h1FontSize, 40, 22, 72],
+              ['h2FontSizeMobile', 'H2 · Mobile', value.h2FontSizeMobile, 18, 14, 40],
+              ['h2FontSize', 'H2 · Desktop', value.h2FontSize, 24, 16, 48],
+              ['h3FontSizeMobile', 'H3 · Mobile', value.h3FontSizeMobile, 13, 10, 28],
+              ['h3FontSize', 'H3 · Desktop', value.h3FontSize, value.smallFontSize || 16, 12, 32],
+              ['bodyFontSizeMobile', 'P · Mobile', value.bodyFontSizeMobile, 14, 11, 22],
+              ['bodyFontSize', 'P · Desktop', value.bodyFontSize, 16, 12, 24],
+              ['buttonFontSizeMobile', 'Button · Mobile', value.buttonFontSizeMobile, 12, 10, 22],
+              ['buttonFontSize', 'Button · Desktop', value.buttonFontSize, 14, 10, 24],
             ] as const
           ).map(([key, label, current, fallback, min, max]) => (
             <div key={key} className="rounded-xl border px-3 py-2" style={{ borderColor: ui.borderColor, background: ui.cardBg }}>
@@ -244,10 +350,11 @@ export function LandingCustomizer({
         <div className="space-y-2">
           {(
             [
-              ['Heading (H1)', 'h1Bold', 'h1Italic', 'h1Underline', value.h1Bold, value.h1Italic, value.h1Underline],
-              ['Subheading (H2)', 'h2Bold', 'h2Italic', 'h2Underline', value.h2Bold, value.h2Italic, value.h2Underline],
-              ['Paragraph', 'bodyBold', 'bodyItalic', 'bodyUnderline', value.bodyBold, value.bodyItalic, value.bodyUnderline],
-              ['Small / caption', 'smallBold', 'smallItalic', 'smallUnderline', value.smallBold, value.smallItalic, value.smallUnderline],
+              ['H1 (event title)', 'h1Bold', 'h1Italic', 'h1Underline', value.h1Bold, value.h1Italic, value.h1Underline],
+              ['H2 (subheadings)', 'h2Bold', 'h2Italic', 'h2Underline', value.h2Bold, value.h2Italic, value.h2Underline],
+              ['H3 (date / location / price)', 'h3Bold', 'h3Italic', 'h3Underline', value.h3Bold, value.h3Italic, value.h3Underline],
+              ['P (body)', 'bodyBold', 'bodyItalic', 'bodyUnderline', value.bodyBold, value.bodyItalic, value.bodyUnderline],
+              ['Button text', 'buttonTextBold', 'buttonTextItalic', 'buttonTextUnderline', value.buttonTextBold, value.buttonTextItalic, value.buttonTextUnderline],
             ] as const
           ).map(([label, boldKey, italicKey, underlineKey, bold, italic, underline]) => (
             <div
