@@ -21,6 +21,7 @@ import { clearAuthToken, getAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
 import { CheckInManager } from './pages/CheckInManager';
 import { EventCoupons } from './pages/EventCoupons';
+import { EventPurchaseLimits } from './pages/EventPurchaseLimits';
 import { StaffCheckInScanner } from './pages/StaffCheckInScanner';
 import { AttendeeLogin } from './pages/AttendeeLogin';
 import { AttendeeSignup } from './pages/AttendeeSignup';
@@ -441,6 +442,14 @@ export default function App() {
             element={
               <RequireOrganizer>
                 <EventCoupons />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/dashboard/events/:eventId/limits"
+            element={
+              <RequireOrganizer>
+                <EventPurchaseLimits />
               </RequireOrganizer>
             }
           />

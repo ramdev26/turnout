@@ -16,6 +16,7 @@ import {
 import { formatApiError } from '../../utils/apiError';
 import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import { resolveOrganizerTermsHtml } from '../../utils/organizerTerms';
+import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../../utils/purchaseLimits';
 import { EventPolicyViewerModal } from './EventPolicyViewer';
 
 type TicketHolderInput = {
@@ -322,6 +323,15 @@ export const EventCheckoutForm: React.FC<Props> = ({
     attendeePhone: string;
   }) => {
     if (!hasSelectedTickets) return;
+    const limits = purchaseLimitsFromEvent(event);
+    if (limits.maxTicketsPerOrder != null && totalTicketQuantity > limits.maxTicketsPerOrder) {
+      setPayError(
+        limits.maxTicketsPerOrder === 1
+          ? 'This event allows only 1 ticket per order.'
+          : `This event allows at most ${limits.maxTicketsPerOrder} tickets per order.`
+      );
+      return;
+    }
     setIsPurchasing(true);
     setPayError(null);
     try {
@@ -507,8 +517,21 @@ export const EventCheckoutForm: React.FC<Props> = ({
     color: 'var(--landing-text)',
   };
 
+  const limitsNote = purchaseLimitsSummary(purchaseLimitsFromEvent(event));
+
   const orderSummaryCard = (
     <div className="landing-card-premium rounded-2xl p-4 sm:p-5">
+      {limitsNote ? (
+        <p
+          className="mb-3 rounded-xl px-3 py-2 text-xs font-semibold sm:text-sm"
+          style={{
+            background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
+            color: 'var(--landing-text)',
+          }}
+        >
+          Ticket limit · {limitsNote}
+        </p>
+      ) : null}
       {orderLines.map((line) => (
         <div key={`${line.name}-${line.qty}`} className="flex justify-between py-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           <span>
