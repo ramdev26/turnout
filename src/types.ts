@@ -364,6 +364,10 @@ export interface EventCustomization {
   ticketPdfFooterNote?: string;
   /** Extra questions asked for each ticket holder during checkout */
   checkoutFields?: CheckoutFieldDefinition[];
+  /** Max tickets allowed in a single public checkout order (null/omit = no limit). */
+  maxTicketsPerOrder?: number | null;
+  /** Max tickets one customer (email/phone) may hold for this event (null/omit = no limit). */
+  maxTicketsPerCustomer?: number | null;
   /** Extra carousel slides for Arena template (banner is always slide 1). */
   arenaGalleryImages?: string[];
   /** When true, attendees may pay via bank transfer (requires organizer bank details). */

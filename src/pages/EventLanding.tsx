@@ -16,6 +16,7 @@ import {
   setEventAccessToken,
   setPendingEventAccessContext,
 } from '../lib/eventAccessToken';
+import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../utils/purchaseLimits';
 
 type EventFetchResult = {
   event: Event;
@@ -123,13 +124,37 @@ export const EventLanding: React.FC = () => {
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
   }, [event]);
 
+  const limitsSummary = useMemo(
+    () => (event ? purchaseLimitsSummary(purchaseLimitsFromEvent(event)) : null),
+    [event]
+  );
+
   const handleTicketChange = (ticketId: string, quantity: number) => {
     const ticket = tickets.find((t) => t.id === ticketId);
-    const max = ticket ? ticketRemaining(ticket) : 0;
-    setSelectedTickets((prev) => ({
-      ...prev,
-      [ticketId]: Math.max(0, Math.min(quantity, max)),
-    }));
+    const inventoryMax = ticket ? ticketRemaining(ticket) : 0;
+    const limits = purchaseLimitsFromEvent(event);
+    const orderCap =
+      limits.maxTicketsPerOrder != null || limits.maxTicketsPerCustomer != null
+        ? Math.min(
+            limits.maxTicketsPerOrder ?? Number.POSITIVE_INFINITY,
+            limits.maxTicketsPerCustomer ?? Number.POSITIVE_INFINITY
+          )
+        : null;
+
+    setSelectedTickets((prev) => {
+      const others = Object.entries(prev).reduce((sum, [id, qty]) => {
+        if (id === ticketId) return sum;
+        return sum + (typeof qty === 'number' ? qty : Number(qty) || 0);
+      }, 0);
+      let maxForThis = inventoryMax;
+      if (orderCap != null && Number.isFinite(orderCap)) {
+        maxForThis = Math.min(maxForThis, Math.max(0, orderCap - others));
+      }
+      return {
+        ...prev,
+        [ticketId]: Math.max(0, Math.min(quantity, maxForThis)),
+      };
+    });
   };
 
   const totalAmount = tickets.reduce(
@@ -241,6 +266,18 @@ export const EventLanding: React.FC = () => {
 
   return (
     <div style={landingCssVars(event.customization, event.templateId)} className="min-h-dvh transition-[background] duration-700">
+      {limitsSummary ? (
+        <div
+          className="relative z-20 border-b px-4 py-2.5 text-center text-xs font-semibold sm:text-sm"
+          style={{
+            borderColor: 'var(--landing-border)',
+            background: 'color-mix(in srgb, var(--primary) 12%, var(--landing-surface))',
+            color: 'var(--landing-text)',
+          }}
+        >
+          Ticket limit · {limitsSummary}
+        </div>
+      ) : null}
       {template.render({
         event,
         tickets,

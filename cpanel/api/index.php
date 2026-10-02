@@ -6,6 +6,7 @@ require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/banners.php';
 require __DIR__ . '/lib/mail.php';
 require __DIR__ . '/lib/checkout.php';
+require __DIR__ . '/lib/purchase_limits.php';
 require __DIR__ . '/lib/domains.php';
 require __DIR__ . '/lib/checkin.php';
 require __DIR__ . '/lib/checkout_fields.php';
@@ -2546,6 +2547,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $checkoutFields = checkout_fields_from_event_row($ev);
   validate_attendees_for_order($normalized['items'], $attendees, $checkoutFields);
+  enforce_purchase_limits($pdo, $ev, $normalized['items'], $buyerEmail, $buyerPhone, $attendees);
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
@@ -4454,6 +4456,7 @@ if ($path === '/orders' && $method === 'POST') {
   if (!is_array($attendees) || count($attendees) < 1) json_response(400, ['error' => 'invalid_attendees']);
   $checkoutFields = checkout_fields_from_event_row($ev);
   validate_attendees_for_order($normalizedItems, $attendees, $checkoutFields);
+  enforce_purchase_limits($pdo, $ev, $normalizedItems, $buyerEmail, $buyerPhone, $attendees);
 
   $buyerId = current_user_id();
   $pdo->beginTransaction();
@@ -4555,6 +4558,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $checkoutFields = checkout_fields_from_event_row($ev);
   validate_attendees_for_order($normalized['items'], $attendees, $checkoutFields);
+  enforce_purchase_limits($pdo, $ev, $normalized['items'], $buyerEmail, $buyerPhone, $attendees);
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
@@ -5348,6 +5352,46 @@ if (preg_match('#^/public/events/(\\d+)/sessions$#', $path, $m) && $method === '
     ];
   }
   json_response(200, ['sessions' => $sessions]);
+}
+
+// ---- Purchase limits (ticket restrictions) ----
+if (preg_match('#^/events/(\\d+)/purchase-limits$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  $row = load_event_row_or_404($pdo, $eventId);
+  $limits = event_purchase_limits_from_row($row);
+  json_response(200, [
+    'maxTicketsPerOrder' => $limits['maxTicketsPerOrder'],
+    'maxTicketsPerCustomer' => $limits['maxTicketsPerCustomer'],
+    'enabled' => $limits['enabled'],
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/purchase-limits$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  $row = load_event_row_or_404($pdo, $eventId);
+  $existing = event_purchase_limits_from_row($row);
+
+  $maxPerOrder = array_key_exists('maxTicketsPerOrder', $body)
+    ? parse_optional_positive_limit($body['maxTicketsPerOrder'])
+    : $existing['maxTicketsPerOrder'];
+  $maxPerCustomer = array_key_exists('maxTicketsPerCustomer', $body)
+    ? parse_optional_positive_limit($body['maxTicketsPerCustomer'])
+    : $existing['maxTicketsPerCustomer'];
+
+  $limits = set_event_purchase_limits($pdo, $eventId, $maxPerOrder, $maxPerCustomer);
+  json_response(200, [
+    'ok' => true,
+    'maxTicketsPerOrder' => $limits['maxTicketsPerOrder'],
+    'maxTicketsPerCustomer' => $limits['maxTicketsPerCustomer'],
+    'enabled' => $limits['enabled'],
+  ]);
 }
 
 // ---- Attendees + Check-in ----
