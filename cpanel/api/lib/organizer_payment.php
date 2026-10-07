@@ -88,6 +88,7 @@ function ensure_organizer_payment_tables_inner(PDO $pdo): void {
     try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN koko_merchant_secret_enc TEXT NULL'); } catch (Throwable $e) {}
     try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_id TEXT NULL'); } catch (Throwable $e) {}
     try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_secret_enc TEXT NULL'); } catch (Throwable $e) {}
+    try { $pdo->exec('ALTER TABLE organizer_payment_settings ADD COLUMN buyer_handling_fee_pct REAL NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
     return;
   }
@@ -129,6 +130,7 @@ function ensure_organizer_payment_tables_inner(PDO $pdo): void {
     try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS koko_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS mintpay_merchant_id VARCHAR(64) NULL"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS mintpay_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN IF NOT EXISTS buyer_handling_fee_pct NUMERIC(8,2) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_billing_sessions_user ON organizer_billing_sessions(user_id, created_at DESC)');
     return;
   }
@@ -175,6 +177,7 @@ function ensure_organizer_payment_tables_inner(PDO $pdo): void {
   try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN koko_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_id VARCHAR(64) NULL"); } catch (Throwable $e) {}
   try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN mintpay_merchant_secret_enc TEXT NULL"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE organizer_payment_settings ADD COLUMN buyer_handling_fee_pct DECIMAL(8,2) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
 }
 
 function normalize_organizer_gateway_mode(string $mode): string {
@@ -204,6 +207,7 @@ function default_organizer_payment_settings_row(int $userId): array {
     'billing_setup_at' => null,
     'commission_mode' => 'percentage',
     'commission_value' => null,
+    'buyer_handling_fee_pct' => 0,
     'installment_mode' => 'off',
     'own_koko_enabled' => 0,
     'own_mintpay_enabled' => 0,
@@ -212,6 +216,111 @@ function default_organizer_payment_settings_row(int $userId): array {
     'mintpay_merchant_id' => null,
     'mintpay_merchant_secret_enc' => null,
   ];
+}
+
+/** Buyer-facing handling fee % charged on top of tickets when using Turnout Pay (0–100). */
+function sanitize_buyer_handling_fee_pct(mixed $value): float {
+  if ($value === null || $value === '') return 0.0;
+  $numeric = (float)$value;
+  if ($numeric < 0) $numeric = 0;
+  if ($numeric > 100) $numeric = 100;
+  return round($numeric, 2);
+}
+
+/**
+ * Effective buyer handling fee % for an organizer.
+ * Only applies when gateway mode is Turnout Pay; own-gateway organizers get 0.
+ */
+function organizer_buyer_handling_fee_pct(PDO $pdo, int $organizerUserId): float {
+  if ($organizerUserId <= 0) return 0.0;
+  $row = organizer_payment_settings_row($pdo, $organizerUserId);
+  $mode = normalize_organizer_gateway_mode((string)($row['gateway_mode'] ?? 'turnout'));
+  if ($mode !== 'turnout') return 0.0;
+  return sanitize_buyer_handling_fee_pct($row['buyer_handling_fee_pct'] ?? 0);
+}
+
+/**
+ * @return array{handlingFeeCents:int,totalCents:int,feePct:float}
+ */
+function apply_buyer_handling_fee_cents(int $ticketTotalCents, float $feePct): array {
+  $ticketTotalCents = max(0, $ticketTotalCents);
+  $feePct = sanitize_buyer_handling_fee_pct($feePct);
+  if ($ticketTotalCents <= 0 || $feePct <= 0) {
+    return [
+      'handlingFeeCents' => 0,
+      'totalCents' => $ticketTotalCents,
+      'feePct' => $feePct,
+    ];
+  }
+  $handlingFeeCents = (int)round(($ticketTotalCents * $feePct) / 100.0);
+  if ($handlingFeeCents < 0) $handlingFeeCents = 0;
+  return [
+    'handlingFeeCents' => $handlingFeeCents,
+    'totalCents' => $ticketTotalCents + $handlingFeeCents,
+    'feePct' => $feePct,
+  ];
+}
+
+function set_organizer_buyer_handling_fee_pct(PDO $pdo, int $userId, mixed $value): float {
+  ensure_organizer_payment_tables($pdo);
+  $pct = sanitize_buyer_handling_fee_pct($value);
+  $existing = organizer_payment_settings_row($pdo, $userId);
+  $gatewayMode = normalize_organizer_gateway_mode((string)($existing['gateway_mode'] ?? 'turnout'));
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+  if ($driver === 'sqlite') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, buyer_handling_fee_pct, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         buyer_handling_fee_pct = excluded.buyer_handling_fee_pct,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$userId, $gatewayMode, $pct]);
+  } elseif ($driver === 'pgsql') {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, buyer_handling_fee_pct, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         buyer_handling_fee_pct = EXCLUDED.buyer_handling_fee_pct,
+         updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$userId, $gatewayMode, $pct]);
+  } else {
+    $stmt = $pdo->prepare(
+      'INSERT INTO organizer_payment_settings (user_id, gateway_mode, buyer_handling_fee_pct)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         buyer_handling_fee_pct = VALUES(buyer_handling_fee_pct)'
+    );
+    $stmt->execute([$userId, $gatewayMode, $pct]);
+  }
+
+  return $pct;
+}
+
+function ensure_order_handling_fee_columns(PDO $pdo): void {
+  static $checked = false;
+  if ($checked) return;
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  $type = $driver === 'pgsql' ? 'INT NOT NULL DEFAULT 0' : ($driver === 'sqlite' ? 'INTEGER NOT NULL DEFAULT 0' : 'INT NOT NULL DEFAULT 0');
+  try {
+    if ($driver === 'pgsql') {
+      $pdo->exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS handling_fee_cents {$type}");
+    } else {
+      $pdo->exec("ALTER TABLE orders ADD COLUMN handling_fee_cents {$type}");
+    }
+  } catch (Throwable $e) {
+    // Column may already exist.
+  }
+  $checked = true;
+}
+
+function set_order_handling_fee_cents(PDO $pdo, int $orderId, int $handlingFeeCents): void {
+  ensure_order_handling_fee_columns($pdo);
+  $handlingFeeCents = max(0, $handlingFeeCents);
+  $stmt = $pdo->prepare('UPDATE orders SET handling_fee_cents = ? WHERE id = ?');
+  $stmt->execute([$handlingFeeCents, $orderId]);
 }
 
 function normalize_organizer_own_gateway(?string $gateway): ?string {
@@ -374,6 +483,9 @@ function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
     $billingStatus = 'none';
   }
 
+  $storedHandlingPct = sanitize_buyer_handling_fee_pct($row['buyer_handling_fee_pct'] ?? 0);
+  $effectiveHandlingPct = $mode === 'turnout' ? $storedHandlingPct : 0.0;
+
   return [
     'gatewayMode' => $mode,
     'ownGateway' => $ownGateway,
@@ -397,6 +509,10 @@ function organizer_payment_settings_api_shape(PDO $pdo, int $userId): array {
       'mode' => $commissionCfg['mode'],
       'value' => $commissionCfg['value'],
     ],
+    /** Stored percentage (editable while on Turnout Pay). */
+    'buyerHandlingFeePct' => $storedHandlingPct,
+    /** What buyers are charged right now (0 when using own gateway). */
+    'effectiveBuyerHandlingFeePct' => $effectiveHandlingPct,
     'isReady' => organizer_payment_is_ready($row),
     'requirements' => [
       'needsBillingCard' => $mode === 'own_payhere' && !organizer_billing_is_active($row),
