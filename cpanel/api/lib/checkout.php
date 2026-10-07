@@ -37,6 +37,13 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     }
   }
 
+  if ($pdo !== null && function_exists('organizer_buyer_handling_fee_pct')) {
+    $organizerUserId = (int)($row['organizer_user_id'] ?? 0);
+    $event['buyerHandlingFeePct'] = $organizerUserId > 0
+      ? organizer_buyer_handling_fee_pct($pdo, $organizerUserId)
+      : 0.0;
+  }
+
   return $event;
 }
 

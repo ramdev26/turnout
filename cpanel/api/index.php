@@ -2072,6 +2072,16 @@ if (
 
     upsert_organizer_payment_settings($pdo, $ownerUserId, $fields);
 
+    if (array_key_exists('buyerHandlingFeePct', $body)) {
+      if ($gatewayMode !== 'turnout') {
+        json_response(400, [
+          'error' => 'handling_fee_turnout_only',
+          'message' => 'Buyer handling fee is only available when using Turnout Pay.',
+        ]);
+      }
+      set_organizer_buyer_handling_fee_pct($pdo, $ownerUserId, $body['buyerHandlingFeePct']);
+    }
+
     $bankFields = [];
     if (array_key_exists('bankAccountHolderName', $body)) {
       $bankFields['bank_account_holder_name'] = trim((string)$body['bankAccountHolderName']);
@@ -2553,9 +2563,18 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   ensure_order_coupon_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
+  $ticketTotalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
+
+  $organizerUserId = (int)($ev['organizer_user_id'] ?? 0);
+  if ($organizerUserId <= 0) {
+    json_response(400, ['error' => 'invalid_event_organizer']);
+  }
+  $handlingPct = organizer_buyer_handling_fee_pct($pdo, $organizerUserId);
+  $withHandling = apply_buyer_handling_fee_cents($ticketTotalCents, $handlingPct);
+  $handlingFeeCents = (int)$withHandling['handlingFeeCents'];
+  $totalCents = (int)$withHandling['totalCents'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'payhere_requires_positive_amount']);
@@ -2564,6 +2583,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $buyerId = current_user_id();
   $pdo->beginTransaction();
   try {
+    ensure_order_handling_fee_columns($pdo);
     $ins = $pdo->prepare('INSERT INTO orders (event_id, buyer_user_id, buyer_name, buyer_phone, buyer_email, tickets_json, total_amount_cents, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $ins->execute([
       $eventId,
@@ -2578,6 +2598,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'payhere');
+    set_order_handling_fee_cents($pdo, $orderId, $handlingFeeCents);
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
@@ -2598,10 +2619,6 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
 
   $accessToken = issue_order_access_token($orderId);
 
-  $organizerUserId = (int)($ev['organizer_user_id'] ?? 0);
-  if ($organizerUserId <= 0) {
-    json_response(400, ['error' => 'invalid_event_organizer']);
-  }
   $cfg = payhere_cfg_for_organizer($pdo, $organizerUserId);
   // Always use the current request origin for browser return/cancel + webhook callback.
   // This avoids stale admin/base-url values causing redirects to checkout or missed notify.
@@ -4392,7 +4409,7 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
   $body = read_json_body();
   $pdo = db();
   ensure_event_coupons_table($pdo);
-  require_publishable_event($pdo, $eventId);
+  $ev = require_publishable_event($pdo, $eventId);
 
   $items = $body['tickets'] ?? [];
   if (!is_array($items) || count($items) < 1) {
@@ -4407,6 +4424,11 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
     json_response(400, ['error' => 'invalid_coupon_code', 'message' => 'Enter a coupon code.']);
   }
 
+  $organizerUserId = (int)($ev['organizer_user_id'] ?? 0);
+  $handlingPct = organizer_buyer_handling_fee_pct($pdo, $organizerUserId);
+  $ticketTotalCents = (int)$priced['totalCents'];
+  $withHandling = apply_buyer_handling_fee_cents($ticketTotalCents, $handlingPct);
+
   json_response(200, [
     'ok' => true,
     'code' => (string)$coupon['code'],
@@ -4415,7 +4437,9 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
     'discountValue' => ((int)($coupon['discount_value_cents'] ?? 0)) / 100,
     'subtotal' => $subtotalCents / 100,
     'discountAmount' => ((int)$priced['discountCents']) / 100,
-    'total' => ((int)$priced['totalCents']) / 100,
+    'handlingFee' => ((int)$withHandling['handlingFeeCents']) / 100,
+    'handlingFeePct' => $handlingPct,
+    'total' => ((int)$withHandling['totalCents']) / 100,
   ]);
 }
 
@@ -4564,9 +4588,14 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   ensure_order_coupon_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
+  $ticketTotalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
+
+  $handlingPct = organizer_buyer_handling_fee_pct($pdo, $organizerUserId);
+  $withHandling = apply_buyer_handling_fee_cents($ticketTotalCents, $handlingPct);
+  $handlingFeeCents = (int)$withHandling['handlingFeeCents'];
+  $totalCents = (int)$withHandling['totalCents'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'bank_transfer_requires_positive_amount']);
@@ -4575,6 +4604,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $buyerId = current_user_id();
   $pdo->beginTransaction();
   try {
+    ensure_order_handling_fee_columns($pdo);
     $ins = $pdo->prepare('INSERT INTO orders (event_id, buyer_user_id, buyer_name, buyer_phone, buyer_email, tickets_json, total_amount_cents, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $ins->execute([
       $eventId,
@@ -4589,6 +4619,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     $orderId = (int)$pdo->lastInsertId();
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'bank_transfer');
+    set_order_handling_fee_cents($pdo, $orderId, $handlingFeeCents);
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
@@ -4621,6 +4652,8 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     'bankTransfer' => $bankDetails,
     'totalAmount' => $totalCents / 100,
     'discountAmount' => $discountCents / 100,
+    'handlingFee' => $handlingFeeCents / 100,
+    'handlingFeePct' => $handlingPct,
     'couponCode' => $couponRow ? (string)$couponRow['code'] : null,
   ]);
 }
