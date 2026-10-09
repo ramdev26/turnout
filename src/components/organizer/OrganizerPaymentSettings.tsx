@@ -463,16 +463,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     setBankSwiftCode(nextReadiness.bank.bankSwiftCode || '');
     setBankAccountNote(nextReadiness.bank.bankAccountNote || '');
 
-    const payoutReady = !!(
-      nextReadiness.bank.bankAccountHolderName &&
-      nextReadiness.bank.bankName &&
-      nextReadiness.bank.bankBranch &&
-      nextReadiness.bank.bankAccountConfigured
-    );
-    setExpanded((prev) => {
-      if (prev) return prev;
-      return payoutReady ? 'providers' : 'payouts';
-    });
+    setExpanded((prev) => prev || 'providers');
   }, []);
 
   const loadSettings = useCallback(async () => {
@@ -607,12 +598,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     };
     if (bankAccountNumber.trim()) body.bankAccountNumber = bankAccountNumber.trim();
 
-    await postSettings(
-      body,
-      readiness?.isReady || gatewayMode === 'own_payhere'
-        ? 'Payout bank account saved.'
-        : 'Payout bank account saved. You can publish paid events now.'
-    );
+    await postSettings(body, 'Payout bank account saved. You can request payouts once sales come in.');
   };
 
   const addBillingCard = async () => {
@@ -717,7 +703,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               selected={turnoutActive}
               disabled={!isOwner}
               title="Turnout Pay"
-              detail="Recommended default. Attendees check out through Turnout and payouts go to your linked bank account."
+              detail="Recommended default. Publish paid events immediately — no bank details or documents required upfront. Add a bank account later for payouts."
               onClick={() => void selectTurnoutPay()}
               trailing={
                 <span
@@ -1068,9 +1054,13 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
 
         <SectionCard
           title="Bank account for payouts"
-          detail={payoutsReady ? 'Bank account linked' : 'Required for Turnout Pay and bank transfer'}
+          detail={
+            payoutsReady
+              ? 'Bank account linked'
+              : 'Only needed when you want payouts or bank-transfer checkout'
+          }
           active={payoutsReady}
-          badgeLabel={payoutsReady ? 'Linked' : 'Required'}
+          badgeLabel={payoutsReady ? 'Linked' : 'For payouts'}
           expanded={expanded === 'payouts'}
           onToggle={() => toggleExpand('payouts')}
           icon={<ShieldCheck className="h-5 w-5" />}

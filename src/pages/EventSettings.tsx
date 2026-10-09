@@ -820,7 +820,11 @@ export const EventSettings: React.FC = () => {
     const maxBulkPrice = ticketForm.bulkOffers.reduce((max, offer) => Math.max(max, Number(offer.price) || 0), 0);
     const paidAmount = Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0, maxBulkPrice);
     if (paidAmount > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
-      setError('Complete business and payment setup in Organization settings before adding paid tickets.');
+      setError(
+        paidEventReadiness.gatewayMode === 'own_payhere'
+          ? 'Connect your own gateway and account card in Organization → Payments before adding paid tickets.'
+          : 'Payment setup is incomplete. Switch to Turnout Pay to add paid tickets right away.'
+      );
       return;
     }
     if (

@@ -113,14 +113,20 @@ export type OrganizerProfile = {
 
 export type OrganizerPaidEventRequirements = {
   needsBusinessDetails: boolean;
+  /** @deprecated Never blocks Turnout Pay publish/sell. Prefer needsBankDetailsForPayout. */
   needsBankDetails: boolean;
+  /** True when bank details are still needed before payouts. */
+  needsBankDetailsForPayout?: boolean;
   needsOwnPayhereCredentials: boolean;
   needsBillingCard: boolean;
   turnoutDocsOverride?: boolean;
 };
 
 export type OrganizerPaidEventReadiness = {
+  /** Can create/publish/sell paid tickets (Turnout Pay is always ready). */
   isReady: boolean;
+  /** Bank details on file for receiving payouts. */
+  payoutReady?: boolean;
   gatewayMode: OrganizerGatewayMode;
   requirements: OrganizerPaidEventRequirements;
   missing: string[];
