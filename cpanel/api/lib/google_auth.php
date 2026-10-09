@@ -32,27 +32,24 @@ function ensure_google_auth_columns(PDO $pdo): void {
 }
 
 /**
- * Verify a Google ID token via Google's tokeninfo endpoint.
- *
- * @return array{sub:string,email:string,emailVerified:bool,name:string,picture:?string}|null
+ * @return array{body:?string,status:int}
  */
-function verify_google_id_token(string $idToken): ?array {
-  $idToken = trim($idToken);
-  $clientId = google_oauth_client_id();
-  if ($idToken === '' || $clientId === '') return null;
-
-  $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . rawurlencode($idToken);
+function google_http_get(string $url, array $headers = []): array {
   $raw = null;
   $status = 0;
 
   if (function_exists('curl_init')) {
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    $opts = [
       CURLOPT_RETURNTRANSFER => true,
       CURLOPT_TIMEOUT => 8,
       CURLOPT_CONNECTTIMEOUT => 5,
       CURLOPT_HTTPGET => true,
-    ]);
+    ];
+    if ($headers !== []) {
+      $opts[CURLOPT_HTTPHEADER] = $headers;
+    }
+    curl_setopt_array($ch, $opts);
     $raw = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
@@ -62,6 +59,7 @@ function verify_google_id_token(string $idToken): ?array {
         'method' => 'GET',
         'timeout' => 8,
         'ignore_errors' => true,
+        'header' => $headers !== [] ? implode("\r\n", $headers) . "\r\n" : '',
       ],
     ]);
     $raw = @file_get_contents($url, false, $ctx);
@@ -70,21 +68,33 @@ function verify_google_id_token(string $idToken): ?array {
     }
   }
 
-  if (!is_string($raw) || $raw === '' || ($status !== 0 && $status !== 200)) {
-    return null;
-  }
+  return [
+    'body' => is_string($raw) ? $raw : null,
+    'status' => $status,
+  ];
+}
 
-  $payload = json_decode($raw, true);
-  if (!is_array($payload)) return null;
-
-  $aud = (string)($payload['aud'] ?? '');
-  if ($aud === '' || !hash_equals($clientId, $aud)) {
-    return null;
-  }
-
-  $iss = (string)($payload['iss'] ?? '');
-  if ($iss !== 'accounts.google.com' && $iss !== 'https://accounts.google.com') {
-    return null;
+/**
+ * Normalize Google profile fields from tokeninfo / userinfo payloads.
+ *
+ * @param array<string,mixed> $payload
+ * @return array{sub:string,email:string,emailVerified:bool,name:string,picture:?string}|null
+ */
+function normalize_google_profile_payload(array $payload, bool $requireAudience = false): ?array {
+  if ($requireAudience) {
+    $clientId = google_oauth_client_id();
+    $aud = (string)($payload['aud'] ?? '');
+    if ($clientId === '' || $aud === '' || !hash_equals($clientId, $aud)) {
+      return null;
+    }
+    $iss = (string)($payload['iss'] ?? '');
+    if ($iss !== 'accounts.google.com' && $iss !== 'https://accounts.google.com') {
+      return null;
+    }
+    $exp = (int)($payload['exp'] ?? 0);
+    if ($exp > 0 && $exp < time() - 30) {
+      return null;
+    }
   }
 
   $sub = trim((string)($payload['sub'] ?? ''));
@@ -99,11 +109,6 @@ function verify_google_id_token(string $idToken): ?array {
     || $emailVerifiedRaw === '1'
     || $emailVerifiedRaw === 'true';
   if (!$emailVerified) {
-    return null;
-  }
-
-  $exp = (int)($payload['exp'] ?? 0);
-  if ($exp > 0 && $exp < time() - 30) {
     return null;
   }
 
@@ -126,6 +131,47 @@ function verify_google_id_token(string $idToken): ?array {
     'name' => $name,
     'picture' => $picture !== '' ? $picture : null,
   ];
+}
+
+/**
+ * Verify a Google ID token via Google's tokeninfo endpoint.
+ *
+ * @return array{sub:string,email:string,emailVerified:bool,name:string,picture:?string}|null
+ */
+function verify_google_id_token(string $idToken): ?array {
+  $idToken = trim($idToken);
+  if ($idToken === '' || !google_oauth_configured()) return null;
+
+  $res = google_http_get('https://oauth2.googleapis.com/tokeninfo?id_token=' . rawurlencode($idToken));
+  if ($res['body'] === null || ($res['status'] !== 0 && $res['status'] !== 200)) {
+    return null;
+  }
+
+  $payload = json_decode($res['body'], true);
+  if (!is_array($payload)) return null;
+  return normalize_google_profile_payload($payload, true);
+}
+
+/**
+ * Verify a Google OAuth access token via the userinfo endpoint.
+ *
+ * @return array{sub:string,email:string,emailVerified:bool,name:string,picture:?string}|null
+ */
+function verify_google_access_token(string $accessToken): ?array {
+  $accessToken = trim($accessToken);
+  if ($accessToken === '' || !google_oauth_configured()) return null;
+
+  $res = google_http_get(
+    'https://www.googleapis.com/oauth2/v3/userinfo',
+    ['Authorization: Bearer ' . $accessToken]
+  );
+  if ($res['body'] === null || ($res['status'] !== 0 && $res['status'] !== 200)) {
+    return null;
+  }
+
+  $payload = json_decode($res['body'], true);
+  if (!is_array($payload)) return null;
+  return normalize_google_profile_payload($payload, false);
 }
 
 function normalize_google_auth_role(string $role): string {

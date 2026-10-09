@@ -1648,13 +1648,20 @@ if ($path === '/auth/google' && $method === 'POST') {
 
   $body = read_json_body();
   $idToken = trim((string)($body['idToken'] ?? $body['credential'] ?? ''));
+  $accessToken = trim((string)($body['accessToken'] ?? ''));
   $role = normalize_google_auth_role((string)($body['role'] ?? 'organizer'));
 
-  if ($idToken === '') {
-    json_response(400, ['error' => 'missing_id_token', 'message' => 'Google sign-in token is missing. Try again.']);
+  if ($idToken === '' && $accessToken === '') {
+    json_response(400, ['error' => 'missing_google_token', 'message' => 'Google sign-in token is missing. Try again.']);
   }
 
-  $google = verify_google_id_token($idToken);
+  $google = null;
+  if ($accessToken !== '') {
+    $google = verify_google_access_token($accessToken);
+  }
+  if ($google === null && $idToken !== '') {
+    $google = verify_google_id_token($idToken);
+  }
   if ($google === null) {
     json_response(401, [
       'error' => 'invalid_google_token',

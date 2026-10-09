@@ -1,5 +1,18 @@
 export type GoogleAuthRole = 'organizer' | 'attendee';
 
+type GoogleTokenClient = {
+  requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+};
+
+type GoogleAccountsOAuth2 = {
+  initTokenClient: (config: {
+    client_id: string;
+    scope: string;
+    callback: (response: { access_token?: string; error?: string; error_description?: string }) => void;
+    error_callback?: (error: { type?: string; message?: string }) => void;
+  }) => GoogleTokenClient;
+};
+
 type GoogleAccountsId = {
   initialize: (config: {
     client_id: string;
@@ -10,17 +23,8 @@ type GoogleAccountsId = {
   }) => void;
   renderButton: (
     parent: HTMLElement,
-    options: {
-      type?: string;
-      theme?: string;
-      size?: string;
-      text?: string;
-      shape?: string;
-      logo_alignment?: string;
-      width?: number;
-    }
+    options: Record<string, string | number>
   ) => void;
-  prompt?: () => void;
 };
 
 declare global {
@@ -28,6 +32,7 @@ declare global {
     google?: {
       accounts?: {
         id?: GoogleAccountsId;
+        oauth2?: GoogleAccountsOAuth2;
       };
     };
   }
@@ -61,7 +66,7 @@ export async function loadGoogleOAuthConfig(): Promise<{ clientId: string; confi
 
 export function loadGoogleIdentityScript(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
-  if (window.google?.accounts?.id) return Promise.resolve();
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
   if (scriptPromise) return scriptPromise;
 
   scriptPromise = new Promise((resolve, reject) => {
@@ -69,7 +74,7 @@ export function loadGoogleIdentityScript(): Promise<void> {
     if (existing) {
       existing.addEventListener('load', () => resolve());
       existing.addEventListener('error', () => reject(new Error('Failed to load Google sign-in')));
-      if (window.google?.accounts?.id) resolve();
+      if (window.google?.accounts?.oauth2) resolve();
       return;
     }
     const script = document.createElement('script');
@@ -88,8 +93,33 @@ export function loadGoogleIdentityScript(): Promise<void> {
   return scriptPromise;
 }
 
-export async function prepareGoogleIdentity(clientId: string): Promise<GoogleAccountsId | null> {
+export async function createGoogleTokenClient(
+  clientId: string,
+  onToken: (accessToken: string) => void,
+  onError: (message: string) => void
+): Promise<GoogleTokenClient | null> {
   if (!clientId) return null;
   await loadGoogleIdentityScript();
-  return window.google?.accounts?.id ?? null;
+  const oauth2 = window.google?.accounts?.oauth2;
+  if (!oauth2) return null;
+
+  return oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'openid email profile',
+    callback: (response) => {
+      if (response.error || !response.access_token) {
+        onError(response.error_description || response.error || 'Google sign-in was cancelled.');
+        return;
+      }
+      onToken(response.access_token);
+    },
+    error_callback: (error) => {
+      const type = (error?.type || '').toLowerCase();
+      if (type === 'popup_closed') {
+        onError('Google sign-in was closed before finishing.');
+        return;
+      }
+      onError(error?.message || 'Google sign-in failed.');
+    },
+  });
 }
