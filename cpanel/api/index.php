@@ -18,6 +18,7 @@ require __DIR__ . '/lib/organizer_paid_event.php';
 require __DIR__ . '/lib/bank_transfer.php';
 require __DIR__ . '/lib/user_migrations.php';
 require __DIR__ . '/lib/email_verification.php';
+require __DIR__ . '/lib/google_auth.php';
 require __DIR__ . '/lib/super_admin.php';
 require __DIR__ . '/lib/admin_analytics.php';
 require __DIR__ . '/lib/core_schema.php';
@@ -64,7 +65,7 @@ function enforce_write_request_integrity(string $path, string $method): void {
   if ($path === '/payhere/notify') return;
   if ($path === '/organizer/billing/notify') return;
   // Public auth bootstrap endpoints are intentionally available pre-session.
-  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/forgot-password' || $path === '/auth/reset-password' || $path === '/auth/verify-email' || $path === '/auth/resend-verification' || $path === '/auth/check-email') return;
+  if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/google' || $path === '/auth/forgot-password' || $path === '/auth/reset-password' || $path === '/auth/verify-email' || $path === '/auth/resend-verification' || $path === '/auth/check-email') return;
   // CSRF protection is required only for authenticated cookie sessions.
   if (current_user_id() === null) return;
   if (!is_same_origin_request()) {
@@ -1637,6 +1638,72 @@ if ($path === '/auth/login' && $method === 'POST') {
   json_response(200, $payload);
 }
 
+if ($path === '/auth/google' && $method === 'POST') {
+  if (!google_oauth_configured()) {
+    json_response(503, [
+      'error' => 'google_auth_not_configured',
+      'message' => 'Google sign-in is not configured yet.',
+    ]);
+  }
+
+  $body = read_json_body();
+  $idToken = trim((string)($body['idToken'] ?? $body['credential'] ?? ''));
+  $role = normalize_google_auth_role((string)($body['role'] ?? 'organizer'));
+
+  if ($idToken === '') {
+    json_response(400, ['error' => 'missing_id_token', 'message' => 'Google sign-in token is missing. Try again.']);
+  }
+
+  $google = verify_google_id_token($idToken);
+  if ($google === null) {
+    json_response(401, [
+      'error' => 'invalid_google_token',
+      'message' => 'Google sign-in could not be verified. Please try again.',
+    ]);
+  }
+
+  try {
+    $pdo = db();
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout][%s] auth/google db: %s', request_id(), $e->getMessage()));
+    json_response(503, [
+      'error' => 'db_unavailable',
+      'message' => 'Sign-in is temporarily unavailable. Please try again shortly.',
+    ]);
+  }
+
+  ensure_google_auth_columns($pdo);
+  $userId = find_or_create_user_from_google($pdo, $google, $role);
+
+  $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$userId]);
+  $row = $stmt->fetch();
+  if (!$row) {
+    json_response(500, ['error' => 'google_auth_failed', 'message' => 'Could not complete Google sign-in.']);
+  }
+  if ((int)($row['is_blocked'] ?? 0) === 1) json_response(403, ['error' => 'user_blocked']);
+  if (in_array((string)($row['status'] ?? 'active'), ['suspended', 'banned'], true)) {
+    json_response(403, ['error' => 'user_suspended']);
+  }
+
+  regenerate_app_session();
+  $_SESSION['user_id'] = $userId;
+  issue_auth_cookie($userId);
+
+  try {
+    write_log($pdo, $userId, (string)($row['role'] ?? $role), 'user.login.google', 'user', (string)$userId, null);
+  } catch (Throwable $e) {}
+
+  $token = issue_auth_token($userId);
+  $payload = auth_success_payload($userId, [
+    'forcePasswordReset' => boolish($row['force_password_reset'] ?? 0),
+    'authProvider' => 'google',
+  ]);
+  $payload['authToken'] = $token;
+  $payload['sessionToken'] = $token;
+  json_response(200, $payload);
+}
+
 if ($path === '/auth/verify-email' && $method === 'POST') {
   $body = read_json_body();
   $token = trim((string)($body['token'] ?? ''));
@@ -3149,9 +3216,12 @@ if ($path === '/domain/config' && $method === 'GET') {
 // Public runtime config for the SPA (keys safe to expose in browser)
 if ($path === '/public/config' && $method === 'GET') {
   $mapsKey = trim((string)(getenv('GOOGLE_MAPS_API_KEY') ?: getenv('VITE_GOOGLE_MAPS_API_KEY') ?: ''));
+  $googleClientId = google_oauth_client_id();
   json_response(200, [
     'googleMapsApiKey' => $mapsKey,
     'googleMapsConfigured' => $mapsKey !== '',
+    'googleOAuthClientId' => $googleClientId,
+    'googleAuthConfigured' => $googleClientId !== '',
     'appBaseUrl' => canonical_public_app_origin(app_base_url()),
   ]);
 }
