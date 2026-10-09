@@ -15,6 +15,7 @@ require __DIR__ . '/lib/organizer_team.php';
 require __DIR__ . '/lib/tickets.php';
 require __DIR__ . '/lib/organizer_payment.php';
 require __DIR__ . '/lib/organizer_paid_event.php';
+require __DIR__ . '/lib/organizer_application_health.php';
 require __DIR__ . '/lib/bank_transfer.php';
 require __DIR__ . '/lib/user_migrations.php';
 require __DIR__ . '/lib/email_verification.php';
@@ -1900,6 +1901,16 @@ if ($path === '/me/organizer-workspace' && $method === 'GET') {
   json_response(200, [
     'workspace' => $ctx,
     'profile' => organizer_profile_api_shape($pdo, $ownerUserId),
+  ]);
+}
+
+if ($path === '/organizer/application-health' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ctx = organizer_workspace_context($pdo, $uid);
+  $ownerUserId = (int)($ctx['ownerUserId'] ?? $uid);
+  json_response(200, [
+    'health' => organizer_application_health($pdo, $ownerUserId),
   ]);
 }
 
