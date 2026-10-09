@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { api } from '../api/client';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 
@@ -78,6 +79,15 @@ export const Signup: React.FC = () => {
           {isSubmitting ? 'Creating...' : 'Create account'}
         </FlowButton>
       </form>
+
+      <GoogleSignInButton
+        role="organizer"
+        label="Or sign up with Google"
+        disabled={isSubmitting}
+        onSuccess={() => {
+          navigate('/dashboard', { replace: true });
+        }}
+      />
 
       <p className="mt-6 text-center text-sm sm:text-left" style={{ color: ui.textMuted }}>
         Already have an account?{' '}

@@ -7,6 +7,7 @@ import { api } from '../api/client';
 import { parseAuthPayload } from '../api/authResponse';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import { persistAuthTokenFromResponse } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
@@ -89,6 +90,15 @@ export const AttendeeLogin: React.FC = () => {
           {isSubmitting ? 'Signing in...' : 'Sign in as attendee'}
         </FlowButton>
       </form>
+
+      <GoogleSignInButton
+        role="attendee"
+        disabled={isSubmitting}
+        onSuccess={() => {
+          navigate('/attendee/dashboard', { replace: true });
+        }}
+      />
+
       <p className="mt-6 text-center text-sm sm:text-left" style={{ color: ui.textMuted }}>
         New attendee?{' '}
         <Link to="/attendee/signup" className="font-semibold" style={{ color: ui.accent }}>

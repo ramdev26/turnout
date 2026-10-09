@@ -10,6 +10,7 @@ import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
 import { persistAuthTokenFromResponse, getAuthToken, clearAuthToken } from '../api/authToken';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import { cn } from '../utils/cn';
 import { accentSegmentStyleFor } from '../themes/flowUi';
 import { BASADMIN_BASE } from '../utils/adminNav';
@@ -155,6 +156,23 @@ export const Login: React.FC<{ basadmin?: boolean }> = ({ basadmin = false }) =>
           {isSubmitting ? 'Signing in...' : 'Sign in'}
         </FlowButton>
       </form>
+
+      {!basadmin && (
+        <GoogleSignInButton
+          key={loginAs}
+          role={loginAs}
+          disabled={isSubmitting}
+          onSuccess={(userRole) => {
+            const destination =
+              userRole === 'super_admin'
+                ? basadminDestination(nextParam)
+                : userRole === 'attendee'
+                  ? '/attendee/dashboard'
+                  : from;
+            navigate(destination, { replace: true });
+          }}
+        />
+      )}
 
       {!basadmin && (
         <p className="mt-6 text-center text-sm sm:text-left" style={{ color: ui.textMuted }}>
