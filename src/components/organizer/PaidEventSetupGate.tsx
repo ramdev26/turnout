@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, CreditCard, Landmark, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CreditCard, ShieldCheck } from 'lucide-react';
 import { OrganizerPaidEventReadiness } from '../../types';
 import { FlowAlert, FlowButton } from '../flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../flow/FlowPrimitives';
@@ -52,15 +52,15 @@ function RequirementRow({
 
 export const PaidEventSetupGate: React.FC<Props> = ({
   readiness,
-  title = 'Set up paid events before you continue',
+  title = 'Finish your own gateway setup',
   onDismiss,
 }) => {
   const ui = APP_FLOW_UI;
 
-  if (!readiness || readiness.isReady) return null;
+  // Turnout Pay can publish/sell immediately — only own-gateway setup can block.
+  if (!readiness || readiness.isReady || readiness.gatewayMode === 'turnout') return null;
 
-  const { requirements, gatewayMode } = readiness;
-  const bankDone = !requirements.needsBankDetails;
+  const { requirements } = readiness;
   const payhereDone = !requirements.needsOwnPayhereCredentials;
   const billingDone = !requirements.needsBillingCard;
 
@@ -77,34 +77,23 @@ export const PaidEventSetupGate: React.FC<Props> = ({
             {title}
           </h3>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Free events can go live right away. Before publishing a paid event, finish payment setup in Organization →
-            Payments.
+            You chose your own payment gateway. Connect credentials and an account card before selling paid tickets —
+            or switch back to Turnout Pay in Organization → Payments to publish right away.
           </p>
 
           <div className="mt-4 space-y-2">
-            {gatewayMode === 'turnout' ? (
-              <RequirementRow
-                done={bankDone}
-                icon={<Landmark className="h-4 w-4" />}
-                label="Bank account for payouts"
-                detail="Account holder name, bank name, branch, and account number."
-              />
-            ) : (
-              <>
-                <RequirementRow
-                  done={payhereDone}
-                  icon={<ShieldCheck className="h-4 w-4" />}
-                  label="Your payment gateway"
-                  detail="Connect your merchant ID and secret for your own gateway."
-                />
-                <RequirementRow
-                  done={billingDone}
-                  icon={<CreditCard className="h-4 w-4" />}
-                  label="Account card"
-                  detail="Add an account card to finish your own-gateway setup."
-                />
-              </>
-            )}
+            <RequirementRow
+              done={payhereDone}
+              icon={<ShieldCheck className="h-4 w-4" />}
+              label="Your payment gateway"
+              detail="Connect your merchant ID and secret for your own gateway."
+            />
+            <RequirementRow
+              done={billingDone}
+              icon={<CreditCard className="h-4 w-4" />}
+              label="Account card"
+              detail="Add an account card to finish your own-gateway setup."
+            />
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -123,14 +112,12 @@ export const PaidEventSetupGate: React.FC<Props> = ({
             ) : null}
           </div>
 
-          {gatewayMode === 'turnout' ? (
-            <div className="mt-4">
-              <FlowAlert variant="info">
-                With Turnout Pay, attendees pay through us. We deduct platform fees and pay your net earnings to the
-                bank account you provide.
-              </FlowAlert>
-            </div>
-          ) : null}
+          <div className="mt-4">
+            <FlowAlert variant="info">
+              With Turnout Pay, you can publish paid events immediately — no bank details or documents required upfront.
+              Add a bank account later when you want payouts.
+            </FlowAlert>
+          </div>
         </div>
       </div>
     </div>

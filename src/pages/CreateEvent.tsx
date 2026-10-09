@@ -379,8 +379,7 @@ export const CreateEvent: React.FC = () => {
   };
 
   const switchToPaidMode = () => {
-    // Always enter paid mode so organizers can configure tiers. If payout setup is
-    // incomplete, show the gate and still block publish via onSubmit / API assert.
+    // Turnout Pay can publish immediately. Gate only appears for unfinished own-gateway setup.
     setTicketMode('paid');
     setShowPaidSetupGate(Boolean(paidEventReadiness && !paidEventReadiness.isReady));
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
@@ -519,7 +518,7 @@ export const CreateEvent: React.FC = () => {
         setSubmitError(
           paidEventReadiness.gatewayMode === 'own_payhere'
             ? 'Connect your own gateway and add an account card in Organization → Payments before publishing a paid event.'
-            : 'Add your bank payout details in Organization → Payments before publishing a paid event.'
+            : 'Paid event setup is incomplete. Switch to Turnout Pay in Organization → Payments to publish right away.'
         );
         submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
