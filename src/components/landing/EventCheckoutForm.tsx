@@ -5,7 +5,7 @@ import { Users } from 'lucide-react';
 import { Event, OrderItem, AttendeeProfile } from '../../types';
 import { api } from '../../api/client';
 import { useAuthStore } from '../../store/useAuthStore';
-import { formatLKRWhole } from '../../utils/money';
+import { computeBuyerHandlingFeeLkr, formatLKRWhole } from '../../utils/money';
 import { CheckoutCustomFields } from './CheckoutCustomFields';
 import { normalizeCheckoutFields, validateCustomFieldValues } from '../../utils/checkoutFields';
 import {
@@ -93,10 +93,21 @@ export const EventCheckoutForm: React.FC<Props> = ({
     code: string;
     discountAmount: number;
     subtotal: number;
+    /** Ticket total after discount, before handling fee. */
+    ticketTotal: number;
+    handlingFee: number;
+    /** Grand total including handling fee. */
     total: number;
   } | null>(null);
 
-  const payableTotal = appliedCoupon ? appliedCoupon.total : totalAmount;
+  const handlingFeePct = Number(event.buyerHandlingFeePct ?? 0) || 0;
+  const ticketTotalAfterDiscount = appliedCoupon ? appliedCoupon.ticketTotal : totalAmount;
+  const handlingFeeAmount = appliedCoupon
+    ? appliedCoupon.handlingFee
+    : computeBuyerHandlingFeeLkr(ticketTotalAfterDiscount, handlingFeePct);
+  const payableTotal = appliedCoupon
+    ? appliedCoupon.total
+    : ticketTotalAfterDiscount + handlingFeeAmount;
 
   const { register, handleSubmit, reset, watch } = useForm<{
     buyerName: string;
@@ -144,15 +155,20 @@ export const EventCheckoutForm: React.FC<Props> = ({
         code: string;
         discountAmount: number;
         subtotal: number;
+        handlingFee?: number;
         total: number;
       }>(`/api/events/${event.id}/coupons/apply`, {
         code,
         tickets: orderItems.map((it) => ({ ticketId: it.ticketId, quantity: it.quantity })),
       });
+      const handlingFee = typeof res.handlingFee === 'number' ? res.handlingFee : 0;
+      const ticketTotal = Math.max(0, Number(res.subtotal) - Number(res.discountAmount));
       setAppliedCoupon({
         code: res.code,
         discountAmount: res.discountAmount,
         subtotal: res.subtotal,
+        ticketTotal,
+        handlingFee,
         total: res.total,
       });
       setCouponInput(res.code);
@@ -605,6 +621,15 @@ export const EventCheckoutForm: React.FC<Props> = ({
         <div className="flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           <span>Discount</span>
           <span>−{formatLKRWhole(appliedCoupon.discountAmount)}</span>
+        </div>
+      ) : null}
+      {handlingFeeAmount > 0 ? (
+        <div className="mt-2 flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+          <span>
+            Handling fee
+            {handlingFeePct > 0 ? ` (${handlingFeePct}%)` : ''}
+          </span>
+          <span>{formatLKRWhole(handlingFeeAmount)}</span>
         </div>
       ) : null}
 

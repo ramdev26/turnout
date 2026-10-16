@@ -416,6 +416,7 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
   const [installmentMode, setInstallmentMode] = useState<OrganizerInstallmentMode>('off');
   const [ownKokoEnabled, setOwnKokoEnabled] = useState(false);
   const [ownMintpayEnabled, setOwnMintpayEnabled] = useState(false);
+  const [buyerHandlingFeePct, setBuyerHandlingFeePct] = useState('0');
   const [merchantId, setMerchantId] = useState('');
   const [merchantSecret, setMerchantSecret] = useState('');
   const [kokoMerchantId, setKokoMerchantId] = useState('');
@@ -446,6 +447,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
     setInstallmentMode(next.installmentMode || 'off');
     setOwnKokoEnabled(!!next.ownKokoEnabled);
     setOwnMintpayEnabled(!!next.ownMintpayEnabled);
+    const fee = Number(next.buyerHandlingFeePct ?? 0);
+    setBuyerHandlingFeePct(Number.isFinite(fee) ? String(fee) : '0');
     setMerchantId(next.ownPayhereMerchantId || '');
     setMerchantSecret('');
     setKokoMerchantId(next.ownKokoMerchantId || '');
@@ -523,6 +526,25 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
       return;
     }
     await postSettings({ gatewayMode: 'turnout', ownGateway: null }, 'Turnout Pay is now your default checkout.');
+  };
+
+  const saveBuyerHandlingFee = async () => {
+    if (!isOwner || gatewayMode !== 'turnout') return;
+    const parsed = Number(buyerHandlingFeePct);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      onError?.('Enter a handling fee between 0 and 100%.');
+      return;
+    }
+    await postSettings(
+      {
+        gatewayMode: 'turnout',
+        ownGateway: null,
+        buyerHandlingFeePct: Math.round(parsed * 100) / 100,
+      },
+      parsed > 0
+        ? `Buyers will pay a ${parsed}% handling fee at checkout.`
+        : 'Buyer handling fee cleared.'
+    );
   };
 
   const selectOwnGatewayFromModal = async (id: OrganizerOwnGatewayId) => {
@@ -728,6 +750,69 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                 </span>
               }
             />
+
+            {turnoutActive ? (
+              <div
+                className="space-y-3 rounded-xl border p-4"
+                style={{
+                  backgroundColor: ui.fieldBg,
+                  borderColor: ui.borderColor,
+                }}
+              >
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: ui.text }}>
+                    Buyer handling fee
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
+                    Optional percentage added on top of the ticket total (after coupons) and paid by the
+                    customer at checkout. Only applies with Turnout Pay.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex min-w-[140px] flex-1 flex-col gap-1.5">
+                    <FlowLabel>Fee percentage</FlowLabel>
+                    <div className="relative">
+                      <FlowInput
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        inputMode="decimal"
+                        value={buyerHandlingFeePct}
+                        disabled={!isOwner || saving}
+                        onChange={(e) => setBuyerHandlingFeePct(e.target.value)}
+                        placeholder="0"
+                        className={cn(fieldClass, 'pr-8')}
+                        style={fieldStyle}
+                      />
+                      <span
+                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold"
+                        style={{ color: ui.textMuted }}
+                      >
+                        %
+                      </span>
+                    </div>
+                  </label>
+                  <FlowButton
+                    type="button"
+                    disabled={!isOwner || saving}
+                    onClick={() => void saveBuyerHandlingFee()}
+                    className="shrink-0"
+                  >
+                    {saving ? 'Saving…' : 'Save fee'}
+                  </FlowButton>
+                </div>
+                {Number(settings?.effectiveBuyerHandlingFeePct ?? 0) > 0 ? (
+                  <p className="text-xs font-medium" style={{ color: ui.accent }}>
+                    Active · buyers currently pay {settings?.effectiveBuyerHandlingFeePct}% handling fee
+                  </p>
+                ) : (
+                  <p className="text-xs" style={{ color: ui.textMuted }}>
+                    No handling fee charged right now.
+                  </p>
+                )}
+              </div>
+            ) : null}
 
             <ChoiceCard
               selected={gatewayMode === 'own_payhere'}

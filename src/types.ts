@@ -202,6 +202,10 @@ export type OrganizerPaymentSettings = {
     setupAt: string | null;
   };
   commissionPct: number;
+  /** Handling fee % charged to buyers when using Turnout Pay (0–100). */
+  buyerHandlingFeePct?: number;
+  /** Effective fee buyers pay now (0 when using own gateway). */
+  effectiveBuyerHandlingFeePct?: number;
   isReady: boolean;
   requirements: {
     needsBillingCard: boolean;
@@ -453,6 +457,11 @@ export interface Event {
     payhere?: boolean;
     bankTransfer?: boolean;
   };
+  /**
+   * Buyer handling fee % (Turnout Pay only). Added on top of ticket total after coupons.
+   * 0 when organizer uses their own gateway or has not set a fee.
+   */
+  buyerHandlingFeePct?: number;
   /** Receiving bank account shown at checkout when bank transfer is enabled */
   bankTransfer?: BankTransferDetails | null;
   title: string;
