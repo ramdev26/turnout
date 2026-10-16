@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Building2, CreditCard, FileText, Loader2, Mail, Trash2, UploadCloud, UserPlus, Users } from 'lucide-react';
+import { OrganizerApplicationHealthPanel } from '../components/organizer/OrganizerApplicationHealth';
 import { useLocation } from 'react-router-dom';
 import { api, toApiUrl } from '../api/client';
 import {
@@ -341,7 +342,11 @@ export const OrganizerAccount: React.FC = () => {
         {error ? <FlowAlert variant="error">{error}</FlowAlert> : null}
         {feedback ? <FlowAlert variant="success">{feedback}</FlowAlert> : null}
 
-        <section id="org-profile">
+        <section id="org-health" className="scroll-mt-20">
+          <OrganizerApplicationHealthPanel onError={setError} />
+        </section>
+
+        <section id="org-profile" className="mt-6 scroll-mt-20">
         <FlowCard>
           <div className="flex items-start gap-3">
             <div
@@ -564,7 +569,7 @@ export const OrganizerAccount: React.FC = () => {
         </FlowCard>
         </section>
 
-        <section id="org-terms">
+        <section id="org-terms" className="scroll-mt-20">
         <FlowCard className="mt-6">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5" style={{ color: ui.accent }} />

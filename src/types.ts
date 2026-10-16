@@ -111,6 +111,31 @@ export type OrganizerProfile = {
   termsHtml?: string | null;
 };
 
+export type OrganizerApplicationHealthItem = {
+  id: string;
+  category: string;
+  categoryLabel: string;
+  label: string;
+  detail: string;
+  done: boolean;
+  required: boolean;
+  weight: number;
+  href: string;
+};
+
+export type OrganizerApplicationHealth = {
+  score: number;
+  grade: string;
+  label: string;
+  completed: number;
+  total: number;
+  pendingCount: number;
+  items: OrganizerApplicationHealthItem[];
+  pending: OrganizerApplicationHealthItem[];
+  categories: Array<{ id: string; label: string; completed: number; total: number }>;
+  gatewayMode?: OrganizerGatewayMode;
+};
+
 export type OrganizerPaidEventRequirements = {
   needsBusinessDetails: boolean;
   needsBankDetails: boolean;
