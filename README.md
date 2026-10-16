@@ -57,6 +57,17 @@ This endpoint is intentionally restricted to localhost + dev mode.
   - `cookie_secure = true`
   - `cookie_samesite = Lax` (or stricter based on your setup)
 
+## AWS deployment (EC2 + Docker)
+
+To run Turnout on AWS instead of Vercel/cPanel, see [`deploy/aws/README.md`](deploy/aws/README.md).
+
+Short version (from a machine with AWS credentials):
+
+```bash
+export DB_PASS='…' DB_ROOT_PASS='…' SESSION_TOKEN_SECRET="$(openssl rand -hex 24)"
+./deploy/aws/deploy.sh
+```
+
 ## cPanel deployment (frontend + API)
 
 ### 1) Create MySQL DB

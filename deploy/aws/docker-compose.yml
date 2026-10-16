@@ -1,0 +1,64 @@
+name: turnout
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-turnout}
+      MYSQL_USER: ${DB_USER:-turnout}
+      MYSQL_PASSWORD: ${DB_PASS:?Set DB_PASS}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:?Set DB_ROOT_PASS}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../../cpanel/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - turnout
+
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/aws/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_DRIVER: mysql
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-turnout}
+      DB_USER: ${DB_USER:-turnout}
+      DB_PASS: ${DB_PASS}
+      DB_CHARSET: utf8mb4
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost}
+      APP_DEV_MODE: ${APP_DEV_MODE:-false}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      SESSION_TOKEN_SECRET: ${SESSION_TOKEN_SECRET}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      PLATFORM_HOSTS: ${PLATFORM_HOSTS:-localhost,127.0.0.1}
+      PAYHERE_SANDBOX: ${PAYHERE_SANDBOX:-true}
+      PAYHERE_MERCHANT_ID: ${PAYHERE_MERCHANT_ID:-}
+      PAYHERE_MERCHANT_SECRET: ${PAYHERE_MERCHANT_SECRET:-}
+      PAYHERE_NOTIFY_URL: ${PAYHERE_NOTIFY_URL:-}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      PLUNK_SECRET_KEY: ${PLUNK_SECRET_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-admin@bigturnout.co}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Turnout}
+    volumes:
+      - uploads:/var/www/app/cpanel/api/uploads
+    ports:
+      - "80:80"
+    networks:
+      - turnout
+
+volumes:
+  mysql_data:
+  uploads:
+
+networks:
+  turnout:
