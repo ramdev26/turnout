@@ -105,10 +105,10 @@ function setupChecks(row: Pick<
   'bankAccountConfigured' | 'businessRegistrationDocUploaded' | 'bankStatementDocUploaded' | 'paidEventReady'
 >) {
   return [
-    { key: 'paid', label: 'Paid events ready', ok: row.paidEventReady },
-    { key: 'bank', label: 'Bank account', ok: row.bankAccountConfigured },
-    { key: 'br', label: 'BR document', ok: row.businessRegistrationDocUploaded },
-    { key: 'stmt', label: 'Bank statement', ok: row.bankStatementDocUploaded },
+    { key: 'paid', label: 'Can sell paid tickets', ok: row.paidEventReady },
+    { key: 'bank', label: 'Bank account (for payouts)', ok: row.bankAccountConfigured },
+    { key: 'br', label: 'BR document (optional)', ok: row.businessRegistrationDocUploaded },
+    { key: 'stmt', label: 'Bank statement (optional)', ok: row.bankStatementDocUploaded },
   ];
 }
 
@@ -289,7 +289,7 @@ export const AdminOrganizers: React.FC = () => {
       setDetail((prev) => (prev ? { ...prev, readiness: res.readiness } : prev));
       setMessage(
         enabled
-          ? 'Turnout Pay override enabled. Organizer can sell paid tickets without KYC docs.'
+          ? 'Turnout Pay override enabled. Organizer is treated as payout-ready without bank details.'
           : 'Turnout Pay override disabled.',
       );
       await load({ background: true });
@@ -540,7 +540,8 @@ export const AdminOrganizers: React.FC = () => {
                       Turnout Pay admin override
                     </p>
                     <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                      Allow this organizer to use Turnout Pay even without uploaded documents.
+                      Treat this organizer as payout-ready even without bank details on file. Selling paid tickets with
+                      Turnout Pay already works without docs.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <FlowButton
