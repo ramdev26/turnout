@@ -22,6 +22,8 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'business_registration_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'bank_statement_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'meta_pixel_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
+    'ga_measurement_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
     'turnout_pay_docs_override' => $driver === 'pgsql' ? 'SMALLINT NOT NULL DEFAULT 0' : 'TINYINT NOT NULL DEFAULT 0',
   ];
 
@@ -426,4 +428,33 @@ function upsert_organizer_terms_html(PDO $pdo, int $userId, string $termsHtml): 
   upsert_organizer_profile_paid_event_fields($pdo, $userId, []);
   $stmt = $pdo->prepare('UPDATE organizer_profiles SET terms_html = ? WHERE user_id = ?');
   $stmt->execute([$clean, $userId]);
+}
+
+/** @return string|null|false null when empty, false when invalid */
+function normalize_meta_pixel_id(?string $raw) {
+  $id = trim((string)$raw);
+  if ($id === '') return null;
+  if (!preg_match('/^\d{5,20}$/', $id)) {
+    return false;
+  }
+  return $id;
+}
+
+/** @return string|null|false null when empty, false when invalid */
+function normalize_ga_measurement_id(?string $raw) {
+  $id = strtoupper(trim((string)$raw));
+  if ($id === '') return null;
+  if (!preg_match('/^G-[A-Z0-9]{4,20}$/', $id)) {
+    return false;
+  }
+  return $id;
+}
+
+function upsert_organizer_marketing_tags(PDO $pdo, int $userId, ?string $metaPixelId, ?string $gaMeasurementId): void {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  upsert_organizer_profile_paid_event_fields($pdo, $userId, []);
+  $stmt = $pdo->prepare(
+    'UPDATE organizer_profiles SET meta_pixel_id = ?, ga_measurement_id = ? WHERE user_id = ?'
+  );
+  $stmt->execute([$metaPixelId, $gaMeasurementId, $userId]);
 }

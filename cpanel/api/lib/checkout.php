@@ -28,6 +28,10 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     $event['organizerLogoUrl'] = $logo !== '' ? $logo : null;
     $terms = trim((string)($profile['termsHtml'] ?? ''));
     $event['organizerTermsHtml'] = $terms !== '' ? $terms : null;
+    $metaPixelId = trim((string)($profile['metaPixelId'] ?? ''));
+    $event['metaPixelId'] = $metaPixelId !== '' ? $metaPixelId : null;
+    $gaMeasurementId = trim((string)($profile['gaMeasurementId'] ?? ''));
+    $event['gaMeasurementId'] = $gaMeasurementId !== '' ? $gaMeasurementId : null;
   }
 
   if ($pdo !== null && function_exists('attach_bank_transfer_to_public_event')) {

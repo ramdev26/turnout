@@ -109,6 +109,10 @@ export type OrganizerProfile = {
   bankStatementDocUploaded?: boolean;
   /** Organization Terms & Conditions (HTML). */
   termsHtml?: string | null;
+  /** Meta (Facebook) Pixel ID applied to all public event pages. */
+  metaPixelId?: string | null;
+  /** Google Analytics 4 Measurement ID (G-XXXXXXXX) for all public event pages. */
+  gaMeasurementId?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
@@ -445,6 +449,10 @@ export interface Event {
   organizerLogoUrl?: string | null;
   /** Organizer Terms & Conditions HTML for checkout acceptance */
   organizerTermsHtml?: string | null;
+  /** Organizer Meta Pixel ID (from organization settings) */
+  metaPixelId?: string | null;
+  /** Organizer Google Analytics 4 Measurement ID (from organization settings) */
+  gaMeasurementId?: string | null;
   /** True when this event accepts bank transfer and organizer bank details are complete */
   allowBankTransfer?: boolean;
   /** True when card/online PayHere checkout is enabled for this event */

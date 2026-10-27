@@ -9,6 +9,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { formatApiError } from '../utils/apiError';
 import { formatLKRWhole } from '../utils/money';
+import { trackOrganizerPurchase } from '../lib/organizerMarketingTags';
 import '../styles/order-confirmation.css';
 
 type TicketPdfTemplate = 'classic' | 'midnight' | 'sunset';
@@ -92,6 +93,29 @@ export const Success: React.FC = () => {
 
     fetchOrderData();
   }, [orderId, accessToken, passId]);
+
+  useEffect(() => {
+    if (!order || !event || order.status !== 'paid') return;
+    const tickets = order.tickets || [];
+    const numItems = tickets.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    trackOrganizerPurchase(
+      { metaPixelId: event.metaPixelId, gaMeasurementId: event.gaMeasurementId },
+      {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventSlug: event.slug,
+        orderId: order.id,
+        value: order.totalAmount,
+        currency: 'LKR',
+        numItems,
+        contents: tickets.map((item) => ({
+          id: item.ticketId,
+          quantity: item.quantity,
+          item_price: item.price,
+        })),
+      }
+    );
+  }, [order, event]);
 
   const uploadSlip = async (file: File) => {
     if (!orderId || !order) return;
