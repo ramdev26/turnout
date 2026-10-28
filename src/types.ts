@@ -109,6 +109,10 @@ export type OrganizerProfile = {
   bankStatementDocUploaded?: boolean;
   /** Organization Terms & Conditions (HTML). */
   termsHtml?: string | null;
+  /** Meta (Facebook) Pixel ID applied to all public event pages. */
+  metaPixelId?: string | null;
+  /** Google Analytics 4 Measurement ID (G-XXXXXXXX) for all public event pages. */
+  gaMeasurementId?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
@@ -286,6 +290,10 @@ export interface EventCustomization {
   borderColor?: string;
   headerBgColor?: string;
   footerBgColor?: string;
+  /** Event-level Meta Pixel override (empty = organization default). */
+  metaPixelId?: string | null;
+  /** Event-level GA4 Measurement ID override (empty = organization default). */
+  gaMeasurementId?: string | null;
   /** Typography role colours (H1 = headingColor; P = bodyTextColor). */
   h2Color?: string;
   h3Color?: string;
@@ -445,6 +453,18 @@ export interface Event {
   organizerLogoUrl?: string | null;
   /** Organizer Terms & Conditions HTML for checkout acceptance */
   organizerTermsHtml?: string | null;
+  /** Effective Meta Pixel ID (event override, else organization default) */
+  metaPixelId?: string | null;
+  /** Effective Google Analytics 4 Measurement ID (event override, else organization default) */
+  gaMeasurementId?: string | null;
+  /** Event-only Meta Pixel override (null/empty = use organization default) */
+  eventMetaPixelId?: string | null;
+  /** Event-only GA4 Measurement ID override (null/empty = use organization default) */
+  eventGaMeasurementId?: string | null;
+  /** Organization default Meta Pixel ID */
+  organizationMetaPixelId?: string | null;
+  /** Organization default GA4 Measurement ID */
+  organizationGaMeasurementId?: string | null;
   /** True when this event accepts bank transfer and organizer bank details are complete */
   allowBankTransfer?: boolean;
   /** True when card/online PayHere checkout is enabled for this event */

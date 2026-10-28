@@ -28,6 +28,22 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     $event['organizerLogoUrl'] = $logo !== '' ? $logo : null;
     $terms = trim((string)($profile['termsHtml'] ?? ''));
     $event['organizerTermsHtml'] = $terms !== '' ? $terms : null;
+    $orgMetaPixelId = trim((string)($profile['metaPixelId'] ?? ''));
+    $orgGaMeasurementId = trim((string)($profile['gaMeasurementId'] ?? ''));
+    $event['organizationMetaPixelId'] = $orgMetaPixelId !== '' ? $orgMetaPixelId : null;
+    $event['organizationGaMeasurementId'] = $orgGaMeasurementId !== '' ? $orgGaMeasurementId : null;
+
+    $overrides = function_exists('event_marketing_overrides_from_row')
+      ? event_marketing_overrides_from_row($row)
+      : ['metaPixelId' => null, 'gaMeasurementId' => null];
+    $eventMeta = trim((string)($overrides['metaPixelId'] ?? ''));
+    $eventGa = trim((string)($overrides['gaMeasurementId'] ?? ''));
+    $event['eventMetaPixelId'] = $eventMeta !== '' ? $eventMeta : null;
+    $event['eventGaMeasurementId'] = $eventGa !== '' ? $eventGa : null;
+
+    // Effective tags used on public pages: event override wins, else organization default.
+    $event['metaPixelId'] = $event['eventMetaPixelId'] ?? $event['organizationMetaPixelId'];
+    $event['gaMeasurementId'] = $event['eventGaMeasurementId'] ?? $event['organizationGaMeasurementId'];
   }
 
   if ($pdo !== null && function_exists('attach_bank_transfer_to_public_event')) {

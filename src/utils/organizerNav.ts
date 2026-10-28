@@ -32,6 +32,7 @@ export function organizationSettingsSubNav(): AppNavLink[] {
   return [
     { to: '/dashboard/organization#org-profile', label: 'Profile', exact: true },
     { to: '/dashboard/organization#org-terms', label: 'Terms', exact: true },
+    { to: '/dashboard/organization#org-tracking', label: 'Tracking', exact: true },
     { to: '/dashboard/organization#org-payments', label: 'Payments', exact: true },
   ];
 }

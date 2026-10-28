@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, CreditCard, FileText, Loader2, Mail, Trash2, UploadCloud, UserPlus, Users } from 'lucide-react';
+import { Activity, Building2, CreditCard, FileText, Loader2, Mail, Trash2, UploadCloud, UserPlus, Users } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { api, toApiUrl } from '../api/client';
 import {
@@ -54,6 +54,7 @@ export const OrganizerAccount: React.FC = () => {
   const [termsHtml, setTermsHtml] = useState(DEFAULT_ORGANIZER_TERMS_HTML);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [savingTerms, setSavingTerms] = useState(false);
+  const [savingTracking, setSavingTracking] = useState(false);
 
   const [workspace, setWorkspace] = useState<OrganizerWorkspace | null>(null);
   const [profile, setProfile] = useState<OrganizerProfile>({
@@ -69,6 +70,8 @@ export const OrganizerAccount: React.FC = () => {
     businessRegistrationDocUploaded: false,
     bankStatementDocUrl: '',
     bankStatementDocUploaded: false,
+    metaPixelId: '',
+    gaMeasurementId: '',
   });
   const [members, setMembers] = useState<OrganizerTeamMember[]>([]);
   const [invites, setInvites] = useState<OrganizerTeamInvite[]>([]);
@@ -105,6 +108,8 @@ export const OrganizerAccount: React.FC = () => {
           bankStatementDocUrl: res.profile.bankStatementDocUrl || '',
           bankStatementDocUploaded: !!res.profile.bankStatementDocUploaded,
           termsHtml: res.profile.termsHtml || null,
+          metaPixelId: res.profile.metaPixelId || '',
+          gaMeasurementId: res.profile.gaMeasurementId || '',
         });
         setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
         if (res.workspace.canManageTeam) {
@@ -251,6 +256,42 @@ export const OrganizerAccount: React.FC = () => {
       setError(err?.message || err?.error || 'Failed to save Terms & Conditions');
     } finally {
       setSavingTerms(false);
+    }
+  };
+
+  const saveTracking = async () => {
+    if (!workspace?.isOwner) return;
+    setSavingTracking(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ ok: boolean; profile: OrganizerProfile; user: Parameters<typeof setUser>[0] }>(
+        '/api/me/organizer-profile',
+        {
+          displayName: profile.displayName.trim(),
+          organizationName: profile.organizationName.trim(),
+          logoUrl: profile.logoUrl || undefined,
+          website: profile.website?.trim() || undefined,
+          phone: profile.phone?.trim() || undefined,
+          businessAddress: profile.businessAddress?.trim() || undefined,
+          businessRegistrationNo: profile.businessRegistrationNo?.trim() || undefined,
+          metaPixelId: (profile.metaPixelId || '').trim(),
+          gaMeasurementId: (profile.gaMeasurementId || '').trim(),
+        }
+      );
+      setUser(res.user);
+      setProfile((p) => ({
+        ...p,
+        ...res.profile,
+        metaPixelId: res.profile.metaPixelId || '',
+        gaMeasurementId: res.profile.gaMeasurementId || '',
+      }));
+      setFeedback('Visitor tracking settings saved. Tags apply to all your event landing pages.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save tracking settings');
+    } finally {
+      setSavingTracking(false);
     }
   };
 
@@ -603,6 +644,68 @@ export const OrganizerAccount: React.FC = () => {
               dangerouslySetInnerHTML={{ __html: termsHtml }}
             />
           </div>
+        </FlowCard>
+        </section>
+
+        <section id="org-tracking">
+        <FlowCard className="mt-6">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5" style={{ color: ui.accent }} />
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Visitor tracking
+            </h2>
+          </div>
+          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+            Set organization defaults for Meta Pixel and Google Analytics. They apply to every public event
+            landing page, checkout, and paid purchase — unless an event overrides them in Event Settings →
+            Visitor tracking.
+          </p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>Meta Pixel ID</FlowLabel>
+              <FlowInput
+                value={profile.metaPixelId || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, metaPixelId: e.target.value.replace(/[^\d]/g, '') }))}
+                placeholder="e.g. 123456789012345"
+                inputMode="numeric"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                From Meta Events Manager → Data sources → Pixel.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>Google Analytics Measurement ID</FlowLabel>
+              <FlowInput
+                value={profile.gaMeasurementId || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, gaMeasurementId: e.target.value.toUpperCase() }))}
+                placeholder="G-XXXXXXXXXX"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                GA4 Measurement ID starting with G-.
+              </p>
+            </label>
+          </div>
+          <div
+            className="mt-4 rounded-2xl border px-4 py-3 text-sm"
+            style={{ borderColor: ui.borderColor, color: ui.textMuted }}
+          >
+            Tracked automatically: landing page views, checkout starts, and purchases (paid orders only).
+            Live design previews are not tracked. For a different GA property per event, open that event’s
+            Settings → Visitor tracking.
+          </div>
+          {workspace?.isOwner ? (
+            <div className="mt-5">
+              <FlowButton onClick={() => void saveTracking()} disabled={savingTracking}>
+                {savingTracking ? 'Saving…' : 'Save tracking settings'}
+              </FlowButton>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm" style={{ color: ui.textMuted }}>
+              Only the workspace owner can edit tracking settings.
+            </p>
+          )}
         </FlowCard>
         </section>
 

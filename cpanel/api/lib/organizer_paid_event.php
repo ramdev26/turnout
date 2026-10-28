@@ -22,6 +22,8 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'business_registration_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'bank_statement_doc_url' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
+    'meta_pixel_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
+    'ga_measurement_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
     'turnout_pay_docs_override' => $driver === 'pgsql' ? 'SMALLINT NOT NULL DEFAULT 0' : 'TINYINT NOT NULL DEFAULT 0',
   ];
 
@@ -426,4 +428,79 @@ function upsert_organizer_terms_html(PDO $pdo, int $userId, string $termsHtml): 
   upsert_organizer_profile_paid_event_fields($pdo, $userId, []);
   $stmt = $pdo->prepare('UPDATE organizer_profiles SET terms_html = ? WHERE user_id = ?');
   $stmt->execute([$clean, $userId]);
+}
+
+/** @return string|null|false null when empty, false when invalid */
+function normalize_meta_pixel_id(?string $raw) {
+  $id = trim((string)$raw);
+  if ($id === '') return null;
+  if (!preg_match('/^\d{5,20}$/', $id)) {
+    return false;
+  }
+  return $id;
+}
+
+/** @return string|null|false null when empty, false when invalid */
+function normalize_ga_measurement_id(?string $raw) {
+  $id = strtoupper(trim((string)$raw));
+  if ($id === '') return null;
+  if (!preg_match('/^G-[A-Z0-9]{4,20}$/', $id)) {
+    return false;
+  }
+  return $id;
+}
+
+function upsert_organizer_marketing_tags(PDO $pdo, int $userId, ?string $metaPixelId, ?string $gaMeasurementId): void {
+  ensure_organizer_profile_paid_event_columns($pdo);
+  upsert_organizer_profile_paid_event_fields($pdo, $userId, []);
+  $stmt = $pdo->prepare(
+    'UPDATE organizer_profiles SET meta_pixel_id = ?, ga_measurement_id = ? WHERE user_id = ?'
+  );
+  $stmt->execute([$metaPixelId, $gaMeasurementId, $userId]);
+}
+
+/** Event-level overrides stored in customization_json (empty = use organization default). */
+function event_marketing_overrides_from_customization(array $custom): array {
+  $meta = array_key_exists('metaPixelId', $custom)
+    ? normalize_meta_pixel_id(is_string($custom['metaPixelId']) ? $custom['metaPixelId'] : null)
+    : null;
+  if ($meta === false) $meta = null;
+  $ga = array_key_exists('gaMeasurementId', $custom)
+    ? normalize_ga_measurement_id(is_string($custom['gaMeasurementId']) ? $custom['gaMeasurementId'] : null)
+    : null;
+  if ($ga === false) $ga = null;
+  return [
+    'metaPixelId' => $meta,
+    'gaMeasurementId' => $ga,
+  ];
+}
+
+function event_marketing_overrides_from_row(array $eventRow): array {
+  $custom = json_decode((string)($eventRow['customization_json'] ?? ''), true);
+  if (!is_array($custom)) $custom = [];
+  return event_marketing_overrides_from_customization($custom);
+}
+
+function set_event_marketing_overrides(PDO $pdo, int $eventId, $metaPixelId, $gaMeasurementId): array {
+  $stmt = $pdo->prepare('SELECT customization_json FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  $custom = json_decode((string)$row['customization_json'], true);
+  if (!is_array($custom)) $custom = [];
+
+  if ($metaPixelId === null || $metaPixelId === '') {
+    unset($custom['metaPixelId']);
+  } else {
+    $custom['metaPixelId'] = (string)$metaPixelId;
+  }
+  if ($gaMeasurementId === null || $gaMeasurementId === '') {
+    unset($custom['gaMeasurementId']);
+  } else {
+    $custom['gaMeasurementId'] = (string)$gaMeasurementId;
+  }
+
+  $upd = $pdo->prepare('UPDATE events SET customization_json = ? WHERE id = ?');
+  $upd->execute([json_encode($custom, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $eventId]);
+  return event_marketing_overrides_from_customization($custom);
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Event, OrderItem, Ticket } from '../types';
 import { api } from '../api/client';
@@ -13,6 +13,7 @@ import {
   setEventAccessToken,
   setPendingEventAccessContext,
 } from '../lib/eventAccessToken';
+import { trackOrganizerInitiateCheckout } from '../lib/organizerMarketingTags';
 
 type LocationState = {
   selectedTickets?: Record<string, number>;
@@ -35,6 +36,7 @@ export const EventCheckout: React.FC = () => {
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number> | null>(null);
   const [accessRequired, setAccessRequired] = useState(false);
   const [loading, setLoading] = useState(true);
+  const checkoutTracked = useRef(false);
 
   const backHref = eventId ? `/events/${eventId}` : slug ? `/e/${slug}` : '/';
 
@@ -119,6 +121,30 @@ export const EventCheckout: React.FC = () => {
       ),
     [selectedTickets, tickets]
   );
+
+  useEffect(() => {
+    if (!event || accessRequired || event.status !== 'published' || orderItems.length < 1 || checkoutTracked.current) {
+      return;
+    }
+    checkoutTracked.current = true;
+    const numItems = orderItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    trackOrganizerInitiateCheckout(
+      { metaPixelId: event.metaPixelId, gaMeasurementId: event.gaMeasurementId },
+      {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventSlug: event.slug,
+        value: totalAmount,
+        currency: 'LKR',
+        numItems,
+        contents: orderItems.map((item) => ({
+          id: item.ticketId,
+          quantity: item.quantity,
+          item_price: item.price,
+        })),
+      }
+    );
+  }, [event, accessRequired, orderItems, totalAmount]);
 
   const themeVars = event
     ? landingCssVars(event.customization, event.templateId)

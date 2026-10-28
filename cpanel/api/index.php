@@ -2063,6 +2063,31 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     upsert_organizer_terms_html($pdo, $uid, (string)$body['termsHtml']);
   }
 
+  if (array_key_exists('metaPixelId', $body) || array_key_exists('gaMeasurementId', $body)) {
+    $existingMarketing = load_organizer_profile_row($pdo, $uid);
+    $metaRaw = array_key_exists('metaPixelId', $body)
+      ? (string)($body['metaPixelId'] ?? '')
+      : (string)($existingMarketing['meta_pixel_id'] ?? '');
+    $gaRaw = array_key_exists('gaMeasurementId', $body)
+      ? (string)($body['gaMeasurementId'] ?? '')
+      : (string)($existingMarketing['ga_measurement_id'] ?? '');
+    $metaPixelId = normalize_meta_pixel_id($metaRaw);
+    if ($metaPixelId === false) {
+      json_response(400, [
+        'error' => 'invalid_meta_pixel_id',
+        'message' => 'Meta Pixel ID must be a numeric Pixel ID from Events Manager.',
+      ]);
+    }
+    $gaMeasurementId = normalize_ga_measurement_id($gaRaw);
+    if ($gaMeasurementId === false) {
+      json_response(400, [
+        'error' => 'invalid_ga_measurement_id',
+        'message' => 'Google Analytics ID must look like G-XXXXXXXXXX.',
+      ]);
+    }
+    upsert_organizer_marketing_tags($pdo, $uid, $metaPixelId, $gaMeasurementId);
+  }
+
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
 }
 
@@ -5429,6 +5454,70 @@ if (preg_match('#^/public/events/(\\d+)/sessions$#', $path, $m) && $method === '
     ];
   }
   json_response(200, ['sessions' => $sessions]);
+}
+
+// ---- Event visitor tracking (Meta Pixel / GA overrides) ----
+if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  $row = load_event_row_or_404($pdo, $eventId);
+  $mapped = map_public_event_row($row, $pdo);
+  json_response(200, [
+    'metaPixelId' => $mapped['eventMetaPixelId'] ?? null,
+    'gaMeasurementId' => $mapped['eventGaMeasurementId'] ?? null,
+    'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
+    'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
+    'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
+    'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  $row = load_event_row_or_404($pdo, $eventId);
+  $existing = event_marketing_overrides_from_row($row);
+
+  $metaRaw = array_key_exists('metaPixelId', $body)
+    ? (string)($body['metaPixelId'] ?? '')
+    : (string)($existing['metaPixelId'] ?? '');
+  $gaRaw = array_key_exists('gaMeasurementId', $body)
+    ? (string)($body['gaMeasurementId'] ?? '')
+    : (string)($existing['gaMeasurementId'] ?? '');
+
+  $metaPixelId = normalize_meta_pixel_id($metaRaw);
+  if ($metaPixelId === false) {
+    json_response(400, [
+      'error' => 'invalid_meta_pixel_id',
+      'message' => 'Meta Pixel ID must be a numeric Pixel ID from Events Manager.',
+    ]);
+  }
+  $gaMeasurementId = normalize_ga_measurement_id($gaRaw);
+  if ($gaMeasurementId === false) {
+    json_response(400, [
+      'error' => 'invalid_ga_measurement_id',
+      'message' => 'Google Analytics ID must look like G-XXXXXXXXXX.',
+    ]);
+  }
+
+  $overrides = set_event_marketing_overrides($pdo, $eventId, $metaPixelId, $gaMeasurementId);
+  $fresh = load_event_row_or_404($pdo, $eventId);
+  $mapped = map_public_event_row($fresh, $pdo);
+  json_response(200, [
+    'ok' => true,
+    'metaPixelId' => $overrides['metaPixelId'],
+    'gaMeasurementId' => $overrides['gaMeasurementId'],
+    'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
+    'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
+    'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
+    'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
+    'event' => $mapped,
+  ]);
 }
 
 // ---- Purchase limits (ticket restrictions) ----
