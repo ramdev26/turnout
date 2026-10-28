@@ -26,6 +26,7 @@ require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
 require __DIR__ . '/lib/coupons.php';
 require __DIR__ . '/lib/access_codes.php';
+require __DIR__ . '/lib/organizer_orders.php';
 
 set_cors_headers_for_same_domain();
 
@@ -4966,10 +4967,10 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       }
     }
   }
-  $isOrganizerOwner = ($uid !== null) && ((int)($eventOwner['organizer_user_id'] ?? 0) === $uid);
+  $isOrganizerAccess = ($uid !== null) && user_can_access_event($pdo, (int)$row['event_id'], $uid, 'viewer');
   $tokenPayload = $accessToken !== '' ? order_access_token_payload($accessToken, $orderId) : null;
   $hasAccessToken = $tokenPayload !== null;
-  if (!$isBuyer && !$isOrganizerOwner && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
+  if (!$isBuyer && !$isOrganizerAccess && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
 
   if ($hasAccessToken && (string)$row['status'] === 'pending') {
     $pm = trim((string)($row['payment_method'] ?? ''));
@@ -5073,7 +5074,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   }
 
   $eventPayload = null;
-  if ($hasAccessToken || $isBuyer || $isOrganizerOwner) {
+  if ($hasAccessToken || $isBuyer || $isOrganizerAccess) {
     $evStmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
     $evStmt->execute([(int)$row['event_id']]);
     $evRow = $evStmt->fetch();
@@ -5081,6 +5082,19 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       $eventPayload = map_public_event_row($evRow, $pdo);
     }
   }
+
+  if (function_exists('ensure_order_coupon_columns')) {
+    ensure_order_coupon_columns($pdo);
+    // Reload coupon fields if the SELECT * above ran before migration.
+    if (!array_key_exists('coupon_code', $row)) {
+      $reload = $pdo->prepare('SELECT coupon_code, discount_amount_cents FROM orders WHERE id = ? LIMIT 1');
+      $reload->execute([$orderId]);
+      $extra = $reload->fetch() ?: [];
+      $row = array_merge($row, $extra);
+    }
+  }
+  $couponCode = trim((string)($row['coupon_code'] ?? ''));
+  $discountCents = (int)($row['discount_amount_cents'] ?? 0);
 
   json_response(200, [
     'order' => array_merge([
@@ -5097,6 +5111,8 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'attendees' => $att,
       'viewScope' => $viewScope,
       'bankTransfer' => $bankTransferDetails,
+      'couponCode' => $couponCode !== '' ? $couponCode : null,
+      'discountAmount' => $discountCents > 0 ? $discountCents / 100 : 0,
     ], $paymentFields),
     'event' => $eventPayload,
   ]);
@@ -7586,6 +7602,44 @@ if ($path === '/organizer/dashboard-stats' && $method === 'GET') {
     'totals' => $totals,
     'byEvent' => $byEvent,
     'earnings' => organizer_earnings_api_shape($pdo, $uid),
+  ]);
+}
+
+if ($path === '/organizer/orders' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ownerIds = organizer_accessible_owner_ids($pdo, $uid);
+  $result = organizer_orders_query($pdo, $ownerIds, [
+    'status' => trim((string)($_GET['status'] ?? 'all')),
+    'eventId' => (int)($_GET['eventId'] ?? 0),
+    'paymentMethod' => trim((string)($_GET['paymentMethod'] ?? '')),
+    'q' => trim((string)($_GET['q'] ?? '')),
+    'limit' => (int)($_GET['limit'] ?? 50),
+    'offset' => (int)($_GET['offset'] ?? 0),
+  ]);
+
+  $events = [];
+  if ($ownerIds !== []) {
+    $eventsStmt = $pdo->prepare(
+      'SELECT id, title, slug FROM events WHERE organizer_user_id IN (' .
+      implode(',', array_fill(0, count($ownerIds), '?')) .
+      ') ORDER BY created_at DESC'
+    );
+    $eventsStmt->execute($ownerIds);
+    while ($ev = $eventsStmt->fetch()) {
+      $events[] = [
+        'id' => (string)$ev['id'],
+        'title' => (string)$ev['title'],
+        'slug' => (string)$ev['slug'],
+      ];
+    }
+  }
+
+  json_response(200, [
+    'orders' => $result['orders'],
+    'total' => $result['total'],
+    'counts' => $result['counts'],
+    'events' => $events,
   ]);
 }
 
