@@ -84,8 +84,11 @@ function ensureGaMeasurement(measurementId: string): void {
 
   window.dataLayer = window.dataLayer || [];
   if (!window.gtag) {
-    window.gtag = function gtag(...args: unknown[]) {
-      window.dataLayer?.push(args);
+    // Google requires pushing the Arguments object (not a rest-args array),
+    // otherwise gtag.js can load without ever sending collect hits.
+    window.gtag = function gtag() {
+      // eslint-disable-next-line prefer-rest-params
+      window.dataLayer?.push(arguments);
     };
   }
 
