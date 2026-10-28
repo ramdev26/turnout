@@ -458,3 +458,49 @@ function upsert_organizer_marketing_tags(PDO $pdo, int $userId, ?string $metaPix
   );
   $stmt->execute([$metaPixelId, $gaMeasurementId, $userId]);
 }
+
+/** Event-level overrides stored in customization_json (empty = use organization default). */
+function event_marketing_overrides_from_customization(array $custom): array {
+  $meta = array_key_exists('metaPixelId', $custom)
+    ? normalize_meta_pixel_id(is_string($custom['metaPixelId']) ? $custom['metaPixelId'] : null)
+    : null;
+  if ($meta === false) $meta = null;
+  $ga = array_key_exists('gaMeasurementId', $custom)
+    ? normalize_ga_measurement_id(is_string($custom['gaMeasurementId']) ? $custom['gaMeasurementId'] : null)
+    : null;
+  if ($ga === false) $ga = null;
+  return [
+    'metaPixelId' => $meta,
+    'gaMeasurementId' => $ga,
+  ];
+}
+
+function event_marketing_overrides_from_row(array $eventRow): array {
+  $custom = json_decode((string)($eventRow['customization_json'] ?? ''), true);
+  if (!is_array($custom)) $custom = [];
+  return event_marketing_overrides_from_customization($custom);
+}
+
+function set_event_marketing_overrides(PDO $pdo, int $eventId, $metaPixelId, $gaMeasurementId): array {
+  $stmt = $pdo->prepare('SELECT customization_json FROM events WHERE id = ? LIMIT 1');
+  $stmt->execute([$eventId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'event_not_found']);
+  $custom = json_decode((string)$row['customization_json'], true);
+  if (!is_array($custom)) $custom = [];
+
+  if ($metaPixelId === null || $metaPixelId === '') {
+    unset($custom['metaPixelId']);
+  } else {
+    $custom['metaPixelId'] = (string)$metaPixelId;
+  }
+  if ($gaMeasurementId === null || $gaMeasurementId === '') {
+    unset($custom['gaMeasurementId']);
+  } else {
+    $custom['gaMeasurementId'] = (string)$gaMeasurementId;
+  }
+
+  $upd = $pdo->prepare('UPDATE events SET customization_json = ? WHERE id = ?');
+  $upd->execute([json_encode($custom, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $eventId]);
+  return event_marketing_overrides_from_customization($custom);
+}

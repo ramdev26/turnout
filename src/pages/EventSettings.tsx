@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Activity,
   CreditCard,
   Landmark,
   MapPin,
@@ -189,9 +190,15 @@ export const EventSettings: React.FC = () => {
     checkout: false,
     policy: false,
     payments: false,
+    tracking: false,
     advanced: false,
   });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
+  const [eventGaMeasurementId, setEventGaMeasurementId] = useState('');
+  const [eventMetaPixelId, setEventMetaPixelId] = useState('');
+  const [organizationGaMeasurementId, setOrganizationGaMeasurementId] = useState<string | null>(null);
+  const [organizationMetaPixelId, setOrganizationMetaPixelId] = useState<string | null>(null);
+  const [savingTracking, setSavingTracking] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
@@ -254,6 +261,10 @@ export const EventSettings: React.FC = () => {
       setBannerUrl(ev.bannerUrl || '');
       setArenaGalleryImages(normalizeArenaGalleryImages(ev.customization?.arenaGalleryImages));
       setSlug(ev.slug);
+      setEventGaMeasurementId(ev.eventGaMeasurementId || ev.customization?.gaMeasurementId || '');
+      setEventMetaPixelId(ev.eventMetaPixelId || ev.customization?.metaPixelId || '');
+      setOrganizationGaMeasurementId(ev.organizationGaMeasurementId || null);
+      setOrganizationMetaPixelId(ev.organizationMetaPixelId || null);
       const landing = normalizeLandingCustomization(ev.customization, resolveLayoutTemplateId(ev.templateId));
       const templateDefaults = resolveTemplateDesignDefaults(ev.templateId);
       setThemeId('minimal');
@@ -768,6 +779,40 @@ export const EventSettings: React.FC = () => {
       await loadAll();
     } finally {
       setSavingPaymentMethods(false);
+    }
+  };
+
+  const saveTracking = async () => {
+    if (!eventId) return;
+    setSavingTracking(true);
+    setError(null);
+    try {
+      const res = await api.post<{
+        ok: boolean;
+        metaPixelId: string | null;
+        gaMeasurementId: string | null;
+        organizationMetaPixelId: string | null;
+        organizationGaMeasurementId: string | null;
+        event: Event;
+      }>(`/api/events/${eventId}/tracking`, {
+        metaPixelId: eventMetaPixelId.trim(),
+        gaMeasurementId: eventGaMeasurementId.trim(),
+      });
+      setEvent(res.event);
+      setEventMetaPixelId(res.metaPixelId || '');
+      setEventGaMeasurementId(res.gaMeasurementId || '');
+      setOrganizationMetaPixelId(res.organizationMetaPixelId || null);
+      setOrganizationGaMeasurementId(res.organizationGaMeasurementId || null);
+      setFeedback(
+        res.gaMeasurementId || res.metaPixelId
+          ? 'Event tracking saved. This event will use these IDs instead of organization defaults.'
+          : 'Event tracking cleared. This event will use organization defaults.'
+      );
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save event tracking');
+    } finally {
+      setSavingTracking(false);
     }
   };
 
@@ -1542,6 +1587,91 @@ export const EventSettings: React.FC = () => {
                   style={{ color: ui.textMuted }}
                   dangerouslySetInnerHTML={{ __html: eventPolicyHtml }}
                 />
+              </div>
+            </SettingsCollapsibleSection>
+
+            <SettingsCollapsibleSection
+              title="Visitor tracking"
+              subtitle={
+                eventGaMeasurementId || eventMetaPixelId
+                  ? 'Custom codes for this event'
+                  : organizationGaMeasurementId || organizationMetaPixelId
+                    ? 'Using organization defaults'
+                    : 'Optional · Meta Pixel & Google Analytics'
+              }
+              icon={<Activity className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('tracking')}
+              onToggle={() => toggleSection('tracking')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Link a different Google Analytics (or Meta Pixel) for this event only. Leave blank to use your{' '}
+                <Link to="/dashboard/organization#org-tracking" className="font-semibold underline underline-offset-2">
+                  organization defaults
+                </Link>
+                .
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Google Analytics Measurement ID
+                  </span>
+                  <input
+                    value={eventGaMeasurementId}
+                    onChange={(e) => setEventGaMeasurementId(e.target.value.toUpperCase())}
+                    placeholder={organizationGaMeasurementId || 'G-XXXXXXXXXX'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationGaMeasurementId
+                      ? `Org default: ${organizationGaMeasurementId}`
+                      : 'No organization GA default set yet.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Meta Pixel ID (optional)
+                  </span>
+                  <input
+                    value={eventMetaPixelId}
+                    onChange={(e) => setEventMetaPixelId(e.target.value.replace(/[^\d]/g, ''))}
+                    placeholder={organizationMetaPixelId || 'e.g. 123456789012345'}
+                    inputMode="numeric"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationMetaPixelId
+                      ? `Org default: ${organizationMetaPixelId}`
+                      : 'No organization Meta Pixel default set yet.'}
+                  </span>
+                </label>
+              </div>
+              <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: ui.borderColor, color: ui.textMuted }}>
+                Effective on the public page:{' '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventGaMeasurementId.trim() || organizationGaMeasurementId || 'none'}
+                </span>{' '}
+                (GA)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventMetaPixelId.trim() || organizationMetaPixelId || 'none'}
+                </span>{' '}
+                (Meta)
+              </div>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => void saveTracking()}
+                  disabled={savingTracking}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                  style={accentButtonStyleFor(ui)}
+                >
+                  {savingTracking ? 'Saving…' : 'Save tracking for this event'}
+                </button>
               </div>
             </SettingsCollapsibleSection>
 

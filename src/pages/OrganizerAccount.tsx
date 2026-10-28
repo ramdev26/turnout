@@ -656,8 +656,9 @@ export const OrganizerAccount: React.FC = () => {
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Connect your Meta Pixel and Google Analytics once — they track every public event landing page,
-            checkout, and completed purchase for your organization.
+            Set organization defaults for Meta Pixel and Google Analytics. They apply to every public event
+            landing page, checkout, and paid purchase — unless an event overrides them in Event Settings →
+            Visitor tracking.
           </p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
@@ -691,7 +692,8 @@ export const OrganizerAccount: React.FC = () => {
             style={{ borderColor: ui.borderColor, color: ui.textMuted }}
           >
             Tracked automatically: landing page views, checkout starts, and purchases (paid orders only).
-            Live design previews are not tracked.
+            Live design previews are not tracked. For a different GA property per event, open that event’s
+            Settings → Visitor tracking.
           </div>
           {workspace?.isOwner ? (
             <div className="mt-5">
