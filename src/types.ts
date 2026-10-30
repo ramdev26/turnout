@@ -576,11 +576,15 @@ export interface OrderItem {
 export interface Order {
   id: string;
   eventId: string;
+  eventTitle?: string | null;
+  eventSlug?: string | null;
   buyerId?: string;
   buyerName?: string | null;
   buyerPhone?: string | null;
   buyerEmail: string;
   tickets: OrderItem[];
+  ticketCount?: number;
+  ticketSummary?: string | null;
   totalAmount: number;
   status: 'pending' | 'paid' | 'failed';
   paymentMethod?: 'free' | 'payhere' | 'bank_transfer' | 'manual' | 'complimentary' | 'manual_cash' | 'manual_bank' | 'manual_card' | 'manual_other' | string;
@@ -588,6 +592,8 @@ export interface Order {
   bankTransferSlipUploadedAt?: string | null;
   bankTransferConfirmedAt?: string | null;
   bankTransfer?: BankTransferDetails | null;
+  couponCode?: string | null;
+  discountAmount?: number;
   stripeSessionId?: string;
   createdAt: string;
   /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */

@@ -31,6 +31,8 @@ import { PayHereReturn } from './pages/PayHereReturn';
 import { PayHereCancel } from './pages/PayHereCancel';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { OrganizerEarnings } from './pages/OrganizerEarnings';
+import { OrganizerOrders } from './pages/OrganizerOrders';
+import { OrganizerOrderDetail } from './pages/OrganizerOrderDetail';
 import { OrganizerAccount } from './pages/OrganizerAccount';
 import { OrganizerBillingCancel, OrganizerBillingReturn } from './pages/OrganizerBillingReturn';
 import { AcceptInvite } from './pages/AcceptInvite';
@@ -358,6 +360,22 @@ export default function App() {
             element={
               <RequireOrganizer>
                 <OrganizerEarnings />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/dashboard/orders"
+            element={
+              <RequireOrganizer>
+                <OrganizerOrders />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/dashboard/orders/:orderId"
+            element={
+              <RequireOrganizer>
+                <OrganizerOrderDetail />
               </RequireOrganizer>
             }
           />
