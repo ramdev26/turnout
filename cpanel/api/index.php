@@ -7614,7 +7614,9 @@ if ($path === '/organizer/orders' && $method === 'GET') {
     'eventId' => (int)($_GET['eventId'] ?? 0),
     'paymentMethod' => trim((string)($_GET['paymentMethod'] ?? '')),
     'q' => trim((string)($_GET['q'] ?? '')),
-    'limit' => (int)($_GET['limit'] ?? 50),
+    'from' => trim((string)($_GET['from'] ?? '')),
+    'to' => trim((string)($_GET['to'] ?? '')),
+    'limit' => (int)($_GET['limit'] ?? 20),
     'offset' => (int)($_GET['offset'] ?? 0),
   ]);
 
@@ -7639,6 +7641,10 @@ if ($path === '/organizer/orders' && $method === 'GET') {
     'orders' => $result['orders'],
     'total' => $result['total'],
     'counts' => $result['counts'],
+    'limit' => $result['limit'] ?? 20,
+    'offset' => $result['offset'] ?? 0,
+    'from' => $result['from'] ?? null,
+    'to' => $result['to'] ?? null,
     'events' => $events,
   ]);
 }

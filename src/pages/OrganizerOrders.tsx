@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronRight, ClipboardList, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ClipboardList, Search } from 'lucide-react';
 import { api } from '../api/client';
 import { Order } from '../types';
 import { formatLKR } from '../utils/money';
@@ -13,11 +13,17 @@ import { Skeleton } from '../components/ui/Feedback';
 import { cn } from '../utils/cn';
 import { TurnoutSelect } from '../components/ui/TurnoutSelect';
 
+const PAGE_SIZE = 20;
+
 type OrdersResponse = {
   orders: Order[];
   total: number;
   counts: { all: number; pending: number; paid: number; failed: number };
   events: { id: string; title: string; slug: string }[];
+  limit?: number;
+  offset?: number;
+  from?: string | null;
+  to?: string | null;
 };
 
 type StatusFilter = 'all' | 'pending' | 'paid' | 'failed';
@@ -80,6 +86,12 @@ function formatOrderDate(iso?: string | null): string {
   }
 }
 
+function parsePage(raw: string | null): number {
+  const n = Number.parseInt(raw || '1', 10);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return n;
+}
+
 export const OrganizerOrders: React.FC = () => {
   const ui = APP_FLOW_UI;
   const navigate = useNavigate();
@@ -92,20 +104,35 @@ export const OrganizerOrders: React.FC = () => {
   const eventId = searchParams.get('eventId') || '';
   const paymentMethod = searchParams.get('paymentMethod') || 'all';
   const qParam = searchParams.get('q') || '';
+  const fromParam = searchParams.get('from') || '';
+  const toParam = searchParams.get('to') || '';
+  const page = parsePage(searchParams.get('page'));
 
   const [q, setQ] = useState(qParam);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OrdersResponse | null>(null);
 
-  const setFilter = useCallback(
-    (key: string, value: string) => {
+  const setFilters = useCallback(
+    (patch: Record<string, string>, options?: { resetPage?: boolean }) => {
       const next = new URLSearchParams(searchParams);
-      if (!value || value === 'all') next.delete(key);
-      else next.set(key, value);
+      Object.entries(patch).forEach(([key, value]) => {
+        if (!value || value === 'all') next.delete(key);
+        else next.set(key, value);
+      });
+      if (options?.resetPage !== false) {
+        next.delete('page');
+      }
       setSearchParams(next, { replace: true });
     },
     [searchParams, setSearchParams]
+  );
+
+  const setFilter = useCallback(
+    (key: string, value: string) => {
+      setFilters({ [key]: value });
+    },
+    [setFilters]
   );
 
   useEffect(() => {
@@ -126,10 +153,13 @@ export const OrganizerOrders: React.FC = () => {
     try {
       const params = new URLSearchParams();
       params.set('status', status);
-      params.set('limit', '100');
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String((page - 1) * PAGE_SIZE));
       if (eventId) params.set('eventId', eventId);
       if (paymentMethod && paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
       if (qParam.trim()) params.set('q', qParam.trim());
+      if (fromParam) params.set('from', fromParam);
+      if (toParam) params.set('to', toParam);
       const res = await api.get<OrdersResponse>(`/api/organizer/orders?${params.toString()}`);
       setData(res);
     } catch (e: unknown) {
@@ -138,13 +168,26 @@ export const OrganizerOrders: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [status, eventId, paymentMethod, qParam]);
+  }, [status, eventId, paymentMethod, qParam, fromParam, toParam, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const counts = data?.counts || { all: 0, pending: 0, paid: 0, failed: 0 };
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const rangeStart = total === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safePage * PAGE_SIZE, total);
+
+  useEffect(() => {
+    if (!data || loading) return;
+    if (page > totalPages) {
+      setFilters({ page: totalPages > 1 ? String(totalPages) : '' }, { resetPage: false });
+    }
+  }, [data, loading, page, totalPages, setFilters]);
+
   const eventOptions = useMemo(
     () => [
       { value: 'all', label: 'All events' },
@@ -172,6 +215,15 @@ export const OrganizerOrders: React.FC = () => {
     { id: 'pending', label: 'Pending', count: counts.pending },
     { id: 'failed', label: 'Failed / Cancelled', count: counts.failed },
   ];
+
+  const goToPage = (nextPage: number) => {
+    const clamped = Math.max(1, Math.min(totalPages, nextPage));
+    setFilters({ page: clamped <= 1 ? '' : String(clamped) }, { resetPage: false });
+  };
+
+  const clearDates = () => {
+    setFilters({ from: '', to: '' });
+  };
 
   return (
     <OrganizerFlowShell
@@ -248,6 +300,49 @@ export const OrganizerOrders: React.FC = () => {
               options={paymentOptions}
             />
           </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                From date
+              </span>
+              <input
+                type="date"
+                value={fromParam}
+                max={toParam || undefined}
+                onChange={(e) => setFilter('from', e.target.value)}
+                className={fieldClass}
+                style={fieldStyle}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                To date
+              </span>
+              <input
+                type="date"
+                value={toParam}
+                min={fromParam || undefined}
+                onChange={(e) => setFilter('to', e.target.value)}
+                className={fieldClass}
+                style={fieldStyle}
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={clearDates}
+                disabled={!fromParam && !toParam}
+                className="w-full rounded-xl border px-3 py-2.5 text-sm font-semibold disabled:opacity-40 sm:w-auto"
+                style={{ borderColor: ui.borderColor, color: ui.textMuted }}
+              >
+                Clear dates
+              </button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs" style={{ color: ui.textSubtle }}>
+            Use one date for a single day, or both for a range. Leave blank to show all dates.
+          </p>
         </FlowCard>
 
         {loading ? (
@@ -264,16 +359,22 @@ export const OrganizerOrders: React.FC = () => {
               No orders found
             </p>
             <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-              Ticket sales will appear here once attendees checkout on your events.
+              Try another date range or clear filters. New ticket sales will appear here after checkout.
             </p>
           </FlowCard>
         ) : null}
 
         {!loading && data && data.orders.length > 0 ? (
           <div className="space-y-2">
-            <p className="text-sm" style={{ color: ui.textMuted }}>
-              Showing {data.orders.length} of {data.total} order{data.total === 1 ? '' : 's'}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm" style={{ color: ui.textMuted }}>
+                Showing {rangeStart}–{rangeEnd} of {total} order{total === 1 ? '' : 's'}
+                <span className="opacity-70"> · {PAGE_SIZE} per page</span>
+              </p>
+              <p className="text-sm tabular-nums" style={{ color: ui.textSubtle }}>
+                Page {safePage} of {totalPages}
+              </p>
+            </div>
             {data.orders.map((order) => (
               <button
                 key={order.id}
@@ -317,9 +418,36 @@ export const OrganizerOrders: React.FC = () => {
                 </div>
               </button>
             ))}
+
+            {totalPages > 1 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => goToPage(safePage - 1)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold disabled:opacity-40"
+                  style={{ borderColor: ui.borderColor, color: ui.text }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </button>
+                <p className="text-sm tabular-nums" style={{ color: ui.textMuted }}>
+                  Page {safePage} / {totalPages}
+                </p>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => goToPage(safePage + 1)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold disabled:opacity-40"
+                  style={{ borderColor: ui.borderColor, color: ui.text }}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
-
       </FlowPage>
     </OrganizerFlowShell>
   );

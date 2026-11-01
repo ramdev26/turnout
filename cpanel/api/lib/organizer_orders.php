@@ -116,16 +116,64 @@ function organizer_orders_query(
     $where[] = '(' . implode(' OR ', $searchParts) . ')';
   }
 
+  $fromDate = organizer_orders_parse_date($filters['from'] ?? null);
+  if ($fromDate !== null) {
+    $where[] = 'o.created_at >= ?';
+    $params[] = $fromDate . ' 00:00:00';
+  }
+  $toDate = organizer_orders_parse_date($filters['to'] ?? null);
+  if ($toDate !== null) {
+    $where[] = 'o.created_at <= ?';
+    $params[] = $toDate . ' 23:59:59';
+  }
+
   $whereSql = implode(' AND ', $where);
+
+  // Status tab counts honor the same filters except status itself.
+  $countWhere = ["e.organizer_user_id IN ($ownerPlaceholders)"];
+  $countParams = $ownerIds;
+  if ($eventId > 0) {
+    $countWhere[] = 'o.event_id = ?';
+    $countParams[] = $eventId;
+  }
+  if ($paymentMethod !== '' && $paymentMethod !== 'all') {
+    $countWhere[] = 'o.payment_method = ?';
+    $countParams[] = $paymentMethod;
+  }
+  if ($q !== '') {
+    $like = '%' . mb_strtolower($q) . '%';
+    $searchParts = [
+      'LOWER(COALESCE(o.buyer_name, \'\')) LIKE ?',
+      'LOWER(COALESCE(o.buyer_email, \'\')) LIKE ?',
+      'LOWER(COALESCE(o.buyer_phone, \'\')) LIKE ?',
+    ];
+    $countParams[] = $like;
+    $countParams[] = $like;
+    $countParams[] = $like;
+    if (preg_match('/^\d+$/', $q)) {
+      $searchParts[] = 'o.id = ?';
+      $countParams[] = (int)$q;
+    }
+    $countWhere[] = '(' . implode(' OR ', $searchParts) . ')';
+  }
+  if ($fromDate !== null) {
+    $countWhere[] = 'o.created_at >= ?';
+    $countParams[] = $fromDate . ' 00:00:00';
+  }
+  if ($toDate !== null) {
+    $countWhere[] = 'o.created_at <= ?';
+    $countParams[] = $toDate . ' 23:59:59';
+  }
+  $countWhereSql = implode(' AND ', $countWhere);
 
   $countSql =
     "SELECT o.status, COUNT(*) AS cnt
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
-     WHERE e.organizer_user_id IN ($ownerPlaceholders)
+     WHERE $countWhereSql
      GROUP BY o.status";
   $countStmt = $pdo->prepare($countSql);
-  $countStmt->execute($ownerIds);
+  $countStmt->execute($countParams);
   $counts = ['all' => 0, 'pending' => 0, 'paid' => 0, 'failed' => 0];
   while ($c = $countStmt->fetch()) {
     $st = (string)($c['status'] ?? '');
@@ -143,9 +191,9 @@ function organizer_orders_query(
   $totalStmt->execute($params);
   $total = (int)($totalStmt->fetch()['total'] ?? 0);
 
-  $limit = (int)($filters['limit'] ?? 50);
-  if ($limit < 1) $limit = 50;
-  if ($limit > 200) $limit = 200;
+  $limit = (int)($filters['limit'] ?? 20);
+  if ($limit < 1) $limit = 20;
+  if ($limit > 100) $limit = 100;
   $offset = max(0, (int)($filters['offset'] ?? 0));
 
   $sql =
@@ -170,5 +218,21 @@ function organizer_orders_query(
     'orders' => $orders,
     'total' => $total,
     'counts' => $counts,
+    'limit' => $limit,
+    'offset' => $offset,
+    'from' => $fromDate,
+    'to' => $toDate,
   ];
+}
+
+/** @return string|null YYYY-MM-DD or null when empty/invalid */
+function organizer_orders_parse_date($raw): ?string {
+  $value = trim((string)$raw);
+  if ($value === '') return null;
+  if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m)) return null;
+  $y = (int)$m[1];
+  $mo = (int)$m[2];
+  $d = (int)$m[3];
+  if (!checkdate($mo, $d, $y)) return null;
+  return sprintf('%04d-%02d-%02d', $y, $mo, $d);
 }
