@@ -202,14 +202,31 @@ export function trackOrganizerPurchase(
   const resolved = ensureOrganizerMarketingTags(ids);
   const idsList = contentIds(ctx);
   if (resolved.metaPixelId) {
-    window.fbq?.('track', 'Purchase', {
-      content_name: ctx.eventTitle,
-      content_ids: idsList.length ? idsList : [ctx.eventId],
-      content_type: 'product',
-      num_items: ctx.numItems ?? (idsList.length || 1),
-      value: ctx.value ?? 0,
-      currency: ctx.currency || 'LKR',
-    });
+    const contents =
+      (ctx.contents || []).length > 0
+        ? (ctx.contents || []).map((c) => ({
+            id: c.id,
+            quantity: c.quantity,
+            item_price: c.item_price,
+          }))
+        : [{ id: ctx.eventId, quantity: ctx.numItems ?? 1 }];
+    // Standard Meta Purchase — value/currency required for purchase reporting.
+    // eventID lets Events Manager / CAPI dedupe by order.
+    window.fbq?.(
+      'track',
+      'Purchase',
+      {
+        content_name: ctx.eventTitle,
+        content_ids: idsList.length ? idsList : [ctx.eventId],
+        contents,
+        content_type: 'product',
+        num_items: ctx.numItems ?? (idsList.length || 1),
+        value: Number(ctx.value ?? 0),
+        currency: ctx.currency || 'LKR',
+        order_id: ctx.orderId,
+      },
+      { eventID: `order_${ctx.orderId}` }
+    );
   }
   if (resolved.gaMeasurementId) {
     window.gtag?.('event', 'purchase', {
