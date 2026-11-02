@@ -198,6 +198,7 @@ export const EventLanding: React.FC = () => {
           id: item.ticketId,
           quantity: item.quantity,
           item_price: item.price,
+          name: item.name,
         })),
       }
     );

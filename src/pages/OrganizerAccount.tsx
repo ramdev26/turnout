@@ -691,9 +691,10 @@ export const OrganizerAccount: React.FC = () => {
             className="mt-4 rounded-2xl border px-4 py-3 text-sm"
             style={{ borderColor: ui.borderColor, color: ui.textMuted }}
           >
-            Tracked automatically: landing page views, checkout starts, and purchases (paid orders only).
-            Live design previews are not tracked. For a different GA property per event, open that event’s
-            Settings → Visitor tracking.
+            Tracked automatically: landing page views, checkout starts, and purchases (paid orders only),
+            plus traffic sources (UTM links and referrers) into Google Analytics. Live design previews are
+            not tracked. For a different GA property per event, open that event’s Settings → Visitor
+            tracking.
           </div>
           {workspace?.isOwner ? (
             <div className="mt-5">

@@ -112,6 +112,7 @@ export const Success: React.FC = () => {
           id: item.ticketId,
           quantity: item.quantity,
           item_price: item.price,
+          name: item.name,
         })),
       }
     );
