@@ -134,7 +134,13 @@ export const EventLanding: React.FC = () => {
     if (!event || accessRequired || event.status !== 'published' || viewContentTracked.current) return;
     viewContentTracked.current = true;
     trackOrganizerViewContent(
-      { metaPixelId: event.metaPixelId, gaMeasurementId: event.gaMeasurementId },
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
       {
         eventId: event.id,
         eventTitle: event.title,
@@ -186,7 +192,13 @@ export const EventLanding: React.FC = () => {
     mobileCheckoutTracked.current = true;
     const numItems = orderItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
     trackOrganizerInitiateCheckout(
-      { metaPixelId: event.metaPixelId, gaMeasurementId: event.gaMeasurementId },
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
       {
         eventId: event.id,
         eventTitle: event.title,

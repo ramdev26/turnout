@@ -24,6 +24,9 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'terms_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'meta_pixel_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
     'ga_measurement_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
+    'tiktok_pixel_id' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
+    'google_ads_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
+    'google_ads_conversion_label' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
     'turnout_pay_docs_override' => $driver === 'pgsql' ? 'SMALLINT NOT NULL DEFAULT 0' : 'TINYINT NOT NULL DEFAULT 0',
   ];
 
@@ -450,13 +453,62 @@ function normalize_ga_measurement_id(?string $raw) {
   return $id;
 }
 
-function upsert_organizer_marketing_tags(PDO $pdo, int $userId, ?string $metaPixelId, ?string $gaMeasurementId): void {
+/** @return string|null|false TikTok Pixel ID */
+function normalize_tiktok_pixel_id(?string $raw) {
+  $id = trim((string)$raw);
+  if ($id === '') return null;
+  if (!preg_match('/^[A-Za-z0-9]{6,64}$/', $id)) {
+    return false;
+  }
+  return $id;
+}
+
+/** @return string|null|false Google Ads ID like AW-123456789 */
+function normalize_google_ads_id(?string $raw) {
+  $id = strtoupper(trim((string)$raw));
+  if ($id === '') return null;
+  if (!preg_match('/^AW-\d{5,20}$/', $id)) {
+    return false;
+  }
+  return $id;
+}
+
+/** @return string|null|false Conversion label (optional; used with AW- ID for Purchase) */
+function normalize_google_ads_conversion_label(?string $raw) {
+  $id = trim((string)$raw);
+  if ($id === '') return null;
+  if (!preg_match('/^[A-Za-z0-9_-]{4,64}$/', $id)) {
+    return false;
+  }
+  return $id;
+}
+
+/**
+ * @param array{
+ *   metaPixelId?: string|null,
+ *   gaMeasurementId?: string|null,
+ *   tiktokPixelId?: string|null,
+ *   googleAdsId?: string|null,
+ *   googleAdsConversionLabel?: string|null
+ * } $tags
+ */
+function upsert_organizer_marketing_tags(PDO $pdo, int $userId, array $tags): void {
   ensure_organizer_profile_paid_event_columns($pdo);
   upsert_organizer_profile_paid_event_fields($pdo, $userId, []);
   $stmt = $pdo->prepare(
-    'UPDATE organizer_profiles SET meta_pixel_id = ?, ga_measurement_id = ? WHERE user_id = ?'
+    'UPDATE organizer_profiles
+     SET meta_pixel_id = ?, ga_measurement_id = ?, tiktok_pixel_id = ?,
+         google_ads_id = ?, google_ads_conversion_label = ?
+     WHERE user_id = ?'
   );
-  $stmt->execute([$metaPixelId, $gaMeasurementId, $userId]);
+  $stmt->execute([
+    $tags['metaPixelId'] ?? null,
+    $tags['gaMeasurementId'] ?? null,
+    $tags['tiktokPixelId'] ?? null,
+    $tags['googleAdsId'] ?? null,
+    $tags['googleAdsConversionLabel'] ?? null,
+    $userId,
+  ]);
 }
 
 /** Event-level overrides stored in customization_json (empty = use organization default). */
@@ -469,9 +521,24 @@ function event_marketing_overrides_from_customization(array $custom): array {
     ? normalize_ga_measurement_id(is_string($custom['gaMeasurementId']) ? $custom['gaMeasurementId'] : null)
     : null;
   if ($ga === false) $ga = null;
+  $tiktok = array_key_exists('tiktokPixelId', $custom)
+    ? normalize_tiktok_pixel_id(is_string($custom['tiktokPixelId']) ? $custom['tiktokPixelId'] : null)
+    : null;
+  if ($tiktok === false) $tiktok = null;
+  $adsId = array_key_exists('googleAdsId', $custom)
+    ? normalize_google_ads_id(is_string($custom['googleAdsId']) ? $custom['googleAdsId'] : null)
+    : null;
+  if ($adsId === false) $adsId = null;
+  $adsLabel = array_key_exists('googleAdsConversionLabel', $custom)
+    ? normalize_google_ads_conversion_label(is_string($custom['googleAdsConversionLabel']) ? $custom['googleAdsConversionLabel'] : null)
+    : null;
+  if ($adsLabel === false) $adsLabel = null;
   return [
     'metaPixelId' => $meta,
     'gaMeasurementId' => $ga,
+    'tiktokPixelId' => $tiktok,
+    'googleAdsId' => $adsId,
+    'googleAdsConversionLabel' => $adsLabel,
   ];
 }
 
@@ -481,7 +548,16 @@ function event_marketing_overrides_from_row(array $eventRow): array {
   return event_marketing_overrides_from_customization($custom);
 }
 
-function set_event_marketing_overrides(PDO $pdo, int $eventId, $metaPixelId, $gaMeasurementId): array {
+/**
+ * @param array{
+ *   metaPixelId?: string|null,
+ *   gaMeasurementId?: string|null,
+ *   tiktokPixelId?: string|null,
+ *   googleAdsId?: string|null,
+ *   googleAdsConversionLabel?: string|null
+ * } $tags
+ */
+function set_event_marketing_overrides(PDO $pdo, int $eventId, array $tags): array {
   $stmt = $pdo->prepare('SELECT customization_json FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
   $row = $stmt->fetch();
@@ -489,15 +565,19 @@ function set_event_marketing_overrides(PDO $pdo, int $eventId, $metaPixelId, $ga
   $custom = json_decode((string)$row['customization_json'], true);
   if (!is_array($custom)) $custom = [];
 
-  if ($metaPixelId === null || $metaPixelId === '') {
-    unset($custom['metaPixelId']);
-  } else {
-    $custom['metaPixelId'] = (string)$metaPixelId;
-  }
-  if ($gaMeasurementId === null || $gaMeasurementId === '') {
-    unset($custom['gaMeasurementId']);
-  } else {
-    $custom['gaMeasurementId'] = (string)$gaMeasurementId;
+  $map = [
+    'metaPixelId' => $tags['metaPixelId'] ?? null,
+    'gaMeasurementId' => $tags['gaMeasurementId'] ?? null,
+    'tiktokPixelId' => $tags['tiktokPixelId'] ?? null,
+    'googleAdsId' => $tags['googleAdsId'] ?? null,
+    'googleAdsConversionLabel' => $tags['googleAdsConversionLabel'] ?? null,
+  ];
+  foreach ($map as $key => $value) {
+    if ($value === null || $value === '') {
+      unset($custom[$key]);
+    } else {
+      $custom[$key] = (string)$value;
+    }
   }
 
   $upd = $pdo->prepare('UPDATE events SET customization_json = ? WHERE id = ?');

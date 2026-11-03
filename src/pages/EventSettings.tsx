@@ -196,8 +196,16 @@ export const EventSettings: React.FC = () => {
   const [showPdfDesign, setShowPdfDesign] = useState(false);
   const [eventGaMeasurementId, setEventGaMeasurementId] = useState('');
   const [eventMetaPixelId, setEventMetaPixelId] = useState('');
+  const [eventTiktokPixelId, setEventTiktokPixelId] = useState('');
+  const [eventGoogleAdsId, setEventGoogleAdsId] = useState('');
+  const [eventGoogleAdsConversionLabel, setEventGoogleAdsConversionLabel] = useState('');
   const [organizationGaMeasurementId, setOrganizationGaMeasurementId] = useState<string | null>(null);
   const [organizationMetaPixelId, setOrganizationMetaPixelId] = useState<string | null>(null);
+  const [organizationTiktokPixelId, setOrganizationTiktokPixelId] = useState<string | null>(null);
+  const [organizationGoogleAdsId, setOrganizationGoogleAdsId] = useState<string | null>(null);
+  const [organizationGoogleAdsConversionLabel, setOrganizationGoogleAdsConversionLabel] = useState<string | null>(
+    null
+  );
   const [savingTracking, setSavingTracking] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
@@ -263,8 +271,16 @@ export const EventSettings: React.FC = () => {
       setSlug(ev.slug);
       setEventGaMeasurementId(ev.eventGaMeasurementId || ev.customization?.gaMeasurementId || '');
       setEventMetaPixelId(ev.eventMetaPixelId || ev.customization?.metaPixelId || '');
+      setEventTiktokPixelId(ev.eventTiktokPixelId || ev.customization?.tiktokPixelId || '');
+      setEventGoogleAdsId(ev.eventGoogleAdsId || ev.customization?.googleAdsId || '');
+      setEventGoogleAdsConversionLabel(
+        ev.eventGoogleAdsConversionLabel || ev.customization?.googleAdsConversionLabel || ''
+      );
       setOrganizationGaMeasurementId(ev.organizationGaMeasurementId || null);
       setOrganizationMetaPixelId(ev.organizationMetaPixelId || null);
+      setOrganizationTiktokPixelId(ev.organizationTiktokPixelId || null);
+      setOrganizationGoogleAdsId(ev.organizationGoogleAdsId || null);
+      setOrganizationGoogleAdsConversionLabel(ev.organizationGoogleAdsConversionLabel || null);
       const landing = normalizeLandingCustomization(ev.customization, resolveLayoutTemplateId(ev.templateId));
       const templateDefaults = resolveTemplateDesignDefaults(ev.templateId);
       setThemeId('minimal');
@@ -791,20 +807,39 @@ export const EventSettings: React.FC = () => {
         ok: boolean;
         metaPixelId: string | null;
         gaMeasurementId: string | null;
+        tiktokPixelId: string | null;
+        googleAdsId: string | null;
+        googleAdsConversionLabel: string | null;
         organizationMetaPixelId: string | null;
         organizationGaMeasurementId: string | null;
+        organizationTiktokPixelId: string | null;
+        organizationGoogleAdsId: string | null;
+        organizationGoogleAdsConversionLabel: string | null;
         event: Event;
       }>(`/api/events/${eventId}/tracking`, {
         metaPixelId: eventMetaPixelId.trim(),
         gaMeasurementId: eventGaMeasurementId.trim(),
+        tiktokPixelId: eventTiktokPixelId.trim(),
+        googleAdsId: eventGoogleAdsId.trim(),
+        googleAdsConversionLabel: eventGoogleAdsConversionLabel.trim(),
       });
       setEvent(res.event);
       setEventMetaPixelId(res.metaPixelId || '');
       setEventGaMeasurementId(res.gaMeasurementId || '');
+      setEventTiktokPixelId(res.tiktokPixelId || '');
+      setEventGoogleAdsId(res.googleAdsId || '');
+      setEventGoogleAdsConversionLabel(res.googleAdsConversionLabel || '');
       setOrganizationMetaPixelId(res.organizationMetaPixelId || null);
       setOrganizationGaMeasurementId(res.organizationGaMeasurementId || null);
+      setOrganizationTiktokPixelId(res.organizationTiktokPixelId || null);
+      setOrganizationGoogleAdsId(res.organizationGoogleAdsId || null);
+      setOrganizationGoogleAdsConversionLabel(res.organizationGoogleAdsConversionLabel || null);
       setFeedback(
-        res.gaMeasurementId || res.metaPixelId
+        res.gaMeasurementId ||
+          res.metaPixelId ||
+          res.tiktokPixelId ||
+          res.googleAdsId ||
+          res.googleAdsConversionLabel
           ? 'Event tracking saved. This event will use these IDs instead of organization defaults.'
           : 'Event tracking cleared. This event will use organization defaults.'
       );
@@ -1593,11 +1628,18 @@ export const EventSettings: React.FC = () => {
             <SettingsCollapsibleSection
               title="Visitor tracking"
               subtitle={
-                eventGaMeasurementId || eventMetaPixelId
+                eventGaMeasurementId ||
+                eventMetaPixelId ||
+                eventTiktokPixelId ||
+                eventGoogleAdsId ||
+                eventGoogleAdsConversionLabel
                   ? 'Custom codes for this event'
-                  : organizationGaMeasurementId || organizationMetaPixelId
+                  : organizationGaMeasurementId ||
+                      organizationMetaPixelId ||
+                      organizationTiktokPixelId ||
+                      organizationGoogleAdsId
                     ? 'Using organization defaults'
-                    : 'Optional · Meta Pixel & Google Analytics'
+                    : 'Optional · Meta, GA, TikTok & Google Ads'
               }
               icon={<Activity className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
               open={isSectionOpen('tracking')}
@@ -1607,7 +1649,8 @@ export const EventSettings: React.FC = () => {
               ui={ui}
             >
               <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
-                Link a different Google Analytics (or Meta Pixel) for this event only. Leave blank to use your{' '}
+                Override Meta, Google Analytics, TikTok, or Google Ads for this event only. Leave blank to use
+                your{' '}
                 <Link to="/dashboard/organization#org-tracking" className="font-semibold underline underline-offset-2">
                   organization defaults
                 </Link>
@@ -1633,7 +1676,7 @@ export const EventSettings: React.FC = () => {
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                    Meta Pixel ID (optional)
+                    Meta Pixel ID
                   </span>
                   <input
                     value={eventMetaPixelId}
@@ -1649,6 +1692,59 @@ export const EventSettings: React.FC = () => {
                       : 'No organization Meta Pixel default set yet.'}
                   </span>
                 </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    TikTok Pixel ID
+                  </span>
+                  <input
+                    value={eventTiktokPixelId}
+                    onChange={(e) => setEventTiktokPixelId(e.target.value.replace(/[^A-Za-z0-9]/g, ''))}
+                    placeholder={organizationTiktokPixelId || 'e.g. C1234567890ABCDEF'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationTiktokPixelId
+                      ? `Org default: ${organizationTiktokPixelId}`
+                      : 'No organization TikTok Pixel default set yet.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Google Ads tag ID
+                  </span>
+                  <input
+                    value={eventGoogleAdsId}
+                    onChange={(e) => setEventGoogleAdsId(e.target.value.toUpperCase())}
+                    placeholder={organizationGoogleAdsId || 'AW-123456789'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationGoogleAdsId
+                      ? `Org default: ${organizationGoogleAdsId}`
+                      : 'No organization Google Ads tag set yet.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Google Ads purchase conversion label
+                  </span>
+                  <input
+                    value={eventGoogleAdsConversionLabel}
+                    onChange={(e) =>
+                      setEventGoogleAdsConversionLabel(e.target.value.replace(/[^A-Za-z0-9_-]/g, ''))
+                    }
+                    placeholder={organizationGoogleAdsConversionLabel || 'e.g. AbCDefGHijKLmNoP'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationGoogleAdsConversionLabel
+                      ? `Org default: ${organizationGoogleAdsConversionLabel}`
+                      : 'Optional. Needed to fire Google Ads Purchase conversions.'}
+                  </span>
+                </label>
               </div>
               <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: ui.borderColor, color: ui.textMuted }}>
                 Effective on the public page:{' '}
@@ -1661,6 +1757,16 @@ export const EventSettings: React.FC = () => {
                   {eventMetaPixelId.trim() || organizationMetaPixelId || 'none'}
                 </span>{' '}
                 (Meta)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventTiktokPixelId.trim() || organizationTiktokPixelId || 'none'}
+                </span>{' '}
+                (TikTok)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventGoogleAdsId.trim() || organizationGoogleAdsId || 'none'}
+                </span>{' '}
+                (Ads)
               </div>
               <div className="mt-4">
                 <button

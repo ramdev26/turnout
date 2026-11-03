@@ -72,6 +72,9 @@ export const OrganizerAccount: React.FC = () => {
     bankStatementDocUploaded: false,
     metaPixelId: '',
     gaMeasurementId: '',
+    tiktokPixelId: '',
+    googleAdsId: '',
+    googleAdsConversionLabel: '',
   });
   const [members, setMembers] = useState<OrganizerTeamMember[]>([]);
   const [invites, setInvites] = useState<OrganizerTeamInvite[]>([]);
@@ -110,6 +113,9 @@ export const OrganizerAccount: React.FC = () => {
           termsHtml: res.profile.termsHtml || null,
           metaPixelId: res.profile.metaPixelId || '',
           gaMeasurementId: res.profile.gaMeasurementId || '',
+          tiktokPixelId: res.profile.tiktokPixelId || '',
+          googleAdsId: res.profile.googleAdsId || '',
+          googleAdsConversionLabel: res.profile.googleAdsConversionLabel || '',
         });
         setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
         if (res.workspace.canManageTeam) {
@@ -277,6 +283,9 @@ export const OrganizerAccount: React.FC = () => {
           businessRegistrationNo: profile.businessRegistrationNo?.trim() || undefined,
           metaPixelId: (profile.metaPixelId || '').trim(),
           gaMeasurementId: (profile.gaMeasurementId || '').trim(),
+          tiktokPixelId: (profile.tiktokPixelId || '').trim(),
+          googleAdsId: (profile.googleAdsId || '').trim(),
+          googleAdsConversionLabel: (profile.googleAdsConversionLabel || '').trim(),
         }
       );
       setUser(res.user);
@@ -285,6 +294,9 @@ export const OrganizerAccount: React.FC = () => {
         ...res.profile,
         metaPixelId: res.profile.metaPixelId || '',
         gaMeasurementId: res.profile.gaMeasurementId || '',
+        tiktokPixelId: res.profile.tiktokPixelId || '',
+        googleAdsId: res.profile.googleAdsId || '',
+        googleAdsConversionLabel: res.profile.googleAdsConversionLabel || '',
       }));
       setFeedback('Visitor tracking settings saved. Tags apply to all your event landing pages.');
     } catch (e: unknown) {
@@ -656,9 +668,9 @@ export const OrganizerAccount: React.FC = () => {
             </h2>
           </div>
           <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-            Set organization defaults for Meta Pixel and Google Analytics. They apply to every public event
-            landing page, checkout, and paid purchase — unless an event overrides them in Event Settings →
-            Visitor tracking.
+            Set organization defaults for Meta Pixel, Google Analytics, TikTok Pixel, and Google Ads. They
+            apply to every public event landing page, checkout, and paid purchase — unless an event
+            overrides them in Event Settings → Visitor tracking.
           </p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
@@ -686,15 +698,62 @@ export const OrganizerAccount: React.FC = () => {
                 GA4 Measurement ID starting with G-.
               </p>
             </label>
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>TikTok Pixel ID</FlowLabel>
+              <FlowInput
+                value={profile.tiktokPixelId || ''}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    tiktokPixelId: e.target.value.replace(/[^A-Za-z0-9]/g, ''),
+                  }))
+                }
+                placeholder="e.g. C1234567890ABCDEF"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                From TikTok Ads Manager → Assets → Events → Web Events → Pixel.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>Google Ads tag ID</FlowLabel>
+              <FlowInput
+                value={profile.googleAdsId || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, googleAdsId: e.target.value.toUpperCase() }))}
+                placeholder="AW-123456789"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                Google Ads tag ID starting with AW-.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <FlowLabel>Google Ads purchase conversion label (optional)</FlowLabel>
+              <FlowInput
+                value={profile.googleAdsConversionLabel || ''}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    googleAdsConversionLabel: e.target.value.replace(/[^A-Za-z0-9_-]/g, ''),
+                  }))
+                }
+                placeholder="e.g. AbCDefGHijKLmNoP"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                From Google Ads → Goals → Conversions → your Purchase action → Tag setup. Used as
+                AW-ID/label on paid orders. Leave blank to load the Ads tag for remarketing only.
+              </p>
+            </label>
           </div>
           <div
             className="mt-4 rounded-2xl border px-4 py-3 text-sm"
             style={{ borderColor: ui.borderColor, color: ui.textMuted }}
           >
-            Tracked automatically: landing page views, checkout starts, and purchases (paid orders only),
-            plus traffic sources (UTM links and referrers) into Google Analytics. Live design previews are
-            not tracked. For a different GA property per event, open that event’s Settings → Visitor
-            tracking.
+            Tracked automatically: landing page views, checkout starts, and purchases (paid orders only)
+            across Meta, GA4, TikTok (CompletePayment), and Google Ads (conversion when a label is set),
+            plus traffic sources into Google Analytics. Live design previews are not tracked. Override per
+            event in that event’s Settings → Visitor tracking.
           </div>
           {workspace?.isOwner ? (
             <div className="mt-5">

@@ -2064,7 +2064,13 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     upsert_organizer_terms_html($pdo, $uid, (string)$body['termsHtml']);
   }
 
-  if (array_key_exists('metaPixelId', $body) || array_key_exists('gaMeasurementId', $body)) {
+  if (
+    array_key_exists('metaPixelId', $body)
+    || array_key_exists('gaMeasurementId', $body)
+    || array_key_exists('tiktokPixelId', $body)
+    || array_key_exists('googleAdsId', $body)
+    || array_key_exists('googleAdsConversionLabel', $body)
+  ) {
     $existingMarketing = load_organizer_profile_row($pdo, $uid);
     $metaRaw = array_key_exists('metaPixelId', $body)
       ? (string)($body['metaPixelId'] ?? '')
@@ -2072,6 +2078,16 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     $gaRaw = array_key_exists('gaMeasurementId', $body)
       ? (string)($body['gaMeasurementId'] ?? '')
       : (string)($existingMarketing['ga_measurement_id'] ?? '');
+    $tiktokRaw = array_key_exists('tiktokPixelId', $body)
+      ? (string)($body['tiktokPixelId'] ?? '')
+      : (string)($existingMarketing['tiktok_pixel_id'] ?? '');
+    $adsIdRaw = array_key_exists('googleAdsId', $body)
+      ? (string)($body['googleAdsId'] ?? '')
+      : (string)($existingMarketing['google_ads_id'] ?? '');
+    $adsLabelRaw = array_key_exists('googleAdsConversionLabel', $body)
+      ? (string)($body['googleAdsConversionLabel'] ?? '')
+      : (string)($existingMarketing['google_ads_conversion_label'] ?? '');
+
     $metaPixelId = normalize_meta_pixel_id($metaRaw);
     if ($metaPixelId === false) {
       json_response(400, [
@@ -2086,7 +2102,34 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
         'message' => 'Google Analytics ID must look like G-XXXXXXXXXX.',
       ]);
     }
-    upsert_organizer_marketing_tags($pdo, $uid, $metaPixelId, $gaMeasurementId);
+    $tiktokPixelId = normalize_tiktok_pixel_id($tiktokRaw);
+    if ($tiktokPixelId === false) {
+      json_response(400, [
+        'error' => 'invalid_tiktok_pixel_id',
+        'message' => 'TikTok Pixel ID must be the alphanumeric Pixel ID from TikTok Events Manager.',
+      ]);
+    }
+    $googleAdsId = normalize_google_ads_id($adsIdRaw);
+    if ($googleAdsId === false) {
+      json_response(400, [
+        'error' => 'invalid_google_ads_id',
+        'message' => 'Google Ads ID must look like AW-123456789.',
+      ]);
+    }
+    $googleAdsConversionLabel = normalize_google_ads_conversion_label($adsLabelRaw);
+    if ($googleAdsConversionLabel === false) {
+      json_response(400, [
+        'error' => 'invalid_google_ads_conversion_label',
+        'message' => 'Google Ads conversion label looks invalid.',
+      ]);
+    }
+    upsert_organizer_marketing_tags($pdo, $uid, [
+      'metaPixelId' => $metaPixelId,
+      'gaMeasurementId' => $gaMeasurementId,
+      'tiktokPixelId' => $tiktokPixelId,
+      'googleAdsId' => $googleAdsId,
+      'googleAdsConversionLabel' => $googleAdsConversionLabel,
+    ]);
   }
 
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
@@ -5483,10 +5526,19 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'GET') {
   json_response(200, [
     'metaPixelId' => $mapped['eventMetaPixelId'] ?? null,
     'gaMeasurementId' => $mapped['eventGaMeasurementId'] ?? null,
+    'tiktokPixelId' => $mapped['eventTiktokPixelId'] ?? null,
+    'googleAdsId' => $mapped['eventGoogleAdsId'] ?? null,
+    'googleAdsConversionLabel' => $mapped['eventGoogleAdsConversionLabel'] ?? null,
     'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
     'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
+    'organizationTiktokPixelId' => $mapped['organizationTiktokPixelId'] ?? null,
+    'organizationGoogleAdsId' => $mapped['organizationGoogleAdsId'] ?? null,
+    'organizationGoogleAdsConversionLabel' => $mapped['organizationGoogleAdsConversionLabel'] ?? null,
     'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
     'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
+    'effectiveTiktokPixelId' => $mapped['tiktokPixelId'] ?? null,
+    'effectiveGoogleAdsId' => $mapped['googleAdsId'] ?? null,
+    'effectiveGoogleAdsConversionLabel' => $mapped['googleAdsConversionLabel'] ?? null,
   ]);
 }
 
@@ -5505,6 +5557,15 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') 
   $gaRaw = array_key_exists('gaMeasurementId', $body)
     ? (string)($body['gaMeasurementId'] ?? '')
     : (string)($existing['gaMeasurementId'] ?? '');
+  $tiktokRaw = array_key_exists('tiktokPixelId', $body)
+    ? (string)($body['tiktokPixelId'] ?? '')
+    : (string)($existing['tiktokPixelId'] ?? '');
+  $adsIdRaw = array_key_exists('googleAdsId', $body)
+    ? (string)($body['googleAdsId'] ?? '')
+    : (string)($existing['googleAdsId'] ?? '');
+  $adsLabelRaw = array_key_exists('googleAdsConversionLabel', $body)
+    ? (string)($body['googleAdsConversionLabel'] ?? '')
+    : (string)($existing['googleAdsConversionLabel'] ?? '');
 
   $metaPixelId = normalize_meta_pixel_id($metaRaw);
   if ($metaPixelId === false) {
@@ -5520,18 +5581,54 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') 
       'message' => 'Google Analytics ID must look like G-XXXXXXXXXX.',
     ]);
   }
+  $tiktokPixelId = normalize_tiktok_pixel_id($tiktokRaw);
+  if ($tiktokPixelId === false) {
+    json_response(400, [
+      'error' => 'invalid_tiktok_pixel_id',
+      'message' => 'TikTok Pixel ID must be the alphanumeric Pixel ID from TikTok Events Manager.',
+    ]);
+  }
+  $googleAdsId = normalize_google_ads_id($adsIdRaw);
+  if ($googleAdsId === false) {
+    json_response(400, [
+      'error' => 'invalid_google_ads_id',
+      'message' => 'Google Ads ID must look like AW-123456789.',
+    ]);
+  }
+  $googleAdsConversionLabel = normalize_google_ads_conversion_label($adsLabelRaw);
+  if ($googleAdsConversionLabel === false) {
+    json_response(400, [
+      'error' => 'invalid_google_ads_conversion_label',
+      'message' => 'Google Ads conversion label looks invalid.',
+    ]);
+  }
 
-  $overrides = set_event_marketing_overrides($pdo, $eventId, $metaPixelId, $gaMeasurementId);
+  $overrides = set_event_marketing_overrides($pdo, $eventId, [
+    'metaPixelId' => $metaPixelId,
+    'gaMeasurementId' => $gaMeasurementId,
+    'tiktokPixelId' => $tiktokPixelId,
+    'googleAdsId' => $googleAdsId,
+    'googleAdsConversionLabel' => $googleAdsConversionLabel,
+  ]);
   $fresh = load_event_row_or_404($pdo, $eventId);
   $mapped = map_public_event_row($fresh, $pdo);
   json_response(200, [
     'ok' => true,
     'metaPixelId' => $overrides['metaPixelId'],
     'gaMeasurementId' => $overrides['gaMeasurementId'],
+    'tiktokPixelId' => $overrides['tiktokPixelId'],
+    'googleAdsId' => $overrides['googleAdsId'],
+    'googleAdsConversionLabel' => $overrides['googleAdsConversionLabel'],
     'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
     'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
+    'organizationTiktokPixelId' => $mapped['organizationTiktokPixelId'] ?? null,
+    'organizationGoogleAdsId' => $mapped['organizationGoogleAdsId'] ?? null,
+    'organizationGoogleAdsConversionLabel' => $mapped['organizationGoogleAdsConversionLabel'] ?? null,
     'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
     'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
+    'effectiveTiktokPixelId' => $mapped['tiktokPixelId'] ?? null,
+    'effectiveGoogleAdsId' => $mapped['googleAdsId'] ?? null,
+    'effectiveGoogleAdsConversionLabel' => $mapped['googleAdsConversionLabel'] ?? null,
     'event' => $mapped,
   ]);
 }

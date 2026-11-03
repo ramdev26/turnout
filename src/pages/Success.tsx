@@ -99,7 +99,13 @@ export const Success: React.FC = () => {
     const tickets = order.tickets || [];
     const numItems = tickets.reduce((sum, item) => sum + (item.quantity || 0), 0);
     trackOrganizerPurchase(
-      { metaPixelId: event.metaPixelId, gaMeasurementId: event.gaMeasurementId },
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
       {
         eventId: event.id,
         eventTitle: event.title,

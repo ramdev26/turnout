@@ -1,11 +1,14 @@
 /**
- * Injects organizer-owned Meta Pixel + Google Analytics (GA4) tags on public
- * event pages, and fires standard funnel conversion events with traffic sources.
+ * Injects organizer-owned Meta Pixel, GA4, TikTok Pixel, and Google Ads tags on
+ * public event pages, and fires standard funnel conversion events with traffic sources.
  */
 
 export type OrganizerMarketingIds = {
   metaPixelId?: string | null;
   gaMeasurementId?: string | null;
+  tiktokPixelId?: string | null;
+  googleAdsId?: string | null;
+  googleAdsConversionLabel?: string | null;
 };
 
 export type OrganizerMarketingEventContext = {
@@ -29,17 +32,33 @@ export type TrafficSource = {
   landingPage: string | null;
 };
 
+type TikTokQueue = Array<unknown> & {
+  methods?: string[];
+  setAndDefer?: (t: TikTokQueue, method: string) => void;
+  instance?: (id: string) => TikTokQueue;
+  load?: (id: string) => void;
+  page?: (...args: unknown[]) => void;
+  track?: (...args: unknown[]) => void;
+  _i?: Record<string, unknown>;
+  _t?: Record<string, number>;
+  _o?: Record<string, unknown>;
+};
+
 declare global {
   interface Window {
     fbq?: ((...args: unknown[]) => void) & { callMethod?: (...args: unknown[]) => void; queue?: unknown[] };
     _fbq?: Window['fbq'];
     dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
+    ttq?: TikTokQueue;
+    TiktokAnalyticsObject?: string;
   }
 }
 
 const META_SCRIPT_ATTR = 'data-turnout-meta-pixel';
 const GA_SCRIPT_ATTR = 'data-turnout-ga-measurement';
+const ADS_SCRIPT_ATTR = 'data-turnout-google-ads';
+const TIKTOK_SCRIPT_ATTR = 'data-turnout-tiktok-pixel';
 const PURCHASE_DEDUP_PREFIX = 'turnout_mkt_purchase:';
 const TRAFFIC_SOURCE_KEY = 'turnout_mkt_traffic_source';
 
@@ -55,6 +74,37 @@ export function normalizeGaMeasurementId(raw: string | null | undefined): string
     .toUpperCase();
   if (!id) return null;
   return /^G-[A-Z0-9]{4,20}$/.test(id) ? id : null;
+}
+
+export function normalizeTiktokPixelId(raw: string | null | undefined): string | null {
+  const id = String(raw || '').trim();
+  if (!id) return null;
+  return /^[A-Za-z0-9]{6,64}$/.test(id) ? id : null;
+}
+
+export function normalizeGoogleAdsId(raw: string | null | undefined): string | null {
+  const id = String(raw || '')
+    .trim()
+    .toUpperCase();
+  if (!id) return null;
+  return /^AW-\d{5,20}$/.test(id) ? id : null;
+}
+
+export function normalizeGoogleAdsConversionLabel(raw: string | null | undefined): string | null {
+  const id = String(raw || '').trim();
+  if (!id) return null;
+  return /^[A-Za-z0-9_-]{4,64}$/.test(id) ? id : null;
+}
+
+function ensureGtagStub(): void {
+  if (typeof window === 'undefined') return;
+  window.dataLayer = window.dataLayer || [];
+  if (!window.gtag) {
+    window.gtag = function gtag() {
+      // eslint-disable-next-line prefer-rest-params
+      window.dataLayer?.push(arguments);
+    };
+  }
 }
 
 function readQueryParam(params: URLSearchParams, keys: string[]): string | null {
@@ -187,16 +237,7 @@ function ensureGaMeasurement(measurementId: string): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
   const traffic = captureTrafficSource();
-
-  window.dataLayer = window.dataLayer || [];
-  if (!window.gtag) {
-    // Google requires pushing the Arguments object (not a rest-args array),
-    // otherwise gtag.js can load without ever sending collect hits.
-    window.gtag = function gtag() {
-      // eslint-disable-next-line prefer-rest-params
-      window.dataLayer?.push(arguments);
-    };
-  }
+  ensureGtagStub();
 
   if (!document.querySelector(`script[${GA_SCRIPT_ATTR}="${measurementId}"]`)) {
     const script = document.createElement('script');
@@ -209,7 +250,7 @@ function ensureGaMeasurement(measurementId: string): void {
   const marked = document.documentElement.getAttribute('data-turnout-ga-init');
   if (marked === measurementId) return;
   document.documentElement.setAttribute('data-turnout-ga-init', measurementId);
-  window.gtag('js', new Date());
+  window.gtag?.('js', new Date());
 
   const config: Record<string, unknown> = {
     send_page_view: true,
@@ -224,7 +265,101 @@ function ensureGaMeasurement(measurementId: string): void {
   if (traffic.content) config.campaign_content = traffic.content;
   if (traffic.term) config.campaign_term = traffic.term;
 
-  window.gtag('config', measurementId, config);
+  window.gtag?.('config', measurementId, config);
+}
+
+function ensureGoogleAds(adsId: string): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  ensureGtagStub();
+
+  if (!document.querySelector(`script[${ADS_SCRIPT_ATTR}="${adsId}"]`)) {
+    // Reuse an already-loaded gtag.js if GA loaded first; otherwise load for AW-.
+    if (!document.querySelector(`script[${GA_SCRIPT_ATTR}]`)) {
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(adsId)}`;
+      script.setAttribute(ADS_SCRIPT_ATTR, adsId);
+      document.head.appendChild(script);
+    } else {
+      const marker = document.createElement('script');
+      marker.setAttribute(ADS_SCRIPT_ATTR, adsId);
+      marker.type = 'application/json';
+      marker.text = '{}';
+      document.head.appendChild(marker);
+    }
+  }
+
+  const marked = document.documentElement.getAttribute('data-turnout-ads-init');
+  if (marked === adsId) return;
+  document.documentElement.setAttribute('data-turnout-ads-init', adsId);
+  window.gtag?.('js', new Date());
+  window.gtag?.('config', adsId);
+}
+
+function ensureTiktokPixel(pixelId: string): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  if (!window.ttq) {
+    const w = window;
+    w.TiktokAnalyticsObject = 'ttq';
+    // Official TikTok stub is an array queue with deferred method helpers.
+    const ttq = [] as unknown as TikTokQueue;
+    w.ttq = ttq;
+    ttq.methods = [
+      'page',
+      'track',
+      'identify',
+      'instances',
+      'debug',
+      'on',
+      'off',
+      'once',
+      'ready',
+      'alias',
+      'group',
+      'enableCookie',
+      'disableCookie',
+      'holdConsent',
+      'revokeConsent',
+      'grantConsent',
+    ];
+    ttq.setAndDefer = function (target, method) {
+      (target as unknown as Record<string, (...args: unknown[]) => void>)[method] = function (...args: unknown[]) {
+        target.push([method, ...args]);
+      };
+    };
+    for (const method of ttq.methods) {
+      ttq.setAndDefer?.(ttq, method);
+    }
+    ttq.instance = function (id: string) {
+      const store = (ttq._i = ttq._i || {});
+      const inst = (store[id] = (store[id] as unknown[]) || []) as unknown as TikTokQueue;
+      for (const method of ttq.methods || []) ttq.setAndDefer?.(inst, method);
+      return inst;
+    };
+    ttq.load = function (id: string) {
+      const url = 'https://analytics.tiktok.com/i18n/pixel/events.js';
+      ttq._i = ttq._i || {};
+      ttq._i[id] = [];
+      ttq._t = ttq._t || {};
+      ttq._t[id] = Date.now();
+      ttq._o = ttq._o || {};
+      if (!document.querySelector(`script[${TIKTOK_SCRIPT_ATTR}]`)) {
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = `${url}?sdkid=${encodeURIComponent(id)}&lib=ttq`;
+        script.setAttribute(TIKTOK_SCRIPT_ATTR, '1');
+        const first = document.getElementsByTagName('script')[0];
+        first?.parentNode?.insertBefore(script, first);
+      }
+    };
+  }
+
+  const marked = document.documentElement.getAttribute('data-turnout-tiktok-init');
+  if (marked === pixelId) return;
+  document.documentElement.setAttribute('data-turnout-tiktok-init', pixelId);
+  window.ttq?.load?.(pixelId);
+  window.ttq?.page?.();
 }
 
 function sendGaPageView(measurementId: string, pathHint?: string): void {
@@ -239,14 +374,39 @@ function sendGaPageView(measurementId: string, pathHint?: string): void {
   });
 }
 
-/** Load/init organizer tags when IDs are present. No-op when both empty. */
+/** Load/init organizer tags when IDs are present. No-op when all empty. */
 export function ensureOrganizerMarketingTags(ids: OrganizerMarketingIds): OrganizerMarketingIds {
   captureTrafficSource();
   const metaPixelId = normalizeMetaPixelId(ids.metaPixelId);
   const gaMeasurementId = normalizeGaMeasurementId(ids.gaMeasurementId);
+  const tiktokPixelId = normalizeTiktokPixelId(ids.tiktokPixelId);
+  const googleAdsId = normalizeGoogleAdsId(ids.googleAdsId);
+  const googleAdsConversionLabel = normalizeGoogleAdsConversionLabel(ids.googleAdsConversionLabel);
   if (metaPixelId) ensureMetaPixel(metaPixelId);
   if (gaMeasurementId) ensureGaMeasurement(gaMeasurementId);
-  return { metaPixelId, gaMeasurementId };
+  if (googleAdsId) ensureGoogleAds(googleAdsId);
+  if (tiktokPixelId) ensureTiktokPixel(tiktokPixelId);
+  return { metaPixelId, gaMeasurementId, tiktokPixelId, googleAdsId, googleAdsConversionLabel };
+}
+
+function tiktokContents(ctx: OrganizerMarketingEventContext) {
+  if ((ctx.contents || []).length > 0) {
+    return (ctx.contents || []).map((c) => ({
+      content_id: c.id,
+      content_type: 'product',
+      content_name: c.name || ctx.eventTitle,
+      quantity: c.quantity,
+      price: c.item_price,
+    }));
+  }
+  return [
+    {
+      content_id: ctx.eventId,
+      content_type: 'product',
+      content_name: ctx.eventTitle,
+      quantity: ctx.numItems ?? 1,
+    },
+  ];
 }
 
 function contentIds(ctx: OrganizerMarketingEventContext): string[] {
@@ -262,6 +422,12 @@ function gaItems(ctx: OrganizerMarketingEventContext) {
     quantity: c.quantity,
     price: c.item_price,
   }));
+}
+
+function googleAdsSendTo(adsId: string, label?: string | null): string | null {
+  if (!adsId) return null;
+  if (!label) return null;
+  return `${adsId}/${label}`;
 }
 
 export function trackOrganizerViewContent(
@@ -295,6 +461,14 @@ export function trackOrganizerViewContent(
       ...trafficSourceEventParams(traffic),
     });
   }
+  if (resolved.tiktokPixelId) {
+    window.ttq?.track?.('ViewContent', {
+      contents: tiktokContents(ctx),
+      content_type: 'product',
+      value: ctx.value ?? 0,
+      currency: ctx.currency || 'LKR',
+    });
+  }
 }
 
 export function trackOrganizerInitiateCheckout(
@@ -323,6 +497,14 @@ export function trackOrganizerInitiateCheckout(
         ? gaItems(ctx)
         : [{ item_id: ctx.eventId, item_name: ctx.eventTitle, item_category: 'event' }],
       ...trafficSourceEventParams(traffic),
+    });
+  }
+  if (resolved.tiktokPixelId) {
+    window.ttq?.track?.('InitiateCheckout', {
+      contents: tiktokContents(ctx),
+      content_type: 'product',
+      value: ctx.value ?? 0,
+      currency: ctx.currency || 'LKR',
     });
   }
 }
@@ -382,6 +564,27 @@ export function trackOrganizerPurchase(
         ? gaItems(ctx)
         : [{ item_id: ctx.eventId, item_name: ctx.eventTitle, item_category: 'event', quantity: 1 }],
       ...trafficSourceEventParams(traffic),
+    });
+  }
+  if (resolved.tiktokPixelId) {
+    window.ttq?.track?.('CompletePayment', {
+      contents: tiktokContents(ctx),
+      content_type: 'product',
+      value: Number(ctx.value ?? 0),
+      currency: ctx.currency || 'LKR',
+    });
+  }
+  // Google Ads purchase conversion — requires AW- ID + conversion label from Ads → Conversions.
+  const adsSendTo =
+    resolved.googleAdsId && resolved.googleAdsConversionLabel
+      ? googleAdsSendTo(resolved.googleAdsId, resolved.googleAdsConversionLabel)
+      : null;
+  if (adsSendTo) {
+    window.gtag?.('event', 'conversion', {
+      send_to: adsSendTo,
+      value: Number(ctx.value ?? 0),
+      currency: ctx.currency || 'LKR',
+      transaction_id: ctx.orderId,
     });
   }
 }
