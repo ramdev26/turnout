@@ -321,6 +321,9 @@ function organizer_profile_api_shape(PDO $pdo, int $ownerUserId): array {
     'termsHtml' => trim((string)($row['terms_html'] ?? '')) ?: null,
     'metaPixelId' => trim((string)($row['meta_pixel_id'] ?? '')) ?: null,
     'gaMeasurementId' => trim((string)($row['ga_measurement_id'] ?? '')) ?: null,
+    'tiktokPixelId' => trim((string)($row['tiktok_pixel_id'] ?? '')) ?: null,
+    'googleAdsId' => trim((string)($row['google_ads_id'] ?? '')) ?: null,
+    'googleAdsConversionLabel' => trim((string)($row['google_ads_conversion_label'] ?? '')) ?: null,
   ];
 }
 

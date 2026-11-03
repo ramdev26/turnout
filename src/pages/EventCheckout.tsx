@@ -129,7 +129,13 @@ export const EventCheckout: React.FC = () => {
     checkoutTracked.current = true;
     const numItems = orderItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
     trackOrganizerInitiateCheckout(
-      { metaPixelId: event.metaPixelId, gaMeasurementId: event.gaMeasurementId },
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
       {
         eventId: event.id,
         eventTitle: event.title,
@@ -141,6 +147,7 @@ export const EventCheckout: React.FC = () => {
           id: item.ticketId,
           quantity: item.quantity,
           item_price: item.price,
+          name: item.name,
         })),
       }
     );

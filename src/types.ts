@@ -113,6 +113,12 @@ export type OrganizerProfile = {
   metaPixelId?: string | null;
   /** Google Analytics 4 Measurement ID (G-XXXXXXXX) for all public event pages. */
   gaMeasurementId?: string | null;
+  /** TikTok Pixel ID for all public event pages. */
+  tiktokPixelId?: string | null;
+  /** Google Ads tag ID (AW-XXXXXXXX). */
+  googleAdsId?: string | null;
+  /** Optional Google Ads purchase conversion label (used as AW-ID/label). */
+  googleAdsConversionLabel?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
@@ -294,6 +300,12 @@ export interface EventCustomization {
   metaPixelId?: string | null;
   /** Event-level GA4 Measurement ID override (empty = organization default). */
   gaMeasurementId?: string | null;
+  /** Event-level TikTok Pixel override. */
+  tiktokPixelId?: string | null;
+  /** Event-level Google Ads ID override (AW-…). */
+  googleAdsId?: string | null;
+  /** Event-level Google Ads purchase conversion label override. */
+  googleAdsConversionLabel?: string | null;
   /** Typography role colours (H1 = headingColor; P = bodyTextColor). */
   h2Color?: string;
   h3Color?: string;
@@ -457,14 +469,26 @@ export interface Event {
   metaPixelId?: string | null;
   /** Effective Google Analytics 4 Measurement ID (event override, else organization default) */
   gaMeasurementId?: string | null;
+  /** Effective TikTok Pixel ID */
+  tiktokPixelId?: string | null;
+  /** Effective Google Ads ID (AW-…) */
+  googleAdsId?: string | null;
+  /** Effective Google Ads purchase conversion label */
+  googleAdsConversionLabel?: string | null;
   /** Event-only Meta Pixel override (null/empty = use organization default) */
   eventMetaPixelId?: string | null;
   /** Event-only GA4 Measurement ID override (null/empty = use organization default) */
   eventGaMeasurementId?: string | null;
+  eventTiktokPixelId?: string | null;
+  eventGoogleAdsId?: string | null;
+  eventGoogleAdsConversionLabel?: string | null;
   /** Organization default Meta Pixel ID */
   organizationMetaPixelId?: string | null;
   /** Organization default GA4 Measurement ID */
   organizationGaMeasurementId?: string | null;
+  organizationTiktokPixelId?: string | null;
+  organizationGoogleAdsId?: string | null;
+  organizationGoogleAdsConversionLabel?: string | null;
   /** True when this event accepts bank transfer and organizer bank details are complete */
   allowBankTransfer?: boolean;
   /** True when card/online PayHere checkout is enabled for this event */
@@ -576,11 +600,15 @@ export interface OrderItem {
 export interface Order {
   id: string;
   eventId: string;
+  eventTitle?: string | null;
+  eventSlug?: string | null;
   buyerId?: string;
   buyerName?: string | null;
   buyerPhone?: string | null;
   buyerEmail: string;
   tickets: OrderItem[];
+  ticketCount?: number;
+  ticketSummary?: string | null;
   totalAmount: number;
   status: 'pending' | 'paid' | 'failed';
   paymentMethod?: 'free' | 'payhere' | 'bank_transfer' | 'manual' | 'complimentary' | 'manual_cash' | 'manual_bank' | 'manual_card' | 'manual_other' | string;
@@ -588,6 +616,8 @@ export interface Order {
   bankTransferSlipUploadedAt?: string | null;
   bankTransferConfirmedAt?: string | null;
   bankTransfer?: BankTransferDetails | null;
+  couponCode?: string | null;
+  discountAmount?: number;
   stripeSessionId?: string;
   createdAt: string;
   /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */
