@@ -2070,6 +2070,7 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     || array_key_exists('tiktokPixelId', $body)
     || array_key_exists('googleAdsId', $body)
     || array_key_exists('googleAdsConversionLabel', $body)
+    || array_key_exists('customHeadHtml', $body)
   ) {
     $existingMarketing = load_organizer_profile_row($pdo, $uid);
     $metaRaw = array_key_exists('metaPixelId', $body)
@@ -2087,6 +2088,9 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     $adsLabelRaw = array_key_exists('googleAdsConversionLabel', $body)
       ? (string)($body['googleAdsConversionLabel'] ?? '')
       : (string)($existingMarketing['google_ads_conversion_label'] ?? '');
+    $customHeadRaw = array_key_exists('customHeadHtml', $body)
+      ? (string)($body['customHeadHtml'] ?? '')
+      : (string)($existingMarketing['custom_head_html'] ?? '');
 
     $metaPixelId = normalize_meta_pixel_id($metaRaw);
     if ($metaPixelId === false) {
@@ -2123,12 +2127,20 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
         'message' => 'Google Ads conversion label looks invalid.',
       ]);
     }
+    $customHeadHtml = normalize_custom_head_html($customHeadRaw);
+    if ($customHeadHtml === false) {
+      json_response(400, [
+        'error' => 'invalid_custom_head_html',
+        'message' => 'Custom head code must be under 20KB and use head tags only (script, meta, link, style, noscript). Do not include html/body/iframe tags.',
+      ]);
+    }
     upsert_organizer_marketing_tags($pdo, $uid, [
       'metaPixelId' => $metaPixelId,
       'gaMeasurementId' => $gaMeasurementId,
       'tiktokPixelId' => $tiktokPixelId,
       'googleAdsId' => $googleAdsId,
       'googleAdsConversionLabel' => $googleAdsConversionLabel,
+      'customHeadHtml' => $customHeadHtml,
     ]);
   }
 
@@ -5529,16 +5541,19 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'GET') {
     'tiktokPixelId' => $mapped['eventTiktokPixelId'] ?? null,
     'googleAdsId' => $mapped['eventGoogleAdsId'] ?? null,
     'googleAdsConversionLabel' => $mapped['eventGoogleAdsConversionLabel'] ?? null,
+    'customHeadHtml' => $mapped['eventCustomHeadHtml'] ?? null,
     'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
     'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
     'organizationTiktokPixelId' => $mapped['organizationTiktokPixelId'] ?? null,
     'organizationGoogleAdsId' => $mapped['organizationGoogleAdsId'] ?? null,
     'organizationGoogleAdsConversionLabel' => $mapped['organizationGoogleAdsConversionLabel'] ?? null,
+    'organizationCustomHeadHtml' => $mapped['organizationCustomHeadHtml'] ?? null,
     'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
     'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
     'effectiveTiktokPixelId' => $mapped['tiktokPixelId'] ?? null,
     'effectiveGoogleAdsId' => $mapped['googleAdsId'] ?? null,
     'effectiveGoogleAdsConversionLabel' => $mapped['googleAdsConversionLabel'] ?? null,
+    'effectiveCustomHeadHtml' => $mapped['customHeadHtml'] ?? null,
   ]);
 }
 
@@ -5566,6 +5581,9 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') 
   $adsLabelRaw = array_key_exists('googleAdsConversionLabel', $body)
     ? (string)($body['googleAdsConversionLabel'] ?? '')
     : (string)($existing['googleAdsConversionLabel'] ?? '');
+  $customHeadRaw = array_key_exists('customHeadHtml', $body)
+    ? (string)($body['customHeadHtml'] ?? '')
+    : (string)($existing['customHeadHtml'] ?? '');
 
   $metaPixelId = normalize_meta_pixel_id($metaRaw);
   if ($metaPixelId === false) {
@@ -5602,6 +5620,13 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') 
       'message' => 'Google Ads conversion label looks invalid.',
     ]);
   }
+  $customHeadHtml = normalize_custom_head_html($customHeadRaw);
+  if ($customHeadHtml === false) {
+    json_response(400, [
+      'error' => 'invalid_custom_head_html',
+      'message' => 'Custom head code must be under 20KB and use head tags only (script, meta, link, style, noscript). Do not include html/body/iframe tags.',
+    ]);
+  }
 
   $overrides = set_event_marketing_overrides($pdo, $eventId, [
     'metaPixelId' => $metaPixelId,
@@ -5609,6 +5634,7 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') 
     'tiktokPixelId' => $tiktokPixelId,
     'googleAdsId' => $googleAdsId,
     'googleAdsConversionLabel' => $googleAdsConversionLabel,
+    'customHeadHtml' => $customHeadHtml,
   ]);
   $fresh = load_event_row_or_404($pdo, $eventId);
   $mapped = map_public_event_row($fresh, $pdo);
@@ -5619,16 +5645,19 @@ if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') 
     'tiktokPixelId' => $overrides['tiktokPixelId'],
     'googleAdsId' => $overrides['googleAdsId'],
     'googleAdsConversionLabel' => $overrides['googleAdsConversionLabel'],
+    'customHeadHtml' => $overrides['customHeadHtml'],
     'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
     'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
     'organizationTiktokPixelId' => $mapped['organizationTiktokPixelId'] ?? null,
     'organizationGoogleAdsId' => $mapped['organizationGoogleAdsId'] ?? null,
     'organizationGoogleAdsConversionLabel' => $mapped['organizationGoogleAdsConversionLabel'] ?? null,
+    'organizationCustomHeadHtml' => $mapped['organizationCustomHeadHtml'] ?? null,
     'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
     'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
     'effectiveTiktokPixelId' => $mapped['tiktokPixelId'] ?? null,
     'effectiveGoogleAdsId' => $mapped['googleAdsId'] ?? null,
     'effectiveGoogleAdsConversionLabel' => $mapped['googleAdsConversionLabel'] ?? null,
+    'effectiveCustomHeadHtml' => $mapped['customHeadHtml'] ?? null,
     'event' => $mapped,
   ]);
 }

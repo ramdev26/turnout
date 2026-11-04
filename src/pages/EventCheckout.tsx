@@ -14,6 +14,7 @@ import {
   setPendingEventAccessContext,
 } from '../lib/eventAccessToken';
 import { trackOrganizerInitiateCheckout } from '../lib/organizerMarketingTags';
+import { ensureOrganizerCustomHead } from '../lib/organizerCustomHead';
 
 type LocationState = {
   selectedTickets?: Record<string, number>;
@@ -98,6 +99,14 @@ export const EventCheckout: React.FC = () => {
     if (!event) return;
     document.title = `Checkout · ${event.title}`;
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
+  }, [event]);
+
+  useEffect(() => {
+    if (!event || event.status !== 'published') return;
+    ensureOrganizerCustomHead({
+      organizationCustomHeadHtml: event.organizationCustomHeadHtml,
+      eventCustomHeadHtml: event.eventCustomHeadHtml,
+    });
   }, [event]);
 
   const orderItems = useMemo<OrderItem[]>(() => {

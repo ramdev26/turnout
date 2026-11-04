@@ -199,6 +199,7 @@ export const EventSettings: React.FC = () => {
   const [eventTiktokPixelId, setEventTiktokPixelId] = useState('');
   const [eventGoogleAdsId, setEventGoogleAdsId] = useState('');
   const [eventGoogleAdsConversionLabel, setEventGoogleAdsConversionLabel] = useState('');
+  const [eventCustomHeadHtml, setEventCustomHeadHtml] = useState('');
   const [organizationGaMeasurementId, setOrganizationGaMeasurementId] = useState<string | null>(null);
   const [organizationMetaPixelId, setOrganizationMetaPixelId] = useState<string | null>(null);
   const [organizationTiktokPixelId, setOrganizationTiktokPixelId] = useState<string | null>(null);
@@ -206,6 +207,7 @@ export const EventSettings: React.FC = () => {
   const [organizationGoogleAdsConversionLabel, setOrganizationGoogleAdsConversionLabel] = useState<string | null>(
     null
   );
+  const [organizationCustomHeadHtml, setOrganizationCustomHeadHtml] = useState<string | null>(null);
   const [savingTracking, setSavingTracking] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
@@ -276,11 +278,13 @@ export const EventSettings: React.FC = () => {
       setEventGoogleAdsConversionLabel(
         ev.eventGoogleAdsConversionLabel || ev.customization?.googleAdsConversionLabel || ''
       );
+      setEventCustomHeadHtml(ev.eventCustomHeadHtml || ev.customization?.customHeadHtml || '');
       setOrganizationGaMeasurementId(ev.organizationGaMeasurementId || null);
       setOrganizationMetaPixelId(ev.organizationMetaPixelId || null);
       setOrganizationTiktokPixelId(ev.organizationTiktokPixelId || null);
       setOrganizationGoogleAdsId(ev.organizationGoogleAdsId || null);
       setOrganizationGoogleAdsConversionLabel(ev.organizationGoogleAdsConversionLabel || null);
+      setOrganizationCustomHeadHtml(ev.organizationCustomHeadHtml || null);
       const landing = normalizeLandingCustomization(ev.customization, resolveLayoutTemplateId(ev.templateId));
       const templateDefaults = resolveTemplateDesignDefaults(ev.templateId);
       setThemeId('minimal');
@@ -810,11 +814,13 @@ export const EventSettings: React.FC = () => {
         tiktokPixelId: string | null;
         googleAdsId: string | null;
         googleAdsConversionLabel: string | null;
+        customHeadHtml: string | null;
         organizationMetaPixelId: string | null;
         organizationGaMeasurementId: string | null;
         organizationTiktokPixelId: string | null;
         organizationGoogleAdsId: string | null;
         organizationGoogleAdsConversionLabel: string | null;
+        organizationCustomHeadHtml: string | null;
         event: Event;
       }>(`/api/events/${eventId}/tracking`, {
         metaPixelId: eventMetaPixelId.trim(),
@@ -822,6 +828,7 @@ export const EventSettings: React.FC = () => {
         tiktokPixelId: eventTiktokPixelId.trim(),
         googleAdsId: eventGoogleAdsId.trim(),
         googleAdsConversionLabel: eventGoogleAdsConversionLabel.trim(),
+        customHeadHtml: eventCustomHeadHtml.trim(),
       });
       setEvent(res.event);
       setEventMetaPixelId(res.metaPixelId || '');
@@ -829,19 +836,22 @@ export const EventSettings: React.FC = () => {
       setEventTiktokPixelId(res.tiktokPixelId || '');
       setEventGoogleAdsId(res.googleAdsId || '');
       setEventGoogleAdsConversionLabel(res.googleAdsConversionLabel || '');
+      setEventCustomHeadHtml(res.customHeadHtml || '');
       setOrganizationMetaPixelId(res.organizationMetaPixelId || null);
       setOrganizationGaMeasurementId(res.organizationGaMeasurementId || null);
       setOrganizationTiktokPixelId(res.organizationTiktokPixelId || null);
       setOrganizationGoogleAdsId(res.organizationGoogleAdsId || null);
       setOrganizationGoogleAdsConversionLabel(res.organizationGoogleAdsConversionLabel || null);
+      setOrganizationCustomHeadHtml(res.organizationCustomHeadHtml || null);
       setFeedback(
         res.gaMeasurementId ||
           res.metaPixelId ||
           res.tiktokPixelId ||
           res.googleAdsId ||
-          res.googleAdsConversionLabel
-          ? 'Event tracking saved. This event will use these IDs instead of organization defaults.'
-          : 'Event tracking cleared. This event will use organization defaults.'
+          res.googleAdsConversionLabel ||
+          res.customHeadHtml
+          ? 'Event tracking saved. Pixel IDs override organization defaults; custom head code is added on top.'
+          : 'Event tracking cleared. This event will use organization defaults only.'
       );
     } catch (e: unknown) {
       const err = e as { message?: string; error?: string };
@@ -1632,14 +1642,16 @@ export const EventSettings: React.FC = () => {
                 eventMetaPixelId ||
                 eventTiktokPixelId ||
                 eventGoogleAdsId ||
-                eventGoogleAdsConversionLabel
+                eventGoogleAdsConversionLabel ||
+                eventCustomHeadHtml
                   ? 'Custom codes for this event'
                   : organizationGaMeasurementId ||
                       organizationMetaPixelId ||
                       organizationTiktokPixelId ||
-                      organizationGoogleAdsId
+                      organizationGoogleAdsId ||
+                      organizationCustomHeadHtml
                     ? 'Using organization defaults'
-                    : 'Optional · Meta, GA, TikTok & Google Ads'
+                    : 'Optional · pixels & custom head code'
               }
               icon={<Activity className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
               open={isSectionOpen('tracking')}
@@ -1745,6 +1757,29 @@ export const EventSettings: React.FC = () => {
                       : 'Optional. Needed to fire Google Ads Purchase conversions.'}
                   </span>
                 </label>
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Extra custom code for &lt;head&gt; (this event)
+                  </span>
+                  <textarea
+                    value={eventCustomHeadHtml}
+                    onChange={(e) => setEventCustomHeadHtml(e.target.value)}
+                    rows={5}
+                    placeholder={
+                      organizationCustomHeadHtml
+                        ? 'Optional extra scripts for this event only (organization head code still runs)'
+                        : '<!-- Paste event-only verification tags, pixels, or scripts -->'
+                    }
+                    className={`${fieldClass} font-mono text-xs`}
+                    style={fieldStyle}
+                    spellCheck={false}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationCustomHeadHtml
+                      ? 'Organization head code is already set and will run first; this box adds more for this event only.'
+                      : 'Added on top of any organization head code. script / meta / link / style / noscript only.'}
+                  </span>
+                </label>
               </div>
               <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: ui.borderColor, color: ui.textMuted }}>
                 Effective on the public page:{' '}
@@ -1767,6 +1802,11 @@ export const EventSettings: React.FC = () => {
                   {eventGoogleAdsId.trim() || organizationGoogleAdsId || 'none'}
                 </span>{' '}
                 (Ads)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventCustomHeadHtml.trim() || organizationCustomHeadHtml ? 'custom head set' : 'none'}
+                </span>{' '}
+                (head)
               </div>
               <div className="mt-4">
                 <button

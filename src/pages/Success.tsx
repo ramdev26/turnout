@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import { formatApiError } from '../utils/apiError';
 import { formatLKRWhole } from '../utils/money';
 import { trackOrganizerPurchase } from '../lib/organizerMarketingTags';
+import { ensureOrganizerCustomHead } from '../lib/organizerCustomHead';
 import '../styles/order-confirmation.css';
 
 type TicketPdfTemplate = 'classic' | 'midnight' | 'sunset';
@@ -93,6 +94,14 @@ export const Success: React.FC = () => {
 
     fetchOrderData();
   }, [orderId, accessToken, passId]);
+
+  useEffect(() => {
+    if (!event) return;
+    ensureOrganizerCustomHead({
+      organizationCustomHeadHtml: event.organizationCustomHeadHtml,
+      eventCustomHeadHtml: event.eventCustomHeadHtml,
+    });
+  }, [event]);
 
   useEffect(() => {
     if (!order || !event || order.status !== 'paid') return;

@@ -21,6 +21,7 @@ import {
   trackOrganizerInitiateCheckout,
   trackOrganizerViewContent,
 } from '../lib/organizerMarketingTags';
+import { ensureOrganizerCustomHead } from '../lib/organizerCustomHead';
 
 type EventFetchResult = {
   event: Event;
@@ -128,6 +129,14 @@ export const EventLanding: React.FC = () => {
     if (!event) return;
     document.title = event.title;
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
+  }, [event]);
+
+  useEffect(() => {
+    if (!event || event.status !== 'published') return;
+    ensureOrganizerCustomHead({
+      organizationCustomHeadHtml: event.organizationCustomHeadHtml,
+      eventCustomHeadHtml: event.eventCustomHeadHtml,
+    });
   }, [event]);
 
   useEffect(() => {

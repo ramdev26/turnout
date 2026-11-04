@@ -33,11 +33,13 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     $orgTiktokPixelId = trim((string)($profile['tiktokPixelId'] ?? ''));
     $orgGoogleAdsId = trim((string)($profile['googleAdsId'] ?? ''));
     $orgGoogleAdsLabel = trim((string)($profile['googleAdsConversionLabel'] ?? ''));
+    $orgCustomHeadHtml = trim((string)($profile['customHeadHtml'] ?? ''));
     $event['organizationMetaPixelId'] = $orgMetaPixelId !== '' ? $orgMetaPixelId : null;
     $event['organizationGaMeasurementId'] = $orgGaMeasurementId !== '' ? $orgGaMeasurementId : null;
     $event['organizationTiktokPixelId'] = $orgTiktokPixelId !== '' ? $orgTiktokPixelId : null;
     $event['organizationGoogleAdsId'] = $orgGoogleAdsId !== '' ? $orgGoogleAdsId : null;
     $event['organizationGoogleAdsConversionLabel'] = $orgGoogleAdsLabel !== '' ? $orgGoogleAdsLabel : null;
+    $event['organizationCustomHeadHtml'] = $orgCustomHeadHtml !== '' ? $orgCustomHeadHtml : null;
 
     $overrides = function_exists('event_marketing_overrides_from_row')
       ? event_marketing_overrides_from_row($row)
@@ -47,17 +49,20 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
         'tiktokPixelId' => null,
         'googleAdsId' => null,
         'googleAdsConversionLabel' => null,
+        'customHeadHtml' => null,
       ];
     $eventMeta = trim((string)($overrides['metaPixelId'] ?? ''));
     $eventGa = trim((string)($overrides['gaMeasurementId'] ?? ''));
     $eventTiktok = trim((string)($overrides['tiktokPixelId'] ?? ''));
     $eventAdsId = trim((string)($overrides['googleAdsId'] ?? ''));
     $eventAdsLabel = trim((string)($overrides['googleAdsConversionLabel'] ?? ''));
+    $eventCustomHead = trim((string)($overrides['customHeadHtml'] ?? ''));
     $event['eventMetaPixelId'] = $eventMeta !== '' ? $eventMeta : null;
     $event['eventGaMeasurementId'] = $eventGa !== '' ? $eventGa : null;
     $event['eventTiktokPixelId'] = $eventTiktok !== '' ? $eventTiktok : null;
     $event['eventGoogleAdsId'] = $eventAdsId !== '' ? $eventAdsId : null;
     $event['eventGoogleAdsConversionLabel'] = $eventAdsLabel !== '' ? $eventAdsLabel : null;
+    $event['eventCustomHeadHtml'] = $eventCustomHead !== '' ? $eventCustomHead : null;
 
     // Effective tags used on public pages: event override wins, else organization default.
     $event['metaPixelId'] = $event['eventMetaPixelId'] ?? $event['organizationMetaPixelId'];
@@ -65,6 +70,10 @@ function map_public_event_row(array $row, ?PDO $pdo = null): array {
     $event['tiktokPixelId'] = $event['eventTiktokPixelId'] ?? $event['organizationTiktokPixelId'];
     $event['googleAdsId'] = $event['eventGoogleAdsId'] ?? $event['organizationGoogleAdsId'];
     $event['googleAdsConversionLabel'] = $event['eventGoogleAdsConversionLabel'] ?? $event['organizationGoogleAdsConversionLabel'];
+    // Custom head snippets are additive: organization codes + per-event codes.
+    $event['customHeadHtml'] = trim(
+      ($event['organizationCustomHeadHtml'] ?? '') . "\n" . ($event['eventCustomHeadHtml'] ?? '')
+    ) ?: null;
   }
 
   if ($pdo !== null && function_exists('attach_bank_transfer_to_public_event')) {

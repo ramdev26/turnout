@@ -27,6 +27,7 @@ function ensure_organizer_profile_paid_event_columns(PDO $pdo): void {
     'tiktok_pixel_id' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
     'google_ads_id' => $driver === 'pgsql' ? 'VARCHAR(32) NULL' : 'VARCHAR(32) NULL',
     'google_ads_conversion_label' => $driver === 'pgsql' ? 'VARCHAR(64) NULL' : 'VARCHAR(64) NULL',
+    'custom_head_html' => $driver === 'pgsql' ? 'TEXT NULL' : 'TEXT NULL',
     'turnout_pay_docs_override' => $driver === 'pgsql' ? 'SMALLINT NOT NULL DEFAULT 0' : 'TINYINT NOT NULL DEFAULT 0',
   ];
 
@@ -483,13 +484,40 @@ function normalize_google_ads_conversion_label(?string $raw) {
   return $id;
 }
 
+/** Max length for organizer-supplied <head> snippets (org or per-event). */
+function custom_head_html_max_len(): int {
+  return 20000;
+}
+
+/**
+ * Normalize custom head HTML pasted by organizers (pixels, verification, chat widgets).
+ * @return string|null|false
+ */
+function normalize_custom_head_html($raw) {
+  if ($raw === null) return null;
+  if (!is_string($raw)) return false;
+  $html = str_replace("\0", '', $raw);
+  $html = str_replace(["\r\n", "\r"], "\n", $html);
+  $html = trim($html);
+  if ($html === '') return null;
+  if (strlen($html) > custom_head_html_max_len()) {
+    return false;
+  }
+  // Soft-block obvious server-side embeds; client scripts/meta/link are expected.
+  if (preg_match('/<\?(?:php|=)|<%|<\/?(?:html|body|iframe|object|embed)\b/i', $html)) {
+    return false;
+  }
+  return $html;
+}
+
 /**
  * @param array{
  *   metaPixelId?: string|null,
  *   gaMeasurementId?: string|null,
  *   tiktokPixelId?: string|null,
  *   googleAdsId?: string|null,
- *   googleAdsConversionLabel?: string|null
+ *   googleAdsConversionLabel?: string|null,
+ *   customHeadHtml?: string|null
  * } $tags
  */
 function upsert_organizer_marketing_tags(PDO $pdo, int $userId, array $tags): void {
@@ -498,7 +526,7 @@ function upsert_organizer_marketing_tags(PDO $pdo, int $userId, array $tags): vo
   $stmt = $pdo->prepare(
     'UPDATE organizer_profiles
      SET meta_pixel_id = ?, ga_measurement_id = ?, tiktok_pixel_id = ?,
-         google_ads_id = ?, google_ads_conversion_label = ?
+         google_ads_id = ?, google_ads_conversion_label = ?, custom_head_html = ?
      WHERE user_id = ?'
   );
   $stmt->execute([
@@ -507,6 +535,7 @@ function upsert_organizer_marketing_tags(PDO $pdo, int $userId, array $tags): vo
     $tags['tiktokPixelId'] ?? null,
     $tags['googleAdsId'] ?? null,
     $tags['googleAdsConversionLabel'] ?? null,
+    $tags['customHeadHtml'] ?? null,
     $userId,
   ]);
 }
@@ -533,12 +562,17 @@ function event_marketing_overrides_from_customization(array $custom): array {
     ? normalize_google_ads_conversion_label(is_string($custom['googleAdsConversionLabel']) ? $custom['googleAdsConversionLabel'] : null)
     : null;
   if ($adsLabel === false) $adsLabel = null;
+  $customHead = array_key_exists('customHeadHtml', $custom)
+    ? normalize_custom_head_html(is_string($custom['customHeadHtml']) ? $custom['customHeadHtml'] : null)
+    : null;
+  if ($customHead === false) $customHead = null;
   return [
     'metaPixelId' => $meta,
     'gaMeasurementId' => $ga,
     'tiktokPixelId' => $tiktok,
     'googleAdsId' => $adsId,
     'googleAdsConversionLabel' => $adsLabel,
+    'customHeadHtml' => $customHead,
   ];
 }
 
@@ -554,7 +588,8 @@ function event_marketing_overrides_from_row(array $eventRow): array {
  *   gaMeasurementId?: string|null,
  *   tiktokPixelId?: string|null,
  *   googleAdsId?: string|null,
- *   googleAdsConversionLabel?: string|null
+ *   googleAdsConversionLabel?: string|null,
+ *   customHeadHtml?: string|null
  * } $tags
  */
 function set_event_marketing_overrides(PDO $pdo, int $eventId, array $tags): array {
@@ -571,6 +606,7 @@ function set_event_marketing_overrides(PDO $pdo, int $eventId, array $tags): arr
     'tiktokPixelId' => $tags['tiktokPixelId'] ?? null,
     'googleAdsId' => $tags['googleAdsId'] ?? null,
     'googleAdsConversionLabel' => $tags['googleAdsConversionLabel'] ?? null,
+    'customHeadHtml' => $tags['customHeadHtml'] ?? null,
   ];
   foreach ($map as $key => $value) {
     if ($value === null || $value === '') {
