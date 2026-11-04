@@ -119,6 +119,8 @@ export type OrganizerProfile = {
   googleAdsId?: string | null;
   /** Optional Google Ads purchase conversion label (used as AW-ID/label). */
   googleAdsConversionLabel?: string | null;
+  /** Custom HTML/JS snippets injected into <head> on all public event pages. */
+  customHeadHtml?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
@@ -306,6 +308,8 @@ export interface EventCustomization {
   googleAdsId?: string | null;
   /** Event-level Google Ads purchase conversion label override. */
   googleAdsConversionLabel?: string | null;
+  /** Additional custom <head> HTML for this event only (additive to organization). */
+  customHeadHtml?: string | null;
   /** Typography role colours (H1 = headingColor; P = bodyTextColor). */
   h2Color?: string;
   h3Color?: string;
@@ -475,6 +479,8 @@ export interface Event {
   googleAdsId?: string | null;
   /** Effective Google Ads purchase conversion label */
   googleAdsConversionLabel?: string | null;
+  /** Combined organization + event custom <head> HTML */
+  customHeadHtml?: string | null;
   /** Event-only Meta Pixel override (null/empty = use organization default) */
   eventMetaPixelId?: string | null;
   /** Event-only GA4 Measurement ID override (null/empty = use organization default) */
@@ -482,6 +488,8 @@ export interface Event {
   eventTiktokPixelId?: string | null;
   eventGoogleAdsId?: string | null;
   eventGoogleAdsConversionLabel?: string | null;
+  /** Event-only additional custom <head> HTML */
+  eventCustomHeadHtml?: string | null;
   /** Organization default Meta Pixel ID */
   organizationMetaPixelId?: string | null;
   /** Organization default GA4 Measurement ID */
@@ -489,6 +497,8 @@ export interface Event {
   organizationTiktokPixelId?: string | null;
   organizationGoogleAdsId?: string | null;
   organizationGoogleAdsConversionLabel?: string | null;
+  /** Organization default custom <head> HTML */
+  organizationCustomHeadHtml?: string | null;
   /** True when this event accepts bank transfer and organizer bank details are complete */
   allowBankTransfer?: boolean;
   /** True when card/online PayHere checkout is enabled for this event */

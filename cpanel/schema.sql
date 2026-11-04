@@ -287,6 +287,7 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   tiktok_pixel_id VARCHAR(64) NULL,
   google_ads_id VARCHAR(32) NULL,
   google_ads_conversion_label VARCHAR(64) NULL,
+  custom_head_html TEXT NULL,
   turnout_pay_docs_override TINYINT(1) NOT NULL DEFAULT 0,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id),

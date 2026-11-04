@@ -75,6 +75,7 @@ export const OrganizerAccount: React.FC = () => {
     tiktokPixelId: '',
     googleAdsId: '',
     googleAdsConversionLabel: '',
+    customHeadHtml: '',
   });
   const [members, setMembers] = useState<OrganizerTeamMember[]>([]);
   const [invites, setInvites] = useState<OrganizerTeamInvite[]>([]);
@@ -116,6 +117,7 @@ export const OrganizerAccount: React.FC = () => {
           tiktokPixelId: res.profile.tiktokPixelId || '',
           googleAdsId: res.profile.googleAdsId || '',
           googleAdsConversionLabel: res.profile.googleAdsConversionLabel || '',
+          customHeadHtml: res.profile.customHeadHtml || '',
         });
         setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
         if (res.workspace.canManageTeam) {
@@ -286,6 +288,7 @@ export const OrganizerAccount: React.FC = () => {
           tiktokPixelId: (profile.tiktokPixelId || '').trim(),
           googleAdsId: (profile.googleAdsId || '').trim(),
           googleAdsConversionLabel: (profile.googleAdsConversionLabel || '').trim(),
+          customHeadHtml: (profile.customHeadHtml || '').trim(),
         }
       );
       setUser(res.user);
@@ -297,6 +300,7 @@ export const OrganizerAccount: React.FC = () => {
         tiktokPixelId: res.profile.tiktokPixelId || '',
         googleAdsId: res.profile.googleAdsId || '',
         googleAdsConversionLabel: res.profile.googleAdsConversionLabel || '',
+        customHeadHtml: res.profile.customHeadHtml || '',
       }));
       setFeedback('Visitor tracking settings saved. Tags apply to all your event landing pages.');
     } catch (e: unknown) {
@@ -745,6 +749,24 @@ export const OrganizerAccount: React.FC = () => {
                 AW-ID/label on paid orders. Leave blank to load the Ads tag for remarketing only.
               </p>
             </label>
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <FlowLabel>Custom code for &lt;head&gt; (all events)</FlowLabel>
+              <textarea
+                value={profile.customHeadHtml || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, customHeadHtml: e.target.value }))}
+                rows={6}
+                placeholder={'<!-- Paste verification tags, pixels, or scripts -->\n<script>...</script>\n<meta name="..." content="..." />'}
+                className={`${fieldClass} font-mono text-xs`}
+                style={fieldStyle}
+                disabled={!workspace?.isOwner}
+                spellCheck={false}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                Injected into the page &lt;head&gt; on every public event landing, checkout, and confirmation
+                page. Use script / meta / link / style / noscript only (max 20KB). Prefer the built-in Meta,
+                GA, TikTok, and Google Ads fields above when possible. Add event-only codes in Event Settings.
+              </p>
+            </label>
           </div>
           <div
             className="mt-4 rounded-2xl border px-4 py-3 text-sm"
@@ -752,8 +774,8 @@ export const OrganizerAccount: React.FC = () => {
           >
             Tracked automatically: landing page views, checkout starts, and purchases (paid orders only)
             across Meta, GA4, TikTok (CompletePayment), and Google Ads (conversion when a label is set),
-            plus traffic sources into Google Analytics. Live design previews are not tracked. Override per
-            event in that event’s Settings → Visitor tracking.
+            plus traffic sources into Google Analytics. Custom head code runs in addition to those tags.
+            Live design previews are not tracked. Override or add per event in Settings → Visitor tracking.
           </div>
           {workspace?.isOwner ? (
             <div className="mt-5">

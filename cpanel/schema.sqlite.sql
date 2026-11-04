@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS organizer_profiles (
   tiktok_pixel_id TEXT NULL,
   google_ads_id TEXT NULL,
   google_ads_conversion_label TEXT NULL,
+  custom_head_html TEXT NULL,
   turnout_pay_docs_override INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
