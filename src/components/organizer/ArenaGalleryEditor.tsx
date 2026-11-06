@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { EVENT_IMAGE_ACCEPT, EVENT_IMAGE_HELPER_TEXT } from '../../utils/eventImageUpload';
 
 type ArenaGalleryEditorProps = {
   images: string[];
@@ -36,7 +37,7 @@ export function ArenaGalleryEditor({
             Arena carousel
           </p>
           <p className="mt-0.5 text-xs leading-relaxed" style={{ color: ui.textMuted }}>
-            Cover image is slide 1. Add venue maps, seating charts, or more posters.
+            Cover image is slide 1. Add venue maps, seating charts, posters, or animated GIFs.
           </p>
         </div>
         {canAdd ? (
@@ -88,7 +89,7 @@ export function ArenaGalleryEditor({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        accept={EVENT_IMAGE_ACCEPT}
         className="hidden"
         disabled={disabled || uploading || !canAdd}
         onChange={(e) => {
@@ -97,6 +98,9 @@ export function ArenaGalleryEditor({
           e.currentTarget.value = '';
         }}
       />
+      <p className="mt-2 text-[11px]" style={{ color: ui.textSubtle }}>
+        {EVENT_IMAGE_HELPER_TEXT}
+      </p>
     </div>
   );
 }

@@ -40,6 +40,7 @@ import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
 import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
 import { TicketBulkOffersFields } from '../components/organizer/TicketBulkOffersFields';
 import { bulkOffersPayloadFromForm, datetimeLocalToIso, defaultEarlyBirdEndLocal } from '../utils/ticketPricing';
+import { validateEventImageFile } from '../utils/eventImageUpload';
 
 const ticketTierSchema = z
   .object({
@@ -401,6 +402,11 @@ export const CreateEvent: React.FC = () => {
 
   const uploadBannerFile = async (file: File) => {
     setBannerUploadError(null);
+    const validationError = validateEventImageFile(file);
+    if (validationError) {
+      setBannerUploadError(validationError);
+      return;
+    }
     setIsUploadingBanner(true);
     try {
       const formData = new FormData();

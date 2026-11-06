@@ -49,12 +49,18 @@ function public_api_url(string $path): string {
   return $base !== '' ? $base . $path : $path;
 }
 
+function banner_max_upload_bytes(): int {
+  // Animated GIFs are larger than typical JPG/PNG covers.
+  return 10 * 1024 * 1024;
+}
+
 function banner_allowed_mime_types(): array {
   return [
     'image/jpeg' => 'jpg',
     'image/png' => 'png',
     'image/webp' => 'webp',
     'image/gif' => 'gif',
+    'image/x-gif' => 'gif',
   ];
 }
 
@@ -251,15 +257,26 @@ function handle_banner_upload_post(): void {
   }
 
   $size = (int)($file['size'] ?? 0);
-  if ($size <= 0 || $size > (5 * 1024 * 1024)) {
-    json_response(400, ['error' => 'file_too_large']);
+  if ($size <= 0 || $size > banner_max_upload_bytes()) {
+    json_response(400, [
+      'error' => 'file_too_large',
+      'message' => 'Image must be 10MB or smaller. Animated GIFs are supported — try compressing larger files.',
+    ]);
   }
 
   $mime = detect_banner_mime($tmpPath, $file);
   $allowed = banner_allowed_mime_types();
   $ext = $allowed[$mime] ?? null;
   if ($ext === null) {
-    json_response(400, ['error' => 'unsupported_file_type']);
+    json_response(400, [
+      'error' => 'unsupported_file_type',
+      'message' => 'Upload PNG, JPG, WEBP, or GIF images only.',
+    ]);
+  }
+
+  // Normalize alias MIME so Blob/local storage get a standard Content-Type.
+  if ($mime === 'image/x-gif') {
+    $mime = 'image/gif';
   }
 
   $blobUrl = try_upload_banner_to_vercel_blob($tmpPath, $mime, $ext);
