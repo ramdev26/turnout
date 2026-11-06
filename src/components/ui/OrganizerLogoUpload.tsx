@@ -61,7 +61,7 @@ export function OrganizerLogoUpload({
               Add logo
             </p>
             <p className="text-[11px] leading-snug" style={{ color: ui.textMuted }}>
-              PNG, JPG, or WEBP
+              PNG, JPG, WEBP, or GIF
             </p>
           </div>
         )}

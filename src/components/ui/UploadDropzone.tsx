@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ImagePlus, Loader2, UploadCloud } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { EVENT_IMAGE_ACCEPT, EVENT_IMAGE_HELPER_TEXT } from '../../utils/eventImageUpload';
 
 type UploadDropzoneProps = {
   onFileSelect: (file: File) => void;
@@ -13,7 +14,7 @@ export function UploadDropzone({
   onFileSelect,
   disabled = false,
   previewUrl,
-  helperText = 'PNG, JPG, WEBP or GIF up to 5MB',
+  helperText = EVENT_IMAGE_HELPER_TEXT,
 }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -79,7 +80,7 @@ export function UploadDropzone({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        accept={EVENT_IMAGE_ACCEPT}
         className="hidden"
         disabled={disabled}
         onChange={(e) => {

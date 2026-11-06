@@ -23,6 +23,7 @@ import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
 import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
+import { validateEventImageFile } from '../utils/eventImageUpload';
 import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
 import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
@@ -510,14 +511,20 @@ export const EventSettings: React.FC = () => {
   }, [eventId, tickets]);
 
   const uploadBannerFile = async (file: File) => {
-    setIsUploadingBanner(true);
     setBannerUploadError(null);
+    const validationError = validateEventImageFile(file);
+    if (validationError) {
+      setBannerUploadError(validationError);
+      return;
+    }
+    setIsUploadingBanner(true);
     try {
       const url = await uploadImageFile(file);
       if (url) setBannerUrl(url);
       else setBannerUploadError('Upload failed');
-    } catch {
-      setBannerUploadError('Upload failed. Check your connection.');
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setBannerUploadError(err?.message || 'Upload failed. Check your connection.');
     } finally {
       setIsUploadingBanner(false);
     }
@@ -539,12 +546,17 @@ export const EventSettings: React.FC = () => {
       data = null;
     }
     if (res.ok && data?.bannerUrl) return normalizeBannerUrl(data.bannerUrl);
-    return null;
+    throw Object.assign(new Error(data?.message || 'Upload failed'), data || {});
   };
 
   const uploadArenaGalleryFile = async (file: File) => {
-    setIsUploadingArenaGallery(true);
     setBannerUploadError(null);
+    const validationError = validateEventImageFile(file);
+    if (validationError) {
+      setBannerUploadError(validationError);
+      return;
+    }
+    setIsUploadingArenaGallery(true);
     try {
       const url = await uploadImageFile(file);
       if (!url) {
@@ -552,8 +564,9 @@ export const EventSettings: React.FC = () => {
         return;
       }
       setArenaGalleryImages((prev) => normalizeArenaGalleryImages([...prev, url]));
-    } catch {
-      setBannerUploadError('Gallery upload failed. Check your connection.');
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setBannerUploadError(err?.message || 'Gallery upload failed. Check your connection.');
     } finally {
       setIsUploadingArenaGallery(false);
     }
