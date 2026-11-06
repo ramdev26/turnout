@@ -82,6 +82,30 @@ function mark_user_email_verified(PDO $pdo, int $userId): void {
 }
 
 /**
+ * Super-admin override: mark email verified even when the user never clicked the link.
+ * Used when busy organizers cannot access OTP / verification email.
+ */
+function admin_force_verify_user_email(PDO $pdo, int $userId): bool {
+  if ($userId <= 0) return false;
+  ensure_email_verification_support($pdo);
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'sqlite') {
+    $stmt = $pdo->prepare("UPDATE users SET email_verified_at = datetime('now') WHERE id = ?");
+  } else {
+    $stmt = $pdo->prepare('UPDATE users SET email_verified_at = CURRENT_TIMESTAMP WHERE id = ?');
+  }
+  $stmt->execute([$userId]);
+  return $stmt->rowCount() > 0 || user_row_email_verified($pdo, $userId);
+}
+
+function user_row_email_verified(PDO $pdo, int $userId): bool {
+  $stmt = $pdo->prepare('SELECT email_verified_at FROM users WHERE id = ? LIMIT 1');
+  $stmt->execute([$userId]);
+  $row = $stmt->fetch();
+  return is_array($row) && user_email_is_verified($row);
+}
+
+/**
  * Create account + send verification email. Does not start a session.
  *
  * @return array{userId:int,emailSent:bool}

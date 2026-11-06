@@ -26,6 +26,7 @@ type AdminOrganizerRow = {
   displayName: string;
   email: string;
   status: string;
+  emailVerified?: boolean;
   organizationName: string;
   phone: string | null;
   businessAddress: string | null;
@@ -50,7 +51,7 @@ type AdminOrganizerRow = {
 };
 
 type OrganizerDetail = {
-  user: { id: string; email: string; displayName: string; status: string; createdAt: string };
+  user: { id: string; email: string; displayName: string; status: string; emailVerified?: boolean; createdAt: string };
   profile: OrganizerProfile;
   readiness: OrganizerPaidEventReadiness;
   commission: {
@@ -155,6 +156,7 @@ export const AdminOrganizers: React.FC = () => {
   const [rows, setRows] = useState<AdminOrganizerRow[]>([]);
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
+  const [verifiedFilter, setVerifiedFilter] = useState<'all' | 'unverified' | 'verified'>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrganizerDetail | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -167,6 +169,7 @@ export const AdminOrganizers: React.FC = () => {
   const [commissionValue, setCommissionValue] = useState<string>('10');
   const [savingCommission, setSavingCommission] = useState(false);
   const [savingOverride, setSavingOverride] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
   const load = useCallback(
     async (opts?: { background?: boolean }) => {
@@ -177,6 +180,8 @@ export const AdminOrganizers: React.FC = () => {
       try {
         const params = new URLSearchParams();
         if (debouncedQ.trim()) params.set('q', debouncedQ.trim());
+        if (verifiedFilter === 'unverified') params.set('verified', '0');
+        if (verifiedFilter === 'verified') params.set('verified', '1');
         const res = await api.get<{ organizers: AdminOrganizerRow[] }>(`/api/admin/organizers?${params.toString()}`);
         setRows(res.organizers);
         hasLoadedOnceRef.current = true;
@@ -188,7 +193,7 @@ export const AdminOrganizers: React.FC = () => {
         setRefreshing(false);
       }
     },
-    [debouncedQ],
+    [debouncedQ, verifiedFilter],
   );
 
   const loadDetail = async (organizerId: string) => {
@@ -302,10 +307,34 @@ export const AdminOrganizers: React.FC = () => {
     }
   };
 
+  const allowOrganizerAccess = async (organizerId: string, email: string) => {
+    if (
+      !window.confirm(
+        `Approve ${email} without email verification / two-factor?\n\nThey will be able to sign in immediately without the verification email or OTP.`
+      )
+    ) {
+      return;
+    }
+    setVerifyingId(organizerId);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await api.post<{ message?: string }>(`/api/admin/users/${organizerId}/verify-email`, {});
+      setMessage(res.message || 'Organizer approved. They can sign in now.');
+      await load({ background: true });
+      if (selectedId === organizerId) await loadDetail(organizerId);
+    } catch (e: unknown) {
+      const err = e as { error?: string; message?: string };
+      setError(err?.message || err?.error || 'Could not approve organizer without verification');
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
   return (
     <AdminShell
       title="Organizers"
-      subtitle="Manage profiles, commission rates, KYC, bank details, and payouts."
+      subtitle="Manage profiles, approve stuck signups without email two-factor, commission, KYC, and payouts."
     >
       {error ? <FlowAlert variant="error">{error}</FlowAlert> : null}
       {message ? <FlowAlert variant="success">{message}</FlowAlert> : null}
@@ -319,7 +348,7 @@ export const AdminOrganizers: React.FC = () => {
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(400px,480px)]">
           <FlowCard className="overflow-hidden p-0">
-            <div className="border-b p-4 sm:p-5" style={{ borderColor: ui.borderColor, background: ui.cardBg }}>
+            <div className="space-y-3 border-b p-4 sm:p-5" style={{ borderColor: ui.borderColor, background: ui.cardBg }}>
               <AdminSearchBar
                 value={q}
                 onChange={setQ}
@@ -327,6 +356,17 @@ export const AdminOrganizers: React.FC = () => {
                 refreshing={refreshing}
                 aria-label="Search organizers"
               />
+              <select
+                value={verifiedFilter}
+                onChange={(e) => setVerifiedFilter(e.target.value as typeof verifiedFilter)}
+                className={cn(fieldClassFor(ui), 'w-full sm:w-auto')}
+                style={fieldStyle}
+                aria-label="Filter by email verification"
+              >
+                <option value="all">All organizers</option>
+                <option value="unverified">Unverified (need approval)</option>
+                <option value="verified">Verified</option>
+              </select>
             </div>
             <div className="border-b px-5 py-4" style={{ borderColor: ui.borderColor }}>
               <p className="text-sm font-semibold" style={{ color: ui.text }}>
@@ -374,9 +414,15 @@ export const AdminOrganizers: React.FC = () => {
                         <div className="min-w-0">
                           <p className="truncate text-base font-semibold" style={{ color: ui.text }}>
                             {o.organizationName || o.displayName}
+                            {o.emailVerified === false ? (
+                              <span className="ml-2 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">
+                                Unverified
+                              </span>
+                            ) : null}
                           </p>
                           <p className="mt-0.5 truncate text-sm" style={{ color: ui.textMuted }}>
                             {o.email}
+                            {o.emailVerified === false ? ' · awaiting approval / email verify' : ''}
                           </p>
                           <p className="mt-2 text-xs" style={{ color: ui.textSubtle }}>
                             {o.eventsCount} event{o.eventsCount === 1 ? '' : 's'} · Setup {done}/{checks.length} ·{' '}
@@ -430,9 +476,30 @@ export const AdminOrganizers: React.FC = () => {
                       {detail.user.status}
                     </span>
                     <span className="rounded-full border px-2.5 py-1" style={cardMutedStyleFor(ui)}>
+                      Email: {detail.user.emailVerified === false ? 'Unverified' : 'Verified'}
+                    </span>
+                    <span className="rounded-full border px-2.5 py-1" style={cardMutedStyleFor(ui)}>
                       Gateway: {detail.readiness.gatewayMode === 'own_payhere' ? 'Own PayHere' : 'Turnout'}
                     </span>
                   </div>
+
+                  {detail.user.emailVerified === false ? (
+                    <div className="mt-4 space-y-2">
+                      <FlowButton
+                        className="w-full"
+                        disabled={verifyingId === detail.user.id}
+                        onClick={() => void allowOrganizerAccess(detail.user.id, detail.user.email)}
+                      >
+                        {verifyingId === detail.user.id
+                          ? 'Approving…'
+                          : 'Approve without two-factor / email verify'}
+                      </FlowButton>
+                      <p className="text-xs leading-relaxed" style={{ color: ui.textMuted }}>
+                        Use when the organizer cannot receive the signup verification email or OTP. This marks
+                        their email verified so they can sign in immediately.
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div className="rounded-xl border px-3 py-3" style={cardMutedStyleFor(ui)}>
