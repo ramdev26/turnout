@@ -258,6 +258,13 @@ export function LandingPulsePage({
 
   const bannerUrl = event.bannerUrl?.trim() || '';
 
+  const fromPriceLabel = useMemo(() => {
+    const priced = tickets.map((t) => ticketEffectivePrice(t)).filter((n) => Number.isFinite(n));
+    if (priced.length === 0) return '—';
+    const lowest = Math.min(...priced);
+    return lowest <= 0 ? 'Free' : formatLKRWhole(lowest);
+  }, [tickets]);
+
   return (
     <LandingPageShell event={event} showcase>
       <div className="landing-pulse">
@@ -340,17 +347,7 @@ export function LandingPulsePage({
                 </button>
                 {tickets.length > 0 ? (
                   <p className="pulse-hero-from">
-                    From{' '}
-                    <strong>
-                      {(() => {
-                        const priced = tickets
-                          .map((t) => ticketEffectivePrice(t))
-                          .filter((n) => Number.isFinite(n));
-                        if (priced.length === 0) return '—';
-                        const lowest = Math.min(...priced);
-                        return lowest <= 0 ? 'Free' : formatLKRWhole(lowest);
-                      })()}
-                    </strong>
+                    From <strong>{fromPriceLabel}</strong>
                   </p>
                 ) : null}
               </div>
@@ -423,14 +420,14 @@ export function LandingPulsePage({
                           .filter(Boolean)
                           .join(' ')}
                       >
-                        <td>
+                        <td data-label="Room">
                           <div className="pulse-row-name">{ticket.name}</div>
                           {remaining <= 0 ? (
                             <div className="pulse-schedule-time">Sold out</div>
                           ) : null}
                         </td>
                         {hasEarlyBirdColumn ? (
-                          <td>
+                          <td data-label="First release">
                             <button
                               type="button"
                               className="pulse-price-btn"
@@ -441,13 +438,13 @@ export function LandingPulsePage({
                             </button>
                           </td>
                         ) : (
-                          <td>
+                          <td data-label="Price">
                             <span className="pulse-price">{money(standard)}</span>
                           </td>
                         )}
-                        <td>
+                        <td data-label={hasEarlyBirdColumn ? 'Second release' : 'Select'}>
                           {hasEarlyBirdColumn ? (
-                            <div>
+                            <div className="pulse-price-select">
                               <span className="pulse-price">{money(standard)}</span>
                               {remaining > 0 ? (
                                 <PulseQty
@@ -477,7 +474,7 @@ export function LandingPulsePage({
             <p className="pulse-prices-note">{priceNote}</p>
           </section>
 
-          <div className="pulse-cta-row">
+          <div className="pulse-cta-row pulse-cta-row--desktop">
             <button
               type="button"
               className="pulse-cta landing-type-button"
@@ -493,8 +490,30 @@ export function LandingPulsePage({
             ) : null}
           </div>
         </div>
+
+        <div className="pulse-mobilebar" role="region" aria-label="Ticket checkout">
+          <div className="pulse-mobilebar-meta">
+            <p className="pulse-mobilebar-label">{hasSelection ? 'Total' : 'From'}</p>
+            <p className="pulse-mobilebar-price">
+              {hasSelection
+                ? totalAmount <= 0
+                  ? 'Free'
+                  : formatLKRWhole(totalAmount)
+                : fromPriceLabel}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="pulse-cta pulse-cta--bar landing-type-button"
+            onClick={handleGetTickets}
+            disabled={isPurchasing}
+          >
+            {isPurchasing ? 'Processing…' : hasSelection ? 'Checkout →' : 'Get tickets →'}
+          </button>
+        </div>
       </div>
       <LandingFooter event={event} />
+      <div className="pulse-mobilebar-spacer" aria-hidden />
     </LandingPageShell>
   );
 }
