@@ -58,6 +58,14 @@ export function eventImageSizeHint(templateId?: string | null): EventImageLayout
     };
   }
 
+  // Pulse — typography-first poster (banner optional)
+  if (id === 'template-11') {
+    return {
+      label: 'Pulse · optional 1920×1080 (16:9)',
+      detail: 'Typography-led layout — banner is optional. Square or landscape GIF ok · max 10MB.',
+    };
+  }
+
   // Minimal / other
   if (id === 'template-5' || id === 'template-3') {
     return {

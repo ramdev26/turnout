@@ -1,0 +1,535 @@
+/* Pulse — dark club-poster landing (black / neon pink) */
+
+.landing-pulse {
+  --pulse-bg: #000000;
+  --pulse-ink: #ffffff;
+  --pulse-muted: #8c8c8c;
+  --pulse-line: #2a2a2a;
+  --pulse-line-strong: #3a3a3a;
+  --pulse-accent: var(--landing-button, var(--landing-accent-readable, var(--primary, #ff2d8f)));
+  --pulse-accent-ink: #000000;
+  --pulse-card-border: #2f2f2f;
+  --pulse-highlight: color-mix(in srgb, var(--pulse-accent) 16%, #0a0a0a);
+  --pulse-font-display: var(--landing-font-display, "Archivo", ui-sans-serif, system-ui, sans-serif);
+  --pulse-font-body: var(--landing-font-body, "Archivo", ui-sans-serif, system-ui, sans-serif);
+  background: var(--pulse-bg);
+  color: var(--pulse-ink);
+  min-height: 60vh;
+  font-family: var(--pulse-font-body);
+  letter-spacing: 0.01em;
+}
+
+.landing-page:has(.landing-pulse)::before {
+  display: none;
+}
+
+.landing-page:has(.landing-pulse) {
+  background: #000000 !important;
+}
+
+.pulse-shell {
+  width: min(1120px, calc(100% - 2.5rem));
+  margin: 0 auto;
+  padding: 1.75rem 0 4.5rem;
+}
+
+@media (min-width: 768px) {
+  .pulse-shell {
+    width: min(1120px, calc(100% - 4rem));
+    padding: 2.25rem 0 5.5rem;
+  }
+}
+
+/* ── Header ── */
+.pulse-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2.75rem;
+}
+
+.pulse-brand {
+  margin: 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-brand span {
+  display: block;
+}
+
+.pulse-eyebrow {
+  margin: 0;
+  max-width: 14rem;
+  text-align: right;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pulse-accent);
+  line-height: 1.35;
+}
+
+/* ── Hero ── */
+.pulse-hero {
+  display: grid;
+  gap: 2rem;
+  margin-bottom: 2.75rem;
+}
+
+@media (min-width: 900px) {
+  .pulse-hero {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 3rem;
+    align-items: end;
+  }
+}
+
+.pulse-headline {
+  margin: 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(2.75rem, 7.5vw, 5.6rem);
+  line-height: 0.88;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-headline-accent {
+  color: var(--pulse-accent);
+}
+
+.pulse-tagline {
+  margin: 1.1rem 0 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(1.05rem, 2.2vw, 1.55rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.pulse-weekday {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-date {
+  margin: 0.15rem 0 0;
+  position: relative;
+  display: inline-block;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 5vw, 3.55rem);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: var(--pulse-ink);
+}
+
+.pulse-date-mark {
+  position: absolute;
+  left: 1.55em;
+  bottom: 0.02em;
+  width: 0.42em;
+  height: 3px;
+  background: var(--pulse-accent);
+}
+
+.pulse-rule {
+  border: 0;
+  border-top: 1px solid var(--pulse-line);
+  margin: 0.15rem 0;
+}
+
+.pulse-schedule {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.pulse-schedule-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-schedule-time {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--pulse-muted);
+}
+
+.pulse-venue-label {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pulse-accent);
+}
+
+.pulse-venue-value {
+  margin: 0.25rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--pulse-ink);
+}
+
+.pulse-city {
+  margin: 0.35rem 0 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pulse-muted);
+  text-align: right;
+}
+
+@media (max-width: 899px) {
+  .pulse-city {
+    text-align: left;
+  }
+}
+
+/* ── Rooms ── */
+.pulse-rooms-wrap {
+  margin-bottom: 2.75rem;
+}
+
+.pulse-rooms {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (min-width: 768px) {
+  .pulse-rooms {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+}
+
+.pulse-room {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 1.15rem 1.2rem 1.05rem;
+  border: 1px solid var(--pulse-card-border);
+  background: #000000;
+}
+
+.pulse-room--accent {
+  border-color: color-mix(in srgb, var(--pulse-accent) 55%, #2a2a2a);
+}
+
+.pulse-room-kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pulse-accent);
+}
+
+.pulse-room-title {
+  margin: 0.55rem 0 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-room--accent .pulse-room-title {
+  color: var(--pulse-accent);
+}
+
+.pulse-room-body {
+  margin: 0.85rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--pulse-ink) 78%, #888);
+  flex: 1;
+}
+
+.pulse-room-rule {
+  border: 0;
+  border-top: 1px solid var(--pulse-line);
+  margin: 1rem 0 0.75rem;
+}
+
+.pulse-room-tags {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--pulse-ink) 70%, #777);
+  word-spacing: 0.65rem;
+}
+
+/* ── Prices ── */
+.pulse-prices {
+  margin-bottom: 2.25rem;
+}
+
+.pulse-prices-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pulse-prices-title {
+  margin: 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+
+.pulse-prices-currency {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pulse-muted);
+}
+
+.pulse-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pulse-table th,
+.pulse-table td {
+  padding: 0.85rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--pulse-line);
+  vertical-align: middle;
+}
+
+.pulse-table th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pulse-muted);
+}
+
+.pulse-table th:not(:first-child),
+.pulse-table td:not(:first-child) {
+  text-align: right;
+}
+
+.pulse-th-sale {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.pulse-onsale {
+  display: inline-block;
+  padding: 0.12rem 0.4rem;
+  background: var(--pulse-accent);
+  color: var(--pulse-accent-ink);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.pulse-row-name {
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-row--featured {
+  background: var(--pulse-highlight);
+}
+
+.pulse-row--featured .pulse-row-name {
+  color: var(--pulse-accent);
+}
+
+.pulse-row--featured td {
+  border-bottom-color: color-mix(in srgb, var(--pulse-accent) 25%, var(--pulse-line));
+}
+
+.pulse-row--active {
+  outline: 1px solid color-mix(in srgb, var(--pulse-accent) 45%, transparent);
+  outline-offset: -1px;
+}
+
+.pulse-price {
+  font-weight: 700;
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--pulse-ink);
+}
+
+.pulse-price-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: inherit;
+  width: 100%;
+}
+
+.pulse-price-btn:hover .pulse-price,
+.pulse-price-btn:focus-visible .pulse-price {
+  color: var(--pulse-accent);
+}
+
+.pulse-qty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.pulse-qty button {
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid var(--pulse-line-strong);
+  background: #000;
+  color: var(--pulse-ink);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pulse-qty button:hover:not(:disabled) {
+  border-color: var(--pulse-accent);
+  color: var(--pulse-accent);
+}
+
+.pulse-qty button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pulse-qty span {
+  min-width: 1.1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.pulse-prices-note {
+  margin: 0.9rem 0 0;
+  max-width: 42rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--pulse-muted);
+}
+
+/* ── CTA ── */
+.pulse-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.pulse-cta {
+  appearance: none;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 3.15rem;
+  padding: 0.85rem 1.45rem;
+  background: var(--pulse-accent);
+  color: var(--pulse-accent-ink);
+  font-family: var(--pulse-font-display);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.pulse-cta:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.pulse-cta:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.pulse-total {
+  font-size: 0.85rem;
+  color: var(--pulse-muted);
+}
+
+.pulse-total strong {
+  color: var(--pulse-ink);
+  font-weight: 800;
+}
+
+.pulse-empty {
+  padding: 1.25rem;
+  border: 1px dashed var(--pulse-line-strong);
+  color: var(--pulse-muted);
+  font-size: 0.9rem;
+}
+
+/* Mobile preview in design dock */
+.event-settings-mobile-preview .landing-pulse .pulse-shell,
+.event-settings-desktop-preview .landing-pulse .pulse-shell {
+  width: calc(100% - 1.25rem);
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+.event-settings-mobile-preview .landing-pulse .pulse-headline {
+  font-size: 2.1rem;
+}
+
+.event-settings-mobile-preview .landing-pulse .pulse-date {
+  font-size: 1.85rem;
+}

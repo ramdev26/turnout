@@ -9,6 +9,7 @@ import { LandingArenaPage } from '../components/landing/LandingArena';
 import { LandingArenaNovaPage } from '../components/landing/LandingArenaNova';
 import { LandingSpotlightPage } from '../components/landing/LandingSpotlight';
 import { LandingGatherPage } from '../components/landing/LandingGather';
+import { LandingPulsePage } from '../components/landing/LandingPulse';
 import {
   AboutBlock,
   CheckoutPanel,
@@ -25,7 +26,15 @@ import {
   TicketsSection,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-8' | 'template-10' | 'template-canvas';
+export type TemplateId =
+  | 'template-2'
+  | 'template-5'
+  | 'template-6'
+  | 'template-7'
+  | 'template-8'
+  | 'template-10'
+  | 'template-11'
+  | 'template-canvas';
 
 /** Layout templates organizers can pick in the design console (excludes custom canvas). */
 export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
@@ -41,6 +50,7 @@ export const LANDING_LAYOUT_TEMPLATES: {
   { id: 'template-10', name: 'Arena Nova', description: 'Refined arena layout with immersive media and polished mobile UX' },
   { id: 'template-7', name: 'Spotlight', description: 'Featured banner with sticky booking card' },
   { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
+  { id: 'template-11', name: 'Pulse', description: 'Dark club-poster layout with rooms and price table' },
 ];
 
 const LEGACY_TEMPLATE_IDS = new Set(['template-1', 'template-3', 'template-4']);
@@ -52,7 +62,8 @@ export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
     id === 'template-6' ||
     id === 'template-10' ||
     id === 'template-7' ||
-    id === 'template-8'
+    id === 'template-8' ||
+    id === 'template-11'
   ) {
     return id;
   }
@@ -318,6 +329,14 @@ const TemplateGather: LandingTemplate = {
   render: (props) => <LandingGatherPage {...props} />,
 };
 
+const TemplatePulse: LandingTemplate = {
+  id: 'template-11',
+  name: 'Pulse',
+  description: 'Dark club-poster layout with stacked brand, room cards, and release price table.',
+  previewSeed: 'pulse-club',
+  render: (props) => <LandingPulsePage {...props} />,
+};
+
 export const landingTemplates: LandingTemplate[] = [
   TemplateShowcase,
   TemplateGather,
@@ -325,6 +344,7 @@ export const landingTemplates: LandingTemplate[] = [
   TemplateArenaNova,
   TemplateSpotlight,
   TemplateClassic,
+  TemplatePulse,
 ];
 
 export function getLandingTemplate(id: string | undefined): LandingTemplate {
