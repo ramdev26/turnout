@@ -272,7 +272,7 @@ export function LandingPulsePage({
           </header>
 
           <section className="pulse-hero" aria-label="Event overview">
-            <div className="pulse-hero-main">
+            <div className="pulse-hero-poster">
               {bannerUrl ? (
                 <div className="pulse-poster" aria-label="Event cover">
                   <img
@@ -282,48 +282,78 @@ export function LandingPulsePage({
                     referrerPolicy="no-referrer"
                   />
                 </div>
-              ) : null}
-              <p className="pulse-headline landing-type-h1">
-                {lead ? (
-                  <>
-                    {lead}{' '}
-                    <span className="pulse-headline-accent">{accent}</span>
-                  </>
-                ) : (
-                  <span className="pulse-headline-accent">{accent}</span>
-                )}
-              </p>
-              <p className="pulse-tagline">{tagline}</p>
+              ) : (
+                <div className="pulse-poster pulse-poster--empty" aria-hidden>
+                  <p className="pulse-poster-fallback">{event.title || 'Event'}</p>
+                </div>
+              )}
             </div>
 
-            <div className="pulse-meta">
-              <div>
-                <p className="pulse-weekday">{weekday}</p>
-                <p className="pulse-date">
-                  {dateLabel}
-                  {!tba && dateLabel.includes('.') ? <span className="pulse-date-mark" aria-hidden /> : null}
+            <div className="pulse-hero-rail">
+              <div className="pulse-hero-copy">
+                <p className="pulse-headline landing-type-h1">
+                  {lead ? (
+                    <>
+                      {lead}{' '}
+                      <span className="pulse-headline-accent">{accent}</span>
+                    </>
+                  ) : (
+                    <span className="pulse-headline-accent">{accent}</span>
+                  )}
                 </p>
+                <p className="pulse-tagline">{tagline}</p>
               </div>
 
-              <hr className="pulse-rule" />
+              <div className="pulse-meta">
+                <div>
+                  <p className="pulse-weekday">{weekday}</p>
+                  <p className="pulse-date">
+                    {dateLabel}
+                    {!tba && dateLabel.includes('.') ? <span className="pulse-date-mark" aria-hidden /> : null}
+                  </p>
+                </div>
 
-              <div className="pulse-schedule">
-                {schedule.map((line) => (
-                  <div key={`${line.label}-${line.time}`}>
-                    <p className="pulse-schedule-label">{line.label}</p>
-                    <p className="pulse-schedule-time">{line.time}</p>
-                  </div>
-                ))}
+                <hr className="pulse-rule" />
+
+                <div className="pulse-schedule">
+                  {schedule.map((line) => (
+                    <div key={`${line.label}-${line.time}`}>
+                      <p className="pulse-schedule-label">{line.label}</p>
+                      <p className="pulse-schedule-time">{line.time}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <hr className="pulse-rule" />
+
+                <div>
+                  <p className="pulse-venue-label">Venue</p>
+                  <p className="pulse-venue-value">{venueValue}</p>
+                </div>
+
+                <p className="pulse-city">{cityLine}</p>
               </div>
 
-              <hr className="pulse-rule" />
-
-              <div>
-                <p className="pulse-venue-label">Venue</p>
-                <p className="pulse-venue-value">{venueValue}</p>
+              <div className="pulse-hero-actions">
+                <button type="button" className="pulse-cta pulse-cta--inline landing-type-button" onClick={handleGetTickets}>
+                  Get tickets →
+                </button>
+                {tickets.length > 0 ? (
+                  <p className="pulse-hero-from">
+                    From{' '}
+                    <strong>
+                      {(() => {
+                        const priced = tickets
+                          .map((t) => ticketEffectivePrice(t))
+                          .filter((n) => Number.isFinite(n));
+                        if (priced.length === 0) return '—';
+                        const lowest = Math.min(...priced);
+                        return lowest <= 0 ? 'Free' : formatLKRWhole(lowest);
+                      })()}
+                    </strong>
+                  </p>
+                ) : null}
               </div>
-
-              <p className="pulse-city">{cityLine}</p>
             </div>
           </section>
 
