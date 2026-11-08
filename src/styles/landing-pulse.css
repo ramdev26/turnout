@@ -533,3 +533,145 @@
 .event-settings-mobile-preview .landing-pulse .pulse-date {
   font-size: 1.85rem;
 }
+
+/* ── Pulse checkout (page + modal) ── */
+.landing-pulse-checkout {
+  --pulse-bg: #000000;
+  --pulse-ink: #ffffff;
+  --pulse-muted: #8c8c8c;
+  --pulse-line: #2a2a2a;
+  --pulse-accent: var(--landing-button, var(--landing-accent-readable, var(--primary, #ff2d8f)));
+  --pulse-accent-ink: #000000;
+  --pulse-surface: #0a0a0a;
+  --pulse-surface-muted: #141414;
+  --landing-page-bg: var(--pulse-bg);
+  --landing-surface: var(--pulse-surface);
+  --landing-surface-muted: var(--pulse-surface-muted);
+  --landing-text: var(--pulse-ink);
+  --landing-text-muted: var(--pulse-muted);
+  --landing-border: var(--pulse-line);
+  --landing-heading: var(--pulse-ink);
+  --landing-button: var(--pulse-accent);
+  --landing-button-text: var(--pulse-accent-ink);
+  --landing-on-button: var(--pulse-accent-ink);
+  --landing-accent-readable: var(--pulse-accent);
+  --landing-shadow-hover: 0 18px 40px rgba(0, 0, 0, 0.55);
+  background: var(--pulse-bg);
+  color: var(--pulse-ink);
+  font-family: var(--landing-font-body, "Archivo", ui-sans-serif, system-ui, sans-serif);
+  min-height: 100dvh;
+}
+
+.landing-pulse-checkout .landing-eyebrow {
+  color: var(--pulse-accent) !important;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.68rem;
+}
+
+.landing-pulse-checkout .landing-display {
+  font-family: var(--landing-font-display, "Archivo", ui-sans-serif, system-ui, sans-serif);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.landing-pulse-checkout .landing-card-premium,
+.landing-pulse-checkout .pulse-checkout-aside {
+  border-radius: 0 !important;
+  border: 1px solid var(--pulse-line) !important;
+  background: var(--pulse-surface) !important;
+  box-shadow: none !important;
+}
+
+.landing-pulse-checkout .landing-checkout-input {
+  border-radius: 0 !important;
+  border-color: var(--pulse-line) !important;
+  background: var(--pulse-surface-muted) !important;
+  color: var(--pulse-ink) !important;
+  box-shadow: none !important;
+}
+
+.landing-pulse-checkout .landing-checkout-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--pulse-accent) !important;
+  border-color: var(--pulse-accent) !important;
+}
+
+.landing-pulse-checkout .landing-checkout-input::placeholder {
+  color: color-mix(in srgb, var(--pulse-muted) 80%, transparent);
+}
+
+.landing-pulse-checkout .landing-btn-primary,
+.landing-pulse-checkout .landing-checkout-confirm {
+  border-radius: 0 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800 !important;
+  color: var(--pulse-accent-ink) !important;
+  background: var(--pulse-accent) !important;
+  box-shadow: none !important;
+}
+
+.landing-pulse-checkout .landing-checkout-modal {
+  border-radius: 0 !important;
+  background: var(--pulse-bg) !important;
+  border-color: var(--pulse-line) !important;
+}
+
+.landing-pulse-checkout .landing-checkout-footer {
+  background: var(--pulse-surface) !important;
+  border-color: var(--pulse-line) !important;
+  box-shadow: none !important;
+}
+
+.landing-pulse-checkout .pulse-checkout-error {
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, #fb7185 45%, var(--pulse-line));
+  background: color-mix(in srgb, #fb7185 12%, #000);
+  color: #fda4af;
+}
+
+.landing-pulse-checkout .pulse-checkout-shell {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.5rem 0 3.5rem;
+}
+
+@media (min-width: 768px) {
+  .landing-pulse-checkout .pulse-checkout-shell {
+    width: min(1120px, calc(100% - 4rem));
+    padding-top: 2rem;
+    padding-bottom: 4.5rem;
+  }
+}
+
+.landing-pulse-checkout .pulse-checkout-brand {
+  margin: 0 0 1.75rem;
+  font-family: var(--landing-font-display, "Archivo", ui-sans-serif, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+
+.landing-pulse-checkout .pulse-checkout-brand span {
+  display: block;
+}
+
+.landing-pulse-checkout [role='radiogroup'] {
+  border-radius: 0 !important;
+  background: var(--pulse-surface-muted) !important;
+}
+
+.landing-pulse-checkout [role='radiogroup'] button {
+  border-radius: 0 !important;
+}
+
+.landing-pulse-checkout [role='radiogroup'] button[aria-checked='true'] {
+  background: var(--pulse-surface) !important;
+  box-shadow: inset 0 0 0 1px var(--pulse-accent) !important;
+}

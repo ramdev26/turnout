@@ -511,10 +511,20 @@ export const EventCheckoutForm: React.FC<Props> = ({
     }
   };
 
+  const isPulse = event.templateId === 'template-11';
+
   const inputStyle: React.CSSProperties = {
     borderColor: 'var(--landing-border)',
     background: 'var(--landing-surface-muted)',
     color: 'var(--landing-text)',
+  };
+
+  const stackBrand = (title: string): string[] => {
+    const words = title.trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 1) return [title.trim() || 'Checkout'];
+    if (words.length === 2) return words;
+    const mid = Math.ceil(words.length / 2);
+    return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
   };
 
   const limitsNote = purchaseLimitsSummary(purchaseLimitsFromEvent(event));
@@ -686,11 +696,26 @@ export const EventCheckoutForm: React.FC<Props> = ({
     <button
       type="submit"
       disabled={isPurchasing || !prefillReady || !acceptedOrganizerTerms || !acceptedEventPolicy}
-      className="landing-btn-primary landing-checkout-confirm h-12 w-full rounded-2xl text-base font-bold disabled:opacity-50"
+      className={`landing-btn-primary landing-checkout-confirm h-12 w-full text-base font-bold disabled:opacity-50 ${
+        isPulse ? 'rounded-none' : 'rounded-2xl'
+      }`}
     >
-      {submitLabel}
+      {isPulse && !isPurchasing && payableTotal > 0 && paymentMethod !== 'bank_transfer'
+        ? `${submitLabel} →`
+        : isPulse && !isPurchasing && payableTotal <= 0
+          ? 'Confirm →'
+          : submitLabel}
     </button>
   );
+
+  const errorBox = (extraClassName = '') =>
+    payError ? (
+      <div
+        className={`${isPulse ? 'pulse-checkout-error' : 'rounded-xl border border-red-200 bg-red-50 text-red-700'} p-2.5 text-xs font-medium ${extraClassName}`}
+      >
+        {payError}
+      </div>
+    ) : null;
 
   const paymentMethodBlock =
     payableTotal > 0 && (event.allowPayhere !== false || event.allowBankTransfer) ? (
@@ -1089,10 +1114,10 @@ export const EventCheckoutForm: React.FC<Props> = ({
   const payhereOverlay = payherePopupOpen ? (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4">
       <div
-        className="w-full max-w-sm rounded-2xl border p-6 text-center shadow-2xl"
+        className={`w-full max-w-sm border p-6 text-center shadow-2xl ${isPulse ? 'rounded-none' : 'rounded-2xl'}`}
         style={{
           borderColor: 'var(--landing-border)',
-          background: 'var(--landing-page-bg, #ffffff)',
+          background: isPulse ? '#0a0a0a' : 'var(--landing-page-bg, #ffffff)',
           color: 'var(--landing-text)',
         }}
       >
@@ -1118,25 +1143,62 @@ export const EventCheckoutForm: React.FC<Props> = ({
   );
 
   if (layout === 'page') {
-    const pageSurfaceStyle: React.CSSProperties = {
-      background: '#ffffff',
-      color: '#18181b',
-      // Keep event accent (--primary) from parent; force a clean white checkout canvas.
-      ['--landing-page-bg' as string]: '#ffffff',
-      ['--landing-surface' as string]: '#ffffff',
-      ['--landing-surface-muted' as string]: '#f4f4f5',
-      ['--landing-text' as string]: '#18181b',
-      ['--landing-text-muted' as string]: '#71717a',
-      ['--landing-border' as string]: '#e4e4e7',
-      ['--landing-shadow-hover' as string]: '0 10px 30px rgba(24, 24, 27, 0.08)',
-    };
+    const pageSurfaceStyle: React.CSSProperties = isPulse
+      ? {
+          // Pulse keeps the black / neon poster system — do not force a white canvas.
+          background: '#000000',
+          color: '#ffffff',
+        }
+      : {
+          background: '#ffffff',
+          color: '#18181b',
+          // Keep event accent (--primary) from parent; force a clean white checkout canvas.
+          ['--landing-page-bg' as string]: '#ffffff',
+          ['--landing-surface' as string]: '#ffffff',
+          ['--landing-surface-muted' as string]: '#f4f4f5',
+          ['--landing-text' as string]: '#18181b',
+          ['--landing-text-muted' as string]: '#71717a',
+          ['--landing-border' as string]: '#e4e4e7',
+          ['--landing-shadow-hover' as string]: '0 10px 30px rgba(24, 24, 27, 0.08)',
+        };
+
+    const brandLines = isPulse ? stackBrand(event.title || 'Event') : [];
 
     return (
       <>
         {payhereOverlay}
-        <div className="min-h-dvh w-full" style={pageSurfaceStyle}>
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
-            {backHref ? (
+        <div
+          className={`min-h-dvh w-full ${isPulse ? 'landing-pulse-checkout' : ''}`}
+          style={pageSurfaceStyle}
+        >
+          <div className={isPulse ? 'pulse-checkout-shell' : 'mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10'}>
+            {isPulse ? (
+              <header className="mb-6 flex items-start justify-between gap-4">
+                <h1 className="pulse-checkout-brand" aria-label={event.title}>
+                  {brandLines.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                </h1>
+                {backHref ? (
+                  <Link
+                    to={backHref}
+                    className="shrink-0 text-xs font-bold uppercase tracking-[0.12em] underline-offset-2 hover:underline"
+                    style={{ color: 'var(--landing-text-muted)' }}
+                  >
+                    ← Event
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="shrink-0 text-xs font-bold uppercase tracking-[0.12em] underline-offset-2 hover:underline"
+                    style={{ color: 'var(--landing-text-muted)' }}
+                  >
+                    ← Event
+                  </button>
+                )}
+              </header>
+            ) : backHref ? (
               <Link
                 to={backHref}
                 className="inline-flex text-sm font-semibold underline-offset-2 hover:underline"
@@ -1155,16 +1217,22 @@ export const EventCheckoutForm: React.FC<Props> = ({
               </button>
             )}
 
-            <div className="mt-4 sm:mt-6">
+            <div className={isPulse ? 'mt-2' : 'mt-4 sm:mt-6'}>
               <p className="landing-eyebrow" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
-                Checkout
+                {isPulse ? 'Get tickets' : 'Checkout'}
               </p>
-              <h1 className="landing-display mt-1 text-2xl sm:text-3xl" style={{ color: 'var(--landing-text)' }}>
-                Your tickets
+              <h1 className={`landing-display mt-1 ${isPulse ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'}`} style={{ color: 'var(--landing-text)' }}>
+                {isPulse ? 'Checkout' : 'Your tickets'}
               </h1>
-              <p className="mt-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-                {event.title}
-              </p>
+              {!isPulse ? (
+                <p className="mt-1 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+                  {event.title}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--landing-text-muted)' }}>
+                  LKR · Per person
+                </p>
+              )}
             </div>
 
             <form
@@ -1175,32 +1243,24 @@ export const EventCheckoutForm: React.FC<Props> = ({
                 <div className="lg:hidden">{orderSummaryCard}</div>
                 {formFields}
                 {termsBlock}
-                {payError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700 lg:hidden">
-                    {payError}
-                  </div>
-                )}
+                {errorBox('lg:hidden')}
                 <div className="lg:hidden">{submitButton}</div>
               </div>
 
               <aside className="hidden lg:block">
                 <div
-                  className="sticky top-6 space-y-4 rounded-2xl border p-5"
+                  className={`sticky top-6 space-y-4 border p-5 ${isPulse ? 'pulse-checkout-aside' : 'rounded-2xl'}`}
                   style={{
                     borderColor: 'var(--landing-border)',
-                    background: '#ffffff',
-                    boxShadow: 'var(--landing-shadow-hover)',
+                    background: isPulse ? 'var(--landing-surface)' : '#ffffff',
+                    boxShadow: isPulse ? 'none' : 'var(--landing-shadow-hover)',
                   }}
                 >
                   <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
-                    Order summary
+                    {isPulse ? 'Order' : 'Order summary'}
                   </p>
                   {orderSummaryCard}
-                  {payError && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
-                      {payError}
-                    </div>
-                  )}
+                  {errorBox()}
                   {submitButton}
                 </div>
               </aside>
@@ -1216,32 +1276,39 @@ export const EventCheckoutForm: React.FC<Props> = ({
     <>
       {payhereOverlay}
       <div
-        className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8"
+        className={`fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8 ${
+          isPulse ? 'landing-pulse-checkout' : ''
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="landing-checkout-title"
       >
         <div
-          className={`landing-checkout-modal flex w-full max-h-[min(92dvh,100%)] flex-col overflow-hidden rounded-t-[1.75rem] border shadow-2xl sm:max-h-[min(88vh,920px)] sm:rounded-3xl ${
-            assignEachTicket ? 'landing-checkout-modal--wide' : ''
-          }`}
+          className={`landing-checkout-modal flex w-full max-h-[min(92dvh,100%)] flex-col overflow-hidden border shadow-2xl ${
+            isPulse
+              ? 'rounded-none sm:max-h-[min(88vh,920px)]'
+              : 'rounded-t-[1.75rem] sm:max-h-[min(88vh,920px)] sm:rounded-3xl'
+          } ${assignEachTicket ? 'landing-checkout-modal--wide' : ''}`}
           style={{
             borderColor: 'var(--landing-border)',
-            background: 'var(--landing-page-bg, #ffffff)',
+            background: isPulse ? '#000000' : 'var(--landing-page-bg, #ffffff)',
             color: 'var(--landing-text)',
             boxShadow: '0 24px 48px rgba(0,0,0,0.35)',
           }}
         >
           <div
             className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-7"
-            style={{ borderColor: 'var(--landing-border)', background: 'var(--landing-page-bg, #ffffff)' }}
+            style={{
+              borderColor: 'var(--landing-border)',
+              background: isPulse ? '#000000' : 'var(--landing-page-bg, #ffffff)',
+            }}
           >
             <div className="min-w-0 pr-2">
               <p className="landing-eyebrow" style={{ color: 'var(--landing-accent-readable, var(--primary))' }}>
-                Checkout
+                {isPulse ? 'Get tickets' : 'Checkout'}
               </p>
               <div id="landing-checkout-title" className="landing-display mt-1 text-xl sm:text-2xl">
-                Your tickets
+                {isPulse ? 'Checkout' : 'Your tickets'}
               </div>
               <div className="mt-1 truncate text-sm" style={{ color: 'var(--landing-text-muted)' }}>
                 {event.title}
@@ -1271,11 +1338,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
               }}
             >
               <div className="mb-2.5">{termsBlock}</div>
-              {payError && (
-                <div className="mb-2.5 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
-                  {payError}
-                </div>
-              )}
+              {errorBox('mb-2.5')}
               {submitButton}
             </div>
           </form>
