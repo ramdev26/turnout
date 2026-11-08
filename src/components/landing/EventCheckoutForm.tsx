@@ -511,6 +511,8 @@ export const EventCheckoutForm: React.FC<Props> = ({
     }
   };
 
+  const isPulse = event.templateId === 'template-11';
+
   const inputStyle: React.CSSProperties = {
     borderColor: 'var(--landing-border)',
     background: 'var(--landing-surface-muted)',
@@ -1118,23 +1120,32 @@ export const EventCheckoutForm: React.FC<Props> = ({
   );
 
   if (layout === 'page') {
-    const pageSurfaceStyle: React.CSSProperties = {
-      background: '#ffffff',
-      color: '#18181b',
-      // Keep event accent (--primary) from parent; force a clean white checkout canvas.
-      ['--landing-page-bg' as string]: '#ffffff',
-      ['--landing-surface' as string]: '#ffffff',
-      ['--landing-surface-muted' as string]: '#f4f4f5',
-      ['--landing-text' as string]: '#18181b',
-      ['--landing-text-muted' as string]: '#71717a',
-      ['--landing-border' as string]: '#e4e4e7',
-      ['--landing-shadow-hover' as string]: '0 10px 30px rgba(24, 24, 27, 0.08)',
-    };
+    // Same checkout layout/style for every theme — Pulse only remaps color tokens.
+    const pageSurfaceStyle: React.CSSProperties = isPulse
+      ? {
+          background: 'var(--landing-page-bg, #000000)',
+          color: 'var(--landing-text, #ffffff)',
+        }
+      : {
+          background: '#ffffff',
+          color: '#18181b',
+          // Keep event accent (--primary) from parent; force a clean white checkout canvas.
+          ['--landing-page-bg' as string]: '#ffffff',
+          ['--landing-surface' as string]: '#ffffff',
+          ['--landing-surface-muted' as string]: '#f4f4f5',
+          ['--landing-text' as string]: '#18181b',
+          ['--landing-text-muted' as string]: '#71717a',
+          ['--landing-border' as string]: '#e4e4e7',
+          ['--landing-shadow-hover' as string]: '0 10px 30px rgba(24, 24, 27, 0.08)',
+        };
 
     return (
       <>
         {payhereOverlay}
-        <div className="min-h-dvh w-full" style={pageSurfaceStyle}>
+        <div
+          className={`min-h-dvh w-full ${isPulse ? 'landing-pulse-checkout' : ''}`}
+          style={pageSurfaceStyle}
+        >
           <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
             {backHref ? (
               <Link
@@ -1176,7 +1187,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
                 {formFields}
                 {termsBlock}
                 {payError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700 lg:hidden">
+                  <div
+                    className={`p-2.5 text-xs font-medium lg:hidden ${
+                      isPulse
+                        ? 'pulse-checkout-error rounded-xl'
+                        : 'rounded-xl border border-red-200 bg-red-50 text-red-700'
+                    }`}
+                  >
                     {payError}
                   </div>
                 )}
@@ -1188,7 +1205,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
                   className="sticky top-6 space-y-4 rounded-2xl border p-5"
                   style={{
                     borderColor: 'var(--landing-border)',
-                    background: '#ffffff',
+                    background: 'var(--landing-surface, #ffffff)',
                     boxShadow: 'var(--landing-shadow-hover)',
                   }}
                 >
@@ -1197,7 +1214,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
                   </p>
                   {orderSummaryCard}
                   {payError && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
+                    <div
+                      className={`p-2.5 text-xs font-medium ${
+                        isPulse
+                          ? 'pulse-checkout-error rounded-xl'
+                          : 'rounded-xl border border-red-200 bg-red-50 text-red-700'
+                      }`}
+                    >
                       {payError}
                     </div>
                   )}
@@ -1216,7 +1239,9 @@ export const EventCheckoutForm: React.FC<Props> = ({
     <>
       {payhereOverlay}
       <div
-        className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8"
+        className={`fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8 ${
+          isPulse ? 'landing-pulse-checkout' : ''
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="landing-checkout-title"
@@ -1272,7 +1297,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
             >
               <div className="mb-2.5">{termsBlock}</div>
               {payError && (
-                <div className="mb-2.5 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
+                <div
+                  className={`mb-2.5 p-2.5 text-xs font-medium ${
+                    isPulse
+                      ? 'pulse-checkout-error rounded-xl'
+                      : 'rounded-xl border border-red-200 bg-red-50 text-red-700'
+                  }`}
+                >
                   {payError}
                 </div>
               )}

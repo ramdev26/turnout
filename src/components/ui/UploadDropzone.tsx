@@ -13,7 +13,7 @@ export function UploadDropzone({
   onFileSelect,
   disabled = false,
   previewUrl,
-  helperText = 'PNG, JPG, WEBP or GIF up to 10MB',
+  helperText = 'PNG, JPG, WEBP or GIF up to 50MB',
 }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);

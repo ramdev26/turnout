@@ -166,15 +166,25 @@ export const EventCheckout: React.FC = () => {
     ? landingCssVars(event.customization, event.templateId)
     : landingCssVars(undefined);
 
+  const isPulse = event?.templateId === 'template-11';
+
   if (loading || (event && !accessRequired && selectedTickets === null)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div
+        className={`flex min-h-screen items-center justify-center ${isPulse ? 'landing-pulse-checkout' : 'bg-white'}`}
+        style={themeVars}
+      >
         <div className="flex flex-col items-center gap-4">
           <div
             className="h-11 w-11 animate-spin rounded-full border-2 border-zinc-200 border-t-[var(--primary)]"
-            style={themeVars}
+            style={isPulse ? { borderColor: 'rgba(255,255,255,0.15)', borderTopColor: 'var(--primary)' } : undefined}
           />
-          <p className="text-sm font-medium text-zinc-500">Loading checkout…</p>
+          <p
+            className={`text-sm font-medium ${isPulse ? '' : 'text-zinc-500'}`}
+            style={isPulse ? { color: 'var(--landing-text-muted)' } : undefined}
+          >
+            Loading checkout…
+          </p>
         </div>
       </div>
     );
@@ -230,7 +240,10 @@ export const EventCheckout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-dvh bg-white" style={landingCssVars(event.customization, event.templateId)}>
+    <div
+      className={`min-h-dvh ${isPulse ? 'bg-black' : 'bg-white'}`}
+      style={landingCssVars(event.customization, event.templateId)}
+    >
       <EventCheckoutForm
         event={event}
         orderItems={orderItems}

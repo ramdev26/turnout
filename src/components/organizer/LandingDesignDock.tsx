@@ -358,9 +358,24 @@ function RoleTypeBlock({
 /** Reset colours/fonts/sizes to the selected template defaults. */
 const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValue['templateId']): LandingDesignValue => {
   const next = withTemplateDesignDefaults(design, templateId);
+  const pulseDefaults =
+    next.templateId === 'template-11'
+      ? {
+          pageBackgroundColor: '#000000',
+          surfaceColor: '#141414',
+          surfaceMutedColor: '#0f0f0f',
+          buttonColor: '#FF2D8F',
+          buttonTextColor: '#000000',
+          headingColor: '#ffffff',
+          bodyTextColor: '#ffffff',
+          mutedTextColor: '#8c8c8c',
+          borderColor: '#2a2a2a',
+        }
+      : {};
   return {
     ...design,
     ...LANDING_DESIGN_OVERRIDE_RESET,
+    ...pulseDefaults,
     templateId: next.templateId,
     primaryColor: next.primaryColor,
     secondaryColor: next.secondaryColor,
@@ -451,6 +466,20 @@ const TemplateThumb: React.FC<{
         <div className="h-3 w-3/4 rounded-sm bg-white/35" />
         <div className="h-1.5 w-1/2 rounded-sm bg-white/20" />
         <div className="w-2/3 flex-1 rounded-sm bg-white/15" />
+      </div>
+    ),
+    'template-11': (
+      <div className="flex h-full flex-col gap-1 p-1.5" style={{ background: '#050505' }}>
+        <div className="flex justify-between gap-1">
+          <div className="h-3 w-8 rounded-[2px] bg-white/80" />
+          <div className="h-2 w-6 rounded-[2px] bg-[#ff2d8f]/80" />
+        </div>
+        <div className="h-5 w-4/5 rounded-[2px] bg-white/70" />
+        <div className="h-2 w-1/2 rounded-[2px] bg-[#ff2d8f]/70" />
+        <div className="mt-auto grid grid-cols-2 gap-1">
+          <div className="h-4 rounded-[2px] border border-white/25 bg-black" />
+          <div className="h-4 rounded-[2px] border border-[#ff2d8f]/50 bg-black" />
+        </div>
       </div>
     ),
   }[id];
@@ -571,8 +600,13 @@ export function LandingDesignDock({
   const toggle = (control: DockControl) => setOpen((cur) => (cur === control ? null : control));
 
   const selectTemplate = (templateId: LandingDesignValue['templateId']) => {
-    // Keep organizer colour / font / size draft when switching layouts.
-    onDesignChange({ ...design, templateId });
+    // Pulse owns a black/pink poster system — apply its palette when selected.
+    if (templateId === 'template-11') {
+      onDesignChange(applyTemplate(design, templateId));
+    } else {
+      // Keep organizer colour / font / size draft when switching other layouts.
+      onDesignChange({ ...design, templateId });
+    }
     setOpen(null);
   };
 
