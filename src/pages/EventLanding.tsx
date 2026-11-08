@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Event, Ticket, OrderItem } from '../types';
 import { api } from '../api/client';
@@ -17,6 +17,11 @@ import {
   setPendingEventAccessContext,
 } from '../lib/eventAccessToken';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../utils/purchaseLimits';
+import {
+  trackOrganizerInitiateCheckout,
+  trackOrganizerViewContent,
+} from '../lib/organizerMarketingTags';
+import { ensureOrganizerCustomHead } from '../lib/organizerCustomHead';
 
 type EventFetchResult = {
   event: Event;
@@ -37,6 +42,8 @@ export const EventLanding: React.FC = () => {
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const viewContentTracked = useRef(false);
+  const mobileCheckoutTracked = useRef(false);
 
   const orderItems = useMemo<OrderItem[]>(
     () =>
@@ -124,6 +131,33 @@ export const EventLanding: React.FC = () => {
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
   }, [event]);
 
+  useEffect(() => {
+    if (!event || event.status !== 'published') return;
+    ensureOrganizerCustomHead({
+      organizationCustomHeadHtml: event.organizationCustomHeadHtml,
+      eventCustomHeadHtml: event.eventCustomHeadHtml,
+    });
+  }, [event]);
+
+  useEffect(() => {
+    if (!event || accessRequired || event.status !== 'published' || viewContentTracked.current) return;
+    viewContentTracked.current = true;
+    trackOrganizerViewContent(
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
+      {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventSlug: event.slug,
+      }
+    );
+  }, [event, accessRequired]);
+
   const limitsSummary = useMemo(
     () => (event ? purchaseLimitsSummary(purchaseLimitsFromEvent(event)) : null),
     [event]
@@ -161,6 +195,35 @@ export const EventLanding: React.FC = () => {
     (sum, ticket) => sum + ticketLineTotal(ticket, selectedTickets[ticket.id] || 0),
     0
   );
+
+  useEffect(() => {
+    if (!event || !checkoutOpen || orderItems.length < 1 || mobileCheckoutTracked.current) return;
+    mobileCheckoutTracked.current = true;
+    const numItems = orderItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    trackOrganizerInitiateCheckout(
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
+      {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventSlug: event.slug,
+        value: totalAmount,
+        currency: 'LKR',
+        numItems,
+        contents: orderItems.map((item) => ({
+          id: item.ticketId,
+          quantity: item.quantity,
+          item_price: item.price,
+          name: item.name,
+        })),
+      }
+    );
+  }, [checkoutOpen, event, orderItems, totalAmount]);
 
   const hasSelectedTickets = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
 

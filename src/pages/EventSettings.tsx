@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Activity,
   CreditCard,
   Landmark,
   MapPin,
@@ -190,9 +191,25 @@ export const EventSettings: React.FC = () => {
     checkout: false,
     policy: false,
     payments: false,
+    tracking: false,
     advanced: false,
   });
   const [showPdfDesign, setShowPdfDesign] = useState(false);
+  const [eventGaMeasurementId, setEventGaMeasurementId] = useState('');
+  const [eventMetaPixelId, setEventMetaPixelId] = useState('');
+  const [eventTiktokPixelId, setEventTiktokPixelId] = useState('');
+  const [eventGoogleAdsId, setEventGoogleAdsId] = useState('');
+  const [eventGoogleAdsConversionLabel, setEventGoogleAdsConversionLabel] = useState('');
+  const [eventCustomHeadHtml, setEventCustomHeadHtml] = useState('');
+  const [organizationGaMeasurementId, setOrganizationGaMeasurementId] = useState<string | null>(null);
+  const [organizationMetaPixelId, setOrganizationMetaPixelId] = useState<string | null>(null);
+  const [organizationTiktokPixelId, setOrganizationTiktokPixelId] = useState<string | null>(null);
+  const [organizationGoogleAdsId, setOrganizationGoogleAdsId] = useState<string | null>(null);
+  const [organizationGoogleAdsConversionLabel, setOrganizationGoogleAdsConversionLabel] = useState<string | null>(
+    null
+  );
+  const [organizationCustomHeadHtml, setOrganizationCustomHeadHtml] = useState<string | null>(null);
+  const [savingTracking, setSavingTracking] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
@@ -255,6 +272,20 @@ export const EventSettings: React.FC = () => {
       setBannerUrl(ev.bannerUrl || '');
       setArenaGalleryImages(normalizeArenaGalleryImages(ev.customization?.arenaGalleryImages));
       setSlug(ev.slug);
+      setEventGaMeasurementId(ev.eventGaMeasurementId || ev.customization?.gaMeasurementId || '');
+      setEventMetaPixelId(ev.eventMetaPixelId || ev.customization?.metaPixelId || '');
+      setEventTiktokPixelId(ev.eventTiktokPixelId || ev.customization?.tiktokPixelId || '');
+      setEventGoogleAdsId(ev.eventGoogleAdsId || ev.customization?.googleAdsId || '');
+      setEventGoogleAdsConversionLabel(
+        ev.eventGoogleAdsConversionLabel || ev.customization?.googleAdsConversionLabel || ''
+      );
+      setEventCustomHeadHtml(ev.eventCustomHeadHtml || ev.customization?.customHeadHtml || '');
+      setOrganizationGaMeasurementId(ev.organizationGaMeasurementId || null);
+      setOrganizationMetaPixelId(ev.organizationMetaPixelId || null);
+      setOrganizationTiktokPixelId(ev.organizationTiktokPixelId || null);
+      setOrganizationGoogleAdsId(ev.organizationGoogleAdsId || null);
+      setOrganizationGoogleAdsConversionLabel(ev.organizationGoogleAdsConversionLabel || null);
+      setOrganizationCustomHeadHtml(ev.organizationCustomHeadHtml || null);
       const landing = normalizeLandingCustomization(ev.customization, resolveLayoutTemplateId(ev.templateId));
       const templateDefaults = resolveTemplateDesignDefaults(ev.templateId);
       setThemeId('minimal');
@@ -780,6 +811,65 @@ export const EventSettings: React.FC = () => {
       await loadAll();
     } finally {
       setSavingPaymentMethods(false);
+    }
+  };
+
+  const saveTracking = async () => {
+    if (!eventId) return;
+    setSavingTracking(true);
+    setError(null);
+    try {
+      const res = await api.post<{
+        ok: boolean;
+        metaPixelId: string | null;
+        gaMeasurementId: string | null;
+        tiktokPixelId: string | null;
+        googleAdsId: string | null;
+        googleAdsConversionLabel: string | null;
+        customHeadHtml: string | null;
+        organizationMetaPixelId: string | null;
+        organizationGaMeasurementId: string | null;
+        organizationTiktokPixelId: string | null;
+        organizationGoogleAdsId: string | null;
+        organizationGoogleAdsConversionLabel: string | null;
+        organizationCustomHeadHtml: string | null;
+        event: Event;
+      }>(`/api/events/${eventId}/tracking`, {
+        metaPixelId: eventMetaPixelId.trim(),
+        gaMeasurementId: eventGaMeasurementId.trim(),
+        tiktokPixelId: eventTiktokPixelId.trim(),
+        googleAdsId: eventGoogleAdsId.trim(),
+        googleAdsConversionLabel: eventGoogleAdsConversionLabel.trim(),
+        customHeadHtml: eventCustomHeadHtml.trim(),
+      });
+      setEvent(res.event);
+      setEventMetaPixelId(res.metaPixelId || '');
+      setEventGaMeasurementId(res.gaMeasurementId || '');
+      setEventTiktokPixelId(res.tiktokPixelId || '');
+      setEventGoogleAdsId(res.googleAdsId || '');
+      setEventGoogleAdsConversionLabel(res.googleAdsConversionLabel || '');
+      setEventCustomHeadHtml(res.customHeadHtml || '');
+      setOrganizationMetaPixelId(res.organizationMetaPixelId || null);
+      setOrganizationGaMeasurementId(res.organizationGaMeasurementId || null);
+      setOrganizationTiktokPixelId(res.organizationTiktokPixelId || null);
+      setOrganizationGoogleAdsId(res.organizationGoogleAdsId || null);
+      setOrganizationGoogleAdsConversionLabel(res.organizationGoogleAdsConversionLabel || null);
+      setOrganizationCustomHeadHtml(res.organizationCustomHeadHtml || null);
+      setFeedback(
+        res.gaMeasurementId ||
+          res.metaPixelId ||
+          res.tiktokPixelId ||
+          res.googleAdsId ||
+          res.googleAdsConversionLabel ||
+          res.customHeadHtml
+          ? 'Event tracking saved. Pixel IDs override organization defaults; custom head code is added on top.'
+          : 'Event tracking cleared. This event will use organization defaults only.'
+      );
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save event tracking');
+    } finally {
+      setSavingTracking(false);
     }
   };
 
@@ -1566,6 +1656,192 @@ export const EventSettings: React.FC = () => {
                   style={{ color: ui.textMuted }}
                   dangerouslySetInnerHTML={{ __html: eventPolicyHtml }}
                 />
+              </div>
+            </SettingsCollapsibleSection>
+
+            <SettingsCollapsibleSection
+              title="Visitor tracking"
+              subtitle={
+                eventGaMeasurementId ||
+                eventMetaPixelId ||
+                eventTiktokPixelId ||
+                eventGoogleAdsId ||
+                eventGoogleAdsConversionLabel ||
+                eventCustomHeadHtml
+                  ? 'Custom codes for this event'
+                  : organizationGaMeasurementId ||
+                      organizationMetaPixelId ||
+                      organizationTiktokPixelId ||
+                      organizationGoogleAdsId ||
+                      organizationCustomHeadHtml
+                    ? 'Using organization defaults'
+                    : 'Optional · pixels & custom head code'
+              }
+              icon={<Activity className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('tracking')}
+              onToggle={() => toggleSection('tracking')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Override Meta, Google Analytics, TikTok, or Google Ads for this event only. Leave blank to use
+                your{' '}
+                <Link to="/dashboard/organization#org-tracking" className="font-semibold underline underline-offset-2">
+                  organization defaults
+                </Link>
+                .
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Google Analytics Measurement ID
+                  </span>
+                  <input
+                    value={eventGaMeasurementId}
+                    onChange={(e) => setEventGaMeasurementId(e.target.value.toUpperCase())}
+                    placeholder={organizationGaMeasurementId || 'G-XXXXXXXXXX'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationGaMeasurementId
+                      ? `Org default: ${organizationGaMeasurementId}`
+                      : 'No organization GA default set yet.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Meta Pixel ID
+                  </span>
+                  <input
+                    value={eventMetaPixelId}
+                    onChange={(e) => setEventMetaPixelId(e.target.value.replace(/[^\d]/g, ''))}
+                    placeholder={organizationMetaPixelId || 'e.g. 123456789012345'}
+                    inputMode="numeric"
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationMetaPixelId
+                      ? `Org default: ${organizationMetaPixelId}`
+                      : 'No organization Meta Pixel default set yet.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    TikTok Pixel ID
+                  </span>
+                  <input
+                    value={eventTiktokPixelId}
+                    onChange={(e) => setEventTiktokPixelId(e.target.value.replace(/[^A-Za-z0-9]/g, ''))}
+                    placeholder={organizationTiktokPixelId || 'e.g. C1234567890ABCDEF'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationTiktokPixelId
+                      ? `Org default: ${organizationTiktokPixelId}`
+                      : 'No organization TikTok Pixel default set yet.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Google Ads tag ID
+                  </span>
+                  <input
+                    value={eventGoogleAdsId}
+                    onChange={(e) => setEventGoogleAdsId(e.target.value.toUpperCase())}
+                    placeholder={organizationGoogleAdsId || 'AW-123456789'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationGoogleAdsId
+                      ? `Org default: ${organizationGoogleAdsId}`
+                      : 'No organization Google Ads tag set yet.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Google Ads purchase conversion label
+                  </span>
+                  <input
+                    value={eventGoogleAdsConversionLabel}
+                    onChange={(e) =>
+                      setEventGoogleAdsConversionLabel(e.target.value.replace(/[^A-Za-z0-9_-]/g, ''))
+                    }
+                    placeholder={organizationGoogleAdsConversionLabel || 'e.g. AbCDefGHijKLmNoP'}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationGoogleAdsConversionLabel
+                      ? `Org default: ${organizationGoogleAdsConversionLabel}`
+                      : 'Optional. Needed to fire Google Ads Purchase conversions.'}
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                    Extra custom code for &lt;head&gt; (this event)
+                  </span>
+                  <textarea
+                    value={eventCustomHeadHtml}
+                    onChange={(e) => setEventCustomHeadHtml(e.target.value)}
+                    rows={5}
+                    placeholder={
+                      organizationCustomHeadHtml
+                        ? 'Optional extra scripts for this event only (organization head code still runs)'
+                        : '<!-- Paste event-only verification tags, pixels, or scripts -->'
+                    }
+                    className={`${fieldClass} font-mono text-xs`}
+                    style={fieldStyle}
+                    spellCheck={false}
+                  />
+                  <span className="text-xs" style={{ color: ui.textSubtle }}>
+                    {organizationCustomHeadHtml
+                      ? 'Organization head code is already set and will run first; this box adds more for this event only.'
+                      : 'Added on top of any organization head code. script / meta / link / style / noscript only.'}
+                  </span>
+                </label>
+              </div>
+              <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: ui.borderColor, color: ui.textMuted }}>
+                Effective on the public page:{' '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventGaMeasurementId.trim() || organizationGaMeasurementId || 'none'}
+                </span>{' '}
+                (GA)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventMetaPixelId.trim() || organizationMetaPixelId || 'none'}
+                </span>{' '}
+                (Meta)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventTiktokPixelId.trim() || organizationTiktokPixelId || 'none'}
+                </span>{' '}
+                (TikTok)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventGoogleAdsId.trim() || organizationGoogleAdsId || 'none'}
+                </span>{' '}
+                (Ads)
+                {' · '}
+                <span className="font-semibold" style={{ color: ui.text }}>
+                  {eventCustomHeadHtml.trim() || organizationCustomHeadHtml ? 'custom head set' : 'none'}
+                </span>{' '}
+                (head)
+              </div>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => void saveTracking()}
+                  disabled={savingTracking}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                  style={accentButtonStyleFor(ui)}
+                >
+                  {savingTracking ? 'Saving…' : 'Save tracking for this event'}
+                </button>
               </div>
             </SettingsCollapsibleSection>
 
