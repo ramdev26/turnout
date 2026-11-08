@@ -666,6 +666,18 @@ export const CreateEvent: React.FC = () => {
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
+        ...(design.templateId === 'template-11'
+          ? {
+              pulseEyebrow: (data.shortDescription || '').trim() || undefined,
+              pulseHeadline: 'TICKETS OPEN NOW.',
+              pulseTagline: 'TWO ROOMS. ONE NIGHT.',
+              pageBackgroundColor: design.pageBackgroundColor || '#000000',
+              surfaceColor: design.surfaceColor || '#141414',
+              buttonColor: design.buttonColor || design.primaryColor || '#FF2D8F',
+              buttonTextColor: design.buttonTextColor || '#000000',
+              displayMode: 'dark' as const,
+            }
+          : {}),
         layout: 'centered',
         privateAccess: visibility === 'private',
         customDomain: data.useCustomDomain ? (data.customDomain || '').trim() : undefined,
@@ -764,6 +776,17 @@ export const CreateEvent: React.FC = () => {
       primaryColor: design.primaryColor,
       secondaryColor: design.secondaryColor,
       fontFamily: design.fontFamily,
+      ...(design.templateId === 'template-11'
+        ? {
+            pulseEyebrow: (shortDescription || '').trim() || undefined,
+            pulseHeadline: 'TICKETS OPEN NOW.',
+            pulseTagline: 'TWO ROOMS. ONE NIGHT.',
+            pageBackgroundColor: design.pageBackgroundColor || '#000000',
+            surfaceColor: design.surfaceColor || '#141414',
+            buttonColor: design.buttonColor || design.primaryColor || '#FF2D8F',
+            displayMode: 'dark' as const,
+          }
+        : {}),
     };
     return {
       id: 'preview',

@@ -521,7 +521,7 @@ export const EventSettings: React.FC = () => {
       }
       const url = await uploadImageFile(file);
       if (url) setBannerUrl(url);
-      else setBannerUploadError('Upload failed. Try PNG, JPG, WEBP, or GIF under 10MB.');
+      else setBannerUploadError('Upload failed. Try PNG, JPG, WEBP, or GIF under 50MB.');
     } catch {
       setBannerUploadError('Upload failed. Check your connection.');
     } finally {
@@ -550,7 +550,7 @@ export const EventSettings: React.FC = () => {
       data = null;
     }
     if (res.ok && data?.bannerUrl) return normalizeBannerUrl(data.bannerUrl);
-    setBannerUploadError(data?.message || 'Upload failed. Try PNG, JPG, WEBP, or GIF under 10MB.');
+    setBannerUploadError(data?.message || 'Upload failed. Try PNG, JPG, WEBP, or GIF under 50MB.');
     return null;
   };
 
