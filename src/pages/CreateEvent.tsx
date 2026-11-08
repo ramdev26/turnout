@@ -26,7 +26,7 @@ import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { type LandingDesignValue } from '../components/organizer/LandingCustomizer';
 import { LandingDesignDock } from '../components/organizer/LandingDesignDock';
 import { EventLandingLivePreview } from '../components/organizer/EventLandingLivePreview';
-import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { PaidEventPayoutReminder, PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
 import { formatEventLocationDisplay, isValidMeetingUrl, LOCATION_TBA_LABEL } from '../utils/eventLocation';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
 import { cn } from '../utils/cn';
@@ -40,6 +40,12 @@ import { DEFAULT_EVENT_POLICY_HTML } from '../utils/eventPolicy';
 import { TicketEarlyBirdFields } from '../components/organizer/TicketEarlyBirdFields';
 import { TicketBulkOffersFields } from '../components/organizer/TicketBulkOffersFields';
 import { bulkOffersPayloadFromForm, datetimeLocalToIso, defaultEarlyBirdEndLocal } from '../utils/ticketPricing';
+import { eventImageSizeHint, validateEventImageFile } from '../utils/eventImageUpload';
+import {
+  clearCreateEventDraft,
+  loadCreateEventDraft,
+  saveCreateEventDraft,
+} from '../utils/createEventDraft';
 
 const ticketTierSchema = z
   .object({
@@ -245,26 +251,29 @@ function Toggle({
 export const CreateEvent: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const draft = useMemo(() => loadCreateEventDraft(), []);
   // Single base theme (Minimal). Event "category" presets drive the styling.
   const themeId: EventThemeId = 'minimal';
-  const [ticketMode, setTicketMode] = useState<'free' | 'paid'>('free');
-  const [freeUnlimited, setFreeUnlimited] = useState(true);
+  const [ticketMode, setTicketMode] = useState<'free' | 'paid'>(draft?.ticketMode ?? 'free');
+  const [freeUnlimited, setFreeUnlimited] = useState(draft?.freeUnlimited ?? true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [showAdvanced, setShowAdvanced] = useState(draft?.showAdvanced ?? false);
+  const [visibility, setVisibility] = useState<'public' | 'private'>(draft?.visibility ?? 'public');
   // Default: "When" / to-be-announced. Organizers can opt in to a fixed schedule.
-  const [hasSchedule, setHasSchedule] = useState(false);
+  const [hasSchedule, setHasSchedule] = useState(draft?.hasSchedule ?? false);
   // End time is optional — most events only need a start.
-  const [hasEnd, setHasEnd] = useState(false);
+  const [hasEnd, setHasEnd] = useState(draft?.hasEnd ?? false);
   const [paidEventReadiness, setPaidEventReadiness] = useState<OrganizerPaidEventReadiness | null>(null);
   const [showPaidSetupGate, setShowPaidSetupGate] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(draft?.savedAt ?? null);
 
   const selectedTheme = EVENT_THEMES[themeId] || EVENT_THEMES.minimal;
   const [design, setDesign] = useState<LandingDesignValue>(() => {
+    if (draft?.design) return draft.design;
     const defaults = resolveTemplateDesignDefaults('template-2');
     return {
       templateId: defaults.templateId,
@@ -283,6 +292,7 @@ export const CreateEvent: React.FC = () => {
     handleSubmit,
     setValue,
     setFocus,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<EventFormValues>({
@@ -307,6 +317,7 @@ export const CreateEvent: React.FC = () => {
       dnsRecordType: 'CNAME',
       dnsRecordTarget: 'cname.vercel-dns.com',
       dnsConfigured: false,
+      ...(draft?.form as Partial<EventFormValues> | undefined),
     },
   });
 
@@ -355,6 +366,46 @@ export const CreateEvent: React.FC = () => {
     })();
   }, [user]);
 
+  // Autosave draft so Organization / sidebar navigation does not wipe the form.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const form = getValues();
+      saveCreateEventDraft({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        ticketMode,
+        freeUnlimited,
+        showAdvanced,
+        visibility,
+        hasSchedule,
+        hasEnd,
+        design,
+        form: form as unknown as Record<string, unknown>,
+      });
+      setDraftSavedAt(new Date().toISOString());
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    ticketMode,
+    freeUnlimited,
+    showAdvanced,
+    visibility,
+    hasSchedule,
+    hasEnd,
+    design,
+    title,
+    description,
+    shortDescription,
+    date,
+    endDate,
+    location,
+    bannerUrl,
+    tickets,
+    requireApproval,
+    useCustomDomain,
+    getValues,
+  ]);
+
   const totalSeats = useMemo(
     () => tickets.reduce((sum, t) => sum + (Number.isFinite(t.quantity) ? t.quantity : 0), 0),
     [tickets]
@@ -379,10 +430,15 @@ export const CreateEvent: React.FC = () => {
   };
 
   const switchToPaidMode = () => {
-    // Always enter paid mode so organizers can configure tiers. If payout setup is
-    // incomplete, show the gate and still block publish via onSubmit / API assert.
+    // Turnout Pay never blocks. Only own-gateway incomplete setup shows the gate.
     setTicketMode('paid');
-    setShowPaidSetupGate(Boolean(paidEventReadiness && !paidEventReadiness.isReady));
+    setShowPaidSetupGate(
+      Boolean(
+        paidEventReadiness &&
+          !paidEventReadiness.isReady &&
+          paidEventReadiness.gatewayMode === 'own_payhere'
+      )
+    );
     if (tickets.length === 1 && (tickets[0]?.price || 0) <= 0) {
       replace([
         {
@@ -401,6 +457,11 @@ export const CreateEvent: React.FC = () => {
 
   const uploadBannerFile = async (file: File) => {
     setBannerUploadError(null);
+    const validationError = validateEventImageFile(file);
+    if (validationError) {
+      setBannerUploadError(validationError);
+      return;
+    }
     setIsUploadingBanner(true);
     try {
       const formData = new FormData();
@@ -514,12 +575,15 @@ export const CreateEvent: React.FC = () => {
         submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
-      if (paidEventReadiness && !paidEventReadiness.isReady) {
+      // Turnout Pay never blocks here. Only own-gateway setup can block publish.
+      if (
+        paidEventReadiness &&
+        !paidEventReadiness.isReady &&
+        paidEventReadiness.gatewayMode === 'own_payhere'
+      ) {
         setShowPaidSetupGate(true);
         setSubmitError(
-          paidEventReadiness.gatewayMode === 'own_payhere'
-            ? 'Connect your own gateway and add an account card in Organization → Payments before publishing a paid event.'
-            : 'Add your bank payout details in Organization → Payments before publishing a paid event.'
+          'Connect your own gateway and add an account card in Organization → Payments before publishing a paid event.'
         );
         submitErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
@@ -655,6 +719,7 @@ export const CreateEvent: React.FC = () => {
         tickets: payloadTickets,
       });
 
+      clearCreateEventDraft();
       window.open(`/e/${created.slug}`, '_blank', 'noopener,noreferrer');
       navigate('/dashboard');
     } catch (error: any) {
@@ -864,8 +929,14 @@ export const CreateEvent: React.FC = () => {
                 onFileSelect={(file) => void uploadBannerFile(file)}
                 frameClassName={ui.bannerFrame}
                 placeholderClassName={ui.bannerPlaceholder}
+                sizeHint={eventImageSizeHint(design.templateId || selectedTheme.templateId)}
               />
               {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
+              {draftSavedAt ? (
+                <p className="text-[11px]" style={{ color: ui.textSubtle }}>
+                  Draft saved — safe to open Organization and come back.
+                </p>
+              ) : null}
 
               <div className="rounded-2xl border p-4" style={cardMutedStyle}>
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
@@ -1196,7 +1267,10 @@ export const CreateEvent: React.FC = () => {
                   </div>
                 </div>
 
-                {ticketMode === 'paid' && paidEventReadiness && !paidEventReadiness.isReady ? (
+                {ticketMode === 'paid' &&
+                paidEventReadiness &&
+                !paidEventReadiness.isReady &&
+                paidEventReadiness.gatewayMode === 'own_payhere' ? (
                   <div className="mb-4">
                     <PaidEventSetupGate
                       readiness={paidEventReadiness}
@@ -1205,6 +1279,11 @@ export const CreateEvent: React.FC = () => {
                         switchToFreeMode();
                       }}
                     />
+                  </div>
+                ) : null}
+                {ticketMode === 'paid' ? (
+                  <div className="mb-4">
+                    <PaidEventPayoutReminder readiness={paidEventReadiness} />
                   </div>
                 ) : null}
 

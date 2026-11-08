@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, CreditCard, FileText, Loader2, Mail, Trash2, UploadCloud, UserPlus, Users } from 'lucide-react';
+import { Activity, Building2, CreditCard, FileText, Loader2, Mail, Trash2, UploadCloud, UserPlus, Users } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { api, toApiUrl } from '../api/client';
 import {
@@ -54,6 +54,7 @@ export const OrganizerAccount: React.FC = () => {
   const [termsHtml, setTermsHtml] = useState(DEFAULT_ORGANIZER_TERMS_HTML);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [savingTerms, setSavingTerms] = useState(false);
+  const [savingTracking, setSavingTracking] = useState(false);
 
   const [workspace, setWorkspace] = useState<OrganizerWorkspace | null>(null);
   const [profile, setProfile] = useState<OrganizerProfile>({
@@ -69,6 +70,12 @@ export const OrganizerAccount: React.FC = () => {
     businessRegistrationDocUploaded: false,
     bankStatementDocUrl: '',
     bankStatementDocUploaded: false,
+    metaPixelId: '',
+    gaMeasurementId: '',
+    tiktokPixelId: '',
+    googleAdsId: '',
+    googleAdsConversionLabel: '',
+    customHeadHtml: '',
   });
   const [members, setMembers] = useState<OrganizerTeamMember[]>([]);
   const [invites, setInvites] = useState<OrganizerTeamInvite[]>([]);
@@ -105,6 +112,12 @@ export const OrganizerAccount: React.FC = () => {
           bankStatementDocUrl: res.profile.bankStatementDocUrl || '',
           bankStatementDocUploaded: !!res.profile.bankStatementDocUploaded,
           termsHtml: res.profile.termsHtml || null,
+          metaPixelId: res.profile.metaPixelId || '',
+          gaMeasurementId: res.profile.gaMeasurementId || '',
+          tiktokPixelId: res.profile.tiktokPixelId || '',
+          googleAdsId: res.profile.googleAdsId || '',
+          googleAdsConversionLabel: res.profile.googleAdsConversionLabel || '',
+          customHeadHtml: res.profile.customHeadHtml || '',
         });
         setTermsHtml(resolveOrganizerTermsHtml(res.profile.termsHtml));
         if (res.workspace.canManageTeam) {
@@ -251,6 +264,50 @@ export const OrganizerAccount: React.FC = () => {
       setError(err?.message || err?.error || 'Failed to save Terms & Conditions');
     } finally {
       setSavingTerms(false);
+    }
+  };
+
+  const saveTracking = async () => {
+    if (!workspace?.isOwner) return;
+    setSavingTracking(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ ok: boolean; profile: OrganizerProfile; user: Parameters<typeof setUser>[0] }>(
+        '/api/me/organizer-profile',
+        {
+          displayName: profile.displayName.trim(),
+          organizationName: profile.organizationName.trim(),
+          logoUrl: profile.logoUrl || undefined,
+          website: profile.website?.trim() || undefined,
+          phone: profile.phone?.trim() || undefined,
+          businessAddress: profile.businessAddress?.trim() || undefined,
+          businessRegistrationNo: profile.businessRegistrationNo?.trim() || undefined,
+          metaPixelId: (profile.metaPixelId || '').trim(),
+          gaMeasurementId: (profile.gaMeasurementId || '').trim(),
+          tiktokPixelId: (profile.tiktokPixelId || '').trim(),
+          googleAdsId: (profile.googleAdsId || '').trim(),
+          googleAdsConversionLabel: (profile.googleAdsConversionLabel || '').trim(),
+          customHeadHtml: (profile.customHeadHtml || '').trim(),
+        }
+      );
+      setUser(res.user);
+      setProfile((p) => ({
+        ...p,
+        ...res.profile,
+        metaPixelId: res.profile.metaPixelId || '',
+        gaMeasurementId: res.profile.gaMeasurementId || '',
+        tiktokPixelId: res.profile.tiktokPixelId || '',
+        googleAdsId: res.profile.googleAdsId || '',
+        googleAdsConversionLabel: res.profile.googleAdsConversionLabel || '',
+        customHeadHtml: res.profile.customHeadHtml || '',
+      }));
+      setFeedback('Visitor tracking settings saved. Tags apply to all your event landing pages.');
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save tracking settings');
+    } finally {
+      setSavingTracking(false);
     }
   };
 
@@ -603,6 +660,134 @@ export const OrganizerAccount: React.FC = () => {
               dangerouslySetInnerHTML={{ __html: termsHtml }}
             />
           </div>
+        </FlowCard>
+        </section>
+
+        <section id="org-tracking">
+        <FlowCard className="mt-6">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5" style={{ color: ui.accent }} />
+            <h2 className="text-lg font-semibold" style={{ color: ui.text }}>
+              Visitor tracking
+            </h2>
+          </div>
+          <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
+            Set organization defaults for Meta Pixel, Google Analytics, TikTok Pixel, and Google Ads. They
+            apply to every public event landing page, checkout, and paid purchase — unless an event
+            overrides them in Event Settings → Visitor tracking.
+          </p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>Meta Pixel ID</FlowLabel>
+              <FlowInput
+                value={profile.metaPixelId || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, metaPixelId: e.target.value.replace(/[^\d]/g, '') }))}
+                placeholder="e.g. 123456789012345"
+                inputMode="numeric"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                From Meta Events Manager → Data sources → Pixel.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>Google Analytics Measurement ID</FlowLabel>
+              <FlowInput
+                value={profile.gaMeasurementId || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, gaMeasurementId: e.target.value.toUpperCase() }))}
+                placeholder="G-XXXXXXXXXX"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                GA4 Measurement ID starting with G-.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>TikTok Pixel ID</FlowLabel>
+              <FlowInput
+                value={profile.tiktokPixelId || ''}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    tiktokPixelId: e.target.value.replace(/[^A-Za-z0-9]/g, ''),
+                  }))
+                }
+                placeholder="e.g. C1234567890ABCDEF"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                From TikTok Ads Manager → Assets → Events → Web Events → Pixel.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <FlowLabel>Google Ads tag ID</FlowLabel>
+              <FlowInput
+                value={profile.googleAdsId || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, googleAdsId: e.target.value.toUpperCase() }))}
+                placeholder="AW-123456789"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                Google Ads tag ID starting with AW-.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <FlowLabel>Google Ads purchase conversion label (optional)</FlowLabel>
+              <FlowInput
+                value={profile.googleAdsConversionLabel || ''}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    googleAdsConversionLabel: e.target.value.replace(/[^A-Za-z0-9_-]/g, ''),
+                  }))
+                }
+                placeholder="e.g. AbCDefGHijKLmNoP"
+                disabled={!workspace?.isOwner}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                From Google Ads → Goals → Conversions → your Purchase action → Tag setup. Used as
+                AW-ID/label on paid orders. Leave blank to load the Ads tag for remarketing only.
+              </p>
+            </label>
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <FlowLabel>Custom code for &lt;head&gt; (all events)</FlowLabel>
+              <textarea
+                value={profile.customHeadHtml || ''}
+                onChange={(e) => setProfile((p) => ({ ...p, customHeadHtml: e.target.value }))}
+                rows={6}
+                placeholder={'<!-- Paste verification tags, pixels, or scripts -->\n<script>...</script>\n<meta name="..." content="..." />'}
+                className={`${fieldClass} font-mono text-xs`}
+                style={fieldStyle}
+                disabled={!workspace?.isOwner}
+                spellCheck={false}
+              />
+              <p className="text-xs" style={{ color: ui.textSubtle }}>
+                Injected into the page &lt;head&gt; on every public event landing, checkout, and confirmation
+                page. Use script / meta / link / style / noscript only (max 20KB). Prefer the built-in Meta,
+                GA, TikTok, and Google Ads fields above when possible. Add event-only codes in Event Settings.
+              </p>
+            </label>
+          </div>
+          <div
+            className="mt-4 rounded-2xl border px-4 py-3 text-sm"
+            style={{ borderColor: ui.borderColor, color: ui.textMuted }}
+          >
+            Tracked automatically: landing page views, checkout starts, and purchases (paid orders only)
+            across Meta, GA4, TikTok (CompletePayment), and Google Ads (conversion when a label is set),
+            plus traffic sources into Google Analytics. Custom head code runs in addition to those tags.
+            Live design previews are not tracked. Override or add per event in Settings → Visitor tracking.
+          </div>
+          {workspace?.isOwner ? (
+            <div className="mt-5">
+              <FlowButton onClick={() => void saveTracking()} disabled={savingTracking}>
+                {savingTracking ? 'Saving…' : 'Save tracking settings'}
+              </FlowButton>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm" style={{ color: ui.textMuted }}>
+              Only the workspace owner can edit tracking settings.
+            </p>
+          )}
         </FlowCard>
         </section>
 

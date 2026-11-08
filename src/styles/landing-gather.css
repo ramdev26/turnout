@@ -135,7 +135,7 @@
   height: 2.5rem;
   border-radius: 9999px;
   object-fit: cover;
-  background: #fff;
+  background: var(--gt-card, var(--landing-surface, #fff));
 }
 
 .gt-host-avatar--sm {
@@ -399,7 +399,7 @@
   height: 1.85rem;
   border-radius: 9999px;
   border: 1px solid var(--gt-line);
-  background: #fff;
+  background: var(--gt-card, var(--landing-surface, #fff));
   color: var(--gt-ink);
 }
 
