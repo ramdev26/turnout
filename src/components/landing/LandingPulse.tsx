@@ -271,19 +271,18 @@ export function LandingPulsePage({
             <p className="pulse-eyebrow">{eyebrow}</p>
           </header>
 
-          {bannerUrl ? (
-            <section className="pulse-media" aria-label="Event cover">
-              <img
-                src={bannerUrl}
-                alt=""
-                className="pulse-media-img"
-                referrerPolicy="no-referrer"
-              />
-            </section>
-          ) : null}
-
           <section className="pulse-hero" aria-label="Event overview">
-            <div>
+            <div className="pulse-hero-main">
+              {bannerUrl ? (
+                <div className="pulse-poster" aria-label="Event cover">
+                  <img
+                    src={bannerUrl}
+                    alt=""
+                    className="pulse-poster-img"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              ) : null}
               <p className="pulse-headline landing-type-h1">
                 {lead ? (
                   <>

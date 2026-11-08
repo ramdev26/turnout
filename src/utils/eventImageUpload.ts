@@ -58,11 +58,11 @@ export function eventImageSizeHint(templateId?: string | null): EventImageLayout
     };
   }
 
-  // Pulse — typography-first poster with media band
+  // Pulse — full poster card in the left column
   if (id === 'template-11') {
     return {
-      label: 'Pulse · 1920×1080 (16:9) or 1080×1350',
-      detail: 'Shown as a full-width media band under the header. Animated GIFs work · max 50MB.',
+      label: 'Pulse · 1080×1350 (4:5) poster',
+      detail: 'Shown as a full poster card above the headline. Landscape also works. GIF supported · max 50MB.',
     };
   }
 
