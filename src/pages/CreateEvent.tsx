@@ -315,7 +315,7 @@ export const CreateEvent: React.FC = () => {
       customDomain: '',
       dnsProvider: 'cloudflare',
       dnsRecordType: 'CNAME',
-      dnsRecordTarget: 'cname.vercel-dns.com',
+      dnsRecordTarget: 'domains.bigturnout.co',
       dnsConfigured: false,
       ...(draft?.form as Partial<EventFormValues> | undefined),
     },
@@ -1571,8 +1571,9 @@ export const CreateEvent: React.FC = () => {
                       />
                       <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
                         After creating the event, open <strong>Event settings</strong> for DNS records. Point a{' '}
-                        <span className="font-mono">CNAME</span> to <span className="font-mono">cname.vercel-dns.com</span>{' '}
-                        (or use the exact target shown in settings).
+                        <span className="font-mono">CNAME</span> to{' '}
+                        <span className="font-mono">domains.bigturnout.co</span> (or use the exact target shown in
+                        settings).
                       </p>
                     </div>
                   )}

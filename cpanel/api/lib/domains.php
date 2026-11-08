@@ -70,8 +70,9 @@ function domain_cname_target(): string {
   $domains = $cfg['domains'] ?? [];
   $target = trim((string)($domains['cname_target'] ?? ''));
   if ($target === '') $target = trim((string)(getenv('CUSTOM_DOMAIN_CNAME_TARGET') ?: ''));
-  if ($target === '') $target = 'cname.vercel-dns.com';
-  return $target;
+  // Brand-facing target (organizers should never need to see Vercel DNS hosts).
+  if ($target === '') $target = 'domains.bigturnout.co';
+  return strtolower(rtrim($target, '.'));
 }
 
 function domain_apex_ip(): string {
@@ -81,6 +82,29 @@ function domain_apex_ip(): string {
   if ($ip === '') $ip = trim((string)(getenv('CUSTOM_DOMAIN_APEX_IP') ?: ''));
   if ($ip === '') $ip = '76.76.21.21';
   return $ip;
+}
+
+/** Hostnames we accept when verifying an organizer's CNAME. */
+function domain_accepted_cname_targets(): array {
+  $targets = [
+    domain_cname_target(),
+    'domains.bigturnout.co',
+    'app.bigturnout.co',
+    'cname.vercel-dns.com',
+  ];
+  return array_values(array_unique(array_filter(array_map(
+    static fn ($h) => strtolower(rtrim(trim((string)$h), '.')),
+    $targets
+  ))));
+}
+
+function domain_cname_points_to_platform(string $value): bool {
+  $val = strtolower(rtrim(trim($value), '.'));
+  if ($val === '') return false;
+  if (in_array($val, domain_accepted_cname_targets(), true)) return true;
+  if (str_ends_with($val, '.vercel-dns.com')) return true;
+  if (str_contains($val, 'vercel-dns')) return true;
+  return false;
 }
 
 function domain_dns_instructions(string $hostname): array {
@@ -98,7 +122,7 @@ function domain_dns_instructions(string $hostname): array {
         ['type' => 'A', 'name' => '@', 'value' => $apexIp, 'ttl' => 3600],
         ['type' => 'CNAME', 'name' => 'www', 'value' => $cnameTarget, 'ttl' => 3600],
       ],
-      'note' => 'Point your root domain with an A record, and www with CNAME (recommended).',
+      'note' => 'Add these BigTurnout DNS records at your domain provider (A for the root, CNAME for www).',
     ];
   }
 
@@ -109,7 +133,7 @@ function domain_dns_instructions(string $hostname): array {
     'records' => [
       ['type' => 'CNAME', 'name' => $recordName, 'value' => $cnameTarget, 'ttl' => 3600],
     ],
-    'note' => 'Create a CNAME record for your subdomain pointing to the target below.',
+    'note' => 'Create a CNAME record pointing your subdomain to BigTurnout.',
   ];
 }
 
@@ -188,7 +212,7 @@ function vercel_domain_credentials(): ?array {
 function vercel_api_request(string $method, string $path, ?array $body = null): array {
   $creds = vercel_domain_credentials();
   if ($creds === null) {
-    return ['ok' => false, 'skipped' => true, 'message' => 'Vercel API not configured'];
+    return ['ok' => false, 'skipped' => true, 'message' => 'Domain API not configured'];
   }
 
   $query = $creds['teamId'] !== '' ? ('?teamId=' . rawurlencode($creds['teamId'])) : '';
@@ -231,7 +255,7 @@ function vercel_api_request(string $method, string $path, ?array $body = null): 
 function vercel_add_project_domain(string $domain): array {
   $creds = vercel_domain_credentials();
   if ($creds === null) {
-    return ['ok' => false, 'skipped' => true, 'message' => 'Set VERCEL_API_TOKEN and VERCEL_PROJECT_ID to auto-register domains.'];
+    return ['ok' => false, 'skipped' => true, 'message' => 'Domain auto-registration is not configured. Add the DNS records below, then tap Check DNS.'];
   }
   $domain = normalize_event_hostname($domain);
   $res = vercel_api_request(
@@ -239,11 +263,11 @@ function vercel_add_project_domain(string $domain): array {
     '/v10/projects/' . rawurlencode($creds['projectId']) . '/domains',
     ['name' => $domain]
   );
-  if ($res['ok']) return ['ok' => true, 'verified' => false, 'message' => 'Domain added to Vercel. Finish DNS at your registrar.'];
+  if ($res['ok']) return ['ok' => true, 'verified' => false, 'message' => 'Domain registered. Finish the DNS records below at your provider.'];
   if ((int)($res['status'] ?? 0) === 409) {
-    return ['ok' => true, 'verified' => false, 'message' => 'Domain is already registered on this Vercel project.'];
+    return ['ok' => true, 'verified' => false, 'message' => 'Domain is already registered. Finish DNS at your provider if needed.'];
   }
-  return ['ok' => false, 'message' => (string)($res['error'] ?? 'Could not register domain on Vercel.')];
+  return ['ok' => false, 'message' => (string)($res['error'] ?? 'Could not register this domain.')];
 }
 
 function vercel_get_project_domain(string $domain): array {
@@ -255,13 +279,13 @@ function vercel_get_project_domain(string $domain): array {
     '/v9/projects/' . rawurlencode($creds['projectId']) . '/domains/' . rawurlencode($domain)
   );
   if (!$res['ok'] || !is_array($res['data'])) {
-    return ['ok' => false, 'verified' => false, 'message' => 'Domain not found on Vercel yet.'];
+    return ['ok' => false, 'verified' => false, 'message' => 'Domain is not active yet. Check DNS and try again.'];
   }
   $verified = (bool)($res['data']['verified'] ?? false);
   return [
     'ok' => true,
     'verified' => $verified,
-    'message' => $verified ? 'Domain is verified on Vercel.' : 'Waiting for DNS verification on Vercel.',
+    'message' => $verified ? 'Domain is verified and active.' : 'Waiting for DNS to verify. This can take a few minutes.',
     'data' => $res['data'],
   ];
 }

@@ -216,7 +216,8 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                     DNS setup
                   </p>
                   <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
-                    Add these records where your domain is managed (Cloudflare, GoDaddy, Namecheap, etc.).
+                    {state.dns.note ||
+                      'Add these BigTurnout DNS records where your domain is managed (Cloudflare, GoDaddy, Namecheap, etc.).'}
                   </p>
                   <div className="mt-3 space-y-2">
                     {state.dns.records.map((rec) => (
@@ -226,10 +227,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                         style={cardStyle}
                       >
                         <div className="font-mono" style={{ color: ui.text }}>
-                          <span className="font-bold">{rec.type}</span> {rec.name} →{' '}
-                          {String(rec.value).toLowerCase().includes('vercel')
-                            ? 'domain target (copy below)'
-                            : rec.value}
+                          <span className="font-bold">{rec.type}</span> {rec.name} → {rec.value}
                         </div>
                         <button
                           type="button"

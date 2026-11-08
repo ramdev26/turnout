@@ -3500,11 +3500,10 @@ if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'PO
   $vercel = vercel_get_project_domain($domain);
   $dnsOk = false;
   $records = @dns_get_record($domain, DNS_CNAME);
-  $target = strtolower(domain_cname_target());
   if (is_array($records)) {
     foreach ($records as $rec) {
       $val = strtolower((string)($rec['target'] ?? ''));
-      if ($val !== '' && (str_contains($val, 'vercel') || $val === $target || str_ends_with($val, '.vercel-dns.com'))) {
+      if (domain_cname_points_to_platform($val)) {
         $dnsOk = true;
         break;
       }
