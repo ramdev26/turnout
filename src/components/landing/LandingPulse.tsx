@@ -256,6 +256,8 @@ export function LandingPulsePage({
     else scrollTo('landing-tickets');
   };
 
+  const bannerUrl = event.bannerUrl?.trim() || '';
+
   return (
     <LandingPageShell event={event} showcase>
       <div className="landing-pulse">
@@ -268,6 +270,17 @@ export function LandingPulsePage({
             </h1>
             <p className="pulse-eyebrow">{eyebrow}</p>
           </header>
+
+          {bannerUrl ? (
+            <section className="pulse-media" aria-label="Event cover">
+              <img
+                src={bannerUrl}
+                alt=""
+                className="pulse-media-img"
+                referrerPolicy="no-referrer"
+              />
+            </section>
+          ) : null}
 
           <section className="pulse-hero" aria-label="Event overview">
             <div>

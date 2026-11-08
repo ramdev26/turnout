@@ -76,6 +76,29 @@
   line-height: 1.35;
 }
 
+/* ── Cover media (image / GIF) ── */
+.pulse-media {
+  margin: 0 0 2.5rem;
+  border: 1px solid var(--pulse-line);
+  background: #050505;
+  line-height: 0;
+  overflow: hidden;
+}
+
+.pulse-media-img {
+  display: block;
+  width: 100%;
+  height: clamp(14rem, 42vw, 28rem);
+  object-fit: cover;
+  object-position: center;
+}
+
+@media (min-width: 900px) {
+  .pulse-media-img {
+    height: clamp(18rem, 36vw, 32rem);
+  }
+}
+
 /* ── Hero ── */
 .pulse-hero {
   display: grid;
@@ -532,6 +555,11 @@
 
 .event-settings-mobile-preview .landing-pulse .pulse-date {
   font-size: 1.85rem;
+}
+
+.event-settings-mobile-preview .landing-pulse .pulse-media-img,
+.event-settings-desktop-preview .landing-pulse .pulse-media-img {
+  height: 10rem;
 }
 
 /* ── Pulse checkout (page + modal) ── */
