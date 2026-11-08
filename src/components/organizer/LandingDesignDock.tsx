@@ -28,6 +28,7 @@ import {
 import type { LandingButtonShadow } from '../../types';
 import { cn } from '../../utils/cn';
 import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
+import { isLightHex } from '../../themes/eventThemes';
 
 type DockControl = 'pageColors' | 'textColors' | 'fonts' | 'textStyle' | 'buttonStyle' | null;
 
@@ -820,7 +821,22 @@ export function LandingDesignDock({
                     label="Page background"
                     value={design.pageBackgroundColor}
                     fallback="#ffffff"
-                    onChange={(hex) => update({ pageBackgroundColor: hex })}
+                    onChange={(hex) => {
+                      const patch: Partial<LandingDesignValue> = { pageBackgroundColor: hex };
+                      // Dark page → dark cards/tone so the whole composition follows.
+                      if (!isLightHex(hex)) {
+                        if (!design.surfaceColor || isLightHex(design.surfaceColor)) {
+                          patch.surfaceColor = '#141414';
+                        }
+                        if (!design.surfaceMutedColor || isLightHex(design.surfaceMutedColor)) {
+                          patch.surfaceMutedColor = '#0f0f0f';
+                        }
+                        if (design.displayMode !== 'dark') {
+                          patch.displayMode = 'dark';
+                        }
+                      }
+                      update(patch);
+                    }}
                     onClear={() => update({ pageBackgroundColor: undefined })}
                   />
 

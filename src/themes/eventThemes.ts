@@ -271,7 +271,11 @@ function pickReadableAccent(primary: string, secondary?: string): string {
   return TURNOUT_BRAND.teal700;
 }
 
-/** Dark text on light pages; fixes white brand colour + auto/dark display. */
+/**
+ * Keep text readable when brand accents are light.
+ * Important: do NOT force white cards when the page is dark — organizers must be
+ * able to set a black/dark page and have cards follow surface tokens.
+ */
 function ensureReadableLandingSurfaces(
   surfaces: LandingSurfaces,
   primary: string,
@@ -279,6 +283,15 @@ function ensureReadableLandingSurfaces(
 ): LandingSurfaces {
   const brandIsLight = isLightHex(primary) || (secondary ? isLightHex(secondary) : false);
   if (!brandIsLight) return surfaces;
+
+  // Dark pages: keep dark surfaces; only ensure text stays light-readable.
+  if (surfaces.isDark) {
+    return {
+      ...surfaces,
+      text: surfaces.text || TURNOUT_BRAND.text,
+      textMuted: surfaces.textMuted || TURNOUT_BRAND.textMuted,
+    };
+  }
 
   const light = generatedLightSurfaces(primary, secondary);
   return {
@@ -471,7 +484,10 @@ function generatedLightSurfaces(primary: string, secondary?: string): LandingSur
 
 /** Whether the public landing renders in light or dark tone. */
 export function landingToneIsDark(customization: LandingCustomizationInput): boolean {
-  return resolveDisplayMode(normalizeLandingCustomization(customization)).isDark;
+  const c = normalizeLandingCustomization(customization);
+  if (resolveDisplayMode(c).isDark) return true;
+  const pageBg = storedHexColor(c.pageBackgroundColor);
+  return !!pageBg && !isLightHex(pageBg);
 }
 
 function resolveLandingSurfaces(
@@ -567,7 +583,6 @@ export function landingCssVars(
     primary,
     secondary
   );
-  const isDark = surfaces.isDark;
   const font = resolveLandingFont(c.fontFamily);
   const radius = style === 'bold' ? '1.75rem' : style === 'minimal' ? '1rem' : '1.5rem';
   const accentReadable = pickReadableAccent(primary, secondary);
@@ -608,13 +623,43 @@ export function landingCssVars(
 
   const buttonFill = buttonColor || accentReadable;
   const onButton = isLightHex(buttonFill) ? TURNOUT_BRAND.ink : '#ffffff';
-  const textColor = bodyTextColor || surfaces.text;
-  const textMuted = mutedTextColor || surfaces.textMuted;
-  const heading = headingColor || textColor;
   const pageBg = pageBackgroundColor || surfaces.pageBg;
-  const surfaceBg = surfaceColor || surfaces.surfaceBg;
-  const surfaceMutedBg = surfaceMutedColor || surfaces.surfaceMutedBg;
-  const border = borderColor || surfaces.borderColor;
+  // If the organizer paints the page dark/black, cards/glass must follow unless
+  // they explicitly set a dark (or intentionally contrasting) surface color.
+  const pageForcedDark = !!pageBackgroundColor && !isLightHex(pageBackgroundColor);
+  const surfaceLooksLight = !surfaceColor || isLightHex(surfaceColor);
+  const mutedLooksLight = !surfaceMutedColor || isLightHex(surfaceMutedColor);
+  const autoDarkSurface = pageForcedDark && surfaceLooksLight;
+  const autoDarkMuted = pageForcedDark && mutedLooksLight;
+  const effectiveDark = surfaces.isDark || pageForcedDark;
+  const surfaceBg = autoDarkSurface
+    ? surfaceColor && !isLightHex(surfaceColor)
+      ? surfaceColor
+      : 'rgba(255,255,255,0.08)'
+    : surfaceColor || surfaces.surfaceBg;
+  const surfaceMutedBg = autoDarkMuted
+    ? surfaceMutedColor && !isLightHex(surfaceMutedColor)
+      ? surfaceMutedColor
+      : 'rgba(255,255,255,0.05)'
+    : surfaceMutedColor || surfaces.surfaceMutedBg;
+  const glassBg = effectiveDark
+    ? surfaces.isDark
+      ? surfaces.glassBg
+      : 'rgba(10, 10, 12, 0.82)'
+    : surfaces.glassBg;
+  const glassBorder = effectiveDark
+    ? surfaces.isDark
+      ? surfaces.glassBorder
+      : 'rgba(255,255,255,0.12)'
+    : surfaces.glassBorder;
+  const textColor =
+    bodyTextColor || (autoDarkSurface && !surfaces.isDark ? TURNOUT_BRAND.text : surfaces.text);
+  const textMuted =
+    mutedTextColor ||
+    (autoDarkSurface && !surfaces.isDark ? TURNOUT_BRAND.textMuted : surfaces.textMuted);
+  const heading = headingColor || textColor;
+  const border =
+    borderColor || (autoDarkSurface && !surfaces.isDark ? TURNOUT_BRAND.limeLine : surfaces.borderColor);
   const headerBg = headerBgColor || surfaceBg;
   const footerBg = footerBgColor || `color-mix(in srgb, ${surfaceBg} 55%, transparent)`;
 
@@ -678,13 +723,17 @@ export function landingCssVars(
     ['--landing-border' as string]: border,
     ['--landing-header-bg' as string]: headerBg,
     ['--landing-footer-bg' as string]: footerBg,
-    ['--landing-shadow' as string]: surfaces.cardShadow,
-    ['--landing-shadow-hover' as string]: isDark
+    ['--landing-shadow' as string]: effectiveDark
+      ? surfaces.isDark
+        ? surfaces.cardShadow
+        : '0 18px 44px rgba(0, 0, 0, 0.55)'
+      : surfaces.cardShadow,
+    ['--landing-shadow-hover' as string]: effectiveDark
       ? '0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.06)'
       : '0 24px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.04)',
     ['--landing-glow' as string]: `color-mix(in srgb, ${primary} 35%, transparent)`,
-    ['--landing-glass-bg' as string]: surfaces.glassBg,
-    ['--landing-glass-border' as string]: surfaces.glassBorder,
+    ['--landing-glass-bg' as string]: glassBg,
+    ['--landing-glass-border' as string]: glassBorder,
     ['--landing-radius' as string]: radius,
     ['--landing-font-display' as string]: font.display,
     ['--landing-font-body' as string]: font.body,

@@ -26,7 +26,8 @@ import { EventLocationFields } from '../components/ui/EventLocationFields';
 import { CheckoutFieldsEditor } from '../components/organizer/CheckoutFieldsEditor';
 import { EventPolicyEditorModal } from '../components/organizer/EventPolicyEditorModal';
 import { CustomDomainPanel } from '../components/organizer/CustomDomainPanel';
-import { PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { PaidEventPayoutReminder, PaidEventSetupGate } from '../components/organizer/PaidEventSetupGate';
+import { eventImageSizeHint, validateEventImageFile } from '../utils/eventImageUpload';
 import {
   EventLocationMode,
   OnlineEventPlatform,
@@ -482,9 +483,14 @@ export const EventSettings: React.FC = () => {
     setIsUploadingBanner(true);
     setBannerUploadError(null);
     try {
+      const validationError = validateEventImageFile(file);
+      if (validationError) {
+        setBannerUploadError(validationError);
+        return;
+      }
       const url = await uploadImageFile(file);
       if (url) setBannerUrl(url);
-      else setBannerUploadError('Upload failed');
+      else setBannerUploadError('Upload failed. Try PNG, JPG, WEBP, or GIF under 10MB.');
     } catch {
       setBannerUploadError('Upload failed. Check your connection.');
     } finally {
@@ -493,6 +499,11 @@ export const EventSettings: React.FC = () => {
   };
 
   const uploadImageFile = async (file: File): Promise<string | null> => {
+    const validationError = validateEventImageFile(file);
+    if (validationError) {
+      setBannerUploadError(validationError);
+      return null;
+    }
     const formData = new FormData();
     formData.append('file', file);
     const res = await fetch(toApiUrl('/api/uploads/banner'), {
@@ -508,6 +519,7 @@ export const EventSettings: React.FC = () => {
       data = null;
     }
     if (res.ok && data?.bannerUrl) return normalizeBannerUrl(data.bannerUrl);
+    setBannerUploadError(data?.message || 'Upload failed. Try PNG, JPG, WEBP, or GIF under 10MB.');
     return null;
   };
 
@@ -819,8 +831,13 @@ export const EventSettings: React.FC = () => {
     }
     const maxBulkPrice = ticketForm.bulkOffers.reduce((max, offer) => Math.max(max, Number(offer.price) || 0), 0);
     const paidAmount = Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0, maxBulkPrice);
-    if (paidAmount > 0 && paidEventReadiness && !paidEventReadiness.isReady) {
-      setError('Complete business and payment setup in Organization settings before adding paid tickets.');
+    if (
+      paidAmount > 0 &&
+      paidEventReadiness &&
+      !paidEventReadiness.isReady &&
+      paidEventReadiness.gatewayMode === 'own_payhere'
+    ) {
+      setError('Connect your own gateway and account card in Organization before adding paid tickets.');
       return;
     }
     if (
@@ -1025,6 +1042,7 @@ export const EventSettings: React.FC = () => {
               onFileSelect={(file) => void uploadBannerFile(file)}
               frameClassName={ui.bannerFrame}
               placeholderClassName={ui.bannerPlaceholder}
+              sizeHint={eventImageSizeHint(design.templateId || event?.templateId)}
             />
             {bannerUploadError && <p className="text-xs text-rose-600">{bannerUploadError}</p>}
 
@@ -1398,9 +1416,15 @@ export const EventSettings: React.FC = () => {
 
               {Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0) > 0 &&
               paidEventReadiness &&
-              !paidEventReadiness.isReady ? (
+              !paidEventReadiness.isReady &&
+              paidEventReadiness.gatewayMode === 'own_payhere' ? (
                 <div className="mt-4">
-                  <PaidEventSetupGate readiness={paidEventReadiness} title="Paid ticket setup required" />
+                  <PaidEventSetupGate readiness={paidEventReadiness} title="Finish your own gateway setup" />
+                </div>
+              ) : null}
+              {Math.max(ticketForm.price, ticketForm.earlyBirdEnabled ? ticketForm.earlyBirdPrice : 0) > 0 ? (
+                <div className="mt-4">
+                  <PaidEventPayoutReminder readiness={paidEventReadiness} />
                 </div>
               ) : null}
 

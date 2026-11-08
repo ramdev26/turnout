@@ -157,9 +157,12 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
   $turnoutDocsOverride = organizer_turnout_pay_docs_override_enabled($profileRow);
 
   $businessIncomplete = !organizer_business_details_complete($profileRow);
-  // Temporarily do not block paid events on business details.
+  // Business/KYC docs never block publishing or selling — they are payout reminders.
   $needsBusiness = false;
-  $needsBank = $gatewayMode === 'turnout' && !$turnoutDocsOverride && !organizer_bank_details_complete($profileRow);
+  $bankComplete = organizer_bank_details_complete($profileRow);
+  // Turnout Pay (default): organizers can publish/sell paid tickets immediately.
+  // Bank details are only needed later for disbursement / payouts.
+  $needsBankForPublish = false;
   $needsOwnPayhere = $gatewayMode === 'own_payhere' && !organizer_own_payhere_is_configured($paymentRow);
   $needsBillingCard = $gatewayMode === 'own_payhere' && !organizer_billing_is_active($paymentRow);
 
@@ -171,22 +174,33 @@ function organizer_paid_event_readiness(PDO $pdo, int $ownerUserId): array {
     if (trim((string)($profileRow['business_registration_doc_url'] ?? '')) === '') $missing[] = 'business_registration_doc';
     if (trim((string)($profileRow['bank_statement_doc_url'] ?? '')) === '') $missing[] = 'bank_statement_doc';
   }
-  if ($needsBank) {
+  if (!$bankComplete && !$turnoutDocsOverride) {
     if (trim((string)($profileRow['bank_account_holder_name'] ?? '')) === '') $missing[] = 'bank_account_holder_name';
     if (trim((string)($profileRow['bank_name'] ?? '')) === '') $missing[] = 'bank_name';
     if (trim((string)($profileRow['bank_branch'] ?? '')) === '') $missing[] = 'bank_branch';
     if (trim((string)($profileRow['bank_account_number'] ?? '')) === '') $missing[] = 'bank_account_number';
   }
+  if ($needsOwnPayhere) {
+    $missing[] = 'own_payhere_credentials';
+  }
+  if ($needsBillingCard) {
+    $missing[] = 'billing_card';
+  }
 
-  // Business details stay optional. Own-gateway organizers must complete credentials + account card.
-  $isReady = !$needsBank && !$needsOwnPayhere && !$needsBillingCard;
+  // Own-gateway organizers must finish credentials + account card before selling paid tickets.
+  // Turnout Pay is ready out of the box (platform checkout).
+  $isReady = !$needsOwnPayhere && !$needsBillingCard;
+  $payoutReady = $bankComplete || $turnoutDocsOverride;
 
   return [
     'isReady' => $isReady,
+    'payoutReady' => $payoutReady,
     'gatewayMode' => $gatewayMode,
     'requirements' => [
       'needsBusinessDetails' => $needsBusiness,
-      'needsBankDetails' => $needsBank,
+      // Never blocks publish/sell on Turnout Pay (API compat).
+      'needsBankDetails' => $needsBankForPublish,
+      'needsBankDetailsForPayout' => !$payoutReady,
       'needsOwnPayhereCredentials' => $needsOwnPayhere,
       'needsBillingCard' => $needsBillingCard,
       'turnoutDocsOverride' => $turnoutDocsOverride,
@@ -208,9 +222,8 @@ function assert_organizer_can_sell_paid_tickets(PDO $pdo, int $ownerUserId, floa
   $readiness = organizer_paid_event_readiness($pdo, $ownerUserId);
   if ($readiness['isReady']) return;
 
-  $hint = ($readiness['gatewayMode'] ?? '') === 'own_payhere'
-    ? 'Connect your own gateway and add an account card in Organization → Payments before selling paid tickets.'
-    : 'Add your bank payout details in Organization → Payments before selling paid tickets.';
+  // Turnout Pay is always ready to sell; only own-gateway setup can still block.
+  $hint = 'Connect your own gateway and add an account card in Organization → Payments before selling paid tickets.';
 
   json_response(400, [
     'error' => 'paid_event_setup_required',

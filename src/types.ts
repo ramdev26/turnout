@@ -114,6 +114,8 @@ export type OrganizerProfile = {
 export type OrganizerPaidEventRequirements = {
   needsBusinessDetails: boolean;
   needsBankDetails: boolean;
+  /** Soft flag — bank needed before payout/disbursement, not before publish. */
+  needsBankDetailsForPayout?: boolean;
   needsOwnPayhereCredentials: boolean;
   needsBillingCard: boolean;
   turnoutDocsOverride?: boolean;
@@ -121,6 +123,8 @@ export type OrganizerPaidEventRequirements = {
 
 export type OrganizerPaidEventReadiness = {
   isReady: boolean;
+  /** True when bank details are on file (or admin override) for payouts. */
+  payoutReady?: boolean;
   gatewayMode: OrganizerGatewayMode;
   requirements: OrganizerPaidEventRequirements;
   missing: string[];
