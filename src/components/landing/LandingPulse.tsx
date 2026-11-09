@@ -71,20 +71,32 @@ function parseRoomsFromDescription(description: string): PulseRoom[] {
   });
 }
 
+/** Pulse is the Take My Bass layout — never surface Club CTRL copy from tickets/defaults. */
+function isClubCtrlCopy(text: string): boolean {
+  return /club\s*ctrl/i.test(text);
+}
+
+function isTakeMyBassTicket(ticket: EventTicket): boolean {
+  return /take\s*my\s*bass/i.test(ticket.name) && !/both|combo|bundle/i.test(ticket.name);
+}
+
 function roomsFromTickets(tickets: EventTicket[]): PulseRoom[] {
-  const named = tickets.filter((t) => !/both/i.test(t.name));
-  const source = (named.length >= 2 ? named : tickets).slice(0, 2);
+  const named = tickets.filter(
+    (t) => !/both|combo|bundle/i.test(t.name) && !isClubCtrlCopy(t.name)
+  );
+  const preferred = named.filter(isTakeMyBassTicket);
+  const source = (preferred.length > 0 ? preferred : named).slice(0, 1);
   if (source.length === 0) return [];
-  return source.map((ticket, index) => {
+  return source.map((ticket) => {
     const lines = (ticket.description || '').split(/\n+/).map((l) => l.trim()).filter(Boolean);
     const tagsLine = lines.find((l) => /^[A-Z0-9][A-Z0-9\s|/·•-]+$/.test(l) && l.length < 80);
-    const body = lines.filter((l) => l !== tagsLine).join(' ') || 'Full access for this session.';
+    const body = lines.filter((l) => l !== tagsLine).join(' ') || 'Full night access.';
     return {
-      kicker: index === 0 ? 'ROOM ONE' : 'ROOM TWO',
+      kicker: 'TONIGHT',
       title: ticket.name,
       body,
       tags: (tagsLine || '').replace(/[|/·•]+/g, '  ').trim(),
-      emphasis: index === 1,
+      emphasis: false,
     };
   });
 }
@@ -92,81 +104,62 @@ function roomsFromTickets(tickets: EventTicket[]): PulseRoom[] {
 function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
   const custom = event.customization?.pulseRooms;
   if (Array.isArray(custom) && custom.length > 0) {
-    return custom.slice(0, 2).map((room, index) => ({
-      kicker: (room.kicker || '').trim() || (index === 0 ? 'ROOM ONE' : 'ROOM TWO'),
-      title: (room.title || '').trim() || (index === 0 ? 'Main room' : 'Second room'),
-      body: (room.body || '').trim() || 'Details coming soon.',
-      tags: (room.tags || '').trim(),
-      emphasis: room.emphasis ?? index === 1,
-    }));
+    const cleaned = custom
+      .filter((room) => !isClubCtrlCopy(`${room.kicker || ''} ${room.title || ''} ${room.body || ''}`))
+      .slice(0, 1)
+      .map((room) => ({
+        kicker: (room.kicker || '').trim() || 'TONIGHT',
+        title: (room.title || '').trim() || event.title || 'Main room',
+        body: (room.body || '').trim() || 'Details coming soon.',
+        tags: (room.tags || '').trim(),
+        emphasis: false,
+      }));
+    if (cleaned.length > 0) return cleaned;
   }
-  const fromDesc = parseRoomsFromDescription(event.description || '');
-  if (fromDesc.length >= 2) return fromDesc;
+
+  const fromDesc = parseRoomsFromDescription(event.description || '').filter(
+    (room) => !isClubCtrlCopy(`${room.kicker} ${room.title} ${room.body}`)
+  );
+  if (fromDesc.length > 0) return [fromDesc[0]];
+
   const fromTickets = roomsFromTickets(tickets);
-  if (fromTickets.length >= 2) return fromTickets;
-  if (fromTickets.length === 1) {
-    return [
-      fromTickets[0],
-      {
-        kicker: 'ROOM TWO',
-        title: 'After hours',
-        body: 'A second room / late session. Add ticket tiers or description blocks to customize this card.',
-        tags: 'LATE  HEAVY  DARK',
-        emphasis: true,
-      },
-    ];
-  }
+  if (fromTickets.length > 0) return fromTickets;
+
   const title = event.title || 'Main room';
   const body = (event.description || '').trim() || 'Open-floor energy. Full night access.';
   return [
     {
-      kicker: 'ROOM ONE',
+      kicker: 'TONIGHT',
       title,
       body,
-      tags: 'MAIN  FLOOR  LIVE',
+      tags: 'TECH HOUSE  HOUSE  INDIE DANCE',
       emphasis: false,
-    },
-    {
-      kicker: 'ROOM TWO',
-      title: 'After hours',
-      body: 'A darker late session. Edit your event description (two blocks separated by a blank line) or ticket copy to replace these rooms.',
-      tags: 'LATE  HEAVY  DARK',
-      emphasis: true,
     },
   ];
 }
 
-function resolveSchedule(event: Event, tickets: EventTicket[]): PulseScheduleLine[] {
+function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLine[] {
   const custom = event.customization?.pulseSchedule;
   if (Array.isArray(custom) && custom.length > 0) {
-    return custom.slice(0, 2).map((line) => ({
-      label: (line.label || '').trim() || 'Session',
-      time: (line.time || '').trim() || 'TBA',
-    }));
+    return custom
+      .filter((line) => !isClubCtrlCopy(`${line.label || ''} ${line.time || ''}`))
+      .slice(0, 2)
+      .map((line) => ({
+        label: (line.label || '').trim() || 'Session',
+        time: (line.time || '').trim() || 'TBA',
+      }));
   }
 
   const tba = !!event.customization?.scheduleTba;
+  const title = event.title || 'Doors';
   if (tba) {
-    return [
-      { label: event.title || 'Doors', time: 'TBA' },
-      { label: 'After hours', time: 'TBA' },
-    ];
+    return [{ label: title, time: 'TBA' }];
   }
 
   const start = new Date(event.date);
   const startLabel = Number.isNaN(start.getTime()) ? 'TBA' : format(start, 'h a');
-  const named = tickets.filter((t) => !/both/i.test(t.name)).slice(0, 2);
-  if (named.length >= 2) {
-    return named.map((t, i) => ({
-      label: t.name,
-      time: i === 0 ? `${startLabel} onwards` : 'Late',
-    }));
-  }
 
-  return [
-    { label: event.title || 'Main event', time: `${startLabel} onwards` },
-    { label: 'Doors', time: startLabel },
-  ];
+  return [{ label: title, time: `${startLabel} onwards` }];
 }
 
 function isFeaturedTicket(ticket: EventTicket, index: number, total: number): boolean {
@@ -222,7 +215,8 @@ export function LandingPulsePage({
   const { lead, accent } = splitHeadlineAccent(headlineRaw);
   const tagline =
     (event.customization?.pulseTagline || '').trim() ||
-    'TWO ROOMS. ONE NIGHT.';
+    (event.customization?.heroSubtext || '').trim() ||
+    'ONE NIGHT. ALL ACCESS.';
 
   const tba = !!event.customization?.scheduleTba;
   const eventDate = new Date(event.date);
@@ -428,7 +422,10 @@ export function LandingPulsePage({
                           .join(' ')}
                       >
                         <td data-label="Room">
-                          <div className="pulse-row-name">{ticket.name}</div>
+                          <div className="pulse-row-heading">
+                            <div className="pulse-row-name">{ticket.name}</div>
+                            {featured ? <span className="pulse-best-value">Best value</span> : null}
+                          </div>
                           {remaining <= 0 ? (
                             <div className="pulse-schedule-time">Sold out</div>
                           ) : null}
