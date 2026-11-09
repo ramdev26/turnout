@@ -90,13 +90,15 @@ function roomsFromTickets(tickets: EventTicket[]): PulseRoom[] {
   return source.map((ticket) => {
     const lines = (ticket.description || '').split(/\n+/).map((l) => l.trim()).filter(Boolean);
     const tagsLine = lines.find((l) => /^[A-Z0-9][A-Z0-9\s|/·•-]+$/.test(l) && l.length < 80);
-    const body = lines.filter((l) => l !== tagsLine).join(' ') || 'Full night access.';
+    const body =
+      lines.filter((l) => l !== tagsLine).join(' ') ||
+      'Groovy, bouncy, bassy — tech house, house and indie dance from 6 PM to 1 AM.';
     return {
-      kicker: 'TONIGHT',
+      kicker: '6 PM – 1 AM',
       title: ticket.name,
       body,
-      tags: (tagsLine || '').replace(/[|/·•]+/g, '  ').trim(),
-      emphasis: false,
+      tags: (tagsLine || 'TECH HOUSE  HOUSE  INDIE DANCE').replace(/[|/·•]+/g, '  ').trim(),
+      emphasis: true,
     };
   });
 }
@@ -108,11 +110,11 @@ function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
       .filter((room) => !isClubCtrlCopy(`${room.kicker || ''} ${room.title || ''} ${room.body || ''}`))
       .slice(0, 1)
       .map((room) => ({
-        kicker: (room.kicker || '').trim() || 'TONIGHT',
-        title: (room.title || '').trim() || event.title || 'Main room',
+        kicker: (room.kicker || '').trim() || '6 PM – 1 AM',
+        title: (room.title || '').trim() || event.title || 'Take My Bass',
         body: (room.body || '').trim() || 'Details coming soon.',
-        tags: (room.tags || '').trim(),
-        emphasis: false,
+        tags: (room.tags || '').trim() || 'TECH HOUSE  HOUSE  INDIE DANCE',
+        emphasis: true,
       }));
     if (cleaned.length > 0) return cleaned;
   }
@@ -125,15 +127,16 @@ function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
   const fromTickets = roomsFromTickets(tickets);
   if (fromTickets.length > 0) return fromTickets;
 
-  const title = event.title || 'Main room';
-  const body = (event.description || '').trim() || 'Open-floor energy. Full night access.';
+  const title = event.title || 'Take My Bass';
   return [
     {
-      kicker: 'TONIGHT',
+      kicker: '6 PM – 1 AM',
       title,
-      body,
+      body:
+        (event.description || '').trim() ||
+        'Our open-air club night energy — tech house, house and indie dance across one dancefloor. Built to move.',
       tags: 'TECH HOUSE  HOUSE  INDIE DANCE',
-      emphasis: false,
+      emphasis: true,
     },
   ];
 }
@@ -156,11 +159,53 @@ function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLi
     return [{ label: title, time: 'TBA' }];
   }
 
-  const start = new Date(event.date);
-  const startLabel = Number.isNaN(start.getTime()) ? 'TBA' : format(start, 'h a');
-
-  return [{ label: title, time: `${startLabel} onwards` }];
+  return [{ label: title, time: '6 PM – 1 AM' }];
 }
+
+function resolveStory(event: Event): { kicker: string; title: string; body: string } {
+  const desc = (event.description || '')
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter((l) => l && !isClubCtrlCopy(l))
+    .join(' ')
+    .trim();
+  return {
+    kicker: 'THE STORY',
+    title: 'Back in Colombo.',
+    body:
+      desc ||
+      'From 6 PM. Groovy, bouncy, bassy, hands in the air. Take My Bass returns for a full night of tech house, house and indie dance — built for the floor.',
+  };
+}
+
+type PulseBeat = { time: string; label: string; detail: string };
+
+function resolveNightBeats(event: Event): PulseBeat[] {
+  const custom = event.customization?.pulseSchedule;
+  if (Array.isArray(custom) && custom.length >= 2) {
+    return custom
+      .filter((line) => !isClubCtrlCopy(`${line.label || ''} ${line.time || ''}`))
+      .slice(0, 4)
+      .map((line) => ({
+        time: (line.time || '').trim() || 'TBA',
+        label: (line.label || '').trim() || 'Session',
+        detail: 'On the floor',
+      }));
+  }
+  return [
+    { time: '6 PM', label: 'Doors', detail: 'Floor opens. Warm-up begins.' },
+    { time: '7–11 PM', label: 'Peak hours', detail: 'Groovy · bouncy · bassy' },
+    { time: 'Till 1 AM', label: 'Last stretch', detail: 'Hands in the air. Stay on the floor.' },
+  ];
+}
+
+const SAFE_SPACE_RULES = [
+  'Everyone is welcome. Make someone feel unwelcome and you’re not.',
+  'No violence. Start something and the night ends for you.',
+  'Consent is the only vibe. Not a clear yes? It’s a no.',
+  'Crew with arm bands on the floor. Find one any time.',
+  'Ask the bar for Pine Apple. Staff help, no questions asked.',
+];
 
 function isFeaturedTicket(ticket: EventTicket, index: number, total: number): boolean {
   if (/both|combo|bundle|pair/i.test(ticket.name)) return true;
@@ -207,7 +252,7 @@ export function LandingPulsePage({
   const eyebrow =
     (event.customization?.pulseEyebrow || '').trim() ||
     (event.customization?.heroSubtext || '').trim() ||
-    'LIVE EVENT';
+    'VOL 06 · BACK IN COLOMBO';
   const headlineRaw =
     (event.customization?.pulseHeadline || '').trim() ||
     (event.customization?.heroText || '').trim() ||
@@ -215,8 +260,7 @@ export function LandingPulsePage({
   const { lead, accent } = splitHeadlineAccent(headlineRaw);
   const tagline =
     (event.customization?.pulseTagline || '').trim() ||
-    (event.customization?.heroSubtext || '').trim() ||
-    'ONE NIGHT. ALL ACCESS.';
+    'GROOVY. BOUNCY. BASSY.';
 
   const tba = !!event.customization?.scheduleTba;
   const eventDate = new Date(event.date);
@@ -229,10 +273,12 @@ export function LandingPulsePage({
     : resolveEventLocationLabel(event.customization, event.location);
   const cityLine =
     (event.customization?.pulseCityLine || '').trim() ||
-    (venueTba ? 'ONE VENUE' : resolveEventLocationLabel(event.customization, event.location).toUpperCase());
+    (venueTba ? 'COLOMBO' : resolveEventLocationLabel(event.customization, event.location).toUpperCase());
 
   const rooms = useMemo(() => resolveRooms(event, tickets), [event, tickets]);
   const schedule = useMemo(() => resolveSchedule(event, tickets), [event, tickets]);
+  const story = useMemo(() => resolveStory(event), [event]);
+  const nightBeats = useMemo(() => resolveNightBeats(event), [event]);
   // First release = early bird; Second release = original price.
   // While early bird is on sale, only show the first-release rate (hide original).
   const earlyBirdOnSale = tickets.some((t) => Boolean(t.earlyBird?.active));
@@ -350,8 +396,32 @@ export function LandingPulsePage({
             </div>
           </section>
 
-          <section className="pulse-rooms-wrap" aria-label="Rooms">
-            <div className="pulse-rooms">
+          <section className="pulse-story" aria-label="About the night">
+            <p className="pulse-story-kicker">{story.kicker}</p>
+            <h2 className="pulse-story-title landing-type-h2">{story.title}</h2>
+            <p className="pulse-story-body">{story.body}</p>
+          </section>
+
+          <section className="pulse-night" aria-label="How the night runs">
+            <div className="pulse-night-head">
+              <h2 className="pulse-night-title">How the night runs</h2>
+              <p className="pulse-night-sub">6 PM to 1 AM · one floor</p>
+            </div>
+            <ol className="pulse-beats">
+              {nightBeats.map((beat) => (
+                <li key={`${beat.time}-${beat.label}`} className="pulse-beat">
+                  <p className="pulse-beat-time">{beat.time}</p>
+                  <div>
+                    <p className="pulse-beat-label">{beat.label}</p>
+                    <p className="pulse-beat-detail">{beat.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="pulse-rooms-wrap" aria-label="The session">
+            <div className="pulse-rooms pulse-rooms--single">
               {rooms.map((room) => (
                 <article
                   key={`${room.kicker}-${room.title}`}
@@ -369,6 +439,22 @@ export function LandingPulsePage({
                 </article>
               ))}
             </div>
+          </section>
+
+          <section className="pulse-safe" aria-label="Safe space">
+            <div className="pulse-safe-head">
+              <p className="pulse-safe-kicker">Safe space</p>
+              <h2 className="pulse-safe-title landing-type-h2">Everyone is welcome.</h2>
+              <p className="pulse-safe-lead">Zero tolerance for harassment. Look after each other on the floor.</p>
+            </div>
+            <ol className="pulse-safe-list">
+              {SAFE_SPACE_RULES.map((rule, index) => (
+                <li key={rule} className="pulse-safe-item">
+                  <span className="pulse-safe-num">{index + 1}</span>
+                  <span>{rule}</span>
+                </li>
+              ))}
+            </ol>
           </section>
 
           <section id="landing-tickets" className="pulse-prices scroll-mt-24" aria-label="Prices">
@@ -452,6 +538,16 @@ export function LandingPulsePage({
             )}
 
             <p className="pulse-prices-note">{priceNote}</p>
+          </section>
+
+          <section className="pulse-close" aria-label="Closing">
+            <p className="pulse-close-kicker">The night</p>
+            <h2 className="pulse-close-title landing-type-h2">
+              Hands in the air. <span className="pulse-headline-accent">Stay on the floor.</span>
+            </h2>
+            <p className="pulse-close-body">
+              First release is limited. Grab your pass and we’ll see you on the dancefloor.
+            </p>
           </section>
 
           <div className="pulse-cta-row pulse-cta-row--desktop">

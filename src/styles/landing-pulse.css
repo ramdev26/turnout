@@ -334,7 +334,130 @@
   }
 }
 
-/* ── Rooms ── */
+/* ── Story ── */
+.pulse-story {
+  margin-bottom: 2.75rem;
+  padding: 1.5rem 0 1.75rem;
+  border-top: 1px solid var(--pulse-line);
+  border-bottom: 1px solid var(--pulse-line);
+}
+
+.pulse-story-kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pulse-accent);
+}
+
+.pulse-story-title {
+  margin: 0.55rem 0 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(2rem, 5vw, 3.1rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  color: var(--pulse-ink);
+}
+
+.pulse-story-body {
+  margin: 1rem 0 0;
+  max-width: 40rem;
+  font-size: clamp(0.95rem, 2.2vw, 1.1rem);
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--pulse-ink) 78%, #888);
+}
+
+/* ── Night runs ── */
+.pulse-night {
+  margin-bottom: 2.75rem;
+}
+
+.pulse-night-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.65rem 1.25rem;
+  margin-bottom: 1.15rem;
+}
+
+.pulse-night-title {
+  margin: 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(1.55rem, 3.5vw, 2.2rem);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+
+.pulse-night-sub {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pulse-muted);
+}
+
+.pulse-beats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--pulse-line);
+}
+
+.pulse-beat {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--pulse-line);
+}
+
+.pulse-beat:last-child {
+  border-bottom: 0;
+}
+
+.pulse-beat-time {
+  margin: 0;
+  font-family: var(--pulse-font-display);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--pulse-accent);
+}
+
+.pulse-beat-label {
+  margin: 0;
+  font-family: var(--pulse-font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.pulse-beat-detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.84rem;
+  color: var(--pulse-muted);
+}
+
+@media (max-width: 520px) {
+  .pulse-beat {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}
+
+/* ── Rooms / session ── */
 .pulse-rooms-wrap {
   margin-bottom: 2.75rem;
 }
@@ -345,23 +468,32 @@
 }
 
 @media (min-width: 768px) {
-  .pulse-rooms {
+  .pulse-rooms:not(.pulse-rooms--single) {
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
   }
+}
+
+.pulse-rooms--single {
+  grid-template-columns: 1fr;
 }
 
 .pulse-room {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 1.15rem 1.2rem 1.05rem;
+  padding: 1.35rem 1.3rem 1.2rem;
   border: 1px solid var(--pulse-card-border);
   background: #000000;
 }
 
+.pulse-rooms--single .pulse-room {
+  padding: 1.6rem 1.45rem 1.4rem;
+}
+
 .pulse-room--accent {
   border-color: color-mix(in srgb, var(--pulse-accent) 55%, #2a2a2a);
+  background: color-mix(in srgb, var(--pulse-accent) 7%, #000);
 }
 
 .pulse-room-kicker {
@@ -377,7 +509,7 @@
   margin: 0.55rem 0 0;
   font-family: var(--pulse-font-display);
   font-weight: 800;
-  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-size: clamp(1.55rem, 3.2vw, 2.35rem);
   line-height: 0.95;
   letter-spacing: -0.03em;
   text-transform: uppercase;
@@ -390,7 +522,8 @@
 
 .pulse-room-body {
   margin: 0.85rem 0 0;
-  font-size: 0.86rem;
+  max-width: 42rem;
+  font-size: 0.92rem;
   line-height: 1.55;
   color: color-mix(in srgb, var(--pulse-ink) 78%, #888);
   flex: 1;
@@ -399,7 +532,7 @@
 .pulse-room-rule {
   border: 0;
   border-top: 1px solid var(--pulse-line);
-  margin: 1rem 0 0.75rem;
+  margin: 1.15rem 0 0.85rem;
 }
 
 .pulse-room-tags {
@@ -410,6 +543,107 @@
   text-transform: uppercase;
   color: color-mix(in srgb, var(--pulse-ink) 70%, #777);
   word-spacing: 0.65rem;
+}
+
+/* ── Safe space ── */
+.pulse-safe {
+  margin-bottom: 2.75rem;
+  padding: 1.5rem 0 0;
+  border-top: 1px solid var(--pulse-line);
+}
+
+.pulse-safe-kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pulse-accent);
+}
+
+.pulse-safe-title {
+  margin: 0.5rem 0 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+
+.pulse-safe-lead {
+  margin: 0.75rem 0 0;
+  max-width: 34rem;
+  font-size: 0.92rem;
+  color: var(--pulse-muted);
+}
+
+.pulse-safe-list {
+  list-style: none;
+  margin: 1.35rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+@media (min-width: 800px) {
+  .pulse-safe-list {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+  }
+}
+
+.pulse-safe-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--pulse-line);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--pulse-ink) 82%, #888);
+}
+
+.pulse-safe-num {
+  flex: 0 0 auto;
+  font-family: var(--pulse-font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--pulse-accent);
+}
+
+/* ── Closing band ── */
+.pulse-close {
+  margin: 0 0 1.75rem;
+  padding: 1.75rem 0 0.25rem;
+  border-top: 1px solid var(--pulse-line);
+}
+
+.pulse-close-kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pulse-muted);
+}
+
+.pulse-close-title {
+  margin: 0.55rem 0 0;
+  font-family: var(--pulse-font-display);
+  font-weight: 800;
+  font-size: clamp(1.85rem, 4.5vw, 2.85rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
+
+.pulse-close-body {
+  margin: 0.85rem 0 0;
+  max-width: 32rem;
+  font-size: 0.9rem;
+  color: var(--pulse-muted);
 }
 
 /* ── Prices ── */
