@@ -1,7 +1,7 @@
 <?php
 
 /** Bump when transaction email HTML changes — also exposed on /api/health. */
-const MAIL_LAYOUT_VERSION = 'transaction-event-theme-v1-20261109';
+const MAIL_LAYOUT_VERSION = 'transaction-both-rooms-v1-20261109';
 
 function mail_layout_version(): string {
   return MAIL_LAYOUT_VERSION;
@@ -694,6 +694,78 @@ function mail_hex_luminance(string $hex): float {
   return 0.2126 * $chan($r) + 0.7152 * $chan($g) + 0.0722 * $chan($b);
 }
 
+/** Both Rooms / combo passes get a gold “best value” brand, not Pulse pink or Ctrl red. */
+function mail_is_both_rooms_label(?string $label): bool {
+  return (bool)preg_match('/both|combo|bundle|pair/i', (string)$label);
+}
+
+/**
+ * Gold palette for Both Rooms / combo tickets (distinct from solo Pulse or Ctrl).
+ *
+ * @return array{
+ *   primary:string,
+ *   secondary:string,
+ *   button:string,
+ *   buttonText:string,
+ *   qrDark:string,
+ *   qrDarkHex:string,
+ *   ink:string,
+ *   bothRooms:bool
+ * }
+ */
+function mail_both_rooms_theme(): array {
+  $primary = '#d4af37';
+  $secondary = '#8b6914';
+  $qrDarkHex = '#5c4813';
+  return [
+    'primary' => $primary,
+    'secondary' => $secondary,
+    'button' => $primary,
+    'buttonText' => '#111827',
+    'qrDark' => ltrim($qrDarkHex, '#'),
+    'qrDarkHex' => $qrDarkHex,
+    'ink' => '#111827',
+    'bothRooms' => true,
+  ];
+}
+
+/**
+ * True when the order (tickets_json or attendee ticket names) is a Both Rooms purchase.
+ *
+ * @param list<array<string,mixed>> $attendees
+ */
+function mail_order_is_both_rooms(array $order, array $attendees = []): bool {
+  foreach ($attendees as $a) {
+    if (!is_array($a)) continue;
+    if (mail_is_both_rooms_label((string)($a['ticket_name'] ?? $a['ticketName'] ?? ''))) {
+      return true;
+    }
+  }
+  $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
+  if (!is_array($items)) return false;
+  foreach ($items as $it) {
+    if (!is_array($it)) continue;
+    $name = (string)($it['name'] ?? $it['ticketName'] ?? '');
+    $qty = (int)($it['quantity'] ?? 0);
+    if ($qty > 0 && mail_is_both_rooms_label($name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * @param array<string,string|bool> $baseTheme
+ * @return array<string,string|bool>
+ */
+function mail_theme_for_pass(array $baseTheme, array $pass): array {
+  $name = (string)($pass['ticket_name'] ?? $pass['ticketName'] ?? '');
+  if (mail_is_both_rooms_label($name)) {
+    return mail_both_rooms_theme();
+  }
+  return $baseTheme;
+}
+
 /**
  * Resolve brand colors for ticket emails / QR frames from the event row.
  *
@@ -704,7 +776,8 @@ function mail_hex_luminance(string $hex): float {
  *   buttonText:string,
  *   qrDark:string,
  *   qrDarkHex:string,
- *   ink:string
+ *   ink:string,
+ *   bothRooms:bool
  * }
  */
 function mail_event_theme_from_row(array $orderOrEvent): array {
@@ -776,6 +849,7 @@ function mail_event_theme_from_row(array $orderOrEvent): array {
     'qrDark' => ltrim($qrDarkHex, '#'),
     'qrDarkHex' => $qrDarkHex,
     'ink' => '#111827',
+    'bothRooms' => false,
   ];
 }
 
@@ -1130,10 +1204,11 @@ function send_buyer_order_confirmation_email(
     return false;
   }
 
-  $theme = mail_event_theme_from_row($order);
-  $ctaBg = $theme['button'];
-  $ctaFg = $theme['buttonText'];
-  $accent = $theme['primary'];
+  $baseTheme = mail_event_theme_from_row($order);
+  $theme = mail_order_is_both_rooms($order, $attendees) ? mail_both_rooms_theme() : $baseTheme;
+  $ctaBg = (string)$theme['button'];
+  $ctaFg = (string)$theme['buttonText'];
+  $accent = (string)$theme['primary'];
 
   $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
   if (!is_array($items)) $items = [];
@@ -1168,7 +1243,7 @@ function send_buyer_order_confirmation_email(
 
   $passBlocks = '';
   foreach ($attendees as $a) {
-    $passBlocks .= mail_pass_block_html($a, $theme);
+    $passBlocks .= mail_pass_block_html($a, mail_theme_for_pass($baseTheme, is_array($a) ? $a : []));
   }
 
   $buyerNorm = strtolower(trim((string)$order['buyer_email']));
@@ -1247,10 +1322,11 @@ function send_attendee_ticket_email(
   string $ticketUrl,
   string $organizerName = 'Organizer'
 ): bool {
-  $theme = mail_event_theme_from_row($order);
-  $ctaBg = $theme['button'];
-  $ctaFg = $theme['buttonText'];
-  $accent = $theme['primary'];
+  $baseTheme = mail_event_theme_from_row($order);
+  $theme = mail_order_is_both_rooms($order, $passes) ? mail_both_rooms_theme() : $baseTheme;
+  $ctaBg = (string)$theme['button'];
+  $ctaFg = (string)$theme['buttonText'];
+  $accent = (string)$theme['primary'];
 
   $eventTitle = htmlspecialchars((string)$order['event_title']);
   $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
@@ -1262,7 +1338,7 @@ function send_attendee_ticket_email(
 
   $passBlocks = '';
   foreach ($passes as $pass) {
-    $passBlocks .= mail_pass_block_html($pass, $theme);
+    $passBlocks .= mail_pass_block_html($pass, mail_theme_for_pass($baseTheme, is_array($pass) ? $pass : []));
   }
 
   $bannerHtml = $bannerUrl !== ''
@@ -1432,10 +1508,10 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
       : null;
   }
 
-  $theme = mail_event_theme_from_row($order);
-  $accent = $theme['primary'];
-  $ctaBg = $theme['button'];
-  $ctaFg = $theme['buttonText'];
+  $theme = mail_order_is_both_rooms($order) ? mail_both_rooms_theme() : mail_event_theme_from_row($order);
+  $accent = (string)$theme['primary'];
+  $ctaBg = (string)$theme['button'];
+  $ctaFg = (string)$theme['buttonText'];
 
   $uploadUrl = mail_order_success_url($orderId);
   $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
@@ -1573,10 +1649,11 @@ function send_vip_invite_pass_email(PDO $pdo, int $orderId): bool {
     return false;
   }
 
-  $theme = mail_event_theme_from_row($order);
-  $accent = $theme['primary'];
-  $ctaBg = $theme['button'];
-  $ctaFg = $theme['buttonText'];
+  $baseTheme = mail_event_theme_from_row($order);
+  $theme = mail_theme_for_pass($baseTheme, $pass);
+  $accent = (string)$theme['primary'];
+  $ctaBg = (string)$theme['button'];
+  $ctaFg = (string)$theme['buttonText'];
 
   $guestName = trim((string)($pass['full_name'] ?? $order['buyer_name'] ?? 'Guest'));
   $eventTitle = (string)($order['event_title'] ?? 'Your event');
@@ -1584,7 +1661,7 @@ function send_vip_invite_pass_email(PDO $pdo, int $orderId): bool {
   $eventWhere = trim((string)($order['location'] ?? ''));
   $ticketName = trim((string)($pass['ticket_name'] ?? 'VIP Pass'));
   $qrToken = (string)($pass['qr_token'] ?? '');
-  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken, $theme['qrDarkHex']) : '';
+  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken, (string)$theme['qrDarkHex']) : '';
   $bannerUrl = mail_absolute_asset_url((string)($order['banner_url'] ?? ''));
   $ticketUrl = mail_order_success_url($orderId, null, [(int)$pass['id']]);
   $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));

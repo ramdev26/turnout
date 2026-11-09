@@ -37,7 +37,34 @@ const relativeLuminance = (hex: string): number => {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
 
-const resolvePassTheme = (event: Event | null) => {
+const BOTH_ROOMS_RE = /both|combo|bundle|pair/i;
+
+const isBothRoomsLabel = (label?: string | null) => BOTH_ROOMS_RE.test(label || '');
+
+/** Gold “best value” brand for Both Rooms / combo passes. */
+const BOTH_ROOMS_THEME = {
+  primary: '#d4af37',
+  secondary: '#8b6914',
+  button: '#d4af37',
+  buttonText: '#111827',
+  qrFg: '#5c4813',
+  lime: '#f0d78c',
+};
+
+const resolvePassTheme = (event: Event | null, ticketName?: string | null) => {
+  if (isBothRoomsLabel(ticketName)) {
+    return {
+      ...BOTH_ROOMS_THEME,
+      bothRooms: true,
+      pageVars: {
+        ['--confirm-accent' as string]: BOTH_ROOMS_THEME.primary,
+        ['--confirm-lime' as string]: BOTH_ROOMS_THEME.lime,
+        ['--confirm-accent-on' as string]: BOTH_ROOMS_THEME.buttonText,
+        ['--confirm-soft' as string]: `${BOTH_ROOMS_THEME.primary}22`,
+      } as React.CSSProperties,
+    };
+  }
+
   const c = event?.customization;
   const templateId = event?.templateId || '';
   const defaults =
@@ -69,6 +96,7 @@ const resolvePassTheme = (event: Event | null) => {
     buttonText,
     qrFg,
     lime: secondary || defaults.lime,
+    bothRooms: false,
     pageVars: {
       ['--confirm-accent' as string]: primary,
       ['--confirm-lime' as string]: secondary || defaults.lime,
@@ -225,19 +253,35 @@ export const Success: React.FC = () => {
     }
   };
 
-  const passTheme = useMemo(() => resolvePassTheme(event), [event]);
+  const orderHasBothRooms = useMemo(() => {
+    if (order?.attendees?.some((a) => isBothRoomsLabel(a.ticketName))) return true;
+    return Boolean(order?.tickets?.some((t) => isBothRoomsLabel(t.name)));
+  }, [order]);
 
-  const downloadAttendeeTicket = (attendee: { id: string; fullName: string; email: string; qrToken: string }) => {
+  const passTheme = useMemo(
+    () => resolvePassTheme(event, orderHasBothRooms ? 'Both Rooms' : null),
+    [event, orderHasBothRooms]
+  );
+
+  const downloadAttendeeTicket = (attendee: {
+    id: string;
+    fullName: string;
+    email: string;
+    qrToken: string;
+    ticketName?: string;
+  }) => {
     if (!order || !event) return;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 36;
     const eventDate = format(new Date(event.date), 'PPPP p');
     const template = (event.customization?.ticketPdfTemplateId || 'classic') as TicketPdfTemplate;
-    const theme = resolvePassTheme(event);
+    const theme = resolvePassTheme(event, attendee.ticketName);
     const primaryRgb = hexToRgb(theme.primary, [13, 88, 91]);
     const accentRgb = hexToRgb(theme.secondary, [184, 242, 90]);
-    const badgeText = event.customization?.ticketPdfBadgeText || 'EVENT PASS';
+    const badgeText =
+      event.customization?.ticketPdfBadgeText ||
+      (theme.bothRooms ? 'BOTH ROOMS' : 'EVENT PASS');
     const footerNote = event.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.';
     const darkText: [number, number, number] = template === 'midnight' ? [229, 231, 235] : [17, 24, 39];
     const bodyBg: [number, number, number] = template === 'midnight' ? [17, 24, 39] : [255, 255, 255];
@@ -572,21 +616,28 @@ export const Success: React.FC = () => {
           {order.attendees && order.attendees.length > 0 ? (
             <div className="confirm-section">
               <p className="confirm-section-label">{isHolderView ? 'Your pass' : `Your passes (${passCount})`}</p>
-              {order.attendees.map((a) => (
+              {order.attendees.map((a) => {
+                const ticketTheme = resolvePassTheme(event, a.ticketName);
+                return (
                 <div key={a.id} className="confirm-pass">
-                  {a.ticketName ? <div className="confirm-pass-tier">{a.ticketName}</div> : null}
+                  {a.ticketName ? (
+                    <div className="confirm-pass-tier" style={{ color: ticketTheme.primary }}>
+                      {a.ticketName}
+                      {ticketTheme.bothRooms ? ' · Best value' : ''}
+                    </div>
+                  ) : null}
                   <h3 className="confirm-pass-name">{a.fullName}</h3>
                   <p className="confirm-pass-email">{a.email}</p>
                   <div
                     className="confirm-qr-wrap"
-                    style={{ borderColor: passTheme.primary, boxShadow: `inset 0 0 0 1px ${passTheme.primary}22` }}
+                    style={{ borderColor: ticketTheme.primary, boxShadow: `inset 0 0 0 1px ${ticketTheme.primary}22` }}
                   >
                     <QRCodeCanvas
                       id={`ticket-qr-${a.id}`}
                       value={a.qrToken}
                       size={168}
                       bgColor="#ffffff"
-                      fgColor={passTheme.qrFg}
+                      fgColor={ticketTheme.qrFg}
                       level="H"
                       includeMargin={false}
                     />
@@ -595,13 +646,26 @@ export const Success: React.FC = () => {
                     {a.checkedInAt ? 'Checked in' : 'Ready for check-in'}
                   </span>
                   <div className="confirm-pass-actions">
-                    <button type="button" className="confirm-btn confirm-btn-primary" onClick={() => downloadAttendeeTicket(a)}>
+                    <button
+                      type="button"
+                      className="confirm-btn confirm-btn-primary"
+                      style={
+                        ticketTheme.bothRooms
+                          ? {
+                              background: ticketTheme.primary,
+                              color: ticketTheme.buttonText,
+                            }
+                          : undefined
+                      }
+                      onClick={() => downloadAttendeeTicket(a)}
+                    >
                       <Download className="h-4 w-4" />
                       Download PDF ticket
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
               <p className="confirm-hint">Keep this page bookmarked. Staff will scan your QR at the door.</p>
             </div>
           ) : null}
