@@ -15,9 +15,6 @@
   /* Poster look: square CTAs (override global landing-type-button radius). */
   --landing-button-radius: 0;
   --landing-radius: 0;
-  --magenta-hi: #ff2d8f;
-  --red-hi: #ff3b5c;
-  --n: 0.42;
   background: var(--pulse-bg);
   color: var(--pulse-ink);
   min-height: 60vh;
@@ -88,7 +85,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
-  color: color-mix(in srgb, var(--magenta-hi), var(--red-hi) calc(var(--n) * 100%));
+  color: #e8342a;
   text-decoration: none;
 }
 
