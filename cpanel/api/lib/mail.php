@@ -1,7 +1,7 @@
 <?php
 
 /** Bump when transaction email HTML changes — also exposed on /api/health. */
-const MAIL_LAYOUT_VERSION = 'transaction-mixed-passes-v1-20261109';
+const MAIL_LAYOUT_VERSION = 'transaction-pass-heading-v1-20261109';
 
 function mail_layout_version(): string {
   return MAIL_LAYOUT_VERSION;
@@ -699,9 +699,15 @@ function mail_is_both_rooms_label(?string $label): bool {
   return (bool)preg_match('/both|combo|bundle|pair/i', (string)$label);
 }
 
+function mail_is_take_my_bass_label(?string $label): bool {
+  return (bool)preg_match('/take\s*my\s*bass|\btmb\b/i', (string)$label);
+}
+
+function mail_is_club_ctrl_label(?string $label): bool {
+  return (bool)preg_match('/club\s*ctrl|\bctrl\b/i', (string)$label);
+}
+
 /**
- * Gold palette for Both Rooms / combo tickets (distinct from solo Pulse or Ctrl).
- *
  * @return array{
  *   primary:string,
  *   secondary:string,
@@ -713,20 +719,34 @@ function mail_is_both_rooms_label(?string $label): bool {
  *   bothRooms:bool
  * }
  */
-function mail_both_rooms_theme(): array {
-  $primary = '#d4af37';
-  $secondary = '#8b6914';
-  $qrDarkHex = '#5c4813';
+function mail_brand_theme(string $primary, string $secondary, string $buttonText, bool $bothRooms = false): array {
+  $qrDarkHex = mail_hex_luminance($primary) <= 0.48 ? $primary : '#111111';
+  if ($bothRooms) {
+    $qrDarkHex = '#5c4813';
+  }
   return [
     'primary' => $primary,
     'secondary' => $secondary,
     'button' => $primary,
-    'buttonText' => '#111827',
+    'buttonText' => $buttonText,
     'qrDark' => ltrim($qrDarkHex, '#'),
     'qrDarkHex' => $qrDarkHex,
     'ink' => '#111827',
-    'bothRooms' => true,
+    'bothRooms' => $bothRooms,
   ];
+}
+
+/** Gold palette for Both Rooms / combo tickets (distinct from solo Pulse or Ctrl). */
+function mail_both_rooms_theme(): array {
+  return mail_brand_theme('#d4af37', '#8b6914', '#111827', true);
+}
+
+function mail_take_my_bass_theme(): array {
+  return mail_brand_theme('#ff2d8f', '#c4185c', '#000000', false);
+}
+
+function mail_club_ctrl_theme(): array {
+  return mail_brand_theme('#e8342a', '#b91c1c', '#000000', false);
 }
 
 /**
@@ -780,6 +800,13 @@ function mail_theme_for_pass(array $baseTheme, array $pass): array {
   $name = (string)($pass['ticket_name'] ?? $pass['ticketName'] ?? '');
   if (mail_is_both_rooms_label($name)) {
     return mail_both_rooms_theme();
+  }
+  // Color by the ticket brand name when it clearly names a room.
+  if (mail_is_take_my_bass_label($name)) {
+    return mail_take_my_bass_theme();
+  }
+  if (mail_is_club_ctrl_label($name)) {
+    return mail_club_ctrl_theme();
   }
   return $baseTheme;
 }
@@ -1182,27 +1209,35 @@ function mail_detail_row(string $label, string $value, bool $strong = false): st
  */
 function mail_pass_block_html(array $pass, array $theme = []): string {
   $name = htmlspecialchars((string)($pass['full_name'] ?? 'Guest'));
-  $ticketName = htmlspecialchars((string)($pass['ticket_name'] ?? 'Ticket'));
+  $rawTicket = trim((string)($pass['ticket_name'] ?? $pass['ticketName'] ?? 'Ticket'));
+  $ticketName = htmlspecialchars($rawTicket !== '' ? $rawTicket : 'Ticket');
   $qrToken = (string)($pass['qr_token'] ?? '');
   $primary = mail_normalize_hex((string)($theme['primary'] ?? ''), '#111827');
   $qrDark = (string)($theme['qrDarkHex'] ?? $primary);
   $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken, $qrDark) : '';
+  $bothRooms = !empty($theme['bothRooms']) || mail_is_both_rooms_label($rawTicket);
+  $tierLabel = $bothRooms ? 'BOTH ROOMS PASS' : 'EVENT PASS';
 
   $block =
-    '<table width="100%" style="margin:0 0 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;border-top:3px solid ' .
+    '<table width="100%" style="margin:0 0 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;border-top:4px solid ' .
     htmlspecialchars($primary) . ';">' .
     '<tr><td style="padding:16px;">' .
-    '<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:' .
+    '<div style="font-size:10px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:' .
+    htmlspecialchars($primary) . ';">' . htmlspecialchars($tierLabel) . '</div>' .
+    '<div style="margin-top:8px;font-size:20px;line-height:1.25;font-weight:800;color:' .
     htmlspecialchars($primary) . ';">' . $ticketName . '</div>' .
-    '<div style="margin-top:6px;font-size:16px;font-weight:700;color:#111827;">' . $name . '</div>';
+    '<div style="margin-top:6px;font-size:15px;font-weight:700;color:#111827;">' . $name . '</div>';
 
   if ($qrImg !== '') {
     $block .=
       '<div style="margin-top:14px;text-align:center;">' .
-      '<div style="display:inline-block;padding:10px;border-radius:12px;background:#ffffff;border:2px solid ' .
+      '<div style="display:inline-block;padding:12px;border-radius:14px;background:#ffffff;border:3px solid ' .
       htmlspecialchars($primary) . ';">' .
       '<img src="' . htmlspecialchars($qrImg) . '" alt="Check-in QR code" width="180" height="180" style="display:block;border-radius:4px;background:#ffffff;" />' .
-      '</div></div>';
+      '</div>' .
+      '<div style="margin-top:8px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:' .
+      htmlspecialchars($primary) . ';">Show this code at the door</div>' .
+      '</div>';
   }
 
   $block .= '</td></tr></table>';

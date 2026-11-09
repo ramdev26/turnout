@@ -38,8 +38,12 @@ const relativeLuminance = (hex: string): number => {
 };
 
 const BOTH_ROOMS_RE = /both|combo|bundle|pair/i;
+const TAKE_MY_BASS_RE = /take\s*my\s*bass|\btmb\b/i;
+const CLUB_CTRL_RE = /club\s*ctrl|\bctrl\b/i;
 
 const isBothRoomsLabel = (label?: string | null) => BOTH_ROOMS_RE.test(label || '');
+const isTakeMyBassLabel = (label?: string | null) => TAKE_MY_BASS_RE.test(label || '');
+const isClubCtrlLabel = (label?: string | null) => CLUB_CTRL_RE.test(label || '');
 
 /** Gold “best value” brand for Both Rooms / combo passes. */
 const BOTH_ROOMS_THEME = {
@@ -51,28 +55,72 @@ const BOTH_ROOMS_THEME = {
   lime: '#f0d78c',
 };
 
+const TAKE_MY_BASS_THEME = {
+  primary: '#ff2d8f',
+  secondary: '#c4185c',
+  button: '#ff2d8f',
+  buttonText: '#000000',
+  qrFg: '#ff2d8f',
+  lime: '#fda4cf',
+};
+
+const CLUB_CTRL_THEME = {
+  primary: '#e8342a',
+  secondary: '#b91c1c',
+  button: '#e8342a',
+  buttonText: '#000000',
+  qrFg: '#e8342a',
+  lime: '#fca5a5',
+};
+
+type PassThemeColors = {
+  primary: string;
+  secondary: string;
+  button: string;
+  buttonText: string;
+  qrFg: string;
+  lime: string;
+};
+
+const withPassPageVars = (colors: PassThemeColors, bothRooms: boolean) => ({
+  ...colors,
+  bothRooms,
+  pageVars: {
+    ['--confirm-accent' as string]: colors.primary,
+    ['--confirm-lime' as string]: colors.lime,
+    ['--confirm-accent-on' as string]: colors.buttonText,
+    ['--confirm-soft' as string]: `${colors.primary}${bothRooms ? '22' : '14'}`,
+  } as React.CSSProperties,
+});
+
+/** Prefer the ticket tier name on PDFs; fall back to the event title. */
+const resolvePassHeading = (event: Event | null, ticketName?: string | null) => {
+  const tier = (ticketName || '').trim();
+  if (tier) return tier.slice(0, 48);
+  return (event?.title || 'Event pass').slice(0, 48);
+};
+
 const resolvePassTheme = (event: Event | null, ticketName?: string | null) => {
   if (isBothRoomsLabel(ticketName)) {
-    return {
-      ...BOTH_ROOMS_THEME,
-      bothRooms: true,
-      pageVars: {
-        ['--confirm-accent' as string]: BOTH_ROOMS_THEME.primary,
-        ['--confirm-lime' as string]: BOTH_ROOMS_THEME.lime,
-        ['--confirm-accent-on' as string]: BOTH_ROOMS_THEME.buttonText,
-        ['--confirm-soft' as string]: `${BOTH_ROOMS_THEME.primary}22`,
-      } as React.CSSProperties,
-    };
+    return withPassPageVars(BOTH_ROOMS_THEME, true);
+  }
+
+  // Color by room brand when the ticket name clearly says Take My Bass / Club Ctrl.
+  if (isTakeMyBassLabel(ticketName)) {
+    return withPassPageVars(TAKE_MY_BASS_THEME, false);
+  }
+  if (isClubCtrlLabel(ticketName)) {
+    return withPassPageVars(CLUB_CTRL_THEME, false);
   }
 
   const c = event?.customization;
   const templateId = event?.templateId || '';
   const defaults =
     templateId === 'template-12'
-      ? { primary: '#e8342a', secondary: '#b91c1c', lime: '#fca5a5', onButton: '#000000' }
+      ? CLUB_CTRL_THEME
       : templateId === 'template-11'
-        ? { primary: '#ff2d8f', secondary: '#c4185c', lime: '#fda4cf', onButton: '#000000' }
-        : { primary: '#0d585b', secondary: '#b8f25a', lime: '#b8f25a', onButton: '#f3ffe4' };
+        ? TAKE_MY_BASS_THEME
+        : { primary: '#0d585b', secondary: '#b8f25a', button: '#0d585b', buttonText: '#f3ffe4', qrFg: '#0d585b', lime: '#b8f25a' };
 
   const primary = normalizeHex(
     c?.ticketPdfPrimaryColor || c?.buttonColor || c?.primaryColor,
@@ -89,21 +137,17 @@ const resolvePassTheme = (event: Event | null, ticketName?: string | null) => {
   );
   const qrFg = relativeLuminance(primary) <= 0.48 ? primary : '#111111';
 
-  return {
-    primary,
-    secondary,
-    button,
-    buttonText,
-    qrFg,
-    lime: secondary || defaults.lime,
-    bothRooms: false,
-    pageVars: {
-      ['--confirm-accent' as string]: primary,
-      ['--confirm-lime' as string]: secondary || defaults.lime,
-      ['--confirm-accent-on' as string]: buttonText,
-      ['--confirm-soft' as string]: `${primary}14`,
-    } as React.CSSProperties,
-  };
+  return withPassPageVars(
+    {
+      primary,
+      secondary,
+      button,
+      buttonText,
+      qrFg,
+      lime: secondary || defaults.lime,
+    },
+    false
+  );
 };
 
 export const Success: React.FC = () => {
@@ -293,14 +337,25 @@ export const Success: React.FC = () => {
     const theme = resolvePassTheme(event, attendee.ticketName);
     const primaryRgb = hexToRgb(theme.primary, [13, 88, 91]);
     const accentRgb = hexToRgb(theme.secondary, [184, 242, 90]);
-    const badgeText =
-      event.customization?.ticketPdfBadgeText ||
-      (theme.bothRooms ? 'BOTH ROOMS' : 'EVENT PASS');
+    const heading = resolvePassHeading(event, attendee.ticketName);
+    const eventTitle = (event.title || '').trim();
+    const showEventSubtitle =
+      eventTitle !== '' && eventTitle.toLowerCase() !== heading.toLowerCase();
+    const badgeText = theme.bothRooms
+      ? 'BOTH ROOMS'
+      : (attendee.ticketName || event.customization?.ticketPdfBadgeText || 'EVENT PASS')
+          .trim()
+          .toUpperCase()
+          .slice(0, 28) || 'EVENT PASS';
     const footerNote = event.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.';
     const darkText: [number, number, number] = template === 'midnight' ? [229, 231, 235] : [17, 24, 39];
     const bodyBg: [number, number, number] = template === 'midnight' ? [17, 24, 39] : [255, 255, 255];
     const bodyBorder: [number, number, number] = template === 'midnight' ? [55, 65, 81] : [229, 231, 235];
     const panelBg: [number, number, number] = template === 'midnight' ? [31, 41, 55] : [249, 250, 251];
+    const onPrimaryText: [number, number, number] = hexToRgb(
+      theme.buttonText,
+      relativeLuminance(theme.primary) >= 0.55 ? [17, 24, 39] : [255, 255, 255]
+    );
 
     if (template === 'sunset') {
       doc.setFillColor(255, 247, 237);
@@ -311,61 +366,72 @@ export const Success: React.FC = () => {
     }
 
     doc.setFillColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
-    doc.roundedRect(margin, margin, pageWidth - margin * 2, 88, 14, 14, 'F');
-    doc.setTextColor(255, 255, 255);
+    doc.roundedRect(margin, margin, pageWidth - margin * 2, showEventSubtitle ? 102 : 88, 14, 14, 'F');
+    doc.setTextColor(onPrimaryText[0], onPrimaryText[1], onPrimaryText[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(badgeText, margin + 18, margin + 28);
     doc.setFontSize(20);
-    doc.text(event.title.slice(0, 48), margin + 18, margin + 56, { maxWidth: pageWidth - margin * 2 - 36 });
+    doc.text(heading, margin + 18, margin + 56, { maxWidth: pageWidth - margin * 2 - 36 });
+    if (showEventSubtitle) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text(eventTitle.slice(0, 56), margin + 18, margin + 78, {
+        maxWidth: pageWidth - margin * 2 - 36,
+      });
+    }
 
+    const bodyTop = margin + (showEventSubtitle ? 132 : 118);
     doc.setTextColor(darkText[0], darkText[1], darkText[2]);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Order #${order.id}`, margin + 18, margin + 118);
+    doc.text(`Order #${order.id}`, margin + 18, bodyTop);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(attendee.fullName, margin + 18, margin + 142);
+    doc.text(attendee.fullName, margin + 18, bodyTop + 24);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128);
-    doc.text(attendee.email, margin + 18, margin + 160);
-    doc.text(eventDate, margin + 18, margin + 182);
-    doc.text(event.location, margin + 18, margin + 200, { maxWidth: 280 });
+    doc.text(attendee.email, margin + 18, bodyTop + 42);
+    doc.text(eventDate, margin + 18, bodyTop + 64);
+    doc.text(event.location, margin + 18, bodyTop + 82, { maxWidth: 280 });
 
-    doc.setDrawColor(bodyBorder[0], bodyBorder[1], bodyBorder[2]);
+    const panelTop = bodyTop + 102;
+    doc.setDrawColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
     doc.setFillColor(panelBg[0], panelBg[1], panelBg[2]);
-    doc.roundedRect(margin, margin + 220, pageWidth - margin * 2 - 200, 120, 12, 12, 'FD');
-    doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+    doc.roundedRect(margin, panelTop, pageWidth - margin * 2 - 200, 120, 12, 12, 'FD');
+    doc.setTextColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('ENTRY CODE', margin + 18, margin + 245);
+    doc.text('ENTRY CODE', margin + 18, panelTop + 25);
     doc.setFont('courier', 'normal');
     doc.setFontSize(9);
-    doc.text(attendee.qrToken, margin + 18, margin + 265, { maxWidth: 280 });
+    doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+    doc.text(attendee.qrToken, margin + 18, panelTop + 45, { maxWidth: 280 });
 
     const qrCanvas = document.getElementById(`ticket-qr-${attendee.id}`) as HTMLCanvasElement | null;
     if (qrCanvas) {
       const qrData = qrCanvas.toDataURL('image/png');
       doc.setFillColor(panelBg[0], panelBg[1], panelBg[2]);
-      doc.setDrawColor(bodyBorder[0], bodyBorder[1], bodyBorder[2]);
-      doc.roundedRect(pageWidth - margin - 190, margin + 220, 170, 200, 12, 12, 'FD');
-      doc.addImage(qrData, 'PNG', pageWidth - margin - 170, margin + 240, 130, 130);
-      doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+      doc.setDrawColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
+      doc.roundedRect(pageWidth - margin - 190, panelTop, 170, 200, 12, 12, 'FD');
+      doc.addImage(qrData, 'PNG', pageWidth - margin - 170, panelTop + 20, 130, 130);
+      doc.setTextColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text('Scan at check-in', pageWidth - margin - 105, margin + 390, { align: 'center' });
+      doc.text('Scan at check-in', pageWidth - margin - 105, panelTop + 170, { align: 'center' });
     }
 
     doc.setTextColor(107, 114, 128);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(footerNote, margin, margin + 460, { maxWidth: pageWidth - margin * 2 });
+    doc.text(footerNote, margin, panelTop + 240, { maxWidth: pageWidth - margin * 2 });
     doc.setFillColor(accentRgb[0], accentRgb[1], accentRgb[2]);
     doc.rect(margin, doc.internal.pageSize.getHeight() - 28, pageWidth - margin * 2, 4, 'F');
 
     const safeName = attendee.fullName.replace(/[^a-zA-Z0-9-_]+/g, '_');
-    doc.save(`ticket_${order.id}_${safeName || 'attendee'}.pdf`);
+    const safeTier = heading.replace(/[^a-zA-Z0-9-_]+/g, '_').slice(0, 32);
+    doc.save(`ticket_${order.id}_${safeTier || 'pass'}_${safeName || 'attendee'}.pdf`);
   };
 
   const downloadAll = () => {
@@ -671,14 +737,10 @@ export const Success: React.FC = () => {
                     <button
                       type="button"
                       className="confirm-btn confirm-btn-primary"
-                      style={
-                        ticketTheme.bothRooms
-                          ? {
-                              background: ticketTheme.primary,
-                              color: ticketTheme.buttonText,
-                            }
-                          : undefined
-                      }
+                      style={{
+                        background: ticketTheme.primary,
+                        color: ticketTheme.buttonText,
+                      }}
                       onClick={() => downloadAttendeeTicket(a)}
                     >
                       <Download className="h-4 w-4" />
