@@ -253,14 +253,28 @@ export const Success: React.FC = () => {
     }
   };
 
-  const orderHasBothRooms = useMemo(() => {
-    if (order?.attendees?.some((a) => isBothRoomsLabel(a.ticketName))) return true;
-    return Boolean(order?.tickets?.some((t) => isBothRoomsLabel(t.name)));
+  /** Page chrome is gold only for pure Both Rooms orders; mixed carts keep the event brand. */
+  const orderPassMix = useMemo(() => {
+    const labels: string[] = [];
+    order?.attendees?.forEach((a) => {
+      if (a.ticketName) labels.push(a.ticketName);
+    });
+    order?.tickets?.forEach((t) => {
+      if (t.name && (t.quantity || 0) > 0) labels.push(t.name);
+    });
+    const hasBoth = labels.some((n) => isBothRoomsLabel(n));
+    const hasSolo = labels.some((n) => n && !isBothRoomsLabel(n));
+    return {
+      hasBoth,
+      hasSolo,
+      exclusivelyBoth: hasBoth && !hasSolo,
+      mixed: hasBoth && hasSolo,
+    };
   }, [order]);
 
   const passTheme = useMemo(
-    () => resolvePassTheme(event, orderHasBothRooms ? 'Both Rooms' : null),
-    [event, orderHasBothRooms]
+    () => resolvePassTheme(event, orderPassMix.exclusivelyBoth ? 'Both Rooms' : null),
+    [event, orderPassMix.exclusivelyBoth]
   );
 
   const downloadAttendeeTicket = (attendee: {
@@ -599,15 +613,18 @@ export const Success: React.FC = () => {
               {!isHolderView && order.tickets.length > 0 ? (
                 <div className="confirm-section">
                   <p className="confirm-section-label">Order summary</p>
-                  {order.tickets.map((t, i) => (
+                  {order.tickets.map((t, i) => {
+                    const lineTheme = resolvePassTheme(event, t.name);
+                    return (
                     <div key={`${t.name}-${i}`} className="confirm-line-item">
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Ticket className="h-3.5 w-3.5" style={{ color: 'var(--confirm-accent)' }} />
+                        <Ticket className="h-3.5 w-3.5" style={{ color: lineTheme.primary }} />
                         {t.name} ×{t.quantity}
                       </span>
                       <strong>{t.price <= 0 ? 'Free' : formatLKRWhole(t.price * t.quantity)}</strong>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
@@ -616,6 +633,11 @@ export const Success: React.FC = () => {
           {order.attendees && order.attendees.length > 0 ? (
             <div className="confirm-section">
               <p className="confirm-section-label">{isHolderView ? 'Your pass' : `Your passes (${passCount})`}</p>
+              {orderPassMix.mixed ? (
+                <p className="confirm-hint" style={{ marginTop: 0, marginBottom: '0.75rem', textAlign: 'left' }}>
+                  Mixed ticket types: solo-room QRs use the event color; Both Rooms QRs are gold.
+                </p>
+              ) : null}
               {order.attendees.map((a) => {
                 const ticketTheme = resolvePassTheme(event, a.ticketName);
                 return (

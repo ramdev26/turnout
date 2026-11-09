@@ -1,7 +1,7 @@
 <?php
 
 /** Bump when transaction email HTML changes — also exposed on /api/health. */
-const MAIL_LAYOUT_VERSION = 'transaction-both-rooms-v1-20261109';
+const MAIL_LAYOUT_VERSION = 'transaction-mixed-passes-v1-20261109';
 
 function mail_layout_version(): string {
   return MAIL_LAYOUT_VERSION;
@@ -730,28 +730,46 @@ function mail_both_rooms_theme(): array {
 }
 
 /**
- * True when the order (tickets_json or attendee ticket names) is a Both Rooms purchase.
+ * Classify whether an order mixes solo + Both Rooms passes.
  *
  * @param list<array<string,mixed>> $attendees
+ * @return array{has_both:bool,has_solo:bool,exclusively_both:bool,mixed:bool}
  */
-function mail_order_is_both_rooms(array $order, array $attendees = []): bool {
+function mail_order_pass_mix(array $order, array $attendees = []): array {
+  $hasBoth = false;
+  $hasSolo = false;
+
   foreach ($attendees as $a) {
     if (!is_array($a)) continue;
-    if (mail_is_both_rooms_label((string)($a['ticket_name'] ?? $a['ticketName'] ?? ''))) {
-      return true;
-    }
+    $name = (string)($a['ticket_name'] ?? $a['ticketName'] ?? '');
+    if ($name === '') continue;
+    if (mail_is_both_rooms_label($name)) $hasBoth = true;
+    else $hasSolo = true;
   }
+
   $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
-  if (!is_array($items)) return false;
-  foreach ($items as $it) {
-    if (!is_array($it)) continue;
-    $name = (string)($it['name'] ?? $it['ticketName'] ?? '');
-    $qty = (int)($it['quantity'] ?? 0);
-    if ($qty > 0 && mail_is_both_rooms_label($name)) {
-      return true;
+  if (is_array($items)) {
+    foreach ($items as $it) {
+      if (!is_array($it)) continue;
+      $name = (string)($it['name'] ?? $it['ticketName'] ?? '');
+      $qty = (int)($it['quantity'] ?? 0);
+      if ($qty < 1 || $name === '') continue;
+      if (mail_is_both_rooms_label($name)) $hasBoth = true;
+      else $hasSolo = true;
     }
   }
-  return false;
+
+  return [
+    'has_both' => $hasBoth,
+    'has_solo' => $hasSolo,
+    'exclusively_both' => $hasBoth && !$hasSolo,
+    'mixed' => $hasBoth && $hasSolo,
+  ];
+}
+
+/** @deprecated Use mail_order_pass_mix()['exclusively_both'] for shell chrome. */
+function mail_order_is_both_rooms(array $order, array $attendees = []): bool {
+  return mail_order_pass_mix($order, $attendees)['exclusively_both'];
 }
 
 /**
@@ -1205,7 +1223,9 @@ function send_buyer_order_confirmation_email(
   }
 
   $baseTheme = mail_event_theme_from_row($order);
-  $theme = mail_order_is_both_rooms($order, $attendees) ? mail_both_rooms_theme() : $baseTheme;
+  $mix = mail_order_pass_mix($order, $attendees);
+  // Mixed carts keep the event brand for the email shell; only pure Both Rooms orders go gold.
+  $theme = !empty($mix['exclusively_both']) ? mail_both_rooms_theme() : $baseTheme;
   $ctaBg = (string)$theme['button'];
   $ctaFg = (string)$theme['buttonText'];
   $accent = (string)$theme['primary'];
@@ -1245,6 +1265,11 @@ function send_buyer_order_confirmation_email(
   foreach ($attendees as $a) {
     $passBlocks .= mail_pass_block_html($a, mail_theme_for_pass($baseTheme, is_array($a) ? $a : []));
   }
+  $mixedPassNote = !empty($mix['mixed'])
+    ? '<p style="margin:0 0 12px;padding:0 28px;font-size:13px;line-height:1.55;color:#6b7280;text-align:center;">' .
+      'This order has more than one ticket type. Each pass below uses its own color — ' .
+      'solo room passes match the event brand; Both Rooms passes are gold.</p>'
+    : '';
 
   $buyerNorm = strtolower(trim((string)$order['buyer_email']));
   $otherEmails = [];
@@ -1285,6 +1310,7 @@ function send_buyer_order_confirmation_email(
     ($eventDate !== '' ? mail_detail_row('Event date', $eventDate) : '') .
     ($eventLocation !== '' ? mail_detail_row('Venue', $eventLocation) : '') .
     '</table></div>' .
+    $mixedPassNote .
     ($passBlocks !== ''
       ? '<div style="padding:16px 28px 4px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:' .
         htmlspecialchars($accent) . ';margin-bottom:10px;">Your passes</div>' .
@@ -1323,7 +1349,8 @@ function send_attendee_ticket_email(
   string $organizerName = 'Organizer'
 ): bool {
   $baseTheme = mail_event_theme_from_row($order);
-  $theme = mail_order_is_both_rooms($order, $passes) ? mail_both_rooms_theme() : $baseTheme;
+  $mix = mail_order_pass_mix($order, $passes);
+  $theme = !empty($mix['exclusively_both']) ? mail_both_rooms_theme() : $baseTheme;
   $ctaBg = (string)$theme['button'];
   $ctaFg = (string)$theme['buttonText'];
   $accent = (string)$theme['primary'];
