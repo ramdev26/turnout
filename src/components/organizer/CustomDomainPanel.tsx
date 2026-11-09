@@ -34,7 +34,18 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+
+  const applyDomainInput = (raw: string) => {
+    const cleaned = raw.trim().replace(/^https?:\/\//i, '');
+    const combined = cleaned.match(/^([^/?#]+)\/([a-z0-9][a-z0-9-]{0,30}[a-z0-9]?)$/i);
+    if (combined) {
+      setDomainInput(combined[1]);
+      setPathInput(combined[2].toLowerCase());
+      return;
+    }
+    setDomainInput(raw);
+  };
 
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
@@ -203,10 +214,13 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
             </div>
           ) : (
             <>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Domain
+              </label>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   value={domainInput}
-                  onChange={(e) => setDomainInput(e.target.value)}
+                  onChange={(e) => applyDomainInput(e.target.value)}
                   placeholder="tickets.takemybass.com"
                   className={fieldClass}
                   style={fieldStyle}
@@ -221,34 +235,37 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                   {saving ? 'Saving…' : active ? 'Update' : 'Connect'}
                 </button>
               </div>
-              <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
-                Domain only — no <span className="font-mono">/cc</span> here. Put the short path in the field below.
-              </p>
 
-              <div className="mt-3">
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Path on this domain
-                </label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-sm" style={{ color: ui.textMuted }}>
-                    <span className="shrink-0 truncate">
-                      {(domainInput.trim().split('/')[0] || 'tickets.takemybass.com').replace(/^https?:\/\//i, '')}/
-                    </span>
-                    <input
-                      value={pathInput}
-                      onChange={(e) => setPathInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                      placeholder="cc"
-                      maxLength={32}
-                      className={cn(fieldClass, 'min-w-0 flex-1')}
-                      style={fieldStyle}
-                    />
-                  </div>
-                </div>
-                <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
-                  Required when the domain is already on another event. Example: Take My Bass → path{' '}
-                  <span className="font-mono">tmb</span>, Club Ctrl → path <span className="font-mono">cc</span>.
-                </p>
+              <label className="mb-1 mt-4 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Path (required to share this domain)
+              </label>
+              <div
+                className="flex items-center gap-0 overflow-hidden rounded-xl border"
+                style={{ ...fieldStyle, borderColor: ui.borderColor }}
+              >
+                <span
+                  className="shrink-0 border-r px-3 py-2.5 font-mono text-xs sm:text-sm"
+                  style={{ color: ui.textMuted, borderColor: ui.borderColor, background: ui.cardMutedBg }}
+                >
+                  {(domainInput.trim().split('/')[0] || 'tickets.takemybass.com').replace(/^https?:\/\//i, '')}/
+                </span>
+                <input
+                  value={pathInput}
+                  onChange={(e) => setPathInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  placeholder="cc"
+                  maxLength={32}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-sm outline-none"
+                  style={{ color: ui.text }}
+                />
               </div>
+              <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
+                For Club Ctrl type <span className="font-mono font-semibold">cc</span> here. Live URL becomes{' '}
+                <span className="font-mono">
+                  {(domainInput.trim().split('/')[0] || 'tickets.takemybass.com').replace(/^https?:\/\//i, '')}/
+                  {pathInput.trim() || 'cc'}
+                </span>
+                .
+              </p>
 
               {active && state?.publicUrl && (
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm" style={{ color: ui.text }}>
