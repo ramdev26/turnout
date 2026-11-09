@@ -454,7 +454,12 @@ export function LandingPulsePage({
                       >
                         <td data-label="Room">
                           <div className="pulse-row-heading">
-                            <div className="pulse-row-name">{ticket.name}</div>
+                            <div className="pulse-row-name-block">
+                              <div className="pulse-row-name">{ticket.name}</div>
+                              {featured ? (
+                                <div className="pulse-row-sub">(Take My Bass + Club Ctrl)</div>
+                              ) : null}
+                            </div>
                             {featured ? <span className="pulse-best-value">Best value</span> : null}
                           </div>
                           {remaining <= 0 ? (

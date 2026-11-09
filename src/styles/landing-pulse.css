@@ -731,6 +731,13 @@
   flex-wrap: wrap;
 }
 
+.pulse-row-name-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
 .pulse-row-name {
   font-family: var(--pulse-font-display);
   font-weight: 800;
@@ -738,6 +745,14 @@
   letter-spacing: -0.02em;
   text-transform: uppercase;
   color: var(--pulse-ink);
+}
+
+.pulse-row-sub {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pulse-muted);
+  text-transform: none;
 }
 
 .pulse-best-value {
