@@ -402,61 +402,6 @@ export function LandingPulsePage({
             <p className="pulse-story-body">{story.body}</p>
           </section>
 
-          <section className="pulse-night" aria-label="How the night runs">
-            <div className="pulse-night-head">
-              <h2 className="pulse-night-title">How the night runs</h2>
-              <p className="pulse-night-sub">6 PM to 1 AM · one floor</p>
-            </div>
-            <ol className="pulse-beats">
-              {nightBeats.map((beat) => (
-                <li key={`${beat.time}-${beat.label}`} className="pulse-beat">
-                  <p className="pulse-beat-time">{beat.time}</p>
-                  <div>
-                    <p className="pulse-beat-label">{beat.label}</p>
-                    <p className="pulse-beat-detail">{beat.detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="pulse-rooms-wrap" aria-label="The session">
-            <div className="pulse-rooms pulse-rooms--single">
-              {rooms.map((room) => (
-                <article
-                  key={`${room.kicker}-${room.title}`}
-                  className={room.emphasis ? 'pulse-room pulse-room--accent' : 'pulse-room'}
-                >
-                  <p className="pulse-room-kicker">{room.kicker}</p>
-                  <h2 className="pulse-room-title landing-type-h2">{room.title}</h2>
-                  <p className="pulse-room-body">{room.body}</p>
-                  {room.tags ? (
-                    <>
-                      <hr className="pulse-room-rule" />
-                      <p className="pulse-room-tags">{room.tags}</p>
-                    </>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="pulse-safe" aria-label="Safe space">
-            <div className="pulse-safe-head">
-              <p className="pulse-safe-kicker">Safe space</p>
-              <h2 className="pulse-safe-title landing-type-h2">Everyone is welcome.</h2>
-              <p className="pulse-safe-lead">Zero tolerance for harassment. Look after each other on the floor.</p>
-            </div>
-            <ol className="pulse-safe-list">
-              {SAFE_SPACE_RULES.map((rule, index) => (
-                <li key={rule} className="pulse-safe-item">
-                  <span className="pulse-safe-num">{index + 1}</span>
-                  <span>{rule}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
           <section id="landing-tickets" className="pulse-prices scroll-mt-24" aria-label="Prices">
             <div className="pulse-prices-head">
               <h2 className="pulse-prices-title">Prices</h2>
@@ -538,6 +483,61 @@ export function LandingPulsePage({
             )}
 
             <p className="pulse-prices-note">{priceNote}</p>
+          </section>
+
+          <section className="pulse-night" aria-label="How the night runs">
+            <div className="pulse-night-head">
+              <h2 className="pulse-night-title">How the night runs</h2>
+              <p className="pulse-night-sub">6 PM to 1 AM · one floor</p>
+            </div>
+            <ol className="pulse-beats">
+              {nightBeats.map((beat) => (
+                <li key={`${beat.time}-${beat.label}`} className="pulse-beat">
+                  <p className="pulse-beat-time">{beat.time}</p>
+                  <div>
+                    <p className="pulse-beat-label">{beat.label}</p>
+                    <p className="pulse-beat-detail">{beat.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="pulse-rooms-wrap" aria-label="The session">
+            <div className="pulse-rooms pulse-rooms--single">
+              {rooms.map((room) => (
+                <article
+                  key={`${room.kicker}-${room.title}`}
+                  className={room.emphasis ? 'pulse-room pulse-room--accent' : 'pulse-room'}
+                >
+                  <p className="pulse-room-kicker">{room.kicker}</p>
+                  <h2 className="pulse-room-title landing-type-h2">{room.title}</h2>
+                  <p className="pulse-room-body">{room.body}</p>
+                  {room.tags ? (
+                    <>
+                      <hr className="pulse-room-rule" />
+                      <p className="pulse-room-tags">{room.tags}</p>
+                    </>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="pulse-safe" aria-label="Safe space">
+            <div className="pulse-safe-head">
+              <p className="pulse-safe-kicker">Safe space</p>
+              <h2 className="pulse-safe-title landing-type-h2">Everyone is welcome.</h2>
+              <p className="pulse-safe-lead">Zero tolerance for harassment. Look after each other on the floor.</p>
+            </div>
+            <ol className="pulse-safe-list">
+              {SAFE_SPACE_RULES.map((rule, index) => (
+                <li key={rule} className="pulse-safe-item">
+                  <span className="pulse-safe-num">{index + 1}</span>
+                  <span>{rule}</span>
+                </li>
+              ))}
+            </ol>
           </section>
 
           <section className="pulse-close" aria-label="Closing">
