@@ -9,6 +9,7 @@ type DnsRecord = { type: string; name: string; value: string; ttl: number };
 
 type DomainState = {
   customDomain: string | null;
+  customDomainPath?: string | null;
   publicUrl: string | null;
   defaultUrl: string;
   dns: { hostname: string; isApex: boolean; records: DnsRecord[]; note: string } | null;
@@ -28,11 +29,23 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+  const [pathInput, setPathInput] = useState('');
   const [state, setState] = useState<DomainState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+
+  const applyDomainInput = (raw: string) => {
+    const cleaned = raw.trim().replace(/^https?:\/\//i, '');
+    const combined = cleaned.match(/^([^/?#]+)\/([a-z0-9][a-z0-9-]{0,30}[a-z0-9]?)$/i);
+    if (combined) {
+      setDomainInput(combined[1]);
+      setPathInput(combined[2].toLowerCase());
+      return;
+    }
+    setDomainInput(raw);
+  };
 
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
@@ -46,6 +59,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
       const res = await api.get<DomainState>(`/api/events/${eventId}/domain`);
       setState(res);
       setDomainInput(res.customDomain || '');
+      setPathInput(res.customDomainPath || '');
     } catch (e: any) {
       setError(e?.message || e?.error || 'Could not load domain settings');
     } finally {
@@ -68,9 +82,18 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
   };
 
   const saveDomain = async () => {
-    const domain = domainInput.trim();
+    let domain = domainInput.trim().replace(/^https?:\/\//i, '');
+    let path = pathInput.trim().replace(/^\/+/, '');
+    // Accept paste like tickets.takemybass.com/cc in the domain box.
+    const combined = domain.match(/^([^/?#]+)\/([a-z0-9][a-z0-9-]{0,30}[a-z0-9]?)$/i);
+    if (combined) {
+      domain = combined[1];
+      if (!path) path = combined[2].toLowerCase();
+      setDomainInput(domain);
+      setPathInput(path);
+    }
     if (!domain) {
-      setError('Enter a domain like events.yourbrand.com');
+      setError('Enter a domain like tickets.takemybass.com');
       return;
     }
     setSaving(true);
@@ -79,15 +102,35 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
     try {
       const res = await api.post<{
         customDomain: string;
+        customDomainPath?: string | null;
         publicUrl: string;
         dns: DomainState['dns'];
         vercel: DomainState['vercel'];
-      }>(`/api/events/${eventId}/domain`, { domain });
-      setMessage('Domain saved. Add the DNS records below at your DNS provider.');
+      }>(`/api/events/${eventId}/domain`, {
+        domain,
+        path: path || null,
+      });
+      setDomainInput(res.customDomain);
+      setPathInput(res.customDomainPath || '');
+      setMessage(
+        res.customDomainPath
+          ? `Domain saved. Public page: https://${res.customDomain}/${res.customDomainPath}`
+          : 'Domain saved. Add the DNS records below at your DNS provider.'
+      );
       onUpdated?.(res.customDomain);
       await load();
     } catch (e: any) {
-      setError(e?.message || e?.error || 'Could not save domain');
+      const code = e?.error || '';
+      if (code === 'domain_taken') {
+        setError(
+          e?.message ||
+            'This domain is already used by another event. Put only the domain above (tickets.takemybass.com) and set the path below to cc (or tmb).'
+        );
+      } else if (code === 'domain_path_taken') {
+        setError(e?.message || 'That path is already used on this domain. Try another path.');
+      } else {
+        setError(e?.message || e?.error || 'Could not save domain');
+      }
     } finally {
       setSaving(false);
     }
@@ -173,11 +216,14 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
             </div>
           ) : (
             <>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Domain
+              </label>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   value={domainInput}
-                  onChange={(e) => setDomainInput(e.target.value)}
-                  placeholder="events.yourbrand.com"
+                  onChange={(e) => applyDomainInput(e.target.value)}
+                  placeholder="tickets.takemybass.com"
                   className={fieldClass}
                   style={fieldStyle}
                 />
@@ -191,6 +237,37 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                   {saving ? 'Saving…' : active ? 'Update' : 'Connect'}
                 </button>
               </div>
+
+              <label className="mb-1 mt-4 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                Path (required to share this domain)
+              </label>
+              <div
+                className="flex items-center gap-0 overflow-hidden rounded-xl border"
+                style={{ ...fieldStyle, borderColor: ui.borderColor }}
+              >
+                <span
+                  className="shrink-0 border-r px-3 py-2.5 font-mono text-xs sm:text-sm"
+                  style={{ color: ui.textMuted, borderColor: ui.borderColor, background: ui.cardMutedBg }}
+                >
+                  {(domainInput.trim().split('/')[0] || 'tickets.takemybass.com').replace(/^https?:\/\//i, '')}/
+                </span>
+                <input
+                  value={pathInput}
+                  onChange={(e) => setPathInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  placeholder="cc"
+                  maxLength={32}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-sm outline-none"
+                  style={{ color: ui.text }}
+                />
+              </div>
+              <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
+                For Club Ctrl type <span className="font-mono font-semibold">cc</span> here. Live URL becomes{' '}
+                <span className="font-mono">
+                  {(domainInput.trim().split('/')[0] || 'tickets.takemybass.com').replace(/^https?:\/\//i, '')}/
+                  {pathInput.trim() || 'cc'}
+                </span>
+                .
+              </p>
 
               {active && state?.publicUrl && (
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm" style={{ color: ui.text }}>
@@ -216,7 +293,8 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                     DNS setup
                   </p>
                   <p className="mt-1 text-xs" style={{ color: ui.textMuted }}>
-                    Add these records where your domain is managed (Cloudflare, GoDaddy, Namecheap, etc.).
+                    {state.dns.note ||
+                      'Add these BigTurnout DNS records where your domain is managed (Cloudflare, GoDaddy, Namecheap, etc.).'}
                   </p>
                   <div className="mt-3 space-y-2">
                     {state.dns.records.map((rec) => (
@@ -226,10 +304,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                         style={cardStyle}
                       >
                         <div className="font-mono" style={{ color: ui.text }}>
-                          <span className="font-bold">{rec.type}</span> {rec.name} →{' '}
-                          {String(rec.value).toLowerCase().includes('vercel')
-                            ? 'domain target (copy below)'
-                            : rec.value}
+                          <span className="font-bold">{rec.type}</span> {rec.name} → {rec.value}
                         </div>
                         <button
                           type="button"

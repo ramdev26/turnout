@@ -18,6 +18,8 @@ import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import { resolveOrganizerTermsHtml } from '../../utils/organizerTerms';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../../utils/purchaseLimits';
 import { EventPolicyViewerModal } from './EventPolicyViewer';
+import { useEmailDeliverability } from '../../hooks/useEmailDeliverability';
+import { checkEmailDeliverability } from '../../lib/plunkEmailVerify';
 
 type TicketHolderInput = {
   key: string;
@@ -98,7 +100,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
 
   const payableTotal = appliedCoupon ? appliedCoupon.total : totalAmount;
 
-  const { register, handleSubmit, reset, watch } = useForm<{
+  const { register, handleSubmit, reset, watch, setValue } = useForm<{
     buyerName: string;
     buyerEmail: string;
     buyerPhone: string;
@@ -118,6 +120,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
   const buyerName = watch('buyerName');
   const buyerEmail = watch('buyerEmail');
   const buyerPhone = watch('buyerPhone');
+  const buyerEmailCheck = useEmailDeliverability(buyerEmail);
 
   const hasSelectedTickets = orderItems.length > 0;
 
@@ -353,6 +356,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
         customFields?: Record<string, string>;
       }[];
 
+      const buyerCheck = await checkEmailDeliverability(values.buyerEmail);
+      if (!buyerCheck.deliverable) {
+        setPayError(buyerCheck.message || 'Enter a deliverable buyer email.');
+        setIsPurchasing(false);
+        return;
+      }
+
       if (assignEachTicket && canAssignEachTicket) {
         for (const row of ticketHolders) {
           if (!row.fullName.trim()) {
@@ -362,6 +372,16 @@ export const EventCheckoutForm: React.FC<Props> = ({
           }
           if (!isValidEmail(row.email)) {
             setPayError(`Enter a valid email for ${row.label}.`);
+            setIsPurchasing(false);
+            return;
+          }
+          const holderCheck = await checkEmailDeliverability(row.email);
+          if (!holderCheck.deliverable) {
+            setPayError(
+              holderCheck.suggestedEmail
+                ? `${row.label}: ${holderCheck.message || 'Email looks incorrect.'}`
+                : `Enter a deliverable email for ${row.label}.`
+            );
             setIsPurchasing(false);
             return;
           }
@@ -376,6 +396,12 @@ export const EventCheckoutForm: React.FC<Props> = ({
       } else if (buyingForSomeoneElse) {
         if (!values.attendeeName.trim() || !isValidEmail(values.attendeeEmail)) {
           setPayError('Enter the attendee name and a valid email.');
+          setIsPurchasing(false);
+          return;
+        }
+        const attendeeCheck = await checkEmailDeliverability(values.attendeeEmail);
+        if (!attendeeCheck.deliverable) {
+          setPayError(attendeeCheck.message || 'Enter a deliverable attendee email.');
           setIsPurchasing(false);
           return;
         }
@@ -510,6 +536,8 @@ export const EventCheckoutForm: React.FC<Props> = ({
       setIsPurchasing(false);
     }
   };
+
+  const isPulse = event.templateId === 'template-11' || event.templateId === 'template-12';
 
   const inputStyle: React.CSSProperties = {
     borderColor: 'var(--landing-border)',
@@ -806,7 +834,31 @@ export const EventCheckoutForm: React.FC<Props> = ({
           {...register('buyerEmail', { required: true })}
           className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
           style={inputStyle}
+          autoComplete="email"
         />
+        {buyerEmailCheck.checking ? (
+          <span className="text-[11px]" style={{ color: 'var(--landing-text-muted)' }}>
+            Checking email…
+          </span>
+        ) : null}
+        {!buyerEmailCheck.checking && buyerEmailCheck.message ? (
+          <span className="text-[11px] font-medium text-rose-500">{buyerEmailCheck.message}</span>
+        ) : null}
+        {!buyerEmailCheck.checking && buyerEmailCheck.suggestedEmail ? (
+          <button
+            type="button"
+            className="self-start text-[11px] font-semibold underline-offset-2 hover:underline"
+            style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
+            onClick={() =>
+              setValue('buyerEmail', buyerEmailCheck.suggestedEmail!, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          >
+            Use {buyerEmailCheck.suggestedEmail}
+          </button>
+        ) : null}
       </label>
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
@@ -1118,23 +1170,32 @@ export const EventCheckoutForm: React.FC<Props> = ({
   );
 
   if (layout === 'page') {
-    const pageSurfaceStyle: React.CSSProperties = {
-      background: '#ffffff',
-      color: '#18181b',
-      // Keep event accent (--primary) from parent; force a clean white checkout canvas.
-      ['--landing-page-bg' as string]: '#ffffff',
-      ['--landing-surface' as string]: '#ffffff',
-      ['--landing-surface-muted' as string]: '#f4f4f5',
-      ['--landing-text' as string]: '#18181b',
-      ['--landing-text-muted' as string]: '#71717a',
-      ['--landing-border' as string]: '#e4e4e7',
-      ['--landing-shadow-hover' as string]: '0 10px 30px rgba(24, 24, 27, 0.08)',
-    };
+    // Same checkout layout/style for every theme — Pulse only remaps color tokens.
+    const pageSurfaceStyle: React.CSSProperties = isPulse
+      ? {
+          background: 'var(--landing-page-bg, #000000)',
+          color: 'var(--landing-text, #ffffff)',
+        }
+      : {
+          background: '#ffffff',
+          color: '#18181b',
+          // Keep event accent (--primary) from parent; force a clean white checkout canvas.
+          ['--landing-page-bg' as string]: '#ffffff',
+          ['--landing-surface' as string]: '#ffffff',
+          ['--landing-surface-muted' as string]: '#f4f4f5',
+          ['--landing-text' as string]: '#18181b',
+          ['--landing-text-muted' as string]: '#71717a',
+          ['--landing-border' as string]: '#e4e4e7',
+          ['--landing-shadow-hover' as string]: '0 10px 30px rgba(24, 24, 27, 0.08)',
+        };
 
     return (
       <>
         {payhereOverlay}
-        <div className="min-h-dvh w-full" style={pageSurfaceStyle}>
+        <div
+          className={`min-h-dvh w-full ${isPulse ? 'landing-pulse-checkout' : ''}`}
+          style={pageSurfaceStyle}
+        >
           <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
             {backHref ? (
               <Link
@@ -1176,7 +1237,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
                 {formFields}
                 {termsBlock}
                 {payError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700 lg:hidden">
+                  <div
+                    className={`p-2.5 text-xs font-medium lg:hidden ${
+                      isPulse
+                        ? 'pulse-checkout-error rounded-xl'
+                        : 'rounded-xl border border-red-200 bg-red-50 text-red-700'
+                    }`}
+                  >
                     {payError}
                   </div>
                 )}
@@ -1188,7 +1255,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
                   className="sticky top-6 space-y-4 rounded-2xl border p-5"
                   style={{
                     borderColor: 'var(--landing-border)',
-                    background: '#ffffff',
+                    background: 'var(--landing-surface, #ffffff)',
                     boxShadow: 'var(--landing-shadow-hover)',
                   }}
                 >
@@ -1197,7 +1264,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
                   </p>
                   {orderSummaryCard}
                   {payError && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
+                    <div
+                      className={`p-2.5 text-xs font-medium ${
+                        isPulse
+                          ? 'pulse-checkout-error rounded-xl'
+                          : 'rounded-xl border border-red-200 bg-red-50 text-red-700'
+                      }`}
+                    >
                       {payError}
                     </div>
                   )}
@@ -1216,7 +1289,9 @@ export const EventCheckoutForm: React.FC<Props> = ({
     <>
       {payhereOverlay}
       <div
-        className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8"
+        className={`fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 sm:items-center sm:justify-center sm:p-6 lg:p-8 ${
+          isPulse ? 'landing-pulse-checkout' : ''
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="landing-checkout-title"
@@ -1272,7 +1347,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
             >
               <div className="mb-2.5">{termsBlock}</div>
               {payError && (
-                <div className="mb-2.5 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
+                <div
+                  className={`mb-2.5 p-2.5 text-xs font-medium ${
+                    isPulse
+                      ? 'pulse-checkout-error rounded-xl'
+                      : 'rounded-xl border border-red-200 bg-red-50 text-red-700'
+                  }`}
+                >
                   {payError}
                 </div>
               )}

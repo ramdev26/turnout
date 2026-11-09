@@ -379,8 +379,36 @@ export interface EventCustomization {
   onlineUrl?: string;
   heroText: string;
   heroSubtext: string;
+  /** Pulse template — poster eyebrow (top-right). */
+  pulseEyebrow?: string;
+  /** Pulse template — top-right header link label (e.g. Access Club Ctrl). */
+  pulseHeaderLinkLabel?: string;
+  /** Pulse template — top-right header link URL (external or absolute). */
+  pulseHeaderLink?: string;
+  /** Pulse template — giant headline (e.g. TICKETS OPEN NOW.). */
+  pulseHeadline?: string;
+  /** Pulse template — line under headline. */
+  pulseTagline?: string;
+  /** Pulse template — venue note when TBA / private. */
+  pulseVenueNote?: string;
+  /** Pulse template — small city / venue footer line. */
+  pulseCityLine?: string;
+  /** Pulse template — optional schedule lines under the date. */
+  pulseSchedule?: { label: string; time: string }[];
+  /** Pulse template — room cards (max 2 used). */
+  pulseRooms?: {
+    kicker?: string;
+    title?: string;
+    body?: string;
+    tags?: string;
+    emphasis?: boolean;
+  }[];
+  /** Pulse template — footnote under the price table. */
+  pulsePriceNote?: string;
   layout: 'standard' | 'centered' | 'split';
   customDomain?: string;
+  /** Short path on a shared custom domain (e.g. tmb → tickets.example.com/tmb). */
+  customDomainPath?: string;
   dnsProvider?: 'cloudflare' | 'godaddy' | 'namecheap' | 'other';
   dnsRecordType?: 'CNAME' | 'A';
   dnsRecordTarget?: string;

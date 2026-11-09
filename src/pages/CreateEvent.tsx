@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { resolveLayoutTemplateId } from '../templates/templates';
+import { isPulseFamilyTemplate, resolveLayoutTemplateId } from '../templates/templates';
 import { useFieldArray, useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -315,7 +315,7 @@ export const CreateEvent: React.FC = () => {
       customDomain: '',
       dnsProvider: 'cloudflare',
       dnsRecordType: 'CNAME',
-      dnsRecordTarget: 'cname.vercel-dns.com',
+      dnsRecordTarget: 'domains.bigturnout.co',
       dnsConfigured: false,
       ...(draft?.form as Partial<EventFormValues> | undefined),
     },
@@ -666,6 +666,24 @@ export const CreateEvent: React.FC = () => {
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
+        ...(isPulseFamilyTemplate(design.templateId)
+          ? {
+              pulseHeaderLinkLabel:
+                design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
+              pulseHeaderLink: design.templateId === 'template-12' ? '/tmb' : '/cc',
+              // Headline uses event title on the landing — do not invent theme copy.
+              // Tagline comes from short description (heroSubtext).
+              pulseTagline: (data.shortDescription || '').trim() || undefined,
+              pageBackgroundColor: design.pageBackgroundColor || '#000000',
+              surfaceColor: design.surfaceColor || '#141414',
+              buttonColor:
+                design.buttonColor ||
+                design.primaryColor ||
+                (design.templateId === 'template-12' ? '#E8342A' : '#FF2D8F'),
+              buttonTextColor: design.buttonTextColor || '#000000',
+              displayMode: 'dark' as const,
+            }
+          : {}),
         layout: 'centered',
         privateAccess: visibility === 'private',
         customDomain: data.useCustomDomain ? (data.customDomain || '').trim() : undefined,
@@ -764,6 +782,21 @@ export const CreateEvent: React.FC = () => {
       primaryColor: design.primaryColor,
       secondaryColor: design.secondaryColor,
       fontFamily: design.fontFamily,
+      ...(isPulseFamilyTemplate(design.templateId)
+        ? {
+            pulseHeaderLinkLabel:
+              design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
+            pulseHeaderLink: design.templateId === 'template-12' ? '/tmb' : '/cc',
+            pulseTagline: (shortDescription || '').trim() || undefined,
+            pageBackgroundColor: design.pageBackgroundColor || '#000000',
+            surfaceColor: design.surfaceColor || '#141414',
+            buttonColor:
+              design.buttonColor ||
+              design.primaryColor ||
+              (design.templateId === 'template-12' ? '#E8342A' : '#FF2D8F'),
+            displayMode: 'dark' as const,
+          }
+        : {}),
     };
     return {
       id: 'preview',
@@ -1571,8 +1604,9 @@ export const CreateEvent: React.FC = () => {
                       />
                       <p className="text-xs leading-relaxed" style={{ color: ui.textSubtle }}>
                         After creating the event, open <strong>Event settings</strong> for DNS records. Point a{' '}
-                        <span className="font-mono">CNAME</span> to <span className="font-mono">cname.vercel-dns.com</span>{' '}
-                        (or use the exact target shown in settings).
+                        <span className="font-mono">CNAME</span> to{' '}
+                        <span className="font-mono">domains.bigturnout.co</span> (or use the exact target shown in
+                        settings).
                       </p>
                     </div>
                   )}

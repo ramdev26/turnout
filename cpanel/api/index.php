@@ -185,11 +185,11 @@ function absolute_public_url(string $url): string {
   return ($https ? 'https' : 'http') . '://' . $host . '/' . ltrim($url, '/');
 }
 
-function share_meta_description(string $raw): string {
+function share_meta_description(string $raw, string $fallbackTitle = 'this event'): string {
   $text = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
   $text = preg_replace('/\s+/u', ' ', trim($text)) ?? '';
   if ($text === '') {
-    return 'View event details and tickets on Turnout.';
+    return 'Get tickets for ' . trim($fallbackTitle) . '.';
   }
   if (mb_strlen($text) > 220) {
     return rtrim(mb_substr($text, 0, 217)) . '...';
@@ -197,12 +197,20 @@ function share_meta_description(string $raw): string {
   return $text;
 }
 
-function render_share_meta_page(array $event): void {
+function render_share_meta_page(array $event, bool $brandedRoot = false): void {
   $eventTitle = trim((string)($event['title'] ?? 'Event'));
-  $organizerName = trim((string)($event['organizerName'] ?? 'Organizer'));
-  $metaTitle = trim($eventTitle . ' | ' . $organizerName);
-  if ($metaTitle === '|' || $metaTitle === '') $metaTitle = 'Turnout Event';
-  $description = share_meta_description((string)($event['description'] ?? ''));
+  $organizerName = trim((string)($event['organizerName'] ?? ''));
+  $metaTitle = $eventTitle !== '' ? $eventTitle : 'Event';
+  if ($organizerName !== '' && !str_contains(mb_strtolower($metaTitle), mb_strtolower($organizerName))) {
+    $metaTitle = trim($eventTitle . ' · ' . $organizerName);
+  }
+
+  $customization = is_array($event['customization'] ?? null) ? $event['customization'] : [];
+  $short = trim((string)($customization['heroSubtext'] ?? ''));
+  $description = share_meta_description(
+    $short !== '' ? $short : (string)($event['description'] ?? ''),
+    $eventTitle
+  );
 
   $imageUrl = absolute_public_url((string)($event['bannerUrl'] ?? ''));
   $slug = trim((string)($event['slug'] ?? ''));
@@ -210,7 +218,18 @@ function render_share_meta_page(array $event): void {
   $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
     || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
   $origin = $host !== '' ? (($https ? 'https' : 'http') . '://' . $host) : '';
-  $canonical = ($origin !== '' && $slug !== '') ? ($origin . '/e/' . rawurlencode($slug)) : '';
+  $customDomain = trim((string)($event['customDomain'] ?? ''));
+  $requestHost = strtolower(preg_replace('#:\d+$#', '', $host) ?? $host);
+  if (str_starts_with($requestHost, 'www.')) $requestHost = substr($requestHost, 4);
+  $onBrandedHost = $brandedRoot
+    || ($customDomain !== '' && strtolower($customDomain) === $requestHost);
+  $canonical = '';
+  if ($origin !== '') {
+    $canonical = $onBrandedHost
+      ? ($origin . '/')
+      : ($slug !== '' ? ($origin . '/e/' . rawurlencode($slug)) : $origin);
+  }
+  $siteName = $organizerName !== '' ? $organizerName : $eventTitle;
 
   header('Content-Type: text/html; charset=utf-8');
   header('Cache-Control: public, max-age=60, s-maxage=300');
@@ -219,7 +238,7 @@ function render_share_meta_page(array $event): void {
   echo '<meta name="viewport" content="width=device-width, initial-scale=1" />';
   echo '<title>' . html_escape($metaTitle) . '</title>';
   echo '<meta name="description" content="' . html_escape($description) . '" />';
-  echo '<meta property="og:site_name" content="Turnout" />';
+  echo '<meta property="og:site_name" content="' . html_escape($siteName) . '" />';
   echo '<meta property="og:type" content="website" />';
   echo '<meta property="og:title" content="' . html_escape($metaTitle) . '" />';
   echo '<meta property="og:description" content="' . html_escape($description) . '" />';
@@ -281,7 +300,8 @@ function maybe_serve_event_share_preview(string $path, string $method): void {
       exit;
     }
     $event = map_public_event_row($row, $pdo);
-    render_share_meta_page($event);
+    $brandedRoot = isset($_GET['share_branded']) && (string)$_GET['share_branded'] === '1';
+    render_share_meta_page($event, $brandedRoot);
   } catch (Throwable $e) {
     error_log(sprintf('[turnout] share preview failed for %s: %s', $slug, $e->getMessage()));
     http_response_code(500);
@@ -3314,15 +3334,25 @@ if ($path === '/public/config' && $method === 'GET') {
   ]);
 }
 
-// Resolve custom hostname → event slug (edge middleware + diagnostics)
+// Resolve custom hostname → event slug (+ optional /tmb, /cc path aliases)
 if (preg_match('#^/events/by-host/(.+)$#', $path, $m) && $method === 'GET') {
   $host = normalize_event_hostname(urldecode($m[1]));
   if ($host === '' || is_reserved_platform_host($host)) {
     json_response(404, ['error' => 'host_not_mapped']);
   }
-  $slug = lookup_event_slug_by_host(db(), $host);
-  if ($slug === null) json_response(404, ['error' => 'host_not_mapped']);
-  json_response(200, ['host' => $host, 'slug' => $slug, 'path' => '/e/' . $slug]);
+  $map = lookup_host_event_map(db(), $host);
+  if ($map === null) json_response(404, ['error' => 'host_not_mapped']);
+  $alias = strtolower(trim((string)($_GET['path'] ?? ''), '/'));
+  $slug = $map['slug'];
+  if ($alias !== '' && isset($map['paths'][$alias])) {
+    $slug = $map['paths'][$alias];
+  }
+  json_response(200, [
+    'host' => $host,
+    'slug' => $slug,
+    'path' => '/e/' . $slug,
+    'paths' => $map['paths'],
+  ]);
 }
 
 // Public published events list
@@ -3435,13 +3465,22 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'GET') {
   $row = load_event_row_or_404($pdo, $eventId);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
-  $domain = (string)($row['custom_domain'] ?? '');
+  $customization = json_decode((string)($row['customization_json'] ?? ''), true);
+  if (!is_array($customization)) $customization = [];
+  $domain = trim((string)($row['custom_domain'] ?? ''));
+  if ($domain === '') $domain = normalize_event_hostname((string)($customization['customDomain'] ?? ''));
+  $domainPath = event_row_domain_path($row);
   $dns = $domain !== '' ? domain_dns_instructions($domain) : null;
   $vercel = $domain !== '' ? vercel_get_project_domain($domain) : ['ok' => false, 'skipped' => true];
+  $publicUrl = null;
+  if ($domain !== '') {
+    $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
+  }
 
   json_response(200, [
     'customDomain' => $domain !== '' ? $domain : null,
-    'publicUrl' => $domain !== '' ? ('https://' . $domain) : null,
+    'customDomainPath' => $domainPath,
+    'publicUrl' => $publicUrl,
     'defaultUrl' => '/e/' . $row['slug'],
     'dns' => $dns,
     'vercel' => $vercel,
@@ -3456,26 +3495,48 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
   $body = read_json_body();
   $domainRaw = trim((string)($body['domain'] ?? ''));
   if ($domainRaw === '') json_response(400, ['error' => 'invalid_domain']);
+  $pathRaw = array_key_exists('path', $body) ? trim((string)$body['path']) : null;
+
+  // Allow pasting "tickets.example.com/cc" into the domain field.
+  $domainRaw = preg_replace('#^https?://#i', '', $domainRaw) ?? $domainRaw;
+  if (($pathRaw === null || $pathRaw === '') && preg_match('#^([^/?#]+)/([a-z0-9][a-z0-9-]{0,30}[a-z0-9]?)$#i', $domainRaw, $dm)) {
+    $domainRaw = $dm[1];
+    $pathRaw = $dm[2];
+  }
 
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $domain = normalize_event_hostname($domainRaw);
-  if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like events.yourbrand.com']);
+  if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like tickets.yourbrand.com']);
   if (is_reserved_platform_host($domain)) json_response(400, ['error' => 'domain_reserved']);
 
-  sync_event_custom_domain($pdo, $eventId, $domain);
-  $vercel = vercel_add_project_domain($domain);
-  $dns = domain_dns_instructions($domain);
+  try {
+    $pathToSave = ($pathRaw !== null && $pathRaw !== '') ? $pathRaw : null;
+    sync_event_custom_domain($pdo, $eventId, $domain, $pathToSave);
+    $vercel = vercel_add_project_domain($domain);
+    $dns = domain_dns_instructions($domain);
+    $fresh = load_event_row_or_404($pdo, $eventId);
+    $domainPath = event_row_domain_path($fresh);
+    $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
 
-  json_response(200, [
-    'ok' => true,
-    'customDomain' => $domain,
-    'publicUrl' => 'https://' . $domain,
-    'dns' => $dns,
-    'vercel' => $vercel,
-  ]);
+    json_response(200, [
+      'ok' => true,
+      'customDomain' => $domain,
+      'customDomainPath' => $domainPath,
+      'publicUrl' => $publicUrl,
+      'dns' => $dns,
+      'vercel' => $vercel,
+    ]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] domain connect failed event=%d: %s', $eventId, $e->getMessage()));
+    json_response(500, [
+      'error' => 'domain_connect_failed',
+      'message' => 'Could not connect this domain path. Please try again, or use a different path like tmb or cc.',
+      'debug' => is_debug_mode_enabled() ? $e->getMessage() : null,
+    ]);
+  }
 }
 
 if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'DELETE') {
@@ -3500,11 +3561,10 @@ if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'PO
   $vercel = vercel_get_project_domain($domain);
   $dnsOk = false;
   $records = @dns_get_record($domain, DNS_CNAME);
-  $target = strtolower(domain_cname_target());
   if (is_array($records)) {
     foreach ($records as $rec) {
       $val = strtolower((string)($rec['target'] ?? ''));
-      if ($val !== '' && (str_contains($val, 'vercel') || $val === $target || str_ends_with($val, '.vercel-dns.com'))) {
+      if (domain_cname_points_to_platform($val)) {
         $dnsOk = true;
         break;
       }
@@ -3884,7 +3944,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   }
 
   $templateId = trim((string)($body['templateId'] ?? ''));
-  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-7', 'template-8', 'template-10', 'template-canvas'];
+  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-7', 'template-8', 'template-10', 'template-11', 'template-12', 'template-canvas'];
   $legacyTemplates = ['template-1', 'template-3', 'template-4'];
   if ($templateId !== '' && in_array($templateId, $allowedTemplates, true)) {
     $row['template_id'] = $templateId;
@@ -3903,6 +3963,24 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   } elseif (empty($customization['heroSubtext']) && !empty($row['description'])) {
     // Backfill only when never set, so legacy events still show a subtitle.
     $customization['heroSubtext'] = mb_substr((string)$row['description'], 0, 100);
+  }
+  if (array_key_exists('pulseHeaderLinkLabel', $body)) {
+    $label = mb_substr(trim((string)$body['pulseHeaderLinkLabel']), 0, 80);
+    if ($label === '') unset($customization['pulseHeaderLinkLabel']);
+    else $customization['pulseHeaderLinkLabel'] = $label;
+  }
+  if (array_key_exists('pulseHeaderLink', $body)) {
+    $link = trim((string)$body['pulseHeaderLink']);
+    if ($link === '') {
+      unset($customization['pulseHeaderLink']);
+    } elseif (preg_match('#^(https?:\/\/|\/)[^\s]+$#i', $link)) {
+      $customization['pulseHeaderLink'] = mb_substr($link, 0, 500);
+    } else {
+      json_response(400, [
+        'error' => 'invalid_pulse_header_link',
+        'message' => 'Enter a valid link (https://… or a path starting with /).',
+      ]);
+    }
   }
 
   $upd = $pdo->prepare(

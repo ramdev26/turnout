@@ -51,7 +51,7 @@ function public_api_url(string $path): string {
 
 function banner_max_upload_bytes(): int {
   // Animated GIFs are often larger than static JPG/PNG covers.
-  return 10 * 1024 * 1024;
+  return 50 * 1024 * 1024;
 }
 
 function banner_allowed_mime_types(): array {
@@ -260,7 +260,7 @@ function handle_banner_upload_post(): void {
   if ($size <= 0 || $size > banner_max_upload_bytes()) {
     json_response(400, [
       'error' => 'file_too_large',
-      'message' => 'Image must be 10MB or smaller. Animated GIFs are supported — compress larger files.',
+      'message' => 'Image must be 50MB or smaller. Animated GIFs are supported — compress larger files.',
     ]);
   }
 

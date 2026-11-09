@@ -405,7 +405,9 @@ export function resolveTemplateId(event: Pick<Event, 'templateId' | 'customizati
     event.templateId === 'template-6' ||
     event.templateId === 'template-10' ||
     event.templateId === 'template-7' ||
-    event.templateId === 'template-8'
+    event.templateId === 'template-8' ||
+    event.templateId === 'template-11' ||
+    event.templateId === 'template-12'
   ) {
     return event.templateId;
   }

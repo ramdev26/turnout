@@ -146,7 +146,7 @@ export const LANDING_DESIGN_OVERRIDE_RESET: Partial<LandingDesignValue> = {
   buttonShadow: undefined,
 };
 
-export { LANDING_LAYOUT_TEMPLATES } from '../../templates/templates';
+export { LANDING_LAYOUT_TEMPLATES, isPulseFamilyTemplate } from '../../templates/templates';
 
 type ColorPreset = {
   id: string;

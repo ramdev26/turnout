@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { resolveLayoutTemplateId, LANDING_LAYOUT_TEMPLATES } from '../templates/templates';
+import {
+  resolveLayoutTemplateId,
+  LANDING_LAYOUT_TEMPLATES,
+  isPulseFamilyTemplate,
+} from '../templates/templates';
 import {
   ArrowLeft,
   ChevronDown,
@@ -162,6 +166,8 @@ export const EventSettings: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [shortDescription, setShortDescription] = useState('');
+  const [pulseHeaderLinkLabel, setPulseHeaderLinkLabel] = useState('Access Club Ctrl');
+  const [pulseHeaderLink, setPulseHeaderLink] = useState('');
   const [locationMode, setLocationMode] = useState<EventLocationMode>('physical');
   const [location, setLocation] = useState('');
   const [locationTba, setLocationTba] = useState(false);
@@ -260,6 +266,13 @@ export const EventSettings: React.FC = () => {
       setTitle(ev.title);
       setDescription(ev.description || '');
       setShortDescription(ev.customization?.heroSubtext || '');
+      setPulseHeaderLinkLabel(
+        ev.customization?.pulseHeaderLinkLabel ||
+          (resolveLayoutTemplateId(ev.templateId) === 'template-12'
+            ? 'Access Take My Bass'
+            : 'Access Club Ctrl')
+      );
+      setPulseHeaderLink(ev.customization?.pulseHeaderLink || '');
       const mode = resolveEventLocationMode(ev.customization);
       const tbaLocation = isLocationTba(ev.customization, mode === 'online' ? '' : ev.location);
       setLocationMode(mode);
@@ -473,6 +486,14 @@ export const EventSettings: React.FC = () => {
         heroText: title.trim() || event.title,
         layout: event.customization?.layout || 'standard',
         arenaGalleryImages,
+        ...(isPulseFamilyTemplate(design.templateId)
+          ? {
+              pulseHeaderLinkLabel:
+                pulseHeaderLinkLabel.trim() ||
+                (design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl'),
+              pulseHeaderLink: pulseHeaderLink.trim() || undefined,
+            }
+          : {}),
       },
     };
   }, [
@@ -487,6 +508,8 @@ export const EventSettings: React.FC = () => {
     locationTba,
     onlinePlatform,
     onlineUrl,
+    pulseHeaderLink,
+    pulseHeaderLinkLabel,
     scheduleTba,
     shortDescription,
     slug,
@@ -521,7 +544,7 @@ export const EventSettings: React.FC = () => {
       }
       const url = await uploadImageFile(file);
       if (url) setBannerUrl(url);
-      else setBannerUploadError('Upload failed. Try PNG, JPG, WEBP, or GIF under 10MB.');
+      else setBannerUploadError('Upload failed. Try PNG, JPG, WEBP, or GIF under 50MB.');
     } catch {
       setBannerUploadError('Upload failed. Check your connection.');
     } finally {
@@ -550,7 +573,7 @@ export const EventSettings: React.FC = () => {
       data = null;
     }
     if (res.ok && data?.bannerUrl) return normalizeBannerUrl(data.bannerUrl);
-    setBannerUploadError(data?.message || 'Upload failed. Try PNG, JPG, WEBP, or GIF under 10MB.');
+    setBannerUploadError(data?.message || 'Upload failed. Try PNG, JPG, WEBP, or GIF under 50MB.');
     return null;
   };
 
@@ -606,6 +629,14 @@ export const EventSettings: React.FC = () => {
         date: new Date(date).toISOString(),
         bannerUrl: bannerUrl || undefined,
         heroSubtext: shortDescription.trim(),
+        ...(isPulseFamilyTemplate(design.templateId)
+          ? {
+              pulseHeaderLinkLabel:
+                pulseHeaderLinkLabel.trim() ||
+                (design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl'),
+              pulseHeaderLink: pulseHeaderLink.trim(),
+            }
+          : {}),
         scheduleTba,
         eventCategory: design.eventCategory,
         primaryColor: design.primaryColor,
@@ -677,6 +708,13 @@ export const EventSettings: React.FC = () => {
       setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
       setEventPolicyHtml(resolveEventPolicyHtml(res.event.customization?.eventPolicyHtml));
+      setPulseHeaderLinkLabel(
+        res.event.customization?.pulseHeaderLinkLabel ||
+          (resolveLayoutTemplateId(res.event.templateId) === 'template-12'
+            ? 'Access Take My Bass'
+            : 'Access Club Ctrl')
+      );
+      setPulseHeaderLink(res.event.customization?.pulseHeaderLink || '');
       setDesign((prev) => ({
         ...prev,
         templateId: resolveLayoutTemplateId(res.event.templateId),
@@ -1263,6 +1301,47 @@ export const EventSettings: React.FC = () => {
               <p className="mb-4 text-xs" style={{ color: ui.textSubtle }}>
                 Shown under the title on your public page. Leave blank for no subtitle.
               </p>
+              {isPulseFamilyTemplate(design.templateId) ? (
+                <div className="mb-4 space-y-3">
+                  <div>
+                    <label
+                      className="mb-1 block text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: ui.textSubtle }}
+                    >
+                      Header link label
+                    </label>
+                    <input
+                      value={pulseHeaderLinkLabel}
+                      onChange={(e) => setPulseHeaderLinkLabel(e.target.value)}
+                      placeholder={
+                        design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl'
+                      }
+                      maxLength={80}
+                      className={fieldClass}
+                      style={fieldStyle}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="mb-1 block text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: ui.textSubtle }}
+                    >
+                      Header link URL
+                    </label>
+                    <input
+                      value={pulseHeaderLink}
+                      onChange={(e) => setPulseHeaderLink(e.target.value)}
+                      placeholder="https://… or /path"
+                      maxLength={500}
+                      className={fieldClass}
+                      style={fieldStyle}
+                    />
+                    <p className="mt-1 text-xs" style={{ color: ui.textSubtle }}>
+                      Top-right header link with arrow. Leave URL blank to show text only.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
                 Full description
               </label>

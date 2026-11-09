@@ -9,6 +9,26 @@
       content="Turnout is a modern event platform for creating stunning event pages, selling tickets, and managing attendees with ease."
     />
     <link rel="icon" type="image/svg+xml" href="/turnout-favicon.svg" />
+    <script>
+      (function () {
+        var host = (location.hostname || '').toLowerCase();
+        var platform =
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host === 'app.bigturnout.co' ||
+          host === 'bigturnout.co' ||
+          host === 'www.bigturnout.co' ||
+          host === 'domains.bigturnout.co' ||
+          host.slice(-11) === '.vercel.app';
+        if (platform) return;
+        // Custom event domains: no Turnout chrome in the initial document.
+        document.title = '';
+        var icon = document.querySelector('link[rel="icon"]');
+        if (icon) icon.setAttribute('href', 'data:,');
+        var desc = document.querySelector('meta[name="description"]');
+        if (desc) desc.setAttribute('content', '');
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

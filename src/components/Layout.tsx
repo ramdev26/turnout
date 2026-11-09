@@ -16,6 +16,7 @@ import { adminMainNav, BASADMIN_BASE } from '../utils/adminNav';
 import { attendeeMainNav } from '../utils/attendeeNav';
 import { eventWorkspaceNav, organizationSettingsSubNav, organizerMainNav } from '../utils/organizerNav';
 import type { AppNavLink } from '../utils/appNav';
+import { isCustomEventHostname } from '../lib/platformHost';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -25,8 +26,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const location = useLocation();
   const path = location.pathname;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const customEventHost = isCustomEventHostname();
 
   const isPublicLanding =
+    customEventHost ||
+    path === '/checkout' ||
     /^\/e\/[^/]+$/.test(path) ||
     /^\/e\/[^/]+\/checkout$/.test(path) ||
     (/^\/events\/[^/]+$/.test(path) && !/^\/events\/(new|themes)$/.test(path)) ||
@@ -37,7 +41,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isAttendeeConsole = /^\/attendee/.test(path) && path !== '/attendee/signup';
   const isAdminConsole = /^\/basadmin/.test(path) || /^\/admin/.test(path);
   const isAuthPage =
-    path === '/' ||
+    (!customEventHost && path === '/') ||
     path === '/login' ||
     path === `${BASADMIN_BASE}/login` ||
     path === '/signup' ||

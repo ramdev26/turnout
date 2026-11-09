@@ -128,12 +128,15 @@ Ticket purchase confirmations and other app emails are sent through [Plunk](http
 
 Set in the project `.env` (loaded by the PHP API) or in Vercel **Environment Variables**:
 
-- `PLUNK_SECRET_KEY` — **required** for sending mail (server only; never put in `VITE_*` or frontend code)
-- `PLUNK_PUBLIC_KEY` — optional; only if you add client-side Plunk features later (not used for ticket emails today)
+- `PLUNK_SECRET_KEY` — **required** secret key (`sk_…`) for send + [verifyEmail](https://docs.useplunk.com/api-reference/public-api/verifyEmail) (server only; never put in `VITE_*`)
+- `PLUNK_PUBLIC_KEY` — optional; only for client-side `/v1/track` (not used for ticket emails)
 - `PLUNK_API_URL` — optional, defaults to `https://next-api.useplunk.com/v1/send`
+- `PLUNK_VERIFY_API_URL` — optional, defaults to `https://next-api.useplunk.com/v1/verify`
 - `MAIL_ENABLED` — `true` (default) to send mail; `false` to no-op (dev)
 - `MAIL_FROM` — sender address verified in Plunk (e.g. `admin@bigturnout.co`)
 - `MAIL_FROM_NAME` — display name (e.g. `Turnout`)
+
+Signup and checkout call Plunk `POST /v1/verify` (via `/api/auth/check-email`) to reject disposable addresses, missing MX records, and common typos before account creation or payment.
 
 Verify your sending domain in Plunk before going live. After deploy, complete a test checkout with multiple ticket holders to confirm the buyer and each attendee receive their emails.
 
@@ -161,19 +164,27 @@ Organizers can connect a domain like `events.yourbrand.com` to a published event
 ### How it works
 
 1. Organizer saves the domain in Turnout (stored on the event + DNS instructions).
-2. Organizer adds DNS at their registrar (CNAME to `cname.vercel-dns.com`, or A record for apex).
-3. Domain is added to the Vercel project (automatic if API token is set, or manually in Vercel dashboard).
+2. Organizer adds DNS at their registrar (CNAME to `domains.bigturnout.co`, or A record for apex).
+3. Domain is registered on the hosting project (automatic if API token is set).
 4. Edge `middleware.ts` maps the custom host to `/e/{slug}` so the themed landing page loads on the custom URL.
 
-### Vercel environment variables
+**Platform DNS (one-time):** create a branded alias so organizers never see vendor DNS hosts:
+
+```text
+domains.bigturnout.co.  CNAME  cname.vercel-dns.com.
+```
+
+Until that record exists, you can temporarily set `CUSTOM_DOMAIN_CNAME_TARGET=app.bigturnout.co`.
+
+### Environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `CUSTOM_DOMAIN_CNAME_TARGET` | CNAME value shown to users (default `cname.vercel-dns.com`) |
+| `CUSTOM_DOMAIN_CNAME_TARGET` | CNAME value shown to organizers (default `domains.bigturnout.co`) |
 | `CUSTOM_DOMAIN_APEX_IP` | A record for root domains (default `76.76.21.21`) |
 | `PLATFORM_HOSTS` | Comma-separated hosts that are NOT custom domains |
-| `VERCEL_API_TOKEN` | Auto-register domains on the Vercel project |
-| `VERCEL_PROJECT_ID` | Vercel project ID |
+| `VERCEL_API_TOKEN` | Auto-register domains on the project |
+| `VERCEL_PROJECT_ID` | Project ID for domain API |
 | `VERCEL_TEAM_ID` | Optional team scope |
 
 ### API endpoints

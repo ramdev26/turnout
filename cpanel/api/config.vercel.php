@@ -118,8 +118,8 @@ return [
     'secret' => $env('CRON_SECRET', ''),
   ],
   'domains' => [
-    'cname_target' => $env('CUSTOM_DOMAIN_CNAME_TARGET', 'cname.vercel-dns.com'),
+    'cname_target' => $env('CUSTOM_DOMAIN_CNAME_TARGET', 'domains.bigturnout.co'),
     'apex_ip' => $env('CUSTOM_DOMAIN_APEX_IP', '76.76.21.21'),
-    'platform_hosts' => $env('PLATFORM_HOSTS', 'app.bigturnout.co,turnout-omega.vercel.app,localhost,127.0.0.1'),
+    'platform_hosts' => $env('PLATFORM_HOSTS', 'app.bigturnout.co,domains.bigturnout.co,localhost,127.0.0.1'),
   ],
 ];
