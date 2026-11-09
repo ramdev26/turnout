@@ -3512,21 +3512,31 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
   if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like tickets.yourbrand.com']);
   if (is_reserved_platform_host($domain)) json_response(400, ['error' => 'domain_reserved']);
 
-  sync_event_custom_domain($pdo, $eventId, $domain, $pathRaw !== '' ? $pathRaw : null);
-  $vercel = vercel_add_project_domain($domain);
-  $dns = domain_dns_instructions($domain);
-  $fresh = load_event_row_or_404($pdo, $eventId);
-  $domainPath = event_row_domain_path($fresh);
-  $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
+  try {
+    $pathToSave = ($pathRaw !== null && $pathRaw !== '') ? $pathRaw : null;
+    sync_event_custom_domain($pdo, $eventId, $domain, $pathToSave);
+    $vercel = vercel_add_project_domain($domain);
+    $dns = domain_dns_instructions($domain);
+    $fresh = load_event_row_or_404($pdo, $eventId);
+    $domainPath = event_row_domain_path($fresh);
+    $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
 
-  json_response(200, [
-    'ok' => true,
-    'customDomain' => $domain,
-    'customDomainPath' => $domainPath,
-    'publicUrl' => $publicUrl,
-    'dns' => $dns,
-    'vercel' => $vercel,
-  ]);
+    json_response(200, [
+      'ok' => true,
+      'customDomain' => $domain,
+      'customDomainPath' => $domainPath,
+      'publicUrl' => $publicUrl,
+      'dns' => $dns,
+      'vercel' => $vercel,
+    ]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] domain connect failed event=%d: %s', $eventId, $e->getMessage()));
+    json_response(500, [
+      'error' => 'domain_connect_failed',
+      'message' => 'Could not connect this domain path. Please try again, or use a different path like tmb or cc.',
+      'debug' => is_debug_mode_enabled() ? $e->getMessage() : null,
+    ]);
+  }
 }
 
 if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'DELETE') {

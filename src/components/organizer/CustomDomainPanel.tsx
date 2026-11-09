@@ -126,6 +126,8 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
           e?.message ||
             'This domain is already used by another event. Put only the domain above (tickets.takemybass.com) and set the path below to cc (or tmb).'
         );
+      } else if (code === 'domain_path_taken') {
+        setError(e?.message || 'That path is already used on this domain. Try another path.');
       } else {
         setError(e?.message || e?.error || 'Could not save domain');
       }

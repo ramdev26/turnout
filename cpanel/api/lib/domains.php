@@ -191,13 +191,9 @@ function sync_event_custom_domain(PDO $pdo, int $eventId, ?string $domain, ?stri
 
     // Path must be unique among all events on this host.
     if ($pathNorm !== null) {
-      $map = lookup_host_event_map($pdo, $normalized);
-      if ($map && isset($map['paths'][$pathNorm]) && $map['paths'][$pathNorm] !== '') {
-        $conflictSlug = $map['paths'][$pathNorm];
-        $me = $pdo->prepare('SELECT slug FROM events WHERE id = ? LIMIT 1');
-        $me->execute([$eventId]);
-        $mySlug = (string)(($me->fetch()['slug'] ?? ''));
-        if ($conflictSlug !== $mySlug) {
+      foreach (list_events_for_custom_host($pdo, $normalized) as $peer) {
+        if ((int)($peer['id'] ?? 0) === $eventId) continue;
+        if (event_row_domain_path($peer) === $pathNorm) {
           json_response(409, [
             'error' => 'domain_path_taken',
             'message' => 'That path is already used on this domain. Pick another (e.g. tmb or cc).',
@@ -383,45 +379,83 @@ function event_row_matches_host(array $row, string $host): bool {
 }
 
 /**
+ * Events tied to a custom host (DNS owner column or customization.customDomain).
+ * Uses PHP JSON parsing — avoids DB-specific JSON SQL that can 500 on some hosts.
+ *
+ * @return list<array<string,mixed>>
+ */
+function list_events_for_custom_host(PDO $pdo, string $host): array {
+  ensure_events_custom_domain_column($pdo);
+  $host = normalize_event_hostname($host);
+  if ($host === '') return [];
+
+  $rows = [];
+  $byId = [];
+
+  $ownerStmt = $pdo->prepare('SELECT * FROM events WHERE custom_domain = ?');
+  $ownerStmt->execute([$host]);
+  foreach ($ownerStmt->fetchAll() as $row) {
+    $id = (int)($row['id'] ?? 0);
+    if ($id > 0) {
+      $byId[$id] = $row;
+    }
+  }
+
+  // Broad LIKE then exact match in PHP (customDomain may be stored with different key order).
+  $like = '%"customDomain"%' . str_replace(['%', '_'], ['\\%', '\\_'], $host) . '%';
+  try {
+    $jsonStmt = $pdo->prepare(
+      "SELECT * FROM events
+       WHERE customization_json IS NOT NULL
+         AND customization_json LIKE ?"
+    );
+    $jsonStmt->execute([$like]);
+    foreach ($jsonStmt->fetchAll() as $row) {
+      $id = (int)($row['id'] ?? 0);
+      if ($id > 0 && !isset($byId[$id])) {
+        $byId[$id] = $row;
+      }
+    }
+  } catch (Throwable $e) {
+    error_log('[turnout] list_events_for_custom_host json scan failed: ' . $e->getMessage());
+  }
+
+  foreach ($byId as $row) {
+    if (event_row_matches_host($row, $host)) {
+      $rows[] = $row;
+    }
+  }
+
+  usort($rows, static function ($a, $b) use ($host) {
+    $aOwner = normalize_event_hostname((string)($a['custom_domain'] ?? '')) === $host ? 0 : 1;
+    $bOwner = normalize_event_hostname((string)($b['custom_domain'] ?? '')) === $host ? 0 : 1;
+    if ($aOwner !== $bOwner) return $aOwner <=> $bOwner;
+    return ((int)($a['id'] ?? 0)) <=> ((int)($b['id'] ?? 0));
+  });
+
+  return $rows;
+}
+
+/**
  * Resolve a custom hostname to the default event slug plus optional path aliases.
  * @return array{slug:string,paths:array<string,string>}|null
  */
 function lookup_host_event_map(PDO $pdo, string $host): ?array {
-  ensure_events_custom_domain_column($pdo);
   $host = normalize_event_hostname($host);
   if ($host === '' || is_reserved_platform_host($host)) return null;
 
-  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-  if ($driver === 'mysql') {
-    $stmt = $pdo->prepare(
-      "SELECT * FROM events
-       WHERE status = 'published' AND event_status = 'approved'
-         AND (
-           custom_domain = ?
-           OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(customization_json, '$.customDomain'))) = ?
-         )
-       ORDER BY (custom_domain = ?) DESC, id ASC"
-    );
-  } else {
-    $stmt = $pdo->prepare(
-      "SELECT * FROM events
-       WHERE status = 'published' AND COALESCE(event_status, 'approved') = 'approved'
-         AND (
-           custom_domain = ?
-           OR lower(json_extract(customization_json, '$.customDomain')) = ?
-         )
-       ORDER BY (custom_domain = ?) DESC, id ASC"
-    );
-  }
-  $stmt->execute([$host, $host, $host]);
-  $rows = $stmt->fetchAll();
+  $rows = list_events_for_custom_host($pdo, $host);
   if (!$rows) return null;
 
   $paths = [];
   $defaultSlug = null;
   foreach ($rows as $row) {
-    if (!event_row_matches_host($row, $host)) continue;
+    $status = strtolower((string)($row['status'] ?? ''));
+    $eventStatus = strtolower((string)($row['event_status'] ?? 'approved'));
+    if ($status !== 'published') continue;
+    if ($eventStatus !== '' && $eventStatus !== 'approved') continue;
     if (function_exists('is_event_publicly_visible') && !is_event_publicly_visible($row)) continue;
+
     $slug = trim((string)($row['slug'] ?? ''));
     if ($slug === '') continue;
     $path = event_row_domain_path($row);
@@ -430,7 +464,7 @@ function lookup_host_event_map(PDO $pdo, string $host): ?array {
     if ($defaultSlug === null && $col === $host) $defaultSlug = $slug;
   }
   if ($defaultSlug === null) {
-    $defaultSlug = $paths ? (string)reset($paths) : trim((string)($rows[0]['slug'] ?? ''));
+    $defaultSlug = $paths ? (string)reset($paths) : '';
   }
   if ($defaultSlug === '') return null;
   return ['slug' => $defaultSlug, 'paths' => $paths];
