@@ -12,6 +12,9 @@
   --pulse-highlight: color-mix(in srgb, var(--pulse-accent) 16%, #0a0a0a);
   --pulse-font-display: var(--landing-font-display, "Archivo", ui-sans-serif, system-ui, sans-serif);
   --pulse-font-body: var(--landing-font-body, "Archivo", ui-sans-serif, system-ui, sans-serif);
+  /* Poster look: square CTAs (override global landing-type-button radius). */
+  --landing-button-radius: 0;
+  --landing-radius: 0;
   background: var(--pulse-bg);
   color: var(--pulse-ink);
   min-height: 60vh;
@@ -555,6 +558,7 @@
   width: 2rem;
   height: 2rem;
   border: 1px solid var(--pulse-line-strong);
+  border-radius: 0;
   background: #000;
   color: var(--pulse-ink);
   font-size: 1.05rem;
@@ -602,9 +606,11 @@
   display: none;
 }
 
-.pulse-cta {
+.pulse-cta,
+.landing-pulse .pulse-cta.landing-type-button {
   appearance: none;
   border: 0;
+  border-radius: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -620,6 +626,7 @@
   text-transform: uppercase;
   cursor: pointer;
   transition: filter 0.15s ease, transform 0.15s ease;
+  box-shadow: none;
 }
 
 .pulse-cta:hover:not(:disabled) {
@@ -975,6 +982,8 @@
   --landing-button-text: #000000;
   --landing-on-button: #000000;
   --landing-accent-readable: var(--primary, #ff2d8f);
+  --landing-button-radius: 0;
+  --landing-radius: 0;
   --landing-shadow-hover: 0 10px 30px rgba(0, 0, 0, 0.45);
   background: var(--landing-page-bg);
   color: var(--landing-text);
