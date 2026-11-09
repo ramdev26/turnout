@@ -61,17 +61,22 @@ function isSocialCrawler(userAgent: string): boolean {
   return ua.includes('whatsapp') && !looksLikeBrowser;
 }
 
+function sharePreviewRewrite(origin: string, slug: string, brandedRoot = false) {
+  const target = new URL(`/api/index.php?share_slug=${encodeURIComponent(slug)}`, origin);
+  if (brandedRoot) target.searchParams.set('share_branded', '1');
+  return rewrite(target);
+}
+
 export default async function middleware(request: Request) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) return next();
 
+  const userAgent = request.headers.get('user-agent') || '';
+  const crawler = isSocialCrawler(userAgent);
+
   const shareSlugMatch = url.pathname.match(/^\/e\/([^/?#]+)$/);
-  if (shareSlugMatch) {
-    const userAgent = request.headers.get('user-agent') || '';
-    if (isSocialCrawler(userAgent)) {
-      const slug = shareSlugMatch[1];
-      return rewrite(new URL(`/api/index.php?share_slug=${encodeURIComponent(slug)}`, url.origin));
-    }
+  if (shareSlugMatch && crawler) {
+    return sharePreviewRewrite(url.origin, shareSlugMatch[1]);
   }
 
   const host = normalizeHost(request.headers.get('host') || '');
@@ -84,6 +89,18 @@ export default async function middleware(request: Request) {
     const data = (await res.json()) as { slug?: string };
     const slug = data?.slug;
     if (!slug) return next();
+
+    // WhatsApp / social previews on the bare custom domain must get event OG tags,
+    // not the SPA shell (which still has Turnout defaults in index.html).
+    if (
+      crawler &&
+      (url.pathname === '/' ||
+        url.pathname === '' ||
+        url.pathname === `/e/${slug}` ||
+        url.pathname === `/e/${encodeURIComponent(slug)}`)
+    ) {
+      return sharePreviewRewrite(url.origin, slug, true);
+    }
 
     if (url.pathname === '/' || url.pathname === '') {
       // Keep the browser URL on `/` — only rewrite internally for the SPA shell.

@@ -185,11 +185,11 @@ function absolute_public_url(string $url): string {
   return ($https ? 'https' : 'http') . '://' . $host . '/' . ltrim($url, '/');
 }
 
-function share_meta_description(string $raw): string {
+function share_meta_description(string $raw, string $fallbackTitle = 'this event'): string {
   $text = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
   $text = preg_replace('/\s+/u', ' ', trim($text)) ?? '';
   if ($text === '') {
-    return 'View event details and tickets on Turnout.';
+    return 'Get tickets for ' . trim($fallbackTitle) . '.';
   }
   if (mb_strlen($text) > 220) {
     return rtrim(mb_substr($text, 0, 217)) . '...';
@@ -197,12 +197,20 @@ function share_meta_description(string $raw): string {
   return $text;
 }
 
-function render_share_meta_page(array $event): void {
+function render_share_meta_page(array $event, bool $brandedRoot = false): void {
   $eventTitle = trim((string)($event['title'] ?? 'Event'));
-  $organizerName = trim((string)($event['organizerName'] ?? 'Organizer'));
-  $metaTitle = trim($eventTitle . ' | ' . $organizerName);
-  if ($metaTitle === '|' || $metaTitle === '') $metaTitle = 'Turnout Event';
-  $description = share_meta_description((string)($event['description'] ?? ''));
+  $organizerName = trim((string)($event['organizerName'] ?? ''));
+  $metaTitle = $eventTitle !== '' ? $eventTitle : 'Event';
+  if ($organizerName !== '' && !str_contains(mb_strtolower($metaTitle), mb_strtolower($organizerName))) {
+    $metaTitle = trim($eventTitle . ' · ' . $organizerName);
+  }
+
+  $customization = is_array($event['customization'] ?? null) ? $event['customization'] : [];
+  $short = trim((string)($customization['heroSubtext'] ?? ''));
+  $description = share_meta_description(
+    $short !== '' ? $short : (string)($event['description'] ?? ''),
+    $eventTitle
+  );
 
   $imageUrl = absolute_public_url((string)($event['bannerUrl'] ?? ''));
   $slug = trim((string)($event['slug'] ?? ''));
@@ -210,7 +218,18 @@ function render_share_meta_page(array $event): void {
   $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
     || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
   $origin = $host !== '' ? (($https ? 'https' : 'http') . '://' . $host) : '';
-  $canonical = ($origin !== '' && $slug !== '') ? ($origin . '/e/' . rawurlencode($slug)) : '';
+  $customDomain = trim((string)($event['customDomain'] ?? ''));
+  $requestHost = strtolower(preg_replace('#:\d+$#', '', $host) ?? $host);
+  if (str_starts_with($requestHost, 'www.')) $requestHost = substr($requestHost, 4);
+  $onBrandedHost = $brandedRoot
+    || ($customDomain !== '' && strtolower($customDomain) === $requestHost);
+  $canonical = '';
+  if ($origin !== '') {
+    $canonical = $onBrandedHost
+      ? ($origin . '/')
+      : ($slug !== '' ? ($origin . '/e/' . rawurlencode($slug)) : $origin);
+  }
+  $siteName = $organizerName !== '' ? $organizerName : $eventTitle;
 
   header('Content-Type: text/html; charset=utf-8');
   header('Cache-Control: public, max-age=60, s-maxage=300');
@@ -219,7 +238,7 @@ function render_share_meta_page(array $event): void {
   echo '<meta name="viewport" content="width=device-width, initial-scale=1" />';
   echo '<title>' . html_escape($metaTitle) . '</title>';
   echo '<meta name="description" content="' . html_escape($description) . '" />';
-  echo '<meta property="og:site_name" content="Turnout" />';
+  echo '<meta property="og:site_name" content="' . html_escape($siteName) . '" />';
   echo '<meta property="og:type" content="website" />';
   echo '<meta property="og:title" content="' . html_escape($metaTitle) . '" />';
   echo '<meta property="og:description" content="' . html_escape($description) . '" />';
@@ -281,7 +300,8 @@ function maybe_serve_event_share_preview(string $path, string $method): void {
       exit;
     }
     $event = map_public_event_row($row, $pdo);
-    render_share_meta_page($event);
+    $brandedRoot = isset($_GET['share_branded']) && (string)$_GET['share_branded'] === '1';
+    render_share_meta_page($event, $brandedRoot);
   } catch (Throwable $e) {
     error_log(sprintf('[turnout] share preview failed for %s: %s', $slug, $e->getMessage()));
     http_response_code(500);
