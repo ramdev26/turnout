@@ -29,11 +29,18 @@ type EventFetchResult = {
   accessToken?: string | null;
 };
 
-export const EventLanding: React.FC = () => {
-  const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
+type EventLandingProps = {
+  /** When set (custom domain root), load by slug without putting `/e/:slug` in the URL. */
+  forcedSlug?: string;
+};
+
+export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
+  const { eventId, slug: paramSlug } = useParams<{ eventId?: string; slug?: string }>();
+  const slug = forcedSlug || paramSlug;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const codeFromUrl = (searchParams.get('code') || '').trim();
+  const customDomainRoot = Boolean(forcedSlug);
 
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -239,7 +246,9 @@ export const EventLanding: React.FC = () => {
       });
       const checkoutPath = eventId
         ? `/events/${eventId}/checkout`
-        : `/e/${slug}/checkout`;
+        : customDomainRoot
+          ? '/checkout'
+          : `/e/${slug}/checkout`;
       navigate(checkoutPath, { state: { selectedTickets } });
       return;
     }
@@ -253,13 +262,14 @@ export const EventLanding: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-11 w-11 animate-spin rounded-full border-2 border-white/20 border-t-[var(--primary)]" />
-          <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-            Loading event…
-          </p>
-        </div>
+      <div
+        className="flex min-h-screen items-center justify-center"
+        style={{ background: customDomainRoot ? '#000' : undefined }}
+      >
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-white/70"
+          aria-label="Loading"
+        />
       </div>
     );
   }

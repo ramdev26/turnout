@@ -26,8 +26,14 @@ type EventFetchResult = {
   accessToken?: string | null;
 };
 
-export const EventCheckout: React.FC = () => {
-  const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
+type EventCheckoutProps = {
+  /** Custom-domain checkout at `/checkout` — keep the bare domain URL. */
+  forcedSlug?: string;
+};
+
+export const EventCheckout: React.FC<EventCheckoutProps> = ({ forcedSlug }) => {
+  const { eventId, slug: paramSlug } = useParams<{ eventId?: string; slug?: string }>();
+  const slug = forcedSlug || paramSlug;
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = (location.state as LocationState | null) ?? null;
@@ -39,7 +45,7 @@ export const EventCheckout: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const checkoutTracked = useRef(false);
 
-  const backHref = eventId ? `/events/${eventId}` : slug ? `/e/${slug}` : '/';
+  const backHref = eventId ? `/events/${eventId}` : forcedSlug || !slug ? '/' : `/e/${slug}`;
 
   const finishLoad = async (nextEvent: Event) => {
     setPendingEventAccessContext(nextEvent.id);
@@ -171,21 +177,21 @@ export const EventCheckout: React.FC = () => {
   if (loading || (event && !accessRequired && selectedTickets === null)) {
     return (
       <div
-        className={`flex min-h-screen items-center justify-center ${isPulse ? 'landing-pulse-checkout' : 'bg-white'}`}
-        style={themeVars}
+        className={`flex min-h-screen items-center justify-center ${isPulse || forcedSlug ? 'landing-pulse-checkout' : 'bg-white'}`}
+        style={{
+          ...themeVars,
+          ...(forcedSlug && !event ? { background: '#000' } : null),
+        }}
       >
-        <div className="flex flex-col items-center gap-4">
-          <div
-            className="h-11 w-11 animate-spin rounded-full border-2 border-zinc-200 border-t-[var(--primary)]"
-            style={isPulse ? { borderColor: 'rgba(255,255,255,0.15)', borderTopColor: 'var(--primary)' } : undefined}
-          />
-          <p
-            className={`text-sm font-medium ${isPulse ? '' : 'text-zinc-500'}`}
-            style={isPulse ? { color: 'var(--landing-text-muted)' } : undefined}
-          >
-            Loading checkout…
-          </p>
-        </div>
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-white/70"
+          aria-label="Loading"
+          style={
+            !forcedSlug && !isPulse
+              ? { borderColor: '#e4e4e7', borderTopColor: 'var(--primary)' }
+              : undefined
+          }
+        />
       </div>
     );
   }

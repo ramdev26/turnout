@@ -86,7 +86,12 @@ export default async function middleware(request: Request) {
     if (!slug) return next();
 
     if (url.pathname === '/' || url.pathname === '') {
+      // Keep the browser URL on `/` — only rewrite internally for the SPA shell.
       return rewrite(new URL(`/e/${slug}${url.search}`, url.origin));
+    }
+
+    if (url.pathname === '/checkout') {
+      return rewrite(new URL(`/e/${slug}/checkout${url.search}`, url.origin));
     }
   } catch {
     return next();

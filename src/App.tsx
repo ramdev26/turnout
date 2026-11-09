@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
@@ -44,11 +44,18 @@ import { AdminSettings } from './pages/AdminSettings';
 import { AdminLogs } from './pages/AdminLogs';
 import { AdminOrganizers } from './pages/AdminOrganizers';
 import { BASADMIN_BASE } from './utils/adminNav';
+import { isCustomEventHostname, isPlatformHostname, normalizeHostname } from './lib/platformHost';
 
-function FullPageLoader() {
+function FullPageLoader({ dark }: { dark?: boolean }) {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-[var(--primary)]" />
+    <div
+      className="flex min-h-[60vh] items-center justify-center"
+      style={dark ? { background: '#000', minHeight: '100vh' } : undefined}
+    >
+      <div
+        className="h-9 w-9 animate-spin rounded-full border-2 border-white/15 border-t-white/70"
+        aria-label="Loading"
+      />
     </div>
   );
 }
@@ -58,28 +65,34 @@ function HostAwareRoot({
 }: {
   user: ReturnType<typeof useAuthStore>['user'];
 }) {
-  const [resolving, setResolving] = useState(true);
-  const [redirectPath, setRedirectPath] = useState<string | null>(null);
+  const customHost = isCustomEventHostname();
+  const [resolving, setResolving] = useState(customHost);
+  const [hostSlug, setHostSlug] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const host = window.location.hostname.toLowerCase();
-        const cfg = await api.get<{ platformHosts?: string[] }>('/api/domain/config');
-        const platformHosts = (cfg.platformHosts || []).map((h) => h.toLowerCase());
-        const isPlatformHost =
-          platformHosts.includes(host) ||
-          host.endsWith('.vercel.app') ||
-          host === 'localhost' ||
-          host === '127.0.0.1';
-
-        if (!isPlatformHost) {
-          const mapped = await api.get<{ path: string }>(`/api/events/by-host/${encodeURIComponent(host)}`);
-          if (!cancelled && mapped.path) {
-            setRedirectPath(mapped.path);
+        const host = normalizeHostname(window.location.hostname);
+        if (isPlatformHostname(host)) {
+          // Still consult API so PLATFORM_HOSTS env can expand the list.
+          try {
+            const cfg = await api.get<{ platformHosts?: string[] }>('/api/domain/config');
+            const platformHosts = (cfg.platformHosts || []).map((h) => normalizeHostname(h));
+            if (platformHosts.includes(host)) return;
+          } catch {
             return;
           }
+        }
+
+        const mapped = await api.get<{ slug?: string; path?: string }>(
+          `/api/events/by-host/${encodeURIComponent(host)}`
+        );
+        const slug =
+          (mapped.slug || '').trim() ||
+          (mapped.path || '').replace(/^\/e\//, '').split('/')[0].trim();
+        if (!cancelled && slug) {
+          setHostSlug(slug);
         }
       } catch {
         // Not a mapped event host; fall through to standard root behavior.
@@ -92,11 +105,22 @@ function HostAwareRoot({
     };
   }, []);
 
-  if (redirectPath) {
-    return <Navigate to={redirectPath} replace />;
+  // Custom domains stay on `/` — never Navigate to `/e/:slug` (that rewrites the address bar).
+  if (hostSlug) {
+    return <EventLanding forcedSlug={hostSlug} />;
   }
   if (resolving) {
-    return <FullPageLoader />;
+    return <FullPageLoader dark={customHost} />;
+  }
+  if (customHost) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black px-4 text-center text-white">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Event unavailable</h1>
+          <p className="mt-2 text-sm text-white/60">This domain is not connected to a live event yet.</p>
+        </div>
+      </div>
+    );
   }
 
   if (user) {
@@ -114,6 +138,76 @@ function HostAwareRoot({
     );
   }
   return <Signup />;
+}
+
+/** On a custom domain, `/e/:slug` collapses to `/` (and checkout to `/checkout`). */
+function CustomDomainSlugRedirect({
+  children,
+  to = '/',
+}: {
+  children: React.ReactNode;
+  to?: string;
+}) {
+  const { slug } = useParams<{ slug: string }>();
+  const [mappedSlug, setMappedSlug] = useState<string | null>(null);
+  const [checked, setChecked] = useState(() => !isCustomEventHostname());
+
+  useEffect(() => {
+    if (!isCustomEventHostname()) {
+      setChecked(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const host = normalizeHostname(window.location.hostname);
+        const mapped = await api.get<{ slug?: string }>(`/api/events/by-host/${encodeURIComponent(host)}`);
+        if (!cancelled) setMappedSlug((mapped.slug || '').trim() || null);
+      } catch {
+        if (!cancelled) setMappedSlug(null);
+      } finally {
+        if (!cancelled) setChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!checked) return <FullPageLoader dark />;
+  if (mappedSlug && (!slug || slug === mappedSlug)) {
+    return <Navigate to={to} replace />;
+  }
+  return <>{children}</>;
+}
+
+function CustomDomainCheckout() {
+  const [slug, setSlug] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const host = normalizeHostname(window.location.hostname);
+        const mapped = await api.get<{ slug?: string }>(`/api/events/by-host/${encodeURIComponent(host)}`);
+        const next = (mapped.slug || '').trim();
+        if (!cancelled) {
+          if (next) setSlug(next);
+          else setFailed(true);
+        }
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (failed) return <Navigate to="/" replace />;
+  if (!slug) return <FullPageLoader dark />;
+  return <EventCheckout forcedSlug={slug} />;
 }
 
 function RequireOrganizer({ children }: { children: React.ReactNode }) {
@@ -473,10 +567,25 @@ export default function App() {
           />
           <Route path="/dashboard/events/:eventId/runbook" element={<Navigate to="/dashboard" replace />} />
           <Route path="/staff/checkin/:eventId" element={<StaffCheckInScanner />} />
+          <Route path="/checkout" element={<CustomDomainCheckout />} />
           <Route path="/events/:eventId/checkout" element={<EventCheckout />} />
-          <Route path="/e/:slug/checkout" element={<EventCheckout />} />
+          <Route
+            path="/e/:slug/checkout"
+            element={
+              <CustomDomainSlugRedirect to="/checkout">
+                <EventCheckout />
+              </CustomDomainSlugRedirect>
+            }
+          />
           <Route path="/events/:eventId" element={<EventLanding />} />
-          <Route path="/e/:slug" element={<EventLanding />} />
+          <Route
+            path="/e/:slug"
+            element={
+              <CustomDomainSlugRedirect to="/">
+                <EventLanding />
+              </CustomDomainSlugRedirect>
+            }
+          />
           <Route path="/orders/:orderId/success" element={<Success />} />
           <Route path="/payhere/return" element={<PayHereReturn />} />
           <Route path="/payhere/cancel" element={<PayHereCancel />} />
