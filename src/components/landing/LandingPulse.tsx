@@ -108,23 +108,40 @@ function roomsFromTickets(event: Event, tickets: EventTicket[]): PulseRoom[] {
     const tagsLine = lines.find((l) => /^[A-Z0-9][A-Z0-9\s|/·•-]+$/.test(l) && l.length < 80);
     const body =
       lines.filter((l) => l !== tagsLine).join(' ') ||
-      (isCtrlTemplate(event)
-        ? 'Late-night energy — bass-heavy club sounds until close.'
-        : 'Groovy, bouncy, bassy — tech house, house and indie dance from 6 PM to 1 AM.');
+      (event.customization?.heroSubtext || '').trim() ||
+      (event.description || '').trim() ||
+      'Details coming soon.';
     return {
-      kicker: '6 PM – 1 AM',
+      kicker: formatSessionKicker(event),
       title: ticket.name,
       body,
-      tags: (tagsLine || (isCtrlTemplate(event) ? 'CLUB  BASS  AFTER HOURS' : 'TECH HOUSE  HOUSE  INDIE DANCE'))
-        .replace(/[|/·•]+/g, '  ')
-        .trim(),
+      tags: (tagsLine || '').replace(/[|/·•]+/g, '  ').trim(),
       emphasis: true,
     };
   });
 }
 
+function ensureSentenceEnd(text: string): string {
+  const t = text.trim();
+  if (!t) return t;
+  return /[.!?…]$/.test(t) ? t : `${t}.`;
+}
+
+function formatSessionKicker(event: Event): string {
+  if (event.customization?.scheduleTba) return 'TIME TBA';
+  const d = new Date(event.date);
+  if (Number.isNaN(d.getTime())) return 'SESSION';
+  return format(d, 'h a').replace(/\s+/g, ' ').toUpperCase();
+}
+
+function formatScheduleTime(event: Event): string {
+  if (event.customization?.scheduleTba) return 'TBA';
+  const d = new Date(event.date);
+  if (Number.isNaN(d.getTime())) return 'TBA';
+  return format(d, 'h:mm a').replace(':00', '').toUpperCase();
+}
+
 function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
-  const ctrl = isCtrlTemplate(event);
   const custom = event.customization?.pulseRooms;
   if (Array.isArray(custom) && custom.length > 0) {
     const cleaned = custom
@@ -133,10 +150,14 @@ function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
       )
       .slice(0, 1)
       .map((room) => ({
-        kicker: (room.kicker || '').trim() || '6 PM – 1 AM',
-        title: (room.title || '').trim() || event.title || (ctrl ? 'Club Ctrl' : 'Take My Bass'),
-        body: (room.body || '').trim() || 'Details coming soon.',
-        tags: (room.tags || '').trim() || (ctrl ? 'CLUB  BASS  AFTER HOURS' : 'TECH HOUSE  HOUSE  INDIE DANCE'),
+        kicker: (room.kicker || '').trim() || formatSessionKicker(event),
+        title: (room.title || '').trim() || event.title || 'Room',
+        body:
+          (room.body || '').trim() ||
+          (event.customization?.heroSubtext || '').trim() ||
+          (event.description || '').trim() ||
+          'Details coming soon.',
+        tags: (room.tags || '').trim(),
         emphasis: true,
       }));
     if (cleaned.length > 0) return cleaned;
@@ -150,17 +171,16 @@ function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
   const fromTickets = roomsFromTickets(event, tickets);
   if (fromTickets.length > 0) return fromTickets;
 
-  const title = event.title || (ctrl ? 'Club Ctrl' : 'Take My Bass');
+  const title = event.title || 'Room';
   return [
     {
-      kicker: '6 PM – 1 AM',
+      kicker: formatSessionKicker(event),
       title,
       body:
         (event.description || '').trim() ||
-        (ctrl
-          ? 'Club Ctrl — late-night bass energy across the floor. Built to move until close.'
-          : 'Our open-air club night energy — tech house, house and indie dance across one dancefloor. Built to move.'),
-      tags: ctrl ? 'CLUB  BASS  AFTER HOURS' : 'TECH HOUSE  HOUSE  INDIE DANCE',
+        (event.customization?.heroSubtext || '').trim() ||
+        'Details coming soon.',
+      tags: '',
       emphasis: true,
     },
   ];
@@ -184,11 +204,11 @@ function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLi
     return [{ label: title, time: 'TBA' }];
   }
 
-  return [{ label: title, time: '6 PM – 1 AM' }];
+  return [{ label: title, time: formatScheduleTime(event) }];
 }
 
 function resolveStory(event: Event): { kicker: string; title: string; body: string } {
-  const ctrl = isCtrlTemplate(event);
+  const short = (event.customization?.heroSubtext || '').trim();
   const desc = (event.description || '')
     .split(/\n+/)
     .map((l) => l.trim())
@@ -197,12 +217,9 @@ function resolveStory(event: Event): { kicker: string; title: string; body: stri
     .trim();
   return {
     kicker: 'THE STORY',
-    title: ctrl ? 'Club Ctrl.' : 'Back in Colombo.',
-    body:
-      desc ||
-      (ctrl
-        ? 'From 6 PM. Bass-forward club energy, hands in the air — Club Ctrl takes the room until close.'
-        : 'From 6 PM. Groovy, bouncy, bassy, hands in the air. Take My Bass returns for a full night of tech house, house and indie dance — built for the floor.'),
+    // Prefer short description from settings; else event title — never invent theme copy.
+    title: ensureSentenceEnd(short || event.title || 'The night'),
+    body: desc || short || 'More details coming soon.',
   };
 }
 
@@ -285,12 +302,19 @@ export function LandingPulsePage({
   const headerLinkUrl = (event.customization?.pulseHeaderLink || '').trim();
   const headlineRaw =
     (event.customization?.pulseHeadline || '').trim() ||
-    (event.customization?.heroText || '').trim() ||
     'TICKETS OPEN NOW.';
   const { lead, accent } = splitHeadlineAccent(headlineRaw);
+  const shortDescription = (event.customization?.heroSubtext || '').trim();
+  const storedTagline = (event.customization?.pulseTagline || '').trim();
+  // Prefer short description from Event Settings over stale template defaults.
+  const templateTaglineDefaults = new Set(['TWO ROOMS. ONE NIGHT.', 'GROOVY. BOUNCY. BASSY.']);
   const tagline =
-    (event.customization?.pulseTagline || '').trim() ||
-    'GROOVY. BOUNCY. BASSY.';
+    (storedTagline && !templateTaglineDefaults.has(storedTagline.toUpperCase())
+      ? storedTagline
+      : '') ||
+    shortDescription ||
+    storedTagline ||
+    'TICKETS ON SALE.';
 
   const tba = !!event.customization?.scheduleTba;
   const eventDate = new Date(event.date);
@@ -544,7 +568,9 @@ export function LandingPulsePage({
           <section className="pulse-night" aria-label="How the night runs">
             <div className="pulse-night-head">
               <h2 className="pulse-night-title">How the night runs</h2>
-              <p className="pulse-night-sub">6 PM to 1 AM · one floor</p>
+              <p className="pulse-night-sub">
+                {tba ? 'Schedule TBA' : `${formatScheduleTime(event)} start`}
+              </p>
             </div>
             <ol className="pulse-beats">
               {nightBeats.map((beat) => (

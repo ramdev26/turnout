@@ -671,7 +671,8 @@ export const CreateEvent: React.FC = () => {
               pulseHeaderLinkLabel:
                 design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
               pulseHeadline: 'TICKETS OPEN NOW.',
-              pulseTagline: 'TWO ROOMS. ONE NIGHT.',
+              // Tagline comes from short description (heroSubtext) — do not invent theme copy.
+              pulseTagline: (data.shortDescription || '').trim() || undefined,
               pageBackgroundColor: design.pageBackgroundColor || '#000000',
               surfaceColor: design.surfaceColor || '#141414',
               buttonColor:
@@ -785,7 +786,7 @@ export const CreateEvent: React.FC = () => {
             pulseHeaderLinkLabel:
               design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
             pulseHeadline: 'TICKETS OPEN NOW.',
-            pulseTagline: 'TWO ROOMS. ONE NIGHT.',
+            pulseTagline: (shortDescription || '').trim() || undefined,
             pageBackgroundColor: design.pageBackgroundColor || '#000000',
             surfaceColor: design.surfaceColor || '#141414',
             buttonColor:
