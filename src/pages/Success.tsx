@@ -22,6 +22,134 @@ const hexToRgb = (hex: string, fallback: [number, number, number]): [number, num
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
+const normalizeHex = (value: string | undefined | null, fallback: string): string => {
+  const raw = (value || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toLowerCase();
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toLowerCase()}`;
+  return fallback;
+};
+
+const relativeLuminance = (hex: string): number => {
+  const [r, g, b] = hexToRgb(hex, [0, 0, 0]).map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const BOTH_ROOMS_RE = /both|combo|bundle|pair/i;
+const TAKE_MY_BASS_RE = /take\s*my\s*bass|\btmb\b/i;
+const CLUB_CTRL_RE = /club\s*ctrl|\bctrl\b/i;
+
+const isBothRoomsLabel = (label?: string | null) => BOTH_ROOMS_RE.test(label || '');
+const isTakeMyBassLabel = (label?: string | null) => TAKE_MY_BASS_RE.test(label || '');
+const isClubCtrlLabel = (label?: string | null) => CLUB_CTRL_RE.test(label || '');
+
+/** Gold “best value” brand for Both Rooms / combo passes. */
+const BOTH_ROOMS_THEME = {
+  primary: '#d4af37',
+  secondary: '#8b6914',
+  button: '#d4af37',
+  buttonText: '#111827',
+  qrFg: '#5c4813',
+  lime: '#f0d78c',
+};
+
+const TAKE_MY_BASS_THEME = {
+  primary: '#ff2d8f',
+  secondary: '#c4185c',
+  button: '#ff2d8f',
+  buttonText: '#000000',
+  qrFg: '#ff2d8f',
+  lime: '#fda4cf',
+};
+
+const CLUB_CTRL_THEME = {
+  primary: '#e8342a',
+  secondary: '#b91c1c',
+  button: '#e8342a',
+  buttonText: '#000000',
+  qrFg: '#e8342a',
+  lime: '#fca5a5',
+};
+
+type PassThemeColors = {
+  primary: string;
+  secondary: string;
+  button: string;
+  buttonText: string;
+  qrFg: string;
+  lime: string;
+};
+
+const withPassPageVars = (colors: PassThemeColors, bothRooms: boolean) => ({
+  ...colors,
+  bothRooms,
+  pageVars: {
+    ['--confirm-accent' as string]: colors.primary,
+    ['--confirm-lime' as string]: colors.lime,
+    ['--confirm-accent-on' as string]: colors.buttonText,
+    ['--confirm-soft' as string]: `${colors.primary}${bothRooms ? '22' : '14'}`,
+  } as React.CSSProperties,
+});
+
+/** Prefer the ticket tier name on PDFs; fall back to the event title. */
+const resolvePassHeading = (event: Event | null, ticketName?: string | null) => {
+  const tier = (ticketName || '').trim();
+  if (tier) return tier.slice(0, 48);
+  return (event?.title || 'Event pass').slice(0, 48);
+};
+
+const resolvePassTheme = (event: Event | null, ticketName?: string | null) => {
+  if (isBothRoomsLabel(ticketName)) {
+    return withPassPageVars(BOTH_ROOMS_THEME, true);
+  }
+
+  // Color by room brand when the ticket name clearly says Take My Bass / Club Ctrl.
+  if (isTakeMyBassLabel(ticketName)) {
+    return withPassPageVars(TAKE_MY_BASS_THEME, false);
+  }
+  if (isClubCtrlLabel(ticketName)) {
+    return withPassPageVars(CLUB_CTRL_THEME, false);
+  }
+
+  const c = event?.customization;
+  const templateId = event?.templateId || '';
+  const defaults =
+    templateId === 'template-12'
+      ? CLUB_CTRL_THEME
+      : templateId === 'template-11'
+        ? TAKE_MY_BASS_THEME
+        : { primary: '#0d585b', secondary: '#b8f25a', button: '#0d585b', buttonText: '#f3ffe4', qrFg: '#0d585b', lime: '#b8f25a' };
+
+  const primary = normalizeHex(
+    c?.ticketPdfPrimaryColor || c?.buttonColor || c?.primaryColor,
+    defaults.primary
+  );
+  const secondary = normalizeHex(
+    c?.ticketPdfAccentColor || c?.secondaryColor,
+    defaults.secondary
+  );
+  const button = normalizeHex(c?.buttonColor || c?.primaryColor, primary);
+  const buttonText = normalizeHex(
+    c?.buttonTextColor,
+    relativeLuminance(button) >= 0.55 ? '#111827' : '#ffffff'
+  );
+  const qrFg = relativeLuminance(primary) <= 0.48 ? primary : '#111111';
+
+  return withPassPageVars(
+    {
+      primary,
+      secondary,
+      button,
+      buttonText,
+      qrFg,
+      lime: secondary || defaults.lime,
+    },
+    false
+  );
+};
+
 export const Success: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
@@ -169,21 +297,65 @@ export const Success: React.FC = () => {
     }
   };
 
-  const downloadAttendeeTicket = (attendee: { id: string; fullName: string; email: string; qrToken: string }) => {
+  /** Page chrome is gold only for pure Both Rooms orders; mixed carts keep the event brand. */
+  const orderPassMix = useMemo(() => {
+    const labels: string[] = [];
+    order?.attendees?.forEach((a) => {
+      if (a.ticketName) labels.push(a.ticketName);
+    });
+    order?.tickets?.forEach((t) => {
+      if (t.name && (t.quantity || 0) > 0) labels.push(t.name);
+    });
+    const hasBoth = labels.some((n) => isBothRoomsLabel(n));
+    const hasSolo = labels.some((n) => n && !isBothRoomsLabel(n));
+    return {
+      hasBoth,
+      hasSolo,
+      exclusivelyBoth: hasBoth && !hasSolo,
+      mixed: hasBoth && hasSolo,
+    };
+  }, [order]);
+
+  const passTheme = useMemo(
+    () => resolvePassTheme(event, orderPassMix.exclusivelyBoth ? 'Both Rooms' : null),
+    [event, orderPassMix.exclusivelyBoth]
+  );
+
+  const downloadAttendeeTicket = (attendee: {
+    id: string;
+    fullName: string;
+    email: string;
+    qrToken: string;
+    ticketName?: string;
+  }) => {
     if (!order || !event) return;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 36;
     const eventDate = format(new Date(event.date), 'PPPP p');
     const template = (event.customization?.ticketPdfTemplateId || 'classic') as TicketPdfTemplate;
-    const primaryRgb = hexToRgb(event.customization?.ticketPdfPrimaryColor || '#0d585b', [13, 88, 91]);
-    const accentRgb = hexToRgb(event.customization?.ticketPdfAccentColor || '#b8f25a', [184, 242, 90]);
-    const badgeText = event.customization?.ticketPdfBadgeText || 'EVENT PASS';
+    const theme = resolvePassTheme(event, attendee.ticketName);
+    const primaryRgb = hexToRgb(theme.primary, [13, 88, 91]);
+    const accentRgb = hexToRgb(theme.secondary, [184, 242, 90]);
+    const heading = resolvePassHeading(event, attendee.ticketName);
+    const eventTitle = (event.title || '').trim();
+    const showEventSubtitle =
+      eventTitle !== '' && eventTitle.toLowerCase() !== heading.toLowerCase();
+    const badgeText = theme.bothRooms
+      ? 'BOTH ROOMS'
+      : (attendee.ticketName || event.customization?.ticketPdfBadgeText || 'EVENT PASS')
+          .trim()
+          .toUpperCase()
+          .slice(0, 28) || 'EVENT PASS';
     const footerNote = event.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.';
     const darkText: [number, number, number] = template === 'midnight' ? [229, 231, 235] : [17, 24, 39];
     const bodyBg: [number, number, number] = template === 'midnight' ? [17, 24, 39] : [255, 255, 255];
     const bodyBorder: [number, number, number] = template === 'midnight' ? [55, 65, 81] : [229, 231, 235];
     const panelBg: [number, number, number] = template === 'midnight' ? [31, 41, 55] : [249, 250, 251];
+    const onPrimaryText: [number, number, number] = hexToRgb(
+      theme.buttonText,
+      relativeLuminance(theme.primary) >= 0.55 ? [17, 24, 39] : [255, 255, 255]
+    );
 
     if (template === 'sunset') {
       doc.setFillColor(255, 247, 237);
@@ -194,61 +366,72 @@ export const Success: React.FC = () => {
     }
 
     doc.setFillColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
-    doc.roundedRect(margin, margin, pageWidth - margin * 2, 88, 14, 14, 'F');
-    doc.setTextColor(255, 255, 255);
+    doc.roundedRect(margin, margin, pageWidth - margin * 2, showEventSubtitle ? 102 : 88, 14, 14, 'F');
+    doc.setTextColor(onPrimaryText[0], onPrimaryText[1], onPrimaryText[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(badgeText, margin + 18, margin + 28);
     doc.setFontSize(20);
-    doc.text(event.title.slice(0, 48), margin + 18, margin + 56, { maxWidth: pageWidth - margin * 2 - 36 });
+    doc.text(heading, margin + 18, margin + 56, { maxWidth: pageWidth - margin * 2 - 36 });
+    if (showEventSubtitle) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text(eventTitle.slice(0, 56), margin + 18, margin + 78, {
+        maxWidth: pageWidth - margin * 2 - 36,
+      });
+    }
 
+    const bodyTop = margin + (showEventSubtitle ? 132 : 118);
     doc.setTextColor(darkText[0], darkText[1], darkText[2]);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Order #${order.id}`, margin + 18, margin + 118);
+    doc.text(`Order #${order.id}`, margin + 18, bodyTop);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(attendee.fullName, margin + 18, margin + 142);
+    doc.text(attendee.fullName, margin + 18, bodyTop + 24);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128);
-    doc.text(attendee.email, margin + 18, margin + 160);
-    doc.text(eventDate, margin + 18, margin + 182);
-    doc.text(event.location, margin + 18, margin + 200, { maxWidth: 280 });
+    doc.text(attendee.email, margin + 18, bodyTop + 42);
+    doc.text(eventDate, margin + 18, bodyTop + 64);
+    doc.text(event.location, margin + 18, bodyTop + 82, { maxWidth: 280 });
 
-    doc.setDrawColor(bodyBorder[0], bodyBorder[1], bodyBorder[2]);
+    const panelTop = bodyTop + 102;
+    doc.setDrawColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
     doc.setFillColor(panelBg[0], panelBg[1], panelBg[2]);
-    doc.roundedRect(margin, margin + 220, pageWidth - margin * 2 - 200, 120, 12, 12, 'FD');
-    doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+    doc.roundedRect(margin, panelTop, pageWidth - margin * 2 - 200, 120, 12, 12, 'FD');
+    doc.setTextColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('ENTRY CODE', margin + 18, margin + 245);
+    doc.text('ENTRY CODE', margin + 18, panelTop + 25);
     doc.setFont('courier', 'normal');
     doc.setFontSize(9);
-    doc.text(attendee.qrToken, margin + 18, margin + 265, { maxWidth: 280 });
+    doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+    doc.text(attendee.qrToken, margin + 18, panelTop + 45, { maxWidth: 280 });
 
     const qrCanvas = document.getElementById(`ticket-qr-${attendee.id}`) as HTMLCanvasElement | null;
     if (qrCanvas) {
       const qrData = qrCanvas.toDataURL('image/png');
       doc.setFillColor(panelBg[0], panelBg[1], panelBg[2]);
-      doc.setDrawColor(bodyBorder[0], bodyBorder[1], bodyBorder[2]);
-      doc.roundedRect(pageWidth - margin - 190, margin + 220, 170, 200, 12, 12, 'FD');
-      doc.addImage(qrData, 'PNG', pageWidth - margin - 170, margin + 240, 130, 130);
-      doc.setTextColor(darkText[0], darkText[1], darkText[2]);
+      doc.setDrawColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
+      doc.roundedRect(pageWidth - margin - 190, panelTop, 170, 200, 12, 12, 'FD');
+      doc.addImage(qrData, 'PNG', pageWidth - margin - 170, panelTop + 20, 130, 130);
+      doc.setTextColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text('Scan at check-in', pageWidth - margin - 105, margin + 390, { align: 'center' });
+      doc.text('Scan at check-in', pageWidth - margin - 105, panelTop + 170, { align: 'center' });
     }
 
     doc.setTextColor(107, 114, 128);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(footerNote, margin, margin + 460, { maxWidth: pageWidth - margin * 2 });
+    doc.text(footerNote, margin, panelTop + 240, { maxWidth: pageWidth - margin * 2 });
     doc.setFillColor(accentRgb[0], accentRgb[1], accentRgb[2]);
     doc.rect(margin, doc.internal.pageSize.getHeight() - 28, pageWidth - margin * 2, 4, 'F');
 
     const safeName = attendee.fullName.replace(/[^a-zA-Z0-9-_]+/g, '_');
-    doc.save(`ticket_${order.id}_${safeName || 'attendee'}.pdf`);
+    const safeTier = heading.replace(/[^a-zA-Z0-9-_]+/g, '_').slice(0, 32);
+    doc.save(`ticket_${order.id}_${safeTier || 'pass'}_${safeName || 'attendee'}.pdf`);
   };
 
   const downloadAll = () => {
@@ -308,7 +491,7 @@ export const Success: React.FC = () => {
       : null;
 
     return (
-      <div className="confirm-page">
+      <div className="confirm-page" style={passTheme.pageVars}>
         <div className="confirm-shell">
           <div className="confirm-hero">
             <span className="confirm-badge">
@@ -439,7 +622,7 @@ export const Success: React.FC = () => {
     : '';
 
   return (
-    <div className="confirm-page">
+    <div className="confirm-page" style={passTheme.pageVars}>
       <div className="confirm-shell">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <div className="confirm-hero">
@@ -496,15 +679,18 @@ export const Success: React.FC = () => {
               {!isHolderView && order.tickets.length > 0 ? (
                 <div className="confirm-section">
                   <p className="confirm-section-label">Order summary</p>
-                  {order.tickets.map((t, i) => (
+                  {order.tickets.map((t, i) => {
+                    const lineTheme = resolvePassTheme(event, t.name);
+                    return (
                     <div key={`${t.name}-${i}`} className="confirm-line-item">
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Ticket className="h-3.5 w-3.5" style={{ color: 'var(--confirm-accent)' }} />
+                        <Ticket className="h-3.5 w-3.5" style={{ color: lineTheme.primary }} />
                         {t.name} ×{t.quantity}
                       </span>
                       <strong>{t.price <= 0 ? 'Free' : formatLKRWhole(t.price * t.quantity)}</strong>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
@@ -513,18 +699,33 @@ export const Success: React.FC = () => {
           {order.attendees && order.attendees.length > 0 ? (
             <div className="confirm-section">
               <p className="confirm-section-label">{isHolderView ? 'Your pass' : `Your passes (${passCount})`}</p>
-              {order.attendees.map((a) => (
+              {orderPassMix.mixed ? (
+                <p className="confirm-hint" style={{ marginTop: 0, marginBottom: '0.75rem', textAlign: 'left' }}>
+                  Mixed ticket types: solo-room QRs use the event color; Both Rooms QRs are gold.
+                </p>
+              ) : null}
+              {order.attendees.map((a) => {
+                const ticketTheme = resolvePassTheme(event, a.ticketName);
+                return (
                 <div key={a.id} className="confirm-pass">
-                  {a.ticketName ? <div className="confirm-pass-tier">{a.ticketName}</div> : null}
+                  {a.ticketName ? (
+                    <div className="confirm-pass-tier" style={{ color: ticketTheme.primary }}>
+                      {a.ticketName}
+                      {ticketTheme.bothRooms ? ' · Best value' : ''}
+                    </div>
+                  ) : null}
                   <h3 className="confirm-pass-name">{a.fullName}</h3>
                   <p className="confirm-pass-email">{a.email}</p>
-                  <div className="confirm-qr-wrap">
+                  <div
+                    className="confirm-qr-wrap"
+                    style={{ borderColor: ticketTheme.primary, boxShadow: `inset 0 0 0 1px ${ticketTheme.primary}22` }}
+                  >
                     <QRCodeCanvas
                       id={`ticket-qr-${a.id}`}
                       value={a.qrToken}
                       size={168}
                       bgColor="#ffffff"
-                      fgColor="#0c1f24"
+                      fgColor={ticketTheme.qrFg}
                       level="H"
                       includeMargin={false}
                     />
@@ -533,13 +734,22 @@ export const Success: React.FC = () => {
                     {a.checkedInAt ? 'Checked in' : 'Ready for check-in'}
                   </span>
                   <div className="confirm-pass-actions">
-                    <button type="button" className="confirm-btn confirm-btn-primary" onClick={() => downloadAttendeeTicket(a)}>
+                    <button
+                      type="button"
+                      className="confirm-btn confirm-btn-primary"
+                      style={{
+                        background: ticketTheme.primary,
+                        color: ticketTheme.buttonText,
+                      }}
+                      onClick={() => downloadAttendeeTicket(a)}
+                    >
                       <Download className="h-4 w-4" />
                       Download PDF ticket
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
               <p className="confirm-hint">Keep this page bookmarked. Staff will scan your QR at the door.</p>
             </div>
           ) : null}
