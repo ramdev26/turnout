@@ -381,6 +381,10 @@ export interface EventCustomization {
   heroSubtext: string;
   /** Pulse template — poster eyebrow (top-right). */
   pulseEyebrow?: string;
+  /** Pulse template — top-right header link label (e.g. Access Club Ctrl). */
+  pulseHeaderLinkLabel?: string;
+  /** Pulse template — top-right header link URL (external or absolute). */
+  pulseHeaderLink?: string;
   /** Pulse template — giant headline (e.g. TICKETS OPEN NOW.). */
   pulseHeadline?: string;
   /** Pulse template — line under headline. */

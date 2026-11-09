@@ -249,10 +249,11 @@ export function LandingPulsePage({
   isPurchasing,
 }: LandingTemplateProps) {
   const brandLines = stackBrand(event.title || 'Event');
-  const eyebrow =
+  const headerLinkLabel =
+    (event.customization?.pulseHeaderLinkLabel || '').trim() ||
     (event.customization?.pulseEyebrow || '').trim() ||
-    (event.customization?.heroSubtext || '').trim() ||
-    'VOL 06 · BACK IN COLOMBO';
+    'Access Club Ctrl';
+  const headerLinkUrl = (event.customization?.pulseHeaderLink || '').trim();
   const headlineRaw =
     (event.customization?.pulseHeadline || '').trim() ||
     (event.customization?.heroText || '').trim() ||
@@ -317,7 +318,26 @@ export function LandingPulsePage({
                 <span key={line}>{line}</span>
               ))}
             </h1>
-            <p className="pulse-eyebrow">{eyebrow}</p>
+            {headerLinkUrl ? (
+              <a
+                className="pulse-eyebrow pulse-eyebrow-link"
+                href={headerLinkUrl}
+                target={/^https?:\/\//i.test(headerLinkUrl) ? '_blank' : undefined}
+                rel={/^https?:\/\//i.test(headerLinkUrl) ? 'noopener noreferrer' : undefined}
+              >
+                <span>{headerLinkLabel}</span>
+                <span className="pulse-eyebrow-arrow" aria-hidden>
+                  →
+                </span>
+              </a>
+            ) : (
+              <p className="pulse-eyebrow pulse-eyebrow-link">
+                <span>{headerLinkLabel}</span>
+                <span className="pulse-eyebrow-arrow" aria-hidden>
+                  →
+                </span>
+              </p>
+            )}
           </header>
 
           <section className="pulse-hero" aria-label="Event overview">
@@ -453,14 +473,14 @@ export function LandingPulsePage({
                           .join(' ')}
                       >
                         <td data-label="Room">
-                          <div className="pulse-row-heading">
-                            <div className="pulse-row-name-block">
+                          <div className="pulse-row-name-block">
+                            <div className="pulse-row-heading">
                               <div className="pulse-row-name">{ticket.name}</div>
-                              {featured ? (
-                                <div className="pulse-row-sub">(Take My Bass + Club Ctrl)</div>
-                              ) : null}
+                              {featured ? <span className="pulse-best-value">Best value</span> : null}
                             </div>
-                            {featured ? <span className="pulse-best-value">Best value</span> : null}
+                            {featured ? (
+                              <div className="pulse-row-sub">(Take My Bass + Club Ctrl)</div>
+                            ) : null}
                           </div>
                           {remaining <= 0 ? (
                             <div className="pulse-schedule-time">Sold out</div>

@@ -3903,6 +3903,24 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     // Backfill only when never set, so legacy events still show a subtitle.
     $customization['heroSubtext'] = mb_substr((string)$row['description'], 0, 100);
   }
+  if (array_key_exists('pulseHeaderLinkLabel', $body)) {
+    $label = mb_substr(trim((string)$body['pulseHeaderLinkLabel']), 0, 80);
+    if ($label === '') unset($customization['pulseHeaderLinkLabel']);
+    else $customization['pulseHeaderLinkLabel'] = $label;
+  }
+  if (array_key_exists('pulseHeaderLink', $body)) {
+    $link = trim((string)$body['pulseHeaderLink']);
+    if ($link === '') {
+      unset($customization['pulseHeaderLink']);
+    } elseif (preg_match('#^(https?:\/\/|\/)[^\s]+$#i', $link)) {
+      $customization['pulseHeaderLink'] = mb_substr($link, 0, 500);
+    } else {
+      json_response(400, [
+        'error' => 'invalid_pulse_header_link',
+        'message' => 'Enter a valid link (https://… or a path starting with /).',
+      ]);
+    }
+  }
 
   $upd = $pdo->prepare(
     'UPDATE events SET title = ?, description = ?, event_date = ?, location = ?, banner_url = ?, template_id = ?, customization_json = ? WHERE id = ?'

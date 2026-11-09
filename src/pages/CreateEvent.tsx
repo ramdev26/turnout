@@ -668,7 +668,7 @@ export const CreateEvent: React.FC = () => {
         heroSubtext: (data.shortDescription || '').trim(),
         ...(design.templateId === 'template-11'
           ? {
-              pulseEyebrow: (data.shortDescription || '').trim() || undefined,
+              pulseHeaderLinkLabel: 'Access Club Ctrl',
               pulseHeadline: 'TICKETS OPEN NOW.',
               pulseTagline: 'TWO ROOMS. ONE NIGHT.',
               pageBackgroundColor: design.pageBackgroundColor || '#000000',
@@ -778,7 +778,7 @@ export const CreateEvent: React.FC = () => {
       fontFamily: design.fontFamily,
       ...(design.templateId === 'template-11'
         ? {
-            pulseEyebrow: (shortDescription || '').trim() || undefined,
+            pulseHeaderLinkLabel: 'Access Club Ctrl',
             pulseHeadline: 'TICKETS OPEN NOW.',
             pulseTagline: 'TWO ROOMS. ONE NIGHT.',
             pageBackgroundColor: design.pageBackgroundColor || '#000000',
