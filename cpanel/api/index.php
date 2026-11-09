@@ -3497,15 +3497,22 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
   if ($domainRaw === '') json_response(400, ['error' => 'invalid_domain']);
   $pathRaw = array_key_exists('path', $body) ? trim((string)$body['path']) : null;
 
+  // Allow pasting "tickets.example.com/cc" into the domain field.
+  $domainRaw = preg_replace('#^https?://#i', '', $domainRaw) ?? $domainRaw;
+  if (($pathRaw === null || $pathRaw === '') && preg_match('#^([^/?#]+)/([a-z0-9][a-z0-9-]{0,30}[a-z0-9]?)$#i', $domainRaw, $dm)) {
+    $domainRaw = $dm[1];
+    $pathRaw = $dm[2];
+  }
+
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $domain = normalize_event_hostname($domainRaw);
-  if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like events.yourbrand.com']);
+  if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like tickets.yourbrand.com']);
   if (is_reserved_platform_host($domain)) json_response(400, ['error' => 'domain_reserved']);
 
-  sync_event_custom_domain($pdo, $eventId, $domain, $pathRaw);
+  sync_event_custom_domain($pdo, $eventId, $domain, $pathRaw !== '' ? $pathRaw : null);
   $vercel = vercel_add_project_domain($domain);
   $dns = domain_dns_instructions($domain);
   $fresh = load_event_row_or_404($pdo, $eventId);

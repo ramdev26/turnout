@@ -71,9 +71,18 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
   };
 
   const saveDomain = async () => {
-    const domain = domainInput.trim();
+    let domain = domainInput.trim().replace(/^https?:\/\//i, '');
+    let path = pathInput.trim().replace(/^\/+/, '');
+    // Accept paste like tickets.takemybass.com/cc in the domain box.
+    const combined = domain.match(/^([^/?#]+)\/([a-z0-9][a-z0-9-]{0,30}[a-z0-9]?)$/i);
+    if (combined) {
+      domain = combined[1];
+      if (!path) path = combined[2].toLowerCase();
+      setDomainInput(domain);
+      setPathInput(path);
+    }
     if (!domain) {
-      setError('Enter a domain like events.yourbrand.com');
+      setError('Enter a domain like tickets.takemybass.com');
       return;
     }
     setSaving(true);
@@ -88,8 +97,10 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
         vercel: DomainState['vercel'];
       }>(`/api/events/${eventId}/domain`, {
         domain,
-        path: pathInput.trim() || null,
+        path: path || null,
       });
+      setDomainInput(res.customDomain);
+      setPathInput(res.customDomainPath || '');
       setMessage(
         res.customDomainPath
           ? `Domain saved. Public page: https://${res.customDomain}/${res.customDomainPath}`
@@ -98,7 +109,15 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
       onUpdated?.(res.customDomain);
       await load();
     } catch (e: any) {
-      setError(e?.message || e?.error || 'Could not save domain');
+      const code = e?.error || '';
+      if (code === 'domain_taken') {
+        setError(
+          e?.message ||
+            'This domain is already used by another event. Put only the domain above (tickets.takemybass.com) and set the path below to cc (or tmb).'
+        );
+      } else {
+        setError(e?.message || e?.error || 'Could not save domain');
+      }
     } finally {
       setSaving(false);
     }
@@ -188,7 +207,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                 <input
                   value={domainInput}
                   onChange={(e) => setDomainInput(e.target.value)}
-                  placeholder="tickets.yourbrand.com"
+                  placeholder="tickets.takemybass.com"
                   className={fieldClass}
                   style={fieldStyle}
                 />
@@ -202,18 +221,23 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                   {saving ? 'Saving…' : active ? 'Update' : 'Connect'}
                 </button>
               </div>
+              <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
+                Domain only — no <span className="font-mono">/cc</span> here. Put the short path in the field below.
+              </p>
 
               <div className="mt-3">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
-                  Path on this domain (optional)
+                  Path on this domain
                 </label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-sm" style={{ color: ui.textMuted }}>
-                    <span className="shrink-0 truncate">{domainInput.trim() || 'tickets.yourbrand.com'}/</span>
+                    <span className="shrink-0 truncate">
+                      {(domainInput.trim().split('/')[0] || 'tickets.takemybass.com').replace(/^https?:\/\//i, '')}/
+                    </span>
                     <input
                       value={pathInput}
                       onChange={(e) => setPathInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                      placeholder="tmb"
+                      placeholder="cc"
                       maxLength={32}
                       className={cn(fieldClass, 'min-w-0 flex-1')}
                       style={fieldStyle}
@@ -221,8 +245,8 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                   </div>
                 </div>
                 <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
-                  Share one domain across events — e.g. <span className="font-mono">/tmb</span> and{' '}
-                  <span className="font-mono">/cc</span>. First event can own the bare domain; others need a path.
+                  Required when the domain is already on another event. Example: Take My Bass → path{' '}
+                  <span className="font-mono">tmb</span>, Club Ctrl → path <span className="font-mono">cc</span>.
                 </p>
               </div>
 
