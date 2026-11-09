@@ -492,6 +492,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
           acceptedEventPolicy: true,
         });
 
+        // PayHere merchant secrets are domain-bound. Custom event domains must hop to the
+        // approved platform origin or PayHere returns PH-0013 Unauthorized.
+        if (res.requiresDomainHop && res.launchUrl) {
+          window.location.assign(res.launchUrl);
+          return;
+        }
+
         await preloadPayHereScript(res.sandbox !== false);
         setPayError(null);
         setPayherePopupOpen(true);
