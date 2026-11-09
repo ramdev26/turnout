@@ -1,7 +1,7 @@
 <?php
 
 /** Bump when transaction email HTML changes — also exposed on /api/health. */
-const MAIL_LAYOUT_VERSION = 'transaction-organizer-v1-20260820';
+const MAIL_LAYOUT_VERSION = 'transaction-event-theme-v1-20261109';
 
 function mail_layout_version(): string {
   return MAIL_LAYOUT_VERSION;
@@ -676,8 +676,114 @@ function mail_app_base_url(): string {
   return $base;
 }
 
-function mail_qr_image_url(string $qrToken): string {
-  return 'https://quickchart.io/qr?text=' . rawurlencode($qrToken) . '&size=200&margin=2&dark=1a1a2e&light=ffffff';
+function mail_normalize_hex(?string $hex, string $fallback = '#111827'): string {
+  $hex = strtolower(trim((string)$hex));
+  if (preg_match('/^#[0-9a-f]{6}$/', $hex)) return $hex;
+  if (preg_match('/^[0-9a-f]{6}$/', $hex)) return '#' . $hex;
+  return strtolower($fallback);
+}
+
+function mail_hex_luminance(string $hex): float {
+  $hex = mail_normalize_hex($hex, '#000000');
+  $r = hexdec(substr($hex, 1, 2)) / 255.0;
+  $g = hexdec(substr($hex, 3, 2)) / 255.0;
+  $b = hexdec(substr($hex, 5, 2)) / 255.0;
+  $chan = static function (float $c): float {
+    return $c <= 0.03928 ? $c / 12.92 : pow(($c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * $chan($r) + 0.7152 * $chan($g) + 0.0722 * $chan($b);
+}
+
+/**
+ * Resolve brand colors for ticket emails / QR frames from the event row.
+ *
+ * @return array{
+ *   primary:string,
+ *   secondary:string,
+ *   button:string,
+ *   buttonText:string,
+ *   qrDark:string,
+ *   qrDarkHex:string,
+ *   ink:string
+ * }
+ */
+function mail_event_theme_from_row(array $orderOrEvent): array {
+  $raw = $orderOrEvent['customization_json'] ?? $orderOrEvent['customization'] ?? null;
+  $customization = [];
+  if (is_array($raw)) {
+    $customization = $raw;
+  } elseif (is_string($raw) && trim($raw) !== '') {
+    $decoded = json_decode($raw, true);
+    if (is_string($decoded)) {
+      $decoded = json_decode($decoded, true);
+    }
+    if (is_array($decoded)) {
+      $customization = $decoded;
+    }
+  }
+
+  $templateId = strtolower(trim((string)(
+    $orderOrEvent['template_id']
+      ?? $customization['templateId']
+      ?? ''
+  )));
+
+  $defaultPrimary = '#0d585b';
+  $defaultSecondary = '#b8f25a';
+  if ($templateId === 'template-12') {
+    $defaultPrimary = '#e8342a';
+    $defaultSecondary = '#b91c1c';
+  } elseif ($templateId === 'template-11') {
+    $defaultPrimary = '#ff2d8f';
+    $defaultSecondary = '#c4185c';
+  }
+
+  $primary = mail_normalize_hex(
+    (string)(
+      $customization['ticketPdfPrimaryColor']
+        ?? $customization['buttonColor']
+        ?? $customization['primaryColor']
+        ?? ''
+    ),
+    $defaultPrimary
+  );
+  $secondary = mail_normalize_hex(
+    (string)(
+      $customization['ticketPdfAccentColor']
+        ?? $customization['secondaryColor']
+        ?? ''
+    ),
+    $defaultSecondary
+  );
+  $button = mail_normalize_hex(
+    (string)($customization['buttonColor'] ?? $customization['primaryColor'] ?? ''),
+    $primary
+  );
+
+  $buttonTextRaw = trim((string)($customization['buttonTextColor'] ?? ''));
+  $buttonText = $buttonTextRaw !== ''
+    ? mail_normalize_hex($buttonTextRaw, mail_hex_luminance($button) >= 0.55 ? '#111827' : '#ffffff')
+    : (mail_hex_luminance($button) >= 0.55 ? '#111827' : '#ffffff');
+
+  // Prefer brand color in the QR modules when contrast is strong enough.
+  $qrDarkHex = mail_hex_luminance($primary) <= 0.48 ? $primary : '#111111';
+
+  return [
+    'primary' => $primary,
+    'secondary' => $secondary,
+    'button' => $button,
+    'buttonText' => $buttonText,
+    'qrDark' => ltrim($qrDarkHex, '#'),
+    'qrDarkHex' => $qrDarkHex,
+    'ink' => '#111827',
+  ];
+}
+
+function mail_qr_image_url(string $qrToken, ?string $darkHex = null): string {
+  $dark = ltrim(mail_normalize_hex($darkHex, '#111111'), '#');
+  return 'https://quickchart.io/qr?text=' . rawurlencode($qrToken)
+    . '&size=200&margin=2&dark=' . rawurlencode($dark)
+    . '&light=ffffff';
 }
 
 /** Absolute URL for email images (banners, logos). */
@@ -902,16 +1008,28 @@ function mail_turnout_layout(string $headline, string $innerHtml): string {
 /**
  * Clean white transaction email shell (order confirmations / tickets).
  * Turnout appears only once in the footer as "Powered by turnout".
+ * When $theme is provided, header accent + organizer label follow the event brand.
+ *
+ * @param array<string,string> $theme
  */
-function mail_transaction_layout(string $innerHtml, string $preheader = '', string $organizerName = ''): string {
+function mail_transaction_layout(
+  string $innerHtml,
+  string $preheader = '',
+  string $organizerName = '',
+  array $theme = []
+): string {
   $pre = $preheader !== ''
     ? '<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">' .
       htmlspecialchars($preheader) . '</div>'
     : '';
 
+  $primary = mail_normalize_hex((string)($theme['primary'] ?? ''), '#111827');
   $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
-  $headerHtml = '<tr><td style="padding:18px 24px;border-bottom:1px solid #eef0f3;text-align:center;">' .
-    '<div style="font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#111827;">' .
+  $headerHtml =
+    '<tr><td style="height:6px;line-height:6px;font-size:0;background:' . htmlspecialchars($primary) . ';">&nbsp;</td></tr>' .
+    '<tr><td style="padding:18px 24px;border-bottom:1px solid #eef0f3;text-align:center;">' .
+    '<div style="font-size:13px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:' .
+    htmlspecialchars($primary) . ';">' .
     $organizerLabel .
     '</div></td></tr>';
 
@@ -967,23 +1085,32 @@ function mail_detail_row(string $label, string $value, bool $strong = false): st
     $value . '</td></tr>';
 }
 
-function mail_pass_block_html(array $pass): string {
+/**
+ * @param array<string,string> $theme
+ */
+function mail_pass_block_html(array $pass, array $theme = []): string {
   $name = htmlspecialchars((string)($pass['full_name'] ?? 'Guest'));
   $ticketName = htmlspecialchars((string)($pass['ticket_name'] ?? 'Ticket'));
   $qrToken = (string)($pass['qr_token'] ?? '');
-  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken) : '';
+  $primary = mail_normalize_hex((string)($theme['primary'] ?? ''), '#111827');
+  $qrDark = (string)($theme['qrDarkHex'] ?? $primary);
+  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken, $qrDark) : '';
 
   $block =
-    '<table width="100%" style="margin:0 0 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">' .
+    '<table width="100%" style="margin:0 0 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;border-top:3px solid ' .
+    htmlspecialchars($primary) . ';">' .
     '<tr><td style="padding:16px;">' .
-    '<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#6b7280;">' . $ticketName . '</div>' .
+    '<div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:' .
+    htmlspecialchars($primary) . ';">' . $ticketName . '</div>' .
     '<div style="margin-top:6px;font-size:16px;font-weight:700;color:#111827;">' . $name . '</div>';
 
   if ($qrImg !== '') {
     $block .=
       '<div style="margin-top:14px;text-align:center;">' .
-      '<img src="' . htmlspecialchars($qrImg) . '" alt="Check-in QR code" width="180" height="180" style="display:inline-block;border-radius:8px;background:#ffffff;padding:8px;border:1px solid #e5e7eb;" />' .
-      '</div>';
+      '<div style="display:inline-block;padding:10px;border-radius:12px;background:#ffffff;border:2px solid ' .
+      htmlspecialchars($primary) . ';">' .
+      '<img src="' . htmlspecialchars($qrImg) . '" alt="Check-in QR code" width="180" height="180" style="display:block;border-radius:4px;background:#ffffff;" />' .
+      '</div></div>';
   }
 
   $block .= '</td></tr></table>';
@@ -1002,6 +1129,11 @@ function send_buyer_order_confirmation_email(
   if ($buyerEmail === '' || !filter_var($buyerEmail, FILTER_VALIDATE_EMAIL)) {
     return false;
   }
+
+  $theme = mail_event_theme_from_row($order);
+  $ctaBg = $theme['button'];
+  $ctaFg = $theme['buttonText'];
+  $accent = $theme['primary'];
 
   $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
   if (!is_array($items)) $items = [];
@@ -1036,7 +1168,7 @@ function send_buyer_order_confirmation_email(
 
   $passBlocks = '';
   foreach ($attendees as $a) {
-    $passBlocks .= mail_pass_block_html($a);
+    $passBlocks .= mail_pass_block_html($a, $theme);
   }
 
   $buyerNorm = strtolower(trim((string)$order['buyer_email']));
@@ -1056,16 +1188,18 @@ function send_buyer_order_confirmation_email(
   $inner =
     $bannerHtml .
     '<div style="padding:28px 28px 8px;text-align:center;">' .
-    '<h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:#1e1b4b;">Thank you for your booking</h1>' .
+    '<h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:700;color:' .
+    htmlspecialchars($accent) . ';">Thank you for your booking</h1>' .
     '<p style="margin:0 auto 8px;max-width:460px;font-size:15px;line-height:1.6;color:#4b5563;">' .
     'Your seat booking for <strong style="color:#111827;">' . $eventTitle . '</strong> with ' .
     '<strong style="color:#111827;">' . $organizerLabel . '</strong> is confirmed. ' .
     'Download your digital ticket using the button below.</p>' .
-    mail_cta_button($ticketUrl, 'DOWNLOAD DIGITAL TICKET', '#5b21b6', '#ffffff') .
+    mail_cta_button($ticketUrl, 'DOWNLOAD DIGITAL TICKET', $ctaBg, $ctaFg) .
     '</div>' .
     '<div style="padding:8px 28px 8px;">' .
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;">' .
-    '<tr><td style="padding:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Booking details</td></tr>' .
+    '<tr><td style="padding:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:' .
+    htmlspecialchars($accent) . ';">Booking details</td></tr>' .
     '</table>' .
     '<table width="100%" cellpadding="0" cellspacing="0">' .
     $detailRows .
@@ -1077,7 +1211,8 @@ function send_buyer_order_confirmation_email(
     ($eventLocation !== '' ? mail_detail_row('Venue', $eventLocation) : '') .
     '</table></div>' .
     ($passBlocks !== ''
-      ? '<div style="padding:16px 28px 4px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;margin-bottom:10px;">Your passes</div>' .
+      ? '<div style="padding:16px 28px 4px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:' .
+        htmlspecialchars($accent) . ';margin-bottom:10px;">Your passes</div>' .
         $passBlocks . '</div>'
       : '') .
     ($otherHolderCount > 0
@@ -1096,7 +1231,8 @@ function send_buyer_order_confirmation_email(
   $html = mail_transaction_layout(
     $inner,
     'Your booking for ' . (string)$order['event_title'] . ' is confirmed.',
-    $organizerName
+    $organizerName,
+    $theme
   );
   return send_email($buyerEmail, $subject, $html, $pdo);
 }
@@ -1111,6 +1247,11 @@ function send_attendee_ticket_email(
   string $ticketUrl,
   string $organizerName = 'Organizer'
 ): bool {
+  $theme = mail_event_theme_from_row($order);
+  $ctaBg = $theme['button'];
+  $ctaFg = $theme['buttonText'];
+  $accent = $theme['primary'];
+
   $eventTitle = htmlspecialchars((string)$order['event_title']);
   $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
   $eventDate = htmlspecialchars(mail_format_event_when((string)($order['event_date'] ?? '')));
@@ -1121,7 +1262,7 @@ function send_attendee_ticket_email(
 
   $passBlocks = '';
   foreach ($passes as $pass) {
-    $passBlocks .= mail_pass_block_html($pass);
+    $passBlocks .= mail_pass_block_html($pass, $theme);
   }
 
   $bannerHtml = $bannerUrl !== ''
@@ -1133,13 +1274,14 @@ function send_attendee_ticket_email(
   $inner =
     $bannerHtml .
     '<div style="padding:28px 28px 8px;text-align:center;">' .
-    '<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:700;color:#1e1b4b;">Your ticket' .
+    '<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:700;color:' .
+    htmlspecialchars($accent) . ';">Your ticket' .
     ($passCount > 1 ? 's are' : ' is') . ' ready</h1>' .
     '<p style="margin:0 auto 8px;max-width:460px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ' . $greeting .
     ', you have ' . ($passCount > 1 ? '<strong>' . $passCount . ' tickets</strong>' : 'a ticket') .
     ' for <strong style="color:#111827;">' . $eventTitle . '</strong> from ' .
     '<strong style="color:#111827;">' . $organizerLabel . '</strong>.</p>' .
-    mail_cta_button($ticketUrl, $ticketLabel, '#5b21b6', '#ffffff') .
+    mail_cta_button($ticketUrl, $ticketLabel, $ctaBg, $ctaFg) .
     '</div>' .
     '<div style="padding:8px 28px 4px;">' .
     '<table width="100%" cellpadding="0" cellspacing="0">' .
@@ -1148,7 +1290,8 @@ function send_attendee_ticket_email(
     ($eventLocation !== '' ? mail_detail_row('Venue', $eventLocation) : '') .
     mail_detail_row('Booking ID', htmlspecialchars('TO' . strtoupper(dechex(max(1, $orderId))) . str_pad((string)$orderId, 4, '0', STR_PAD_LEFT))) .
     '</table></div>' .
-    '<div style="padding:16px 28px 8px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;margin-bottom:10px;">Your pass' .
+    '<div style="padding:16px 28px 8px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:' .
+    htmlspecialchars($accent) . ';margin-bottom:10px;">Your pass' .
     ($passCount > 1 ? 'es' : '') . '</div>' . $passBlocks . '</div>' .
     '<div style="padding:12px 28px 28px;">' .
     '<div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">Important Instructions</div>' .
@@ -1164,7 +1307,7 @@ function send_attendee_ticket_email(
   return send_email(
     $toEmail,
     $subject,
-    mail_transaction_layout($inner, 'Your ticket for ' . (string)$order['event_title'], $organizerName),
+    mail_transaction_layout($inner, 'Your ticket for ' . (string)$order['event_title'], $organizerName, $theme),
     $pdo
   );
 }
@@ -1176,7 +1319,8 @@ function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
   $stmt = $pdo->prepare(
     'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
             o.payment_method, o.created_at, o.event_id,
-            e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url, e.organizer_user_id
+            e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url, e.organizer_user_id,
+            e.template_id, e.customization_json
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
      WHERE o.id = ?
@@ -1254,7 +1398,7 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
     'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
             o.payment_method, o.status, o.created_at, o.event_id,
             e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url, e.organizer_user_id,
-            e.customization_json
+            e.template_id, e.customization_json
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
      WHERE o.id = ?
@@ -1287,6 +1431,11 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
       ? organizer_receiving_bank_api_shape($profileRow)
       : null;
   }
+
+  $theme = mail_event_theme_from_row($order);
+  $accent = $theme['primary'];
+  $ctaBg = $theme['button'];
+  $ctaFg = $theme['buttonText'];
 
   $uploadUrl = mail_order_success_url($orderId);
   $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
@@ -1336,13 +1485,15 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
   $inner =
     $bannerHtml .
     '<div style="padding:28px 28px 8px;text-align:center;">' .
-    '<div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0d585b;">Bank transfer</div>' .
-    '<h1 style="margin:10px 0 12px;font-size:24px;line-height:1.25;font-weight:700;color:#1e1b4b;">Complete your payment</h1>' .
+    '<div style="font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:' .
+    htmlspecialchars($accent) . ';">Bank transfer</div>' .
+    '<h1 style="margin:10px 0 12px;font-size:24px;line-height:1.25;font-weight:700;color:' .
+    htmlspecialchars($accent) . ';">Complete your payment</h1>' .
     '<p style="margin:0 auto 8px;max-width:480px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ' . $greeting .
     ', your order for <strong style="color:#111827;">' . $eventTitle . '</strong> is reserved. ' .
     'Transfer <strong style="color:#111827;">' . $total . '</strong> and upload your bank slip using the button below — ' .
     'even if you closed the checkout page.</p>' .
-    mail_cta_button($uploadUrl, 'UPLOAD TRANSFER SLIP', '#0d585b', '#f3ffe4') .
+    mail_cta_button($uploadUrl, 'UPLOAD TRANSFER SLIP', $ctaBg, $ctaFg) .
     '</div>' .
     '<div style="padding:8px 28px 4px;">' .
     '<table width="100%" cellpadding="0" cellspacing="0">' .
@@ -1354,7 +1505,8 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
     mail_detail_row('Order', htmlspecialchars('#' . (string)$orderId . ' · ' . $bookingId)) .
     '</table></div>' .
     ($bankRows !== ''
-      ? '<div style="padding:16px 28px 4px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;margin-bottom:10px;">Transfer to</div>' .
+      ? '<div style="padding:16px 28px 4px;"><div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:' .
+        htmlspecialchars($accent) . ';margin-bottom:10px;">Transfer to</div>' .
         '<table width="100%" cellpadding="0" cellspacing="0">' . $bankRows . '</table></div>'
       : '') .
     '<div style="padding:18px 28px 28px;">' .
@@ -1366,7 +1518,8 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
     '</ul>' .
     ($uploadUrl !== ''
       ? '<p style="margin:16px 0 0;font-size:12px;line-height:1.55;color:#6b7280;word-break:break-all;">If the button does not work, copy this link:<br/>' .
-        '<a href="' . htmlspecialchars($uploadUrl) . '" style="color:#0d585b;">' . htmlspecialchars($uploadUrl) . '</a></p>'
+        '<a href="' . htmlspecialchars($uploadUrl) . '" style="color:' . htmlspecialchars($accent) . ';">' .
+        htmlspecialchars($uploadUrl) . '</a></p>'
       : '') .
     '</div>';
 
@@ -1374,7 +1527,12 @@ function send_bank_transfer_pending_email(PDO $pdo, int $orderId, ?array $bankDe
   return send_email(
     $toEmail,
     $subject,
-    mail_transaction_layout($inner, 'Upload your bank transfer slip for ' . (string)($order['event_title'] ?? 'your event'), $organizerName),
+    mail_transaction_layout(
+      $inner,
+      'Upload your bank transfer slip for ' . (string)($order['event_title'] ?? 'your event'),
+      $organizerName,
+      $theme
+    ),
     $pdo
   );
 }
@@ -1384,7 +1542,7 @@ function send_vip_invite_pass_email(PDO $pdo, int $orderId): bool {
   $stmt = $pdo->prepare(
     'SELECT o.id, o.buyer_name, o.buyer_email, o.payment_method, o.created_at,
             e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url,
-            e.organizer_user_id
+            e.organizer_user_id, e.template_id, e.customization_json
      FROM orders o
      INNER JOIN events e ON e.id = o.event_id
      WHERE o.id = ?
@@ -1415,13 +1573,18 @@ function send_vip_invite_pass_email(PDO $pdo, int $orderId): bool {
     return false;
   }
 
+  $theme = mail_event_theme_from_row($order);
+  $accent = $theme['primary'];
+  $ctaBg = $theme['button'];
+  $ctaFg = $theme['buttonText'];
+
   $guestName = trim((string)($pass['full_name'] ?? $order['buyer_name'] ?? 'Guest'));
   $eventTitle = (string)($order['event_title'] ?? 'Your event');
   $eventWhen = mail_format_event_when((string)($order['event_date'] ?? ''));
   $eventWhere = trim((string)($order['location'] ?? ''));
   $ticketName = trim((string)($pass['ticket_name'] ?? 'VIP Pass'));
   $qrToken = (string)($pass['qr_token'] ?? '');
-  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken) : '';
+  $qrImg = $qrToken !== '' ? mail_qr_image_url($qrToken, $theme['qrDarkHex']) : '';
   $bannerUrl = mail_absolute_asset_url((string)($order['banner_url'] ?? ''));
   $ticketUrl = mail_order_success_url($orderId, null, [(int)$pass['id']]);
   $organizerName = mail_resolve_organizer_name($pdo, (int)($order['organizer_user_id'] ?? 0));
@@ -1431,53 +1594,55 @@ function send_vip_invite_pass_email(PDO $pdo, int $orderId): bool {
   $eventWhenH = htmlspecialchars($eventWhen);
   $eventWhereH = htmlspecialchars($eventWhere);
   $ticketNameH = htmlspecialchars($ticketName !== '' ? $ticketName : 'VIP Pass');
+  $accentH = htmlspecialchars($accent);
 
   $bannerHtml = $bannerUrl !== ''
     ? '<img src="' . htmlspecialchars($bannerUrl) . '" alt="' . $eventTitleH . '" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />'
     : '';
 
   $qrHtml = $qrImg !== ''
-    ? '<div style="margin:18px auto 8px;width:200px;background:#ffffff;border-radius:16px;padding:14px;border:1px solid rgba(255,255,255,0.18);">' .
+    ? '<div style="margin:18px auto 8px;width:200px;background:#ffffff;border-radius:16px;padding:14px;border:2px solid ' .
+      $accentH . ';">' .
       '<img src="' . htmlspecialchars($qrImg) . '" alt="Check-in QR" width="172" height="172" style="display:block;width:172px;height:172px;margin:0 auto;" />' .
       '</div>' .
-      '<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.62);">Show this code at the door</div>'
+      '<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:' . $accentH . ';">Show this code at the door</div>'
     : '';
 
   $details =
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">' .
-    '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Guest</td>' .
-    '<td style="padding:8px 0;font-size:14px;font-weight:700;color:#f8fafc;text-align:right;">' . $greeting . '</td></tr>' .
-    '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Pass</td>' .
-    '<td style="padding:8px 0;font-size:14px;font-weight:700;color:#f8fafc;text-align:right;">' . $ticketNameH . '</td></tr>' .
+    '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Guest</td>' .
+    '<td style="padding:8px 0;font-size:14px;font-weight:700;color:#111827;text-align:right;">' . $greeting . '</td></tr>' .
+    '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Pass</td>' .
+    '<td style="padding:8px 0;font-size:14px;font-weight:700;color:#111827;text-align:right;">' . $ticketNameH . '</td></tr>' .
     ($eventWhenH !== ''
-      ? '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">When</td>' .
-        '<td style="padding:8px 0;font-size:14px;font-weight:600;color:#e2e8f0;text-align:right;">' . $eventWhenH . '</td></tr>'
+      ? '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">When</td>' .
+        '<td style="padding:8px 0;font-size:14px;font-weight:600;color:#374151;text-align:right;">' . $eventWhenH . '</td></tr>'
       : '') .
     ($eventWhereH !== ''
-      ? '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Where</td>' .
-        '<td style="padding:8px 0;font-size:14px;font-weight:600;color:#e2e8f0;text-align:right;">' . $eventWhereH . '</td></tr>'
+      ? '<tr><td style="padding:8px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Where</td>' .
+        '<td style="padding:8px 0;font-size:14px;font-weight:600;color:#374151;text-align:right;">' . $eventWhereH . '</td></tr>'
       : '') .
     '</table>';
 
   $inner =
     $bannerHtml .
-    '<div style="padding:0;background:linear-gradient(165deg,#0f172a 0%,#1e1b4b 48%,#312e81 100%);">' .
     '<div style="padding:28px 28px 10px;text-align:center;">' .
-    '<div style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(250,204,21,0.16);border:1px solid rgba(250,204,21,0.35);color:#fde68a;font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;">VIP Invite</div>' .
-    '<h1 style="margin:16px 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:#ffffff;">You\'re on the list</h1>' .
-    '<p style="margin:0 auto;max-width:420px;font-size:15px;line-height:1.6;color:#cbd5e1;">Hi ' . $greeting .
-    ', your complimentary VIP pass for <strong style="color:#fff;">' . $eventTitleH . '</strong> is ready.</p>' .
+    '<div style="display:inline-block;padding:6px 12px;border-radius:999px;background:' . $accentH .
+    ';color:' . htmlspecialchars($ctaFg) . ';font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;">VIP Invite</div>' .
+    '<h1 style="margin:16px 0 8px;font-size:26px;line-height:1.2;font-weight:800;color:' . $accentH . ';">You\'re on the list</h1>' .
+    '<p style="margin:0 auto;max-width:420px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ' . $greeting .
+    ', your complimentary VIP pass for <strong style="color:#111827;">' . $eventTitleH . '</strong> is ready.</p>' .
     $qrHtml .
     '</div>' .
     '<div style="padding:8px 28px 28px;">' .
-    '<div style="background:rgba(15,23,42,0.45);border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:18px;">' .
+    '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-top:3px solid ' . $accentH . ';border-radius:12px;padding:18px;">' .
     $details .
     '</div>' .
-    mail_cta_button($ticketUrl, 'VIEW DIGITAL PASS', '#fbbf24', '#111827') .
-    '<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#94a3b8;text-align:center;">Keep this email handy. Your QR is unique to you and works for door check-in.</p>' .
-    '</div></div>';
+    mail_cta_button($ticketUrl, 'VIEW DIGITAL PASS', $ctaBg, $ctaFg) .
+    '<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#6b7280;text-align:center;">Keep this email handy. Your QR is unique to you and works for door check-in.</p>' .
+    '</div>';
 
   $subject = 'Your VIP pass for ' . $eventTitle;
-  $html = mail_transaction_layout($inner, 'Your VIP pass for ' . $eventTitle . ' is ready.', $organizerName);
+  $html = mail_transaction_layout($inner, 'Your VIP pass for ' . $eventTitle . ' is ready.', $organizerName, $theme);
   return send_email($toEmail, $subject, $html, $pdo);
 }
