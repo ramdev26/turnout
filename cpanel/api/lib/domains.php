@@ -380,7 +380,7 @@ function event_row_matches_host(array $row, string $host): bool {
 
 /**
  * Events tied to a custom host (DNS owner column or customization.customDomain).
- * Uses PHP JSON parsing — avoids DB-specific JSON SQL that can 500 on some hosts.
+ * Prefer organizer-scoped scan over DB JSON operators (more portable / reliable).
  *
  * @return list<array<string,mixed>>
  */
@@ -389,43 +389,65 @@ function list_events_for_custom_host(PDO $pdo, string $host): array {
   $host = normalize_event_hostname($host);
   if ($host === '') return [];
 
-  $rows = [];
   $byId = [];
 
   $ownerStmt = $pdo->prepare('SELECT * FROM events WHERE custom_domain = ?');
   $ownerStmt->execute([$host]);
-  foreach ($ownerStmt->fetchAll() as $row) {
+  $ownerRows = $ownerStmt->fetchAll();
+  $organizerIds = [];
+  foreach ($ownerRows as $row) {
     $id = (int)($row['id'] ?? 0);
-    if ($id > 0) {
-      $byId[$id] = $row;
-    }
+    if ($id > 0) $byId[$id] = $row;
+    $oid = (int)($row['organizer_user_id'] ?? 0);
+    if ($oid > 0) $organizerIds[$oid] = true;
   }
 
-  // Broad LIKE then exact match in PHP (customDomain may be stored with different key order).
-  $like = '%"customDomain"%' . str_replace(['%', '_'], ['\\%', '\\_'], $host) . '%';
-  try {
-    $jsonStmt = $pdo->prepare(
-      "SELECT * FROM events
-       WHERE customization_json IS NOT NULL
-         AND customization_json LIKE ?"
-    );
-    $jsonStmt->execute([$like]);
-    foreach ($jsonStmt->fetchAll() as $row) {
-      $id = (int)($row['id'] ?? 0);
-      if ($id > 0 && !isset($byId[$id])) {
-        $byId[$id] = $row;
+  // Sibling path events usually share the organizer with the DNS owner.
+  if ($organizerIds) {
+    $ids = array_keys($organizerIds);
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    try {
+      $sibStmt = $pdo->prepare(
+        "SELECT * FROM events
+         WHERE organizer_user_id IN ($placeholders)
+           AND customization_json IS NOT NULL
+           AND customization_json <> ''
+           AND customization_json <> '{}'"
+      );
+      $sibStmt->execute($ids);
+      foreach ($sibStmt->fetchAll() as $row) {
+        $id = (int)($row['id'] ?? 0);
+        if ($id > 0 && !isset($byId[$id]) && event_row_matches_host($row, $host)) {
+          $byId[$id] = $row;
+        }
       }
-    }
-  } catch (Throwable $e) {
-    error_log('[turnout] list_events_for_custom_host json scan failed: ' . $e->getMessage());
-  }
-
-  foreach ($byId as $row) {
-    if (event_row_matches_host($row, $host)) {
-      $rows[] = $row;
+    } catch (Throwable $e) {
+      error_log('[turnout] list_events_for_custom_host organizer scan failed: ' . $e->getMessage());
     }
   }
 
+  // Fallback: text scan when there is no DNS owner row yet (path-only hosts).
+  if (!$byId) {
+    try {
+      $like = '%"customDomain"%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $host) . '%';
+      $jsonStmt = $pdo->prepare(
+        "SELECT * FROM events
+         WHERE customization_json IS NOT NULL
+           AND customization_json LIKE ?"
+      );
+      $jsonStmt->execute([$like]);
+      foreach ($jsonStmt->fetchAll() as $row) {
+        $id = (int)($row['id'] ?? 0);
+        if ($id > 0 && event_row_matches_host($row, $host)) {
+          $byId[$id] = $row;
+        }
+      }
+    } catch (Throwable $e) {
+      error_log('[turnout] list_events_for_custom_host json scan failed: ' . $e->getMessage());
+    }
+  }
+
+  $rows = array_values($byId);
   usort($rows, static function ($a, $b) use ($host) {
     $aOwner = normalize_event_hostname((string)($a['custom_domain'] ?? '')) === $host ? 0 : 1;
     $bOwner = normalize_event_hostname((string)($b['custom_domain'] ?? '')) === $host ? 0 : 1;
