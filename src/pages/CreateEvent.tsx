@@ -670,8 +670,8 @@ export const CreateEvent: React.FC = () => {
           ? {
               pulseHeaderLinkLabel:
                 design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
-              pulseHeadline: 'TICKETS OPEN NOW.',
-              // Tagline comes from short description (heroSubtext) — do not invent theme copy.
+              // Headline uses event title on the landing — do not invent theme copy.
+              // Tagline comes from short description (heroSubtext).
               pulseTagline: (data.shortDescription || '').trim() || undefined,
               pageBackgroundColor: design.pageBackgroundColor || '#000000',
               surfaceColor: design.surfaceColor || '#141414',
@@ -785,7 +785,6 @@ export const CreateEvent: React.FC = () => {
         ? {
             pulseHeaderLinkLabel:
               design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
-            pulseHeadline: 'TICKETS OPEN NOW.',
             pulseTagline: (shortDescription || '').trim() || undefined,
             pageBackgroundColor: design.pageBackgroundColor || '#000000',
             surfaceColor: design.surfaceColor || '#141414',

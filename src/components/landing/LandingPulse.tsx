@@ -300,8 +300,13 @@ export function LandingPulsePage({
     (event.customization?.pulseEyebrow || '').trim() ||
     (ctrlTheme ? 'Access Take My Bass' : 'Access Club Ctrl');
   const headerLinkUrl = (event.customization?.pulseHeaderLink || '').trim();
+  const storedHeadline = (event.customization?.pulseHeadline || '').trim();
+  // Prefer event title over the old template default “TICKETS OPEN NOW.”
   const headlineRaw =
-    (event.customization?.pulseHeadline || '').trim() ||
+    (storedHeadline && storedHeadline.toUpperCase() !== 'TICKETS OPEN NOW.'
+      ? storedHeadline
+      : '') ||
+    (event.title || '').trim() ||
     'TICKETS OPEN NOW.';
   const { lead, accent } = splitHeadlineAccent(headlineRaw);
   const shortDescription = (event.customization?.heroSubtext || '').trim();
