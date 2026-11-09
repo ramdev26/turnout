@@ -71,20 +71,36 @@ function parseRoomsFromDescription(description: string): PulseRoom[] {
   });
 }
 
-/** Pulse is the Take My Bass layout — never surface Club CTRL copy from tickets/defaults. */
 function isClubCtrlCopy(text: string): boolean {
   return /club\s*ctrl/i.test(text);
 }
 
-function isTakeMyBassTicket(ticket: EventTicket): boolean {
-  return /take\s*my\s*bass/i.test(ticket.name) && !/both|combo|bundle/i.test(ticket.name);
+function isTakeMyBassCopy(text: string): boolean {
+  return /take\s*my\s*bass/i.test(text);
 }
 
-function roomsFromTickets(tickets: EventTicket[]): PulseRoom[] {
+function isCtrlTemplate(event: Event): boolean {
+  return event.templateId === 'template-12';
+}
+
+/** Pulse (TMB) hides Club Ctrl room copy; Ctrl theme hides Take My Bass room copy. */
+function shouldHideSiblingBrand(event: Event, text: string): boolean {
+  return isCtrlTemplate(event) ? isTakeMyBassCopy(text) : isClubCtrlCopy(text);
+}
+
+function isPreferredRoomTicket(event: Event, ticket: EventTicket): boolean {
+  if (/both|combo|bundle/i.test(ticket.name)) return false;
+  if (isCtrlTemplate(event)) {
+    return isClubCtrlCopy(ticket.name);
+  }
+  return isTakeMyBassCopy(ticket.name);
+}
+
+function roomsFromTickets(event: Event, tickets: EventTicket[]): PulseRoom[] {
   const named = tickets.filter(
-    (t) => !/both|combo|bundle/i.test(t.name) && !isClubCtrlCopy(t.name)
+    (t) => !/both|combo|bundle/i.test(t.name) && !shouldHideSiblingBrand(event, t.name)
   );
-  const preferred = named.filter(isTakeMyBassTicket);
+  const preferred = named.filter((t) => isPreferredRoomTicket(event, t));
   const source = (preferred.length > 0 ? preferred : named).slice(0, 1);
   if (source.length === 0) return [];
   return source.map((ticket) => {
@@ -92,50 +108,59 @@ function roomsFromTickets(tickets: EventTicket[]): PulseRoom[] {
     const tagsLine = lines.find((l) => /^[A-Z0-9][A-Z0-9\s|/·•-]+$/.test(l) && l.length < 80);
     const body =
       lines.filter((l) => l !== tagsLine).join(' ') ||
-      'Groovy, bouncy, bassy — tech house, house and indie dance from 6 PM to 1 AM.';
+      (isCtrlTemplate(event)
+        ? 'Late-night energy — bass-heavy club sounds until close.'
+        : 'Groovy, bouncy, bassy — tech house, house and indie dance from 6 PM to 1 AM.');
     return {
       kicker: '6 PM – 1 AM',
       title: ticket.name,
       body,
-      tags: (tagsLine || 'TECH HOUSE  HOUSE  INDIE DANCE').replace(/[|/·•]+/g, '  ').trim(),
+      tags: (tagsLine || (isCtrlTemplate(event) ? 'CLUB  BASS  AFTER HOURS' : 'TECH HOUSE  HOUSE  INDIE DANCE'))
+        .replace(/[|/·•]+/g, '  ')
+        .trim(),
       emphasis: true,
     };
   });
 }
 
 function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
+  const ctrl = isCtrlTemplate(event);
   const custom = event.customization?.pulseRooms;
   if (Array.isArray(custom) && custom.length > 0) {
     const cleaned = custom
-      .filter((room) => !isClubCtrlCopy(`${room.kicker || ''} ${room.title || ''} ${room.body || ''}`))
+      .filter(
+        (room) => !shouldHideSiblingBrand(event, `${room.kicker || ''} ${room.title || ''} ${room.body || ''}`)
+      )
       .slice(0, 1)
       .map((room) => ({
         kicker: (room.kicker || '').trim() || '6 PM – 1 AM',
-        title: (room.title || '').trim() || event.title || 'Take My Bass',
+        title: (room.title || '').trim() || event.title || (ctrl ? 'Club Ctrl' : 'Take My Bass'),
         body: (room.body || '').trim() || 'Details coming soon.',
-        tags: (room.tags || '').trim() || 'TECH HOUSE  HOUSE  INDIE DANCE',
+        tags: (room.tags || '').trim() || (ctrl ? 'CLUB  BASS  AFTER HOURS' : 'TECH HOUSE  HOUSE  INDIE DANCE'),
         emphasis: true,
       }));
     if (cleaned.length > 0) return cleaned;
   }
 
   const fromDesc = parseRoomsFromDescription(event.description || '').filter(
-    (room) => !isClubCtrlCopy(`${room.kicker} ${room.title} ${room.body}`)
+    (room) => !shouldHideSiblingBrand(event, `${room.kicker} ${room.title} ${room.body}`)
   );
   if (fromDesc.length > 0) return [fromDesc[0]];
 
-  const fromTickets = roomsFromTickets(tickets);
+  const fromTickets = roomsFromTickets(event, tickets);
   if (fromTickets.length > 0) return fromTickets;
 
-  const title = event.title || 'Take My Bass';
+  const title = event.title || (ctrl ? 'Club Ctrl' : 'Take My Bass');
   return [
     {
       kicker: '6 PM – 1 AM',
       title,
       body:
         (event.description || '').trim() ||
-        'Our open-air club night energy — tech house, house and indie dance across one dancefloor. Built to move.',
-      tags: 'TECH HOUSE  HOUSE  INDIE DANCE',
+        (ctrl
+          ? 'Club Ctrl — late-night bass energy across the floor. Built to move until close.'
+          : 'Our open-air club night energy — tech house, house and indie dance across one dancefloor. Built to move.'),
+      tags: ctrl ? 'CLUB  BASS  AFTER HOURS' : 'TECH HOUSE  HOUSE  INDIE DANCE',
       emphasis: true,
     },
   ];
@@ -145,7 +170,7 @@ function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLi
   const custom = event.customization?.pulseSchedule;
   if (Array.isArray(custom) && custom.length > 0) {
     return custom
-      .filter((line) => !isClubCtrlCopy(`${line.label || ''} ${line.time || ''}`))
+      .filter((line) => !shouldHideSiblingBrand(event, `${line.label || ''} ${line.time || ''}`))
       .slice(0, 2)
       .map((line) => ({
         label: (line.label || '').trim() || 'Session',
@@ -163,18 +188,21 @@ function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLi
 }
 
 function resolveStory(event: Event): { kicker: string; title: string; body: string } {
+  const ctrl = isCtrlTemplate(event);
   const desc = (event.description || '')
     .split(/\n+/)
     .map((l) => l.trim())
-    .filter((l) => l && !isClubCtrlCopy(l))
+    .filter((l) => l && !shouldHideSiblingBrand(event, l))
     .join(' ')
     .trim();
   return {
     kicker: 'THE STORY',
-    title: 'Back in Colombo.',
+    title: ctrl ? 'Club Ctrl.' : 'Back in Colombo.',
     body:
       desc ||
-      'From 6 PM. Groovy, bouncy, bassy, hands in the air. Take My Bass returns for a full night of tech house, house and indie dance — built for the floor.',
+      (ctrl
+        ? 'From 6 PM. Bass-forward club energy, hands in the air — Club Ctrl takes the room until close.'
+        : 'From 6 PM. Groovy, bouncy, bassy, hands in the air. Take My Bass returns for a full night of tech house, house and indie dance — built for the floor.'),
   };
 }
 
@@ -184,7 +212,7 @@ function resolveNightBeats(event: Event): PulseBeat[] {
   const custom = event.customization?.pulseSchedule;
   if (Array.isArray(custom) && custom.length >= 2) {
     return custom
-      .filter((line) => !isClubCtrlCopy(`${line.label || ''} ${line.time || ''}`))
+      .filter((line) => !shouldHideSiblingBrand(event, `${line.label || ''} ${line.time || ''}`))
       .slice(0, 4)
       .map((line) => ({
         time: (line.time || '').trim() || 'TBA',
@@ -248,11 +276,12 @@ export function LandingPulsePage({
   onCheckout,
   isPurchasing,
 }: LandingTemplateProps) {
+  const ctrlTheme = isCtrlTemplate(event);
   const brandLines = stackBrand(event.title || 'Event');
   const headerLinkLabel =
     (event.customization?.pulseHeaderLinkLabel || '').trim() ||
     (event.customization?.pulseEyebrow || '').trim() ||
-    'Access Club Ctrl';
+    (ctrlTheme ? 'Access Take My Bass' : 'Access Club Ctrl');
   const headerLinkUrl = (event.customization?.pulseHeaderLink || '').trim();
   const headlineRaw =
     (event.customization?.pulseHeadline || '').trim() ||
@@ -310,7 +339,7 @@ export function LandingPulsePage({
 
   return (
     <LandingPageShell event={event} showcase>
-      <div className="landing-pulse">
+      <div className={ctrlTheme ? 'landing-pulse landing-pulse--ctrl' : 'landing-pulse'}>
         <div className="pulse-shell">
           <header className="pulse-header">
             <h1 className="pulse-brand" aria-label={event.title}>
@@ -479,7 +508,9 @@ export function LandingPulsePage({
                               {featured ? <span className="pulse-best-value">Best value</span> : null}
                             </div>
                             {featured ? (
-                              <div className="pulse-row-sub">(Take My Bass + Club Ctrl)</div>
+                              <div className="pulse-row-sub">
+                                {ctrlTheme ? '(Club Ctrl + Take My Bass)' : '(Take My Bass + Club Ctrl)'}
+                              </div>
                             ) : null}
                           </div>
                           {remaining <= 0 ? (

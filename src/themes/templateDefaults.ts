@@ -9,7 +9,8 @@ export type LayoutTemplateId =
   | 'template-7'
   | 'template-8'
   | 'template-10'
-  | 'template-11';
+  | 'template-11'
+  | 'template-12';
 
 export type TemplateDesignDefaults = {
   templateId: LayoutTemplateId;
@@ -81,6 +82,14 @@ export const TEMPLATE_DESIGN_DEFAULTS: Record<LayoutTemplateId, TemplateDesignDe
     landingStyle: 'minimal',
     displayMode: 'dark',
   },
+  'template-12': {
+    templateId: 'template-12',
+    primaryColor: '#E8342A',
+    secondaryColor: '#B91C1C',
+    fontFamily: 'archivo',
+    landingStyle: 'minimal',
+    displayMode: 'dark',
+  },
 };
 
 export function isLayoutTemplateId(id: string | undefined | null): id is LayoutTemplateId {
@@ -91,7 +100,8 @@ export function isLayoutTemplateId(id: string | undefined | null): id is LayoutT
     id === 'template-10' ||
     id === 'template-7' ||
     id === 'template-8' ||
-    id === 'template-11'
+    id === 'template-11' ||
+    id === 'template-12'
   );
 }
 

@@ -172,7 +172,7 @@ export const EventCheckout: React.FC<EventCheckoutProps> = ({ forcedSlug }) => {
     ? landingCssVars(event.customization, event.templateId)
     : landingCssVars(undefined);
 
-  const isPulse = event?.templateId === 'template-11';
+  const isPulse = event?.templateId === 'template-11' || event?.templateId === 'template-12';
 
   if (loading || (event && !accessRequired && selectedTickets === null)) {
     return (

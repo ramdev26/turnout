@@ -23,6 +23,7 @@ import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
 import {
   LANDING_DESIGN_OVERRIDE_RESET,
   LANDING_LAYOUT_TEMPLATES,
+  isPulseFamilyTemplate,
   type LandingDesignValue,
 } from './LandingCustomizer';
 import type { LandingButtonShadow } from '../../types';
@@ -358,20 +359,19 @@ function RoleTypeBlock({
 /** Reset colours/fonts/sizes to the selected template defaults. */
 const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValue['templateId']): LandingDesignValue => {
   const next = withTemplateDesignDefaults(design, templateId);
-  const pulseDefaults =
-    next.templateId === 'template-11'
-      ? {
-          pageBackgroundColor: '#000000',
-          surfaceColor: '#141414',
-          surfaceMutedColor: '#0f0f0f',
-          buttonColor: '#FF2D8F',
-          buttonTextColor: '#000000',
-          headingColor: '#ffffff',
-          bodyTextColor: '#ffffff',
-          mutedTextColor: '#8c8c8c',
-          borderColor: '#2a2a2a',
-        }
-      : {};
+  const pulseDefaults = isPulseFamilyTemplate(next.templateId)
+    ? {
+        pageBackgroundColor: '#000000',
+        surfaceColor: '#141414',
+        surfaceMutedColor: '#0f0f0f',
+        buttonColor: next.templateId === 'template-12' ? '#E8342A' : '#FF2D8F',
+        buttonTextColor: '#000000',
+        headingColor: '#ffffff',
+        bodyTextColor: '#ffffff',
+        mutedTextColor: '#8c8c8c',
+        borderColor: '#2a2a2a',
+      }
+    : {};
   return {
     ...design,
     ...LANDING_DESIGN_OVERRIDE_RESET,
@@ -479,6 +479,20 @@ const TemplateThumb: React.FC<{
         <div className="mt-auto grid grid-cols-2 gap-1">
           <div className="h-4 rounded-[2px] border border-white/25 bg-black" />
           <div className="h-4 rounded-[2px] border border-[#ff2d8f]/50 bg-black" />
+        </div>
+      </div>
+    ),
+    'template-12': (
+      <div className="flex h-full flex-col gap-1 p-1.5" style={{ background: '#050505' }}>
+        <div className="flex justify-between gap-1">
+          <div className="h-3 w-8 rounded-[2px] bg-white/80" />
+          <div className="h-2 w-6 rounded-[2px] bg-[#e8342a]/80" />
+        </div>
+        <div className="h-5 w-4/5 rounded-[2px] bg-white/70" />
+        <div className="h-2 w-1/2 rounded-[2px] bg-[#e8342a]/70" />
+        <div className="mt-auto grid grid-cols-2 gap-1">
+          <div className="h-4 rounded-[2px] border border-white/25 bg-black" />
+          <div className="h-4 rounded-[2px] border border-[#e8342a]/50 bg-black" />
         </div>
       </div>
     ),
@@ -600,8 +614,8 @@ export function LandingDesignDock({
   const toggle = (control: DockControl) => setOpen((cur) => (cur === control ? null : control));
 
   const selectTemplate = (templateId: LandingDesignValue['templateId']) => {
-    // Pulse owns a black/pink poster system — apply its palette when selected.
-    if (templateId === 'template-11') {
+    // Pulse / Ctrl own a black poster system — apply the palette when selected.
+    if (isPulseFamilyTemplate(templateId)) {
       onDesignChange(applyTemplate(design, templateId));
     } else {
       // Keep organizer colour / font / size draft when switching other layouts.

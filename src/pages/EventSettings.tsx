@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { resolveLayoutTemplateId, LANDING_LAYOUT_TEMPLATES } from '../templates/templates';
+import {
+  resolveLayoutTemplateId,
+  LANDING_LAYOUT_TEMPLATES,
+  isPulseFamilyTemplate,
+} from '../templates/templates';
 import {
   ArrowLeft,
   ChevronDown,
@@ -262,7 +266,12 @@ export const EventSettings: React.FC = () => {
       setTitle(ev.title);
       setDescription(ev.description || '');
       setShortDescription(ev.customization?.heroSubtext || '');
-      setPulseHeaderLinkLabel(ev.customization?.pulseHeaderLinkLabel || 'Access Club Ctrl');
+      setPulseHeaderLinkLabel(
+        ev.customization?.pulseHeaderLinkLabel ||
+          (resolveLayoutTemplateId(ev.templateId) === 'template-12'
+            ? 'Access Take My Bass'
+            : 'Access Club Ctrl')
+      );
       setPulseHeaderLink(ev.customization?.pulseHeaderLink || '');
       const mode = resolveEventLocationMode(ev.customization);
       const tbaLocation = isLocationTba(ev.customization, mode === 'online' ? '' : ev.location);
@@ -477,9 +486,11 @@ export const EventSettings: React.FC = () => {
         heroText: title.trim() || event.title,
         layout: event.customization?.layout || 'standard',
         arenaGalleryImages,
-        ...(design.templateId === 'template-11'
+        ...(isPulseFamilyTemplate(design.templateId)
           ? {
-              pulseHeaderLinkLabel: pulseHeaderLinkLabel.trim() || 'Access Club Ctrl',
+              pulseHeaderLinkLabel:
+                pulseHeaderLinkLabel.trim() ||
+                (design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl'),
               pulseHeaderLink: pulseHeaderLink.trim() || undefined,
             }
           : {}),
@@ -618,9 +629,11 @@ export const EventSettings: React.FC = () => {
         date: new Date(date).toISOString(),
         bannerUrl: bannerUrl || undefined,
         heroSubtext: shortDescription.trim(),
-        ...(design.templateId === 'template-11'
+        ...(isPulseFamilyTemplate(design.templateId)
           ? {
-              pulseHeaderLinkLabel: pulseHeaderLinkLabel.trim() || 'Access Club Ctrl',
+              pulseHeaderLinkLabel:
+                pulseHeaderLinkLabel.trim() ||
+                (design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl'),
               pulseHeaderLink: pulseHeaderLink.trim(),
             }
           : {}),
@@ -695,7 +708,12 @@ export const EventSettings: React.FC = () => {
       setArenaGalleryImages(normalizeArenaGalleryImages(res.event.customization?.arenaGalleryImages));
       setCheckoutFields(normalizeCheckoutFields(res.event.customization?.checkoutFields));
       setEventPolicyHtml(resolveEventPolicyHtml(res.event.customization?.eventPolicyHtml));
-      setPulseHeaderLinkLabel(res.event.customization?.pulseHeaderLinkLabel || 'Access Club Ctrl');
+      setPulseHeaderLinkLabel(
+        res.event.customization?.pulseHeaderLinkLabel ||
+          (resolveLayoutTemplateId(res.event.templateId) === 'template-12'
+            ? 'Access Take My Bass'
+            : 'Access Club Ctrl')
+      );
       setPulseHeaderLink(res.event.customization?.pulseHeaderLink || '');
       setDesign((prev) => ({
         ...prev,
@@ -1283,19 +1301,21 @@ export const EventSettings: React.FC = () => {
               <p className="mb-4 text-xs" style={{ color: ui.textSubtle }}>
                 Shown under the title on your public page. Leave blank for no subtitle.
               </p>
-              {design.templateId === 'template-11' ? (
+              {isPulseFamilyTemplate(design.templateId) ? (
                 <div className="mb-4 space-y-3">
                   <div>
                     <label
                       className="mb-1 block text-xs font-semibold uppercase tracking-wide"
                       style={{ color: ui.textSubtle }}
                     >
-                      Pulse header link label
+                      Header link label
                     </label>
                     <input
                       value={pulseHeaderLinkLabel}
                       onChange={(e) => setPulseHeaderLinkLabel(e.target.value)}
-                      placeholder="Access Club Ctrl"
+                      placeholder={
+                        design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl'
+                      }
                       maxLength={80}
                       className={fieldClass}
                       style={fieldStyle}
@@ -1306,7 +1326,7 @@ export const EventSettings: React.FC = () => {
                       className="mb-1 block text-xs font-semibold uppercase tracking-wide"
                       style={{ color: ui.textSubtle }}
                     >
-                      Pulse header link URL
+                      Header link URL
                     </label>
                     <input
                       value={pulseHeaderLink}
@@ -1317,7 +1337,7 @@ export const EventSettings: React.FC = () => {
                       style={fieldStyle}
                     />
                     <p className="mt-1 text-xs" style={{ color: ui.textSubtle }}>
-                      Top-right Pulse header (“Access Club Ctrl →”). Leave URL blank to show text only.
+                      Top-right header link with arrow. Leave URL blank to show text only.
                     </p>
                   </div>
                 </div>

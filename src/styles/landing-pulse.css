@@ -22,6 +22,11 @@
   letter-spacing: 0.01em;
 }
 
+/* Ctrl — same Pulse layout with Club Ctrl red accent */
+.landing-pulse--ctrl {
+  --pulse-accent: var(--landing-button, var(--landing-accent-readable, var(--primary, #e8342a)));
+}
+
 .landing-page:has(.landing-pulse)::before {
   display: none;
 }

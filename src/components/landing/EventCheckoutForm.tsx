@@ -537,7 +537,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
     }
   };
 
-  const isPulse = event.templateId === 'template-11';
+  const isPulse = event.templateId === 'template-11' || event.templateId === 'template-12';
 
   const inputStyle: React.CSSProperties = {
     borderColor: 'var(--landing-border)',

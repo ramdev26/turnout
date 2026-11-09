@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { resolveLayoutTemplateId } from '../templates/templates';
+import { isPulseFamilyTemplate, resolveLayoutTemplateId } from '../templates/templates';
 import { useFieldArray, useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -666,14 +666,18 @@ export const CreateEvent: React.FC = () => {
         heroText: data.title,
         // If organizer leaves short description empty, keep landing subtitle blank.
         heroSubtext: (data.shortDescription || '').trim(),
-        ...(design.templateId === 'template-11'
+        ...(isPulseFamilyTemplate(design.templateId)
           ? {
-              pulseHeaderLinkLabel: 'Access Club Ctrl',
+              pulseHeaderLinkLabel:
+                design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
               pulseHeadline: 'TICKETS OPEN NOW.',
               pulseTagline: 'TWO ROOMS. ONE NIGHT.',
               pageBackgroundColor: design.pageBackgroundColor || '#000000',
               surfaceColor: design.surfaceColor || '#141414',
-              buttonColor: design.buttonColor || design.primaryColor || '#FF2D8F',
+              buttonColor:
+                design.buttonColor ||
+                design.primaryColor ||
+                (design.templateId === 'template-12' ? '#E8342A' : '#FF2D8F'),
               buttonTextColor: design.buttonTextColor || '#000000',
               displayMode: 'dark' as const,
             }
@@ -776,14 +780,18 @@ export const CreateEvent: React.FC = () => {
       primaryColor: design.primaryColor,
       secondaryColor: design.secondaryColor,
       fontFamily: design.fontFamily,
-      ...(design.templateId === 'template-11'
+      ...(isPulseFamilyTemplate(design.templateId)
         ? {
-            pulseHeaderLinkLabel: 'Access Club Ctrl',
+            pulseHeaderLinkLabel:
+              design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
             pulseHeadline: 'TICKETS OPEN NOW.',
             pulseTagline: 'TWO ROOMS. ONE NIGHT.',
             pageBackgroundColor: design.pageBackgroundColor || '#000000',
             surfaceColor: design.surfaceColor || '#141414',
-            buttonColor: design.buttonColor || design.primaryColor || '#FF2D8F',
+            buttonColor:
+              design.buttonColor ||
+              design.primaryColor ||
+              (design.templateId === 'template-12' ? '#E8342A' : '#FF2D8F'),
             displayMode: 'dark' as const,
           }
         : {}),

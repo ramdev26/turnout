@@ -58,10 +58,10 @@ export function eventImageSizeHint(templateId?: string | null): EventImageLayout
     };
   }
 
-  // Pulse — full poster card in the left column
-  if (id === 'template-11') {
+  // Pulse / Ctrl — full poster card in the left column
+  if (id === 'template-11' || id === 'template-12') {
     return {
-      label: 'Pulse · 1080×1350 (4:5) poster',
+      label: id === 'template-12' ? 'Ctrl · 1080×1350 (4:5) poster' : 'Pulse · 1080×1350 (4:5) poster',
       detail: 'Shown as a full poster card above the headline. Landscape also works. GIF supported · max 50MB.',
     };
   }
