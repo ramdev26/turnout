@@ -22,6 +22,62 @@ const hexToRgb = (hex: string, fallback: [number, number, number]): [number, num
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
+const normalizeHex = (value: string | undefined | null, fallback: string): string => {
+  const raw = (value || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toLowerCase();
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toLowerCase()}`;
+  return fallback;
+};
+
+const relativeLuminance = (hex: string): number => {
+  const [r, g, b] = hexToRgb(hex, [0, 0, 0]).map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const resolvePassTheme = (event: Event | null) => {
+  const c = event?.customization;
+  const templateId = event?.templateId || '';
+  const defaults =
+    templateId === 'template-12'
+      ? { primary: '#e8342a', secondary: '#b91c1c', lime: '#fca5a5', onButton: '#000000' }
+      : templateId === 'template-11'
+        ? { primary: '#ff2d8f', secondary: '#c4185c', lime: '#fda4cf', onButton: '#000000' }
+        : { primary: '#0d585b', secondary: '#b8f25a', lime: '#b8f25a', onButton: '#f3ffe4' };
+
+  const primary = normalizeHex(
+    c?.ticketPdfPrimaryColor || c?.buttonColor || c?.primaryColor,
+    defaults.primary
+  );
+  const secondary = normalizeHex(
+    c?.ticketPdfAccentColor || c?.secondaryColor,
+    defaults.secondary
+  );
+  const button = normalizeHex(c?.buttonColor || c?.primaryColor, primary);
+  const buttonText = normalizeHex(
+    c?.buttonTextColor,
+    relativeLuminance(button) >= 0.55 ? '#111827' : '#ffffff'
+  );
+  const qrFg = relativeLuminance(primary) <= 0.48 ? primary : '#111111';
+
+  return {
+    primary,
+    secondary,
+    button,
+    buttonText,
+    qrFg,
+    lime: secondary || defaults.lime,
+    pageVars: {
+      ['--confirm-accent' as string]: primary,
+      ['--confirm-lime' as string]: secondary || defaults.lime,
+      ['--confirm-accent-on' as string]: buttonText,
+      ['--confirm-soft' as string]: `${primary}14`,
+    } as React.CSSProperties,
+  };
+};
+
 export const Success: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
@@ -169,6 +225,8 @@ export const Success: React.FC = () => {
     }
   };
 
+  const passTheme = useMemo(() => resolvePassTheme(event), [event]);
+
   const downloadAttendeeTicket = (attendee: { id: string; fullName: string; email: string; qrToken: string }) => {
     if (!order || !event) return;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -176,8 +234,9 @@ export const Success: React.FC = () => {
     const margin = 36;
     const eventDate = format(new Date(event.date), 'PPPP p');
     const template = (event.customization?.ticketPdfTemplateId || 'classic') as TicketPdfTemplate;
-    const primaryRgb = hexToRgb(event.customization?.ticketPdfPrimaryColor || '#0d585b', [13, 88, 91]);
-    const accentRgb = hexToRgb(event.customization?.ticketPdfAccentColor || '#b8f25a', [184, 242, 90]);
+    const theme = resolvePassTheme(event);
+    const primaryRgb = hexToRgb(theme.primary, [13, 88, 91]);
+    const accentRgb = hexToRgb(theme.secondary, [184, 242, 90]);
     const badgeText = event.customization?.ticketPdfBadgeText || 'EVENT PASS';
     const footerNote = event.customization?.ticketPdfFooterNote || 'Please bring this ticket and a valid ID.';
     const darkText: [number, number, number] = template === 'midnight' ? [229, 231, 235] : [17, 24, 39];
@@ -308,7 +367,7 @@ export const Success: React.FC = () => {
       : null;
 
     return (
-      <div className="confirm-page">
+      <div className="confirm-page" style={passTheme.pageVars}>
         <div className="confirm-shell">
           <div className="confirm-hero">
             <span className="confirm-badge">
@@ -439,7 +498,7 @@ export const Success: React.FC = () => {
     : '';
 
   return (
-    <div className="confirm-page">
+    <div className="confirm-page" style={passTheme.pageVars}>
       <div className="confirm-shell">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <div className="confirm-hero">
@@ -518,13 +577,16 @@ export const Success: React.FC = () => {
                   {a.ticketName ? <div className="confirm-pass-tier">{a.ticketName}</div> : null}
                   <h3 className="confirm-pass-name">{a.fullName}</h3>
                   <p className="confirm-pass-email">{a.email}</p>
-                  <div className="confirm-qr-wrap">
+                  <div
+                    className="confirm-qr-wrap"
+                    style={{ borderColor: passTheme.primary, boxShadow: `inset 0 0 0 1px ${passTheme.primary}22` }}
+                  >
                     <QRCodeCanvas
                       id={`ticket-qr-${a.id}`}
                       value={a.qrToken}
                       size={168}
                       bgColor="#ffffff"
-                      fgColor="#0c1f24"
+                      fgColor={passTheme.qrFg}
                       level="H"
                       includeMargin={false}
                     />
