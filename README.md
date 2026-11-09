@@ -128,12 +128,15 @@ Ticket purchase confirmations and other app emails are sent through [Plunk](http
 
 Set in the project `.env` (loaded by the PHP API) or in Vercel **Environment Variables**:
 
-- `PLUNK_SECRET_KEY` — **required** for sending mail (server only; never put in `VITE_*` or frontend code)
-- `PLUNK_PUBLIC_KEY` — optional; only if you add client-side Plunk features later (not used for ticket emails today)
+- `PLUNK_SECRET_KEY` — **required** secret key (`sk_…`) for send + [verifyEmail](https://docs.useplunk.com/api-reference/public-api/verifyEmail) (server only; never put in `VITE_*`)
+- `PLUNK_PUBLIC_KEY` — optional; only for client-side `/v1/track` (not used for ticket emails)
 - `PLUNK_API_URL` — optional, defaults to `https://next-api.useplunk.com/v1/send`
+- `PLUNK_VERIFY_API_URL` — optional, defaults to `https://next-api.useplunk.com/v1/verify`
 - `MAIL_ENABLED` — `true` (default) to send mail; `false` to no-op (dev)
 - `MAIL_FROM` — sender address verified in Plunk (e.g. `admin@bigturnout.co`)
 - `MAIL_FROM_NAME` — display name (e.g. `Turnout`)
+
+Signup and checkout call Plunk `POST /v1/verify` (via `/api/auth/check-email`) to reject disposable addresses, missing MX records, and common typos before account creation or payment.
 
 Verify your sending domain in Plunk before going live. After deploy, complete a test checkout with multiple ticket holders to confirm the buyer and each attendee receive their emails.
 

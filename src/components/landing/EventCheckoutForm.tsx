@@ -18,6 +18,8 @@ import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import { resolveOrganizerTermsHtml } from '../../utils/organizerTerms';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../../utils/purchaseLimits';
 import { EventPolicyViewerModal } from './EventPolicyViewer';
+import { useEmailDeliverability } from '../../hooks/useEmailDeliverability';
+import { checkEmailDeliverability } from '../../lib/plunkEmailVerify';
 
 type TicketHolderInput = {
   key: string;
@@ -98,7 +100,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
 
   const payableTotal = appliedCoupon ? appliedCoupon.total : totalAmount;
 
-  const { register, handleSubmit, reset, watch } = useForm<{
+  const { register, handleSubmit, reset, watch, setValue } = useForm<{
     buyerName: string;
     buyerEmail: string;
     buyerPhone: string;
@@ -118,6 +120,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
   const buyerName = watch('buyerName');
   const buyerEmail = watch('buyerEmail');
   const buyerPhone = watch('buyerPhone');
+  const buyerEmailCheck = useEmailDeliverability(buyerEmail);
 
   const hasSelectedTickets = orderItems.length > 0;
 
@@ -353,6 +356,13 @@ export const EventCheckoutForm: React.FC<Props> = ({
         customFields?: Record<string, string>;
       }[];
 
+      const buyerCheck = await checkEmailDeliverability(values.buyerEmail);
+      if (!buyerCheck.deliverable) {
+        setPayError(buyerCheck.message || 'Enter a deliverable buyer email.');
+        setIsPurchasing(false);
+        return;
+      }
+
       if (assignEachTicket && canAssignEachTicket) {
         for (const row of ticketHolders) {
           if (!row.fullName.trim()) {
@@ -362,6 +372,16 @@ export const EventCheckoutForm: React.FC<Props> = ({
           }
           if (!isValidEmail(row.email)) {
             setPayError(`Enter a valid email for ${row.label}.`);
+            setIsPurchasing(false);
+            return;
+          }
+          const holderCheck = await checkEmailDeliverability(row.email);
+          if (!holderCheck.deliverable) {
+            setPayError(
+              holderCheck.suggestedEmail
+                ? `${row.label}: ${holderCheck.message || 'Email looks incorrect.'}`
+                : `Enter a deliverable email for ${row.label}.`
+            );
             setIsPurchasing(false);
             return;
           }
@@ -376,6 +396,12 @@ export const EventCheckoutForm: React.FC<Props> = ({
       } else if (buyingForSomeoneElse) {
         if (!values.attendeeName.trim() || !isValidEmail(values.attendeeEmail)) {
           setPayError('Enter the attendee name and a valid email.');
+          setIsPurchasing(false);
+          return;
+        }
+        const attendeeCheck = await checkEmailDeliverability(values.attendeeEmail);
+        if (!attendeeCheck.deliverable) {
+          setPayError(attendeeCheck.message || 'Enter a deliverable attendee email.');
           setIsPurchasing(false);
           return;
         }
@@ -808,7 +834,31 @@ export const EventCheckoutForm: React.FC<Props> = ({
           {...register('buyerEmail', { required: true })}
           className="landing-checkout-input rounded-xl border px-4 py-3 outline-none focus:ring-2"
           style={inputStyle}
+          autoComplete="email"
         />
+        {buyerEmailCheck.checking ? (
+          <span className="text-[11px]" style={{ color: 'var(--landing-text-muted)' }}>
+            Checking email…
+          </span>
+        ) : null}
+        {!buyerEmailCheck.checking && buyerEmailCheck.message ? (
+          <span className="text-[11px] font-medium text-rose-500">{buyerEmailCheck.message}</span>
+        ) : null}
+        {!buyerEmailCheck.checking && buyerEmailCheck.suggestedEmail ? (
+          <button
+            type="button"
+            className="self-start text-[11px] font-semibold underline-offset-2 hover:underline"
+            style={{ color: 'var(--landing-accent-readable, var(--primary))' }}
+            onClick={() =>
+              setValue('buyerEmail', buyerEmailCheck.suggestedEmail!, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          >
+            Use {buyerEmailCheck.suggestedEmail}
+          </button>
+        ) : null}
       </label>
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--landing-text-muted)' }}>
