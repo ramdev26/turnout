@@ -1144,6 +1144,8 @@ function payhere_cfg(): array {
   if ($appBase === '') {
     $appBase = 'https://app.bigturnout.co';
   }
+  // Apex bigturnout.co is the marketing site (Apache) — SPA + PayHere live on app.*.
+  $appBase = payhere_normalize_spa_public_base($appBase);
   if ($appBase === '') {
     json_response(500, ['error' => 'payhere_missing_app_base_url']);
   }
@@ -1159,11 +1161,27 @@ function payhere_cfg(): array {
   ];
 }
 
+/**
+ * Map marketing apex → SPA origin. Checkout must never launch on bigturnout.co
+ * (Apache 404); PayHere works on app.bigturnout.co.
+ */
+function payhere_normalize_spa_public_base(string $base): string {
+  $base = rtrim(trim($base), '/');
+  if ($base === '') return 'https://app.bigturnout.co';
+  if (function_exists('canonical_public_app_origin')) {
+    return canonical_public_app_origin($base);
+  }
+  $host = strtolower((string)(parse_url($base, PHP_URL_HOST) ?: ''));
+  if ($host === 'bigturnout.co' || $host === 'www.bigturnout.co') {
+    return 'https://app.bigturnout.co';
+  }
+  return $base;
+}
+
 /** Public origin PayHere merchant credentials are registered against (platform Turnout Pay). */
 function payhere_platform_public_base(array $cfg): string {
   $base = rtrim((string)($cfg['app_base_url'] ?? ''), '/');
-  if ($base !== '') return $base;
-  return 'https://app.bigturnout.co';
+  return payhere_normalize_spa_public_base($base);
 }
 
 function payhere_host_from_base(string $base): string {
@@ -1173,19 +1191,24 @@ function payhere_host_from_base(string $base): string {
 
 /**
  * Hosts allowed to start PayHere checkout with platform merchant credentials.
- * Custom event domains (e.g. tickets.takemybass.com) are NOT included — PayHere
- * returns PH-0013 Unauthorized when the Referer domain is not registered.
+ * Custom event domains and the marketing apex are NOT included — those must hop
+ * to app.bigturnout.co or PayHere returns PH-0013 / Apache 404.
  */
 function payhere_platform_authorized_hosts(array $cfg): array {
   $hosts = [];
   $platformHost = payhere_host_from_base(payhere_platform_public_base($cfg));
   if ($platformHost !== '') $hosts[] = $platformHost;
-  foreach (['app.bigturnout.co', 'bigturnout.co', 'www.bigturnout.co', 'localhost', '127.0.0.1'] as $h) {
+  // Do not treat apex bigturnout.co as authorized — it is not the SPA.
+  foreach (['app.bigturnout.co', 'localhost', '127.0.0.1'] as $h) {
     $hosts[] = normalize_event_hostname($h);
   }
   if (function_exists('domain_platform_hosts')) {
     foreach (domain_platform_hosts() as $h) {
-      $hosts[] = normalize_event_hostname((string)$h);
+      $normalized = normalize_event_hostname((string)$h);
+      if ($normalized === 'bigturnout.co' || $normalized === 'www.bigturnout.co') {
+        continue;
+      }
+      $hosts[] = $normalized;
     }
   }
   return array_values(array_unique(array_filter($hosts)));
