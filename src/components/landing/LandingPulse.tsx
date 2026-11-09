@@ -4,7 +4,7 @@ import type { Event, Ticket as EventTicket } from '../../types';
 import type { LandingTemplateProps } from '../../templates/templates';
 import { LandingFooter, LandingPageShell, ticketRemaining } from './LandingShared';
 import { formatLKRWhole } from '../../utils/money';
-import { ticketEffectivePrice, ticketHasEarlyBirdOffer } from '../../utils/ticketPricing';
+import { ticketEffectivePrice } from '../../utils/ticketPricing';
 import {
   isLocationTba,
   resolveEventLocationLabel,
@@ -239,11 +239,13 @@ export function LandingPulsePage({
 
   const rooms = useMemo(() => resolveRooms(event, tickets), [event, tickets]);
   const schedule = useMemo(() => resolveSchedule(event, tickets), [event, tickets]);
-  const hasEarlyBirdColumn = tickets.some((t) => ticketHasEarlyBirdOffer(t));
+  // First release = early bird; Second release = original price.
+  // While early bird is on sale, only show the first-release rate (hide original).
+  const earlyBirdOnSale = tickets.some((t) => Boolean(t.earlyBird?.active));
   const priceNote =
     (event.customization?.pulsePriceNote || '').trim() ||
-    (hasEarlyBirdColumn
-      ? 'First release is limited. Bundle tickets cover both sessions when available.'
+    (earlyBirdOnSale
+      ? 'First release (early bird) is limited. Original prices apply after this release ends.'
       : 'Select a room pass below, then continue to checkout.');
 
   const hasSelection = useMemo(
@@ -388,7 +390,7 @@ export function LandingPulsePage({
                 <thead>
                   <tr>
                     <th scope="col">Room</th>
-                    {hasEarlyBirdColumn ? (
+                    {earlyBirdOnSale ? (
                       <th scope="col">
                         <span className="pulse-th-sale">
                           <span className="pulse-onsale">On sale</span>
@@ -398,7 +400,7 @@ export function LandingPulsePage({
                     ) : (
                       <th scope="col">Price</th>
                     )}
-                    {hasEarlyBirdColumn ? <th scope="col">Second release</th> : <th scope="col">Select</th>}
+                    <th scope="col">Select</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -406,10 +408,15 @@ export function LandingPulsePage({
                     const qty = selectedTickets[ticket.id] || 0;
                     const remaining = ticketRemaining(ticket);
                     const featured = isFeaturedTicket(ticket, index, tickets.length);
-                    const early = ticketHasEarlyBirdOffer(ticket)
+                    const ticketEarlyActive = Boolean(ticket.earlyBird?.active);
+                    const displayPrice = ticketEarlyActive
                       ? ticketEffectivePrice(ticket)
-                      : null;
-                    const standard = ticket.price;
+                      : ticket.price;
+                    const priceLabel = earlyBirdOnSale
+                      ? ticketEarlyActive
+                        ? 'First release'
+                        : 'Price'
+                      : 'Price';
                     return (
                       <tr
                         key={ticket.id}
@@ -426,35 +433,16 @@ export function LandingPulsePage({
                             <div className="pulse-schedule-time">Sold out</div>
                           ) : null}
                         </td>
-                        {hasEarlyBirdColumn ? (
-                          <td data-label="First release">
-                            <button
-                              type="button"
-                              className="pulse-price-btn"
-                              disabled={remaining <= 0}
-                              onClick={() => onTicketChange(ticket.id, Math.min(remaining, Math.max(1, qty)))}
-                            >
-                              <span className="pulse-price">{money(early ?? standard)}</span>
-                            </button>
-                          </td>
-                        ) : (
-                          <td data-label="Price">
-                            <span className="pulse-price">{money(standard)}</span>
-                          </td>
-                        )}
-                        <td data-label={hasEarlyBirdColumn ? 'Second release' : 'Select'}>
-                          {hasEarlyBirdColumn ? (
-                            <div className="pulse-price-select">
-                              <span className="pulse-price">{money(standard)}</span>
-                              {remaining > 0 ? (
-                                <PulseQty
-                                  qty={qty}
-                                  max={remaining}
-                                  onChange={(next) => onTicketChange(ticket.id, next)}
-                                />
-                              ) : null}
-                            </div>
-                          ) : remaining > 0 ? (
+                        <td data-label={priceLabel}>
+                          <div className="pulse-price-select">
+                            <span className="pulse-price">{money(displayPrice)}</span>
+                            {earlyBirdOnSale && ticketEarlyActive ? (
+                              <span className="pulse-price-hint">Early bird</span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td data-label="Select">
+                          {remaining > 0 ? (
                             <PulseQty
                               qty={qty}
                               max={remaining}
