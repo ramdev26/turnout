@@ -407,6 +407,8 @@ export interface EventCustomization {
   pulsePriceNote?: string;
   layout: 'standard' | 'centered' | 'split';
   customDomain?: string;
+  /** Short path on a shared custom domain (e.g. tmb → tickets.example.com/tmb). */
+  customDomainPath?: string;
   dnsProvider?: 'cloudflare' | 'godaddy' | 'namecheap' | 'other';
   dnsRecordType?: 'CNAME' | 'A';
   dnsRecordTarget?: string;

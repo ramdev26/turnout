@@ -140,7 +140,20 @@ function HostAwareRoot({
   return <Signup />;
 }
 
-/** On a custom domain, `/e/:slug` collapses to `/` (and checkout to `/checkout`). */
+type HostEventMap = {
+  slug?: string;
+  paths?: Record<string, string>;
+};
+
+function aliasForSlug(paths: Record<string, string> | undefined, slug: string): string | null {
+  if (!paths) return null;
+  for (const [alias, mapped] of Object.entries(paths)) {
+    if (mapped === slug) return alias;
+  }
+  return null;
+}
+
+/** On a custom domain, `/e/:slug` collapses to `/` or `/{alias}`. */
 function CustomDomainSlugRedirect({
   children,
   to = '/',
@@ -149,7 +162,7 @@ function CustomDomainSlugRedirect({
   to?: string;
 }) {
   const { slug } = useParams<{ slug: string }>();
-  const [mappedSlug, setMappedSlug] = useState<string | null>(null);
+  const [redirectTo, setRedirectTo] = useState<string | null>(null);
   const [checked, setChecked] = useState(() => !isCustomEventHostname());
 
   useEffect(() => {
@@ -161,10 +174,16 @@ function CustomDomainSlugRedirect({
     (async () => {
       try {
         const host = normalizeHostname(window.location.hostname);
-        const mapped = await api.get<{ slug?: string }>(`/api/events/by-host/${encodeURIComponent(host)}`);
-        if (!cancelled) setMappedSlug((mapped.slug || '').trim() || null);
+        const mapped = await api.get<HostEventMap>(`/api/events/by-host/${encodeURIComponent(host)}`);
+        const defaultSlug = (mapped.slug || '').trim();
+        const alias = slug ? aliasForSlug(mapped.paths, slug) : null;
+        if (!cancelled) {
+          if (alias) setRedirectTo(to === '/checkout' ? `/${alias}/checkout` : `/${alias}`);
+          else if (defaultSlug && (!slug || slug === defaultSlug)) setRedirectTo(to);
+          else setRedirectTo(null);
+        }
       } catch {
-        if (!cancelled) setMappedSlug(null);
+        if (!cancelled) setRedirectTo(null);
       } finally {
         if (!cancelled) setChecked(true);
       }
@@ -172,12 +191,10 @@ function CustomDomainSlugRedirect({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [slug, to]);
 
   if (!checked) return <FullPageLoader dark />;
-  if (mappedSlug && (!slug || slug === mappedSlug)) {
-    return <Navigate to={to} replace />;
-  }
+  if (redirectTo) return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }
 
@@ -190,7 +207,7 @@ function CustomDomainCheckout() {
     (async () => {
       try {
         const host = normalizeHostname(window.location.hostname);
-        const mapped = await api.get<{ slug?: string }>(`/api/events/by-host/${encodeURIComponent(host)}`);
+        const mapped = await api.get<HostEventMap>(`/api/events/by-host/${encodeURIComponent(host)}`);
         const next = (mapped.slug || '').trim();
         if (!cancelled) {
           if (next) setSlug(next);
@@ -206,6 +223,94 @@ function CustomDomainCheckout() {
   }, []);
 
   if (failed) return <Navigate to="/" replace />;
+  if (!slug) return <FullPageLoader dark />;
+  return <EventCheckout forcedSlug={slug} />;
+}
+
+/** tickets.example.com/tmb or /cc → event landing for that path alias. */
+function HostDomainPathLanding() {
+  const { domainPath } = useParams<{ domainPath: string }>();
+  const [slug, setSlug] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isCustomEventHostname()) {
+      setFailed(true);
+      return;
+    }
+    const alias = (domainPath || '').trim().toLowerCase();
+    if (!alias) {
+      setFailed(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const host = normalizeHostname(window.location.hostname);
+        const mapped = await api.get<HostEventMap>(
+          `/api/events/by-host/${encodeURIComponent(host)}?path=${encodeURIComponent(alias)}`
+        );
+        const fromPaths = (mapped.paths?.[alias] || '').trim();
+        if (!cancelled) {
+          if (fromPaths) setSlug(fromPaths);
+          else setFailed(true);
+        }
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [domainPath]);
+
+  if (!isCustomEventHostname()) return <Navigate to="/" replace />;
+  if (failed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black px-4 text-center text-white">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Event unavailable</h1>
+          <p className="mt-2 text-sm text-white/60">No event is connected to this path yet.</p>
+        </div>
+      </div>
+    );
+  }
+  if (!slug) return <FullPageLoader dark />;
+  return <EventLanding forcedSlug={slug} />;
+}
+
+function HostDomainPathCheckout() {
+  const { domainPath } = useParams<{ domainPath: string }>();
+  const [slug, setSlug] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isCustomEventHostname()) {
+      setFailed(true);
+      return;
+    }
+    const alias = (domainPath || '').trim().toLowerCase();
+    let cancelled = false;
+    (async () => {
+      try {
+        const host = normalizeHostname(window.location.hostname);
+        const mapped = await api.get<HostEventMap>(`/api/events/by-host/${encodeURIComponent(host)}`);
+        const fromPaths = (mapped.paths?.[alias] || '').trim();
+        if (!cancelled) {
+          if (fromPaths) setSlug(fromPaths);
+          else setFailed(true);
+        }
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [domainPath]);
+
+  if (!isCustomEventHostname()) return <Navigate to="/" replace />;
+  if (failed) return <Navigate to={`/${domainPath || ''}`} replace />;
   if (!slug) return <FullPageLoader dark />;
   return <EventCheckout forcedSlug={slug} />;
 }
@@ -589,6 +694,8 @@ export default function App() {
           <Route path="/orders/:orderId/success" element={<Success />} />
           <Route path="/payhere/return" element={<PayHereReturn />} />
           <Route path="/payhere/cancel" element={<PayHereCancel />} />
+          <Route path="/:domainPath/checkout" element={<HostDomainPathCheckout />} />
+          <Route path="/:domainPath" element={<HostDomainPathLanding />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

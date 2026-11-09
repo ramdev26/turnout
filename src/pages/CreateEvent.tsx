@@ -670,6 +670,7 @@ export const CreateEvent: React.FC = () => {
           ? {
               pulseHeaderLinkLabel:
                 design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
+              pulseHeaderLink: design.templateId === 'template-12' ? '/tmb' : '/cc',
               // Headline uses event title on the landing — do not invent theme copy.
               // Tagline comes from short description (heroSubtext).
               pulseTagline: (data.shortDescription || '').trim() || undefined,
@@ -785,6 +786,7 @@ export const CreateEvent: React.FC = () => {
         ? {
             pulseHeaderLinkLabel:
               design.templateId === 'template-12' ? 'Access Take My Bass' : 'Access Club Ctrl',
+            pulseHeaderLink: design.templateId === 'template-12' ? '/tmb' : '/cc',
             pulseTagline: (shortDescription || '').trim() || undefined,
             pageBackgroundColor: design.pageBackgroundColor || '#000000',
             surfaceColor: design.surfaceColor || '#141414',

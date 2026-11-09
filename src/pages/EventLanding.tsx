@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Event, Ticket, OrderItem } from '../types';
 import { api } from '../api/client';
 import { getLandingTemplateForEvent } from '../templates/templates';
@@ -38,6 +38,7 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
   const { eventId, slug: paramSlug } = useParams<{ eventId?: string; slug?: string }>();
   const slug = forcedSlug || paramSlug;
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const codeFromUrl = (searchParams.get('code') || '').trim();
   const customDomainRoot = Boolean(forcedSlug);
@@ -244,10 +245,13 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
         selectedTickets,
         savedAt: Date.now(),
       });
+      const brandedBase = location.pathname.replace(/\/$/, '') || '';
       const checkoutPath = eventId
         ? `/events/${eventId}/checkout`
         : customDomainRoot
-          ? '/checkout'
+          ? !brandedBase || brandedBase === '/'
+            ? '/checkout'
+            : `${brandedBase}/checkout`
           : `/e/${slug}/checkout`;
       navigate(checkoutPath, { state: { selectedTickets } });
       return;

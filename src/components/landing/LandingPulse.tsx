@@ -350,7 +350,9 @@ export function LandingPulsePage({
     (event.customization?.pulseHeaderLinkLabel || '').trim() ||
     (event.customization?.pulseEyebrow || '').trim() ||
     (ctrlTheme ? 'Access Take My Bass' : 'Access Club Ctrl');
-  const headerLinkUrl = (event.customization?.pulseHeaderLink || '').trim();
+  const headerLinkUrl =
+    (event.customization?.pulseHeaderLink || '').trim() ||
+    (ctrlTheme ? '/tmb' : '/cc');
   const storedHeadline = (event.customization?.pulseHeadline || '').trim();
   // Prefer event title over the old template default “TICKETS OPEN NOW.”
   const headlineRaw =

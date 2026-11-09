@@ -67,6 +67,42 @@ function sharePreviewRewrite(origin: string, slug: string, brandedRoot = false) 
   return rewrite(target);
 }
 
+type HostMap = {
+  slug?: string;
+  paths?: Record<string, string>;
+};
+
+async function fetchHostMap(origin: string, host: string): Promise<HostMap | null> {
+  const lookup = new URL(`/api/events/by-host/${encodeURIComponent(host)}`, origin);
+  const res = await fetch(lookup, { headers: { Accept: 'application/json' } });
+  if (!res.ok) return null;
+  return (await res.json()) as HostMap;
+}
+
+function resolveSlugForPath(map: HostMap, pathname: string): { slug: string; alias: string | null; checkout: boolean } | null {
+  const defaultSlug = (map.slug || '').trim();
+  const paths = map.paths || {};
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 0) {
+    return defaultSlug ? { slug: defaultSlug, alias: null, checkout: false } : null;
+  }
+
+  const first = segments[0].toLowerCase();
+  if (first === 'checkout') {
+    return defaultSlug ? { slug: defaultSlug, alias: null, checkout: true } : null;
+  }
+
+  const aliasSlug = (paths[first] || '').trim();
+  if (aliasSlug) {
+    const checkout = segments[1] === 'checkout';
+    if (segments.length > 2) return null;
+    if (segments.length === 2 && !checkout) return null;
+    return { slug: aliasSlug, alias: first, checkout };
+  }
+
+  return null;
+}
+
 export default async function middleware(request: Request) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) return next();
@@ -83,32 +119,20 @@ export default async function middleware(request: Request) {
   if (isPlatformHost(host)) return next();
 
   try {
-    const lookup = new URL(`/api/events/by-host/${encodeURIComponent(host)}`, url.origin);
-    const res = await fetch(lookup, { headers: { Accept: 'application/json' } });
-    if (!res.ok) return next();
-    const data = (await res.json()) as { slug?: string };
-    const slug = data?.slug;
-    if (!slug) return next();
+    const map = await fetchHostMap(url.origin, host);
+    if (!map) return next();
 
-    // WhatsApp / social previews on the bare custom domain must get event OG tags,
-    // not the SPA shell (which still has Turnout defaults in index.html).
-    if (
-      crawler &&
-      (url.pathname === '/' ||
-        url.pathname === '' ||
-        url.pathname === `/e/${slug}` ||
-        url.pathname === `/e/${encodeURIComponent(slug)}`)
-    ) {
-      return sharePreviewRewrite(url.origin, slug, true);
+    const resolved = resolveSlugForPath(map, url.pathname);
+    if (!resolved) return next();
+
+    // WhatsApp / social previews need event OG tags, not the SPA shell.
+    if (crawler && !resolved.checkout) {
+      return sharePreviewRewrite(url.origin, resolved.slug, true);
     }
 
-    if (url.pathname === '/' || url.pathname === '') {
-      // Keep the browser URL on `/` — only rewrite internally for the SPA shell.
-      return rewrite(new URL(`/e/${slug}${url.search}`, url.origin));
-    }
-
-    if (url.pathname === '/checkout') {
-      return rewrite(new URL(`/e/${slug}/checkout${url.search}`, url.origin));
+    // Keep branded URLs (/tmb, /cc, /) in the address bar — SPA resolves via by-host.
+    if (resolved.alias || url.pathname === '/' || url.pathname === '' || url.pathname === '/checkout') {
+      return next();
     }
   } catch {
     return next();

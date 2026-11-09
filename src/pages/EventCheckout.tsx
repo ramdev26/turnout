@@ -45,7 +45,19 @@ export const EventCheckout: React.FC<EventCheckoutProps> = ({ forcedSlug }) => {
   const [loading, setLoading] = useState(true);
   const checkoutTracked = useRef(false);
 
-  const backHref = eventId ? `/events/${eventId}` : forcedSlug || !slug ? '/' : `/e/${slug}`;
+  const backHref = (() => {
+    if (eventId) return `/events/${eventId}`;
+    if (forcedSlug) {
+      const parts = location.pathname.split('/').filter(Boolean);
+      if (parts.length >= 1 && parts[parts.length - 1] === 'checkout') {
+        const base = parts.slice(0, -1).join('/');
+        return base ? `/${base}` : '/';
+      }
+      return '/';
+    }
+    if (!slug) return '/';
+    return `/e/${slug}`;
+  })();
 
   const finishLoad = async (nextEvent: Event) => {
     setPendingEventAccessContext(nextEvent.id);

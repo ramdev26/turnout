@@ -164,21 +164,62 @@ function ensure_events_custom_domain_column(PDO $pdo): void {
   $done = true;
 }
 
-function sync_event_custom_domain(PDO $pdo, int $eventId, ?string $domain): void {
+function sync_event_custom_domain(PDO $pdo, int $eventId, ?string $domain, ?string $path = null): void {
   ensure_events_custom_domain_column($pdo);
   $normalized = $domain !== null && trim($domain) !== '' ? normalize_event_hostname($domain) : null;
   if ($normalized === '') $normalized = null;
+  $pathNorm = $path !== null && trim((string)$path) !== '' ? normalize_custom_domain_path($path) : null;
 
+  $ownColumn = true;
   if ($normalized !== null) {
     if (!is_valid_event_hostname($normalized)) json_response(400, ['error' => 'invalid_domain']);
     if (is_reserved_platform_host($normalized)) json_response(400, ['error' => 'domain_reserved']);
-    $dup = $pdo->prepare('SELECT id FROM events WHERE custom_domain = ? AND id <> ? LIMIT 1');
+
+    $dup = $pdo->prepare('SELECT id, slug, customization_json FROM events WHERE custom_domain = ? AND id <> ? LIMIT 1');
     $dup->execute([$normalized, $eventId]);
-    if ($dup->fetch()) json_response(409, ['error' => 'domain_taken']);
+    $owner = $dup->fetch();
+    if ($owner) {
+      // Another event owns DNS for this host — join as a path sibling (e.g. /cc on same domain).
+      if ($pathNorm === null) {
+        json_response(409, [
+          'error' => 'domain_taken',
+          'message' => 'This domain is already used by another event. Add a short path (e.g. cc or tmb) to share it.',
+        ]);
+      }
+      $ownColumn = false;
+    }
+
+    // Path must be unique among all events on this host.
+    if ($pathNorm !== null) {
+      $map = lookup_host_event_map($pdo, $normalized);
+      if ($map && isset($map['paths'][$pathNorm]) && $map['paths'][$pathNorm] !== '') {
+        $conflictSlug = $map['paths'][$pathNorm];
+        $me = $pdo->prepare('SELECT slug FROM events WHERE id = ? LIMIT 1');
+        $me->execute([$eventId]);
+        $mySlug = (string)(($me->fetch()['slug'] ?? ''));
+        if ($conflictSlug !== $mySlug) {
+          json_response(409, [
+            'error' => 'domain_path_taken',
+            'message' => 'That path is already used on this domain. Pick another (e.g. tmb or cc).',
+          ]);
+        }
+      }
+    }
   }
 
-  $upd = $pdo->prepare('UPDATE events SET custom_domain = ? WHERE id = ?');
-  $upd->execute([$normalized, $eventId]);
+  $columnValue = ($normalized !== null && $ownColumn) ? $normalized : null;
+  // If we are joining as a sibling, leave our custom_domain column empty.
+  // If clearing domain entirely, clear the column.
+  if ($normalized === null) {
+    $upd = $pdo->prepare('UPDATE events SET custom_domain = NULL WHERE id = ?');
+    $upd->execute([$eventId]);
+  } elseif ($ownColumn) {
+    $upd = $pdo->prepare('UPDATE events SET custom_domain = ? WHERE id = ?');
+    $upd->execute([$columnValue, $eventId]);
+  } else {
+    $upd = $pdo->prepare('UPDATE events SET custom_domain = NULL WHERE id = ?');
+    $upd->execute([$eventId]);
+  }
 
   $stmt = $pdo->prepare('SELECT customization_json FROM events WHERE id = ? LIMIT 1');
   $stmt->execute([$eventId]);
@@ -187,9 +228,15 @@ function sync_event_custom_domain(PDO $pdo, int $eventId, ?string $domain): void
     $customization = json_decode((string)$row['customization_json'], true);
     if (!is_array($customization)) $customization = [];
     if ($normalized === null) {
-      unset($customization['customDomain'], $customization['dnsConfigured']);
+      unset(
+        $customization['customDomain'],
+        $customization['customDomainPath'],
+        $customization['dnsConfigured']
+      );
     } else {
       $customization['customDomain'] = $normalized;
+      if ($pathNorm !== null) $customization['customDomainPath'] = $pathNorm;
+      else unset($customization['customDomainPath']);
       $instructions = domain_dns_instructions($normalized);
       $customization['dnsRecordType'] = $instructions['records'][0]['type'] ?? 'CNAME';
       $customization['dnsRecordTarget'] = $instructions['records'][0]['value'] ?? domain_cname_target();
@@ -290,32 +337,114 @@ function vercel_get_project_domain(string $domain): array {
   ];
 }
 
-function lookup_event_slug_by_host(PDO $pdo, string $host): ?string {
+/** Short public path on a shared custom domain (e.g. tmb, cc). */
+function normalize_custom_domain_path(?string $path): ?string {
+  $path = strtolower(trim((string)$path));
+  $path = trim($path, '/');
+  if ($path === '') return null;
+  if (!preg_match('/^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/', $path)) {
+    json_response(400, [
+      'error' => 'invalid_domain_path',
+      'message' => 'Path must be 2–32 characters: letters, numbers, hyphens (e.g. tmb or cc).',
+    ]);
+  }
+  $reserved = [
+    'api', 'e', 'share', 'checkout', 'login', 'signup', 'dashboard', 'landing', 'discover',
+    'attendee', 'staff', 'orders', 'payhere', 'assets', 'basadmin', 'admin', 'events',
+    'public', 'domain', 'invite', 'www', 'static', 'cdn', 'health', 'status',
+  ];
+  if (in_array($path, $reserved, true)) {
+    json_response(400, [
+      'error' => 'domain_path_reserved',
+      'message' => 'That path is reserved. Try something like tmb or cc.',
+    ]);
+  }
+  return $path;
+}
+
+function event_row_domain_path(array $row): ?string {
+  $customization = json_decode((string)($row['customization_json'] ?? ''), true);
+  if (!is_array($customization)) return null;
+  $raw = trim((string)($customization['customDomainPath'] ?? ''));
+  if ($raw === '') return null;
+  $path = strtolower(trim($raw, '/'));
+  if ($path === '' || !preg_match('/^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/', $path)) return null;
+  return $path;
+}
+
+function event_row_matches_host(array $row, string $host): bool {
+  $host = normalize_event_hostname($host);
+  $col = normalize_event_hostname((string)($row['custom_domain'] ?? ''));
+  if ($col !== '' && $col === $host) return true;
+  $customization = json_decode((string)($row['customization_json'] ?? ''), true);
+  if (!is_array($customization)) return false;
+  $jsonHost = normalize_event_hostname((string)($customization['customDomain'] ?? ''));
+  return $jsonHost !== '' && $jsonHost === $host;
+}
+
+/**
+ * Resolve a custom hostname to the default event slug plus optional path aliases.
+ * @return array{slug:string,paths:array<string,string>}|null
+ */
+function lookup_host_event_map(PDO $pdo, string $host): ?array {
   ensure_events_custom_domain_column($pdo);
   $host = normalize_event_hostname($host);
   if ($host === '' || is_reserved_platform_host($host)) return null;
 
-  $stmt = $pdo->prepare(
-    "SELECT slug FROM events
-     WHERE custom_domain = ?
-       AND status = 'published'
-       AND COALESCE(event_status, 'approved') = 'approved'
-     LIMIT 1"
-  );
-  $stmt->execute([$host]);
-  $row = $stmt->fetch();
-  if ($row) return (string)$row['slug'];
-
-  if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
-    $stmt2 = $pdo->prepare(
-      "SELECT slug FROM events
-       WHERE custom_domain = ? AND status = 'published' AND event_status = 'approved'
-       LIMIT 1"
+  $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+  if ($driver === 'mysql') {
+    $stmt = $pdo->prepare(
+      "SELECT * FROM events
+       WHERE status = 'published' AND event_status = 'approved'
+         AND (
+           custom_domain = ?
+           OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(customization_json, '$.customDomain'))) = ?
+         )
+       ORDER BY (custom_domain = ?) DESC, id ASC"
     );
-    $stmt2->execute([$host]);
-    $row2 = $stmt2->fetch();
-    if ($row2) return (string)$row2['slug'];
+  } else {
+    $stmt = $pdo->prepare(
+      "SELECT * FROM events
+       WHERE status = 'published' AND COALESCE(event_status, 'approved') = 'approved'
+         AND (
+           custom_domain = ?
+           OR lower(json_extract(customization_json, '$.customDomain')) = ?
+         )
+       ORDER BY (custom_domain = ?) DESC, id ASC"
+    );
   }
+  $stmt->execute([$host, $host, $host]);
+  $rows = $stmt->fetchAll();
+  if (!$rows) return null;
 
+  $paths = [];
+  $defaultSlug = null;
+  foreach ($rows as $row) {
+    if (!event_row_matches_host($row, $host)) continue;
+    if (function_exists('is_event_publicly_visible') && !is_event_publicly_visible($row)) continue;
+    $slug = trim((string)($row['slug'] ?? ''));
+    if ($slug === '') continue;
+    $path = event_row_domain_path($row);
+    if ($path !== null) $paths[$path] = $slug;
+    $col = normalize_event_hostname((string)($row['custom_domain'] ?? ''));
+    if ($defaultSlug === null && $col === $host) $defaultSlug = $slug;
+  }
+  if ($defaultSlug === null) {
+    $defaultSlug = $paths ? (string)reset($paths) : trim((string)($rows[0]['slug'] ?? ''));
+  }
+  if ($defaultSlug === '') return null;
+  return ['slug' => $defaultSlug, 'paths' => $paths];
+}
+
+function lookup_event_slug_by_host(PDO $pdo, string $host): ?string {
+  $map = lookup_host_event_map($pdo, $host);
+  return $map['slug'] ?? null;
+}
+
+function lookup_event_slug_by_host_path(PDO $pdo, string $host, string $path): ?string {
+  $map = lookup_host_event_map($pdo, $host);
+  if ($map === null) return null;
+  $path = strtolower(trim($path, '/'));
+  if ($path !== '' && isset($map['paths'][$path])) return $map['paths'][$path];
   return null;
 }

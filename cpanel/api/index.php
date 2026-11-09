@@ -3334,15 +3334,25 @@ if ($path === '/public/config' && $method === 'GET') {
   ]);
 }
 
-// Resolve custom hostname → event slug (edge middleware + diagnostics)
+// Resolve custom hostname → event slug (+ optional /tmb, /cc path aliases)
 if (preg_match('#^/events/by-host/(.+)$#', $path, $m) && $method === 'GET') {
   $host = normalize_event_hostname(urldecode($m[1]));
   if ($host === '' || is_reserved_platform_host($host)) {
     json_response(404, ['error' => 'host_not_mapped']);
   }
-  $slug = lookup_event_slug_by_host(db(), $host);
-  if ($slug === null) json_response(404, ['error' => 'host_not_mapped']);
-  json_response(200, ['host' => $host, 'slug' => $slug, 'path' => '/e/' . $slug]);
+  $map = lookup_host_event_map(db(), $host);
+  if ($map === null) json_response(404, ['error' => 'host_not_mapped']);
+  $alias = strtolower(trim((string)($_GET['path'] ?? ''), '/'));
+  $slug = $map['slug'];
+  if ($alias !== '' && isset($map['paths'][$alias])) {
+    $slug = $map['paths'][$alias];
+  }
+  json_response(200, [
+    'host' => $host,
+    'slug' => $slug,
+    'path' => '/e/' . $slug,
+    'paths' => $map['paths'],
+  ]);
 }
 
 // Public published events list
@@ -3455,13 +3465,22 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'GET') {
   $row = load_event_row_or_404($pdo, $eventId);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
-  $domain = (string)($row['custom_domain'] ?? '');
+  $customization = json_decode((string)($row['customization_json'] ?? ''), true);
+  if (!is_array($customization)) $customization = [];
+  $domain = trim((string)($row['custom_domain'] ?? ''));
+  if ($domain === '') $domain = normalize_event_hostname((string)($customization['customDomain'] ?? ''));
+  $domainPath = event_row_domain_path($row);
   $dns = $domain !== '' ? domain_dns_instructions($domain) : null;
   $vercel = $domain !== '' ? vercel_get_project_domain($domain) : ['ok' => false, 'skipped' => true];
+  $publicUrl = null;
+  if ($domain !== '') {
+    $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
+  }
 
   json_response(200, [
     'customDomain' => $domain !== '' ? $domain : null,
-    'publicUrl' => $domain !== '' ? ('https://' . $domain) : null,
+    'customDomainPath' => $domainPath,
+    'publicUrl' => $publicUrl,
     'defaultUrl' => '/e/' . $row['slug'],
     'dns' => $dns,
     'vercel' => $vercel,
@@ -3476,6 +3495,7 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
   $body = read_json_body();
   $domainRaw = trim((string)($body['domain'] ?? ''));
   if ($domainRaw === '') json_response(400, ['error' => 'invalid_domain']);
+  $pathRaw = array_key_exists('path', $body) ? trim((string)$body['path']) : null;
 
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
@@ -3485,14 +3505,18 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
   if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like events.yourbrand.com']);
   if (is_reserved_platform_host($domain)) json_response(400, ['error' => 'domain_reserved']);
 
-  sync_event_custom_domain($pdo, $eventId, $domain);
+  sync_event_custom_domain($pdo, $eventId, $domain, $pathRaw);
   $vercel = vercel_add_project_domain($domain);
   $dns = domain_dns_instructions($domain);
+  $fresh = load_event_row_or_404($pdo, $eventId);
+  $domainPath = event_row_domain_path($fresh);
+  $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
 
   json_response(200, [
     'ok' => true,
     'customDomain' => $domain,
-    'publicUrl' => 'https://' . $domain,
+    'customDomainPath' => $domainPath,
+    'publicUrl' => $publicUrl,
     'dns' => $dns,
     'vercel' => $vercel,
   ]);

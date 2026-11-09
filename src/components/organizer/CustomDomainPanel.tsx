@@ -9,6 +9,7 @@ type DnsRecord = { type: string; name: string; value: string; ttl: number };
 
 type DomainState = {
   customDomain: string | null;
+  customDomainPath?: string | null;
   publicUrl: string | null;
   defaultUrl: string;
   dns: { hostname: string; isApex: boolean; records: DnsRecord[]; note: string } | null;
@@ -28,6 +29,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+  const [pathInput, setPathInput] = useState('');
   const [state, setState] = useState<DomainState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +48,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
       const res = await api.get<DomainState>(`/api/events/${eventId}/domain`);
       setState(res);
       setDomainInput(res.customDomain || '');
+      setPathInput(res.customDomainPath || '');
     } catch (e: any) {
       setError(e?.message || e?.error || 'Could not load domain settings');
     } finally {
@@ -79,11 +82,19 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
     try {
       const res = await api.post<{
         customDomain: string;
+        customDomainPath?: string | null;
         publicUrl: string;
         dns: DomainState['dns'];
         vercel: DomainState['vercel'];
-      }>(`/api/events/${eventId}/domain`, { domain });
-      setMessage('Domain saved. Add the DNS records below at your DNS provider.');
+      }>(`/api/events/${eventId}/domain`, {
+        domain,
+        path: pathInput.trim() || null,
+      });
+      setMessage(
+        res.customDomainPath
+          ? `Domain saved. Public page: https://${res.customDomain}/${res.customDomainPath}`
+          : 'Domain saved. Add the DNS records below at your DNS provider.'
+      );
       onUpdated?.(res.customDomain);
       await load();
     } catch (e: any) {
@@ -177,7 +188,7 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                 <input
                   value={domainInput}
                   onChange={(e) => setDomainInput(e.target.value)}
-                  placeholder="events.yourbrand.com"
+                  placeholder="tickets.yourbrand.com"
                   className={fieldClass}
                   style={fieldStyle}
                 />
@@ -190,6 +201,29 @@ export const CustomDomainPanel: React.FC<Props> = ({ eventId, ui, onUpdated }) =
                 >
                   {saving ? 'Saving…' : active ? 'Update' : 'Connect'}
                 </button>
+              </div>
+
+              <div className="mt-3">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: ui.textSubtle }}>
+                  Path on this domain (optional)
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-sm" style={{ color: ui.textMuted }}>
+                    <span className="shrink-0 truncate">{domainInput.trim() || 'tickets.yourbrand.com'}/</span>
+                    <input
+                      value={pathInput}
+                      onChange={(e) => setPathInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      placeholder="tmb"
+                      maxLength={32}
+                      className={cn(fieldClass, 'min-w-0 flex-1')}
+                      style={fieldStyle}
+                    />
+                  </div>
+                </div>
+                <p className="mt-1.5 text-xs" style={{ color: ui.textSubtle }}>
+                  Share one domain across events — e.g. <span className="font-mono">/tmb</span> and{' '}
+                  <span className="font-mono">/cc</span>. First event can own the bare domain; others need a path.
+                </p>
               </div>
 
               {active && state?.publicUrl && (
