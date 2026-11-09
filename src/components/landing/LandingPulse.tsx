@@ -245,7 +245,7 @@ export function LandingPulsePage({
   const priceNote =
     (event.customization?.pulsePriceNote || '').trim() ||
     (earlyBirdOnSale
-      ? 'First release (early bird) is limited. Original prices apply after this release ends.'
+      ? 'First release is limited. Original prices apply after this release ends.'
       : 'Select a room pass below, then continue to checkout.');
 
   const hasSelection = useMemo(
@@ -434,12 +434,7 @@ export function LandingPulsePage({
                           ) : null}
                         </td>
                         <td data-label={priceLabel}>
-                          <div className="pulse-price-select">
-                            <span className="pulse-price">{money(displayPrice)}</span>
-                            {earlyBirdOnSale && ticketEarlyActive ? (
-                              <span className="pulse-price-hint">Early bird</span>
-                            ) : null}
-                          </div>
+                          <span className="pulse-price">{money(displayPrice)}</span>
                         </td>
                         <td data-label="Select">
                           {remaining > 0 ? (

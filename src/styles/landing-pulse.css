@@ -543,14 +543,6 @@
   gap: 0.2rem;
 }
 
-.pulse-price-hint {
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--pulse-accent);
-}
-
 .pulse-qty {
   display: inline-flex;
   align-items: center;
