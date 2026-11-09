@@ -492,6 +492,28 @@ export const EventCheckoutForm: React.FC<Props> = ({
           acceptedEventPolicy: true,
         });
 
+        // PayHere merchant secrets are domain-bound. Custom event domains must hop to the
+        // approved SPA origin (app.bigturnout.co) or PayHere returns PH-0013 Unauthorized.
+        // Never launch on apex bigturnout.co — that host is the marketing Apache site.
+        if (res.requiresDomainHop && res.launchUrl) {
+          let launchUrl = res.launchUrl;
+          try {
+            const launch = new URL(launchUrl);
+            if (
+              launch.hostname === 'bigturnout.co' ||
+              launch.hostname === 'www.bigturnout.co'
+            ) {
+              launch.protocol = 'https:';
+              launch.hostname = 'app.bigturnout.co';
+              launchUrl = launch.toString();
+            }
+          } catch {
+            // keep server URL
+          }
+          window.location.assign(launchUrl);
+          return;
+        }
+
         await preloadPayHereScript(res.sandbox !== false);
         setPayError(null);
         setPayherePopupOpen(true);

@@ -1137,10 +1137,15 @@ function payhere_cfg(): array {
   }
 
   // Merchant secrets are domain-specific in PayHere. Prefer configured APP_BASE_URL
-  // (must match an approved domain in PayHere Integrations) over preview hostnames.
+  // (must match an approved domain in PayHere Integrations) over preview / custom hosts.
   $configuredBase = rtrim((string)($p['app_base_url'] ?? ''), '/');
   $requestBase = rtrim(payhere_request_base_url(), '/');
   $appBase = $configuredBase !== '' ? $configuredBase : $requestBase;
+  if ($appBase === '') {
+    $appBase = 'https://app.bigturnout.co';
+  }
+  // Apex bigturnout.co is the marketing site (Apache) — SPA + PayHere live on app.*.
+  $appBase = payhere_normalize_spa_public_base($appBase);
   if ($appBase === '') {
     json_response(500, ['error' => 'payhere_missing_app_base_url']);
   }
@@ -1153,6 +1158,97 @@ function payhere_cfg(): array {
     'secret_source' => $secretSource,
     'notify_url' => $notifyUrl,
     'app_base_url' => $appBase,
+  ];
+}
+
+/**
+ * Map marketing apex → SPA origin. Checkout must never launch on bigturnout.co
+ * (Apache 404); PayHere works on app.bigturnout.co.
+ */
+function payhere_normalize_spa_public_base(string $base): string {
+  $base = rtrim(trim($base), '/');
+  if ($base === '') return 'https://app.bigturnout.co';
+  if (function_exists('canonical_public_app_origin')) {
+    return canonical_public_app_origin($base);
+  }
+  $host = strtolower((string)(parse_url($base, PHP_URL_HOST) ?: ''));
+  if ($host === 'bigturnout.co' || $host === 'www.bigturnout.co') {
+    return 'https://app.bigturnout.co';
+  }
+  return $base;
+}
+
+/** Public origin PayHere merchant credentials are registered against (platform Turnout Pay). */
+function payhere_platform_public_base(array $cfg): string {
+  $base = rtrim((string)($cfg['app_base_url'] ?? ''), '/');
+  return payhere_normalize_spa_public_base($base);
+}
+
+function payhere_host_from_base(string $base): string {
+  $host = parse_url($base, PHP_URL_HOST);
+  return is_string($host) ? normalize_event_hostname($host) : '';
+}
+
+/**
+ * Hosts allowed to start PayHere checkout with platform merchant credentials.
+ * Custom event domains and the marketing apex are NOT included — those must hop
+ * to app.bigturnout.co or PayHere returns PH-0013 / Apache 404.
+ */
+function payhere_platform_authorized_hosts(array $cfg): array {
+  $hosts = [];
+  $platformHost = payhere_host_from_base(payhere_platform_public_base($cfg));
+  if ($platformHost !== '') $hosts[] = $platformHost;
+  // Do not treat apex bigturnout.co as authorized — it is not the SPA.
+  foreach (['app.bigturnout.co', 'localhost', '127.0.0.1'] as $h) {
+    $hosts[] = normalize_event_hostname($h);
+  }
+  if (function_exists('domain_platform_hosts')) {
+    foreach (domain_platform_hosts() as $h) {
+      $normalized = normalize_event_hostname((string)$h);
+      if ($normalized === 'bigturnout.co' || $normalized === 'www.bigturnout.co') {
+        continue;
+      }
+      $hosts[] = $normalized;
+    }
+  }
+  return array_values(array_unique(array_filter($hosts)));
+}
+
+function payhere_request_host_is_platform_authorized(array $cfg): bool {
+  $requestHost = payhere_host_from_base(payhere_request_base_url());
+  if ($requestHost === '') return false;
+  return in_array($requestHost, payhere_platform_authorized_hosts($cfg), true);
+}
+
+/**
+ * Build browser return/cancel bases + whether checkout must hop to the PayHere-approved origin.
+ *
+ * @return array{browser_base:string,checkout_origin:string,notify_url:string,requires_domain_hop:bool}
+ */
+function payhere_checkout_origin_plan(array $cfg): array {
+  $platformBase = payhere_platform_public_base($cfg);
+  $requestBase = rtrim(payhere_request_base_url(), '/');
+  $gatewayMode = (string)($cfg['gateway_mode'] ?? 'turnout');
+
+  // Own-gateway merchants register their own domains in PayHere — stay on the request host.
+  if ($gatewayMode === 'own_payhere') {
+    $browserBase = $requestBase !== '' ? $requestBase : $platformBase;
+    return [
+      'browser_base' => $browserBase,
+      'checkout_origin' => $browserBase,
+      'notify_url' => $browserBase . '/api/payhere/notify',
+      'requires_domain_hop' => false,
+    ];
+  }
+
+  // Turnout Pay: credentials belong to APP_BASE_URL. Start PayHere only from that origin.
+  $browserBase = $requestBase !== '' ? $requestBase : $platformBase;
+  $requiresHop = $requestBase !== '' && !payhere_request_host_is_platform_authorized($cfg);
+  return [
+    'browser_base' => $browserBase,
+    'checkout_origin' => $platformBase,
+    'notify_url' => $platformBase . '/api/payhere/notify',
+    'requires_domain_hop' => $requiresHop,
   ];
 }
 
@@ -2778,20 +2874,18 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     json_response(400, ['error' => 'invalid_event_organizer']);
   }
   $cfg = payhere_cfg_for_organizer($pdo, $organizerUserId);
-  // Always use the current request origin for browser return/cancel + webhook callback.
-  // This avoids stale admin/base-url values causing redirects to checkout or missed notify.
-  $requestBase = rtrim(payhere_request_base_url(), '/');
-  if ($requestBase !== '') {
-    $cfg['app_base_url'] = $requestBase;
-    $cfg['notify_url'] = $requestBase . '/api/payhere/notify';
-  }
+  $originPlan = payhere_checkout_origin_plan($cfg);
+  $cfg['notify_url'] = $originPlan['notify_url'];
+  $cfg['app_base_url'] = $originPlan['checkout_origin'];
+
   $merchantId = $cfg['merchant_id'];
   $merchantSecret = $cfg['merchant_secret'];
   $currency = 'LKR';
   $orderIdStr = (string)$orderId;
   $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
-  $returnUrl = $cfg['app_base_url'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
-  $cancelUrl = $cfg['app_base_url'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+  // Return the buyer to the branded host after PayHere; start checkout on the approved origin.
+  $returnUrl = $originPlan['browser_base'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+  $cancelUrl = $originPlan['browser_base'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
 
   // Best-effort name split
   $firstName = $buyerName !== '' ? explode(' ', $buyerName)[0] : 'Customer';
@@ -2814,6 +2908,10 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     $cancelUrl
   );
 
+  $launchUrl = $originPlan['checkout_origin'] . '/payhere/launch?order_id=' . rawurlencode($orderIdStr)
+    . '&token=' . rawurlencode($accessToken)
+    . '&return_origin=' . rawurlencode($originPlan['browser_base']);
+
   json_response(200, [
     'orderId' => $orderIdStr,
     'accessToken' => $accessToken,
@@ -2822,6 +2920,101 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     'hash' => $checkout['hash'],
     'fields' => $checkout,
     'sdkPayment' => $checkout,
+    'checkoutOrigin' => $originPlan['checkout_origin'],
+    'requiresDomainHop' => $originPlan['requires_domain_hop'],
+    'launchUrl' => $launchUrl,
+  ]);
+}
+
+/**
+ * Rebuild PayHere checkout fields for a pending order (used after hopping to the approved domain).
+ */
+if (preg_match('#^/payhere/checkout/(\\d+)$#', $path, $m) && $method === 'GET') {
+  $orderId = (int)$m[1];
+  $accessToken = trim((string)($_GET['token'] ?? ''));
+  if ($accessToken === '') {
+    json_response(400, ['error' => 'missing_token', 'message' => 'Missing checkout token.']);
+  }
+  if (order_access_token_payload($accessToken, $orderId) === null) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Invalid or expired checkout session.']);
+  }
+
+  $pdo = db();
+  $stmt = $pdo->prepare(
+    'SELECT o.*, e.title AS event_title, e.organizer_user_id
+     FROM orders o
+     INNER JOIN events e ON e.id = o.event_id
+     WHERE o.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$orderId]);
+  $order = $stmt->fetch();
+  if (!$order) {
+    json_response(404, ['error' => 'order_not_found']);
+  }
+  if (strtolower(trim((string)($order['status'] ?? ''))) !== 'pending') {
+    json_response(400, [
+      'error' => 'order_not_pending',
+      'message' => 'This order is no longer awaiting payment.',
+      'order' => ['id' => (string)$orderId, 'status' => (string)($order['status'] ?? '')],
+    ]);
+  }
+
+  $organizerUserId = (int)($order['organizer_user_id'] ?? 0);
+  if ($organizerUserId <= 0) {
+    json_response(400, ['error' => 'invalid_event_organizer']);
+  }
+
+  $cfg = payhere_cfg_for_organizer($pdo, $organizerUserId);
+  $originPlan = payhere_checkout_origin_plan($cfg);
+  $cfg['notify_url'] = $originPlan['notify_url'];
+  $cfg['app_base_url'] = $originPlan['checkout_origin'];
+
+  $returnOrigin = rtrim(trim((string)($_GET['return_origin'] ?? '')), '/');
+  if ($returnOrigin !== '' && preg_match('#^https://[a-z0-9.-]+$#i', $returnOrigin)) {
+    $browserBase = $returnOrigin;
+  } else {
+    $browserBase = $originPlan['browser_base'];
+  }
+
+  $orderIdStr = (string)$orderId;
+  $returnUrl = $browserBase . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+  $cancelUrl = $browserBase . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+
+  $buyerName = trim((string)($order['buyer_name'] ?? ''));
+  $buyerEmail = strtolower(trim((string)($order['buyer_email'] ?? '')));
+  $buyerPhone = trim((string)($order['buyer_phone'] ?? ''));
+  $firstName = $buyerName !== '' ? explode(' ', $buyerName)[0] : 'Customer';
+  $lastName = $buyerName !== '' ? trim(substr($buyerName, strlen($firstName))) : '';
+  if ($lastName === '') $lastName = ' ';
+
+  $checkout = payhere_checkout_payment(
+    $cfg,
+    (string)$cfg['merchant_id'],
+    (string)$cfg['merchant_secret'],
+    $orderIdStr,
+    (int)$order['total_amount_cents'],
+    'LKR',
+    (string)($order['event_title'] ?? 'Event'),
+    $firstName,
+    $lastName,
+    $buyerEmail,
+    $buyerPhone !== '' ? $buyerPhone : '0000000000',
+    $returnUrl,
+    $cancelUrl
+  );
+
+  $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
+  json_response(200, [
+    'orderId' => $orderIdStr,
+    'accessToken' => $accessToken,
+    'actionUrl' => $actionUrl,
+    'sandbox' => $cfg['sandbox'],
+    'hash' => $checkout['hash'],
+    'fields' => $checkout,
+    'sdkPayment' => $checkout,
+    'checkoutOrigin' => $originPlan['checkout_origin'],
+    'requiresDomainHop' => false,
   ]);
 }
 

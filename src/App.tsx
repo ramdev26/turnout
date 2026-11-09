@@ -29,6 +29,7 @@ import { AttendeeDashboard } from './pages/AttendeeDashboard';
 import { AttendeeAccount } from './pages/AttendeeAccount';
 import { PayHereReturn } from './pages/PayHereReturn';
 import { PayHereCancel } from './pages/PayHereCancel';
+import { PayHereLaunch } from './pages/PayHereLaunch';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { OrganizerEarnings } from './pages/OrganizerEarnings';
 import { OrganizerOrders } from './pages/OrganizerOrders';
@@ -692,6 +693,7 @@ export default function App() {
             }
           />
           <Route path="/orders/:orderId/success" element={<Success />} />
+          <Route path="/payhere/launch" element={<PayHereLaunch />} />
           <Route path="/payhere/return" element={<PayHereReturn />} />
           <Route path="/payhere/cancel" element={<PayHereCancel />} />
           <Route path="/:domainPath/checkout" element={<HostDomainPathCheckout />} />
