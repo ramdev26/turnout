@@ -96,7 +96,22 @@ function isPreferredRoomTicket(event: Event, ticket: EventTicket): boolean {
   return isTakeMyBassCopy(ticket.name);
 }
 
+function ensureSentenceEnd(text: string): string {
+  const t = text.trim();
+  if (!t) return t;
+  return /[.!?…]$/.test(t) ? t : `${t}.`;
+}
+
+/** Tickets shown on this landing — hide the sibling room’s solo pass. */
+function ticketsForTheme(event: Event, tickets: EventTicket[]): EventTicket[] {
+  return tickets.filter((t) => {
+    if (/both|combo|bundle|pair/i.test(t.name)) return true;
+    return !shouldHideSiblingBrand(event, t.name);
+  });
+}
+
 function roomsFromTickets(event: Event, tickets: EventTicket[]): PulseRoom[] {
+  const ctrl = isCtrlTemplate(event);
   const named = tickets.filter(
     (t) => !/both|combo|bundle/i.test(t.name) && !shouldHideSiblingBrand(event, t.name)
   );
@@ -106,42 +121,35 @@ function roomsFromTickets(event: Event, tickets: EventTicket[]): PulseRoom[] {
   return source.map((ticket) => {
     const lines = (ticket.description || '').split(/\n+/).map((l) => l.trim()).filter(Boolean);
     const tagsLine = lines.find((l) => /^[A-Z0-9][A-Z0-9\s|/·•-]+$/.test(l) && l.length < 80);
+    if (ctrl) {
+      const body =
+        lines.filter((l) => l !== tagsLine).join(' ') ||
+        (event.customization?.heroSubtext || '').trim() ||
+        (event.description || '').trim() ||
+        'Darker, harder and heavier — late-night club energy until close.';
+      return {
+        kicker: '11 PM TILL VERY LATE',
+        title: ticket.name,
+        body,
+        tags: (tagsLine || 'DARK  INDUSTRIAL  HEAVY').replace(/[|/·•]+/g, '  ').trim(),
+        emphasis: true,
+      };
+    }
     const body =
       lines.filter((l) => l !== tagsLine).join(' ') ||
-      (event.customization?.heroSubtext || '').trim() ||
-      (event.description || '').trim() ||
-      'Details coming soon.';
+      'Groovy, bouncy, bassy — tech house, house and indie dance from 6 PM to 1 AM.';
     return {
-      kicker: formatSessionKicker(event),
+      kicker: 'ROOM ONE · 6 PM – 1 AM',
       title: ticket.name,
       body,
-      tags: (tagsLine || '').replace(/[|/·•]+/g, '  ').trim(),
+      tags: (tagsLine || 'TECH HOUSE  HOUSE  INDIE DANCE').replace(/[|/·•]+/g, '  ').trim(),
       emphasis: true,
     };
   });
 }
 
-function ensureSentenceEnd(text: string): string {
-  const t = text.trim();
-  if (!t) return t;
-  return /[.!?…]$/.test(t) ? t : `${t}.`;
-}
-
-function formatSessionKicker(event: Event): string {
-  if (event.customization?.scheduleTba) return 'TIME TBA';
-  const d = new Date(event.date);
-  if (Number.isNaN(d.getTime())) return 'SESSION';
-  return format(d, 'h a').replace(/\s+/g, ' ').toUpperCase();
-}
-
-function formatScheduleTime(event: Event): string {
-  if (event.customization?.scheduleTba) return 'TBA';
-  const d = new Date(event.date);
-  if (Number.isNaN(d.getTime())) return 'TBA';
-  return format(d, 'h:mm a').replace(':00', '').toUpperCase();
-}
-
 function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
+  const ctrl = isCtrlTemplate(event);
   const custom = event.customization?.pulseRooms;
   if (Array.isArray(custom) && custom.length > 0) {
     const cleaned = custom
@@ -150,14 +158,14 @@ function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
       )
       .slice(0, 1)
       .map((room) => ({
-        kicker: (room.kicker || '').trim() || formatSessionKicker(event),
-        title: (room.title || '').trim() || event.title || 'Room',
-        body:
-          (room.body || '').trim() ||
-          (event.customization?.heroSubtext || '').trim() ||
-          (event.description || '').trim() ||
-          'Details coming soon.',
-        tags: (room.tags || '').trim(),
+        kicker:
+          (room.kicker || '').trim() ||
+          (ctrl ? '11 PM TILL VERY LATE' : 'ROOM ONE · 6 PM – 1 AM'),
+        title: (room.title || '').trim() || event.title || (ctrl ? 'Club Ctrl' : 'Take My Bass'),
+        body: (room.body || '').trim() || 'Details coming soon.',
+        tags:
+          (room.tags || '').trim() ||
+          (ctrl ? 'DARK  INDUSTRIAL  HEAVY' : 'TECH HOUSE  HOUSE  INDIE DANCE'),
         emphasis: true,
       }));
     if (cleaned.length > 0) return cleaned;
@@ -171,16 +179,29 @@ function resolveRooms(event: Event, tickets: EventTicket[]): PulseRoom[] {
   const fromTickets = roomsFromTickets(event, tickets);
   if (fromTickets.length > 0) return fromTickets;
 
-  const title = event.title || 'Room';
+  if (ctrl) {
+    return [
+      {
+        kicker: '11 PM TILL VERY LATE',
+        title: event.title || 'Club Ctrl',
+        body:
+          (event.description || '').trim() ||
+          (event.customization?.heroSubtext || '').trim() ||
+          'Darker, harder and heavier — a dedicated late room until close.',
+        tags: 'DARK  INDUSTRIAL  HEAVY',
+        emphasis: true,
+      },
+    ];
+  }
+
   return [
     {
-      kicker: formatSessionKicker(event),
-      title,
+      kicker: 'ROOM ONE · 6 PM – 1 AM',
+      title: event.title || 'Take My Bass',
       body:
         (event.description || '').trim() ||
-        (event.customization?.heroSubtext || '').trim() ||
-        'Details coming soon.',
-      tags: '',
+        'Our open-air club night energy — tech house, house and indie dance across one dancefloor. Built to move.',
+      tags: 'TECH HOUSE  HOUSE  INDIE DANCE',
       emphasis: true,
     },
   ];
@@ -204,7 +225,11 @@ function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLi
     return [{ label: title, time: 'TBA' }];
   }
 
-  return [{ label: title, time: formatScheduleTime(event) }];
+  // Pulse (TMB) keeps the fixed open-air window; Ctrl is the late room.
+  if (isCtrlTemplate(event)) {
+    return [{ label: title, time: '11 PM till very late' }];
+  }
+  return [{ label: title, time: '6 PM – 1 AM' }];
 }
 
 function resolveStory(event: Event): { kicker: string; title: string; body: string } {
@@ -215,11 +240,22 @@ function resolveStory(event: Event): { kicker: string; title: string; body: stri
     .filter((l) => l && !shouldHideSiblingBrand(event, l))
     .join(' ')
     .trim();
+
+  if (isCtrlTemplate(event)) {
+    return {
+      kicker: 'THE STORY',
+      title: ensureSentenceEnd(short || event.title || 'Club Ctrl'),
+      body: desc || short || 'More details coming soon.',
+    };
+  }
+
+  // Pulse / Take My Bass — keep the proven poster story.
   return {
     kicker: 'THE STORY',
-    // Prefer short description from settings; else event title — never invent theme copy.
-    title: ensureSentenceEnd(short || event.title || 'The night'),
-    body: desc || short || 'More details coming soon.',
+    title: 'Back in Colombo.',
+    body:
+      desc ||
+      'From 6 PM. Groovy, bouncy, bassy, hands in the air. Take My Bass returns for a full night of tech house, house and indie dance — built for the floor.',
   };
 }
 
@@ -237,11 +273,26 @@ function resolveNightBeats(event: Event): PulseBeat[] {
         detail: 'On the floor',
       }));
   }
+
+  if (isCtrlTemplate(event)) {
+    return [
+      { time: '11 PM', label: 'Doors', detail: 'Bunker opens. Dark room online.' },
+      { time: '12–2 AM', label: 'Peak hours', detail: 'Dark · industrial · heavy' },
+      { time: 'Till late', label: 'Last stretch', detail: 'Stay in the bunker. Hands in the air.' },
+    ];
+  }
+
   return [
     { time: '6 PM', label: 'Doors', detail: 'Floor opens. Warm-up begins.' },
     { time: '7–11 PM', label: 'Peak hours', detail: 'Groovy · bouncy · bassy' },
     { time: 'Till 1 AM', label: 'Last stretch', detail: 'Hands in the air. Stay on the floor.' },
   ];
+}
+
+function resolveNightSub(event: Event): string {
+  if (event.customization?.scheduleTba) return 'Schedule TBA';
+  if (isCtrlTemplate(event)) return '11 PM till very late';
+  return '6 PM to 1 AM · one floor';
 }
 
 const SAFE_SPACE_RULES = [
@@ -311,15 +362,15 @@ export function LandingPulsePage({
   const { lead, accent } = splitHeadlineAccent(headlineRaw);
   const shortDescription = (event.customization?.heroSubtext || '').trim();
   const storedTagline = (event.customization?.pulseTagline || '').trim();
-  // Prefer short description from Event Settings over stale template defaults.
-  const templateTaglineDefaults = new Set(['TWO ROOMS. ONE NIGHT.', 'GROOVY. BOUNCY. BASSY.']);
-  const tagline =
-    (storedTagline && !templateTaglineDefaults.has(storedTagline.toUpperCase())
-      ? storedTagline
-      : '') ||
-    shortDescription ||
-    storedTagline ||
-    'TICKETS ON SALE.';
+  // Pulse keeps its poster tagline; Ctrl uses short description from settings.
+  const tagline = ctrlTheme
+    ? shortDescription ||
+      (storedTagline &&
+      !['TWO ROOMS. ONE NIGHT.', 'GROOVY. BOUNCY. BASSY.'].includes(storedTagline.toUpperCase())
+        ? storedTagline
+        : '') ||
+      'DARK. INDUSTRIAL. HEAVY.'
+    : storedTagline || 'GROOVY. BOUNCY. BASSY.';
 
   const tba = !!event.customization?.scheduleTba;
   const eventDate = new Date(event.date);
@@ -334,13 +385,15 @@ export function LandingPulsePage({
     (event.customization?.pulseCityLine || '').trim() ||
     (venueTba ? 'COLOMBO' : resolveEventLocationLabel(event.customization, event.location).toUpperCase());
 
-  const rooms = useMemo(() => resolveRooms(event, tickets), [event, tickets]);
-  const schedule = useMemo(() => resolveSchedule(event, tickets), [event, tickets]);
+  const visibleTickets = useMemo(() => ticketsForTheme(event, tickets), [event, tickets]);
+  const rooms = useMemo(() => resolveRooms(event, visibleTickets), [event, visibleTickets]);
+  const schedule = useMemo(() => resolveSchedule(event, visibleTickets), [event, visibleTickets]);
   const story = useMemo(() => resolveStory(event), [event]);
   const nightBeats = useMemo(() => resolveNightBeats(event), [event]);
+  const nightSub = useMemo(() => resolveNightSub(event), [event]);
   // First release = early bird; Second release = original price.
   // While early bird is on sale, only show the first-release rate (hide original).
-  const earlyBirdOnSale = tickets.some((t) => Boolean(t.earlyBird?.active));
+  const earlyBirdOnSale = visibleTickets.some((t) => Boolean(t.earlyBird?.active));
   const priceNote =
     (event.customization?.pulsePriceNote || '').trim() ||
     (earlyBirdOnSale
@@ -348,8 +401,8 @@ export function LandingPulsePage({
       : 'Select a room pass below, then continue to checkout.');
 
   const hasSelection = useMemo(
-    () => tickets.some((t) => (selectedTickets[t.id] || 0) > 0),
-    [tickets, selectedTickets]
+    () => visibleTickets.some((t) => (selectedTickets[t.id] || 0) > 0),
+    [visibleTickets, selectedTickets]
   );
 
   const handleGetTickets = () => {
@@ -360,11 +413,11 @@ export function LandingPulsePage({
   const bannerUrl = event.bannerUrl?.trim() || '';
 
   const fromPriceLabel = useMemo(() => {
-    const priced = tickets.map((t) => ticketEffectivePrice(t)).filter((n) => Number.isFinite(n));
+    const priced = visibleTickets.map((t) => ticketEffectivePrice(t)).filter((n) => Number.isFinite(n));
     if (priced.length === 0) return '—';
     const lowest = Math.min(...priced);
     return lowest <= 0 ? 'Free' : formatLKRWhole(lowest);
-  }, [tickets]);
+  }, [visibleTickets]);
 
   return (
     <LandingPageShell event={event} showcase>
@@ -465,7 +518,7 @@ export function LandingPulsePage({
                 <button type="button" className="pulse-cta pulse-cta--inline landing-type-button" onClick={handleGetTickets}>
                   Get tickets →
                 </button>
-                {tickets.length > 0 ? (
+                {visibleTickets.length > 0 ? (
                   <p className="pulse-hero-from">
                     From <strong>{fromPriceLabel}</strong>
                   </p>
@@ -486,7 +539,7 @@ export function LandingPulsePage({
               <p className="pulse-prices-currency">LKR · Per person</p>
             </div>
 
-            {tickets.length === 0 ? (
+            {visibleTickets.length === 0 ? (
               <div className="pulse-empty">Tickets will appear here when sales open.</div>
             ) : (
               <table className="pulse-table">
@@ -507,10 +560,10 @@ export function LandingPulsePage({
                   </tr>
                 </thead>
                 <tbody>
-                  {tickets.map((ticket, index) => {
+                  {visibleTickets.map((ticket, index) => {
                     const qty = selectedTickets[ticket.id] || 0;
                     const remaining = ticketRemaining(ticket);
-                    const featured = isFeaturedTicket(ticket, index, tickets.length);
+                    const featured = isFeaturedTicket(ticket, index, visibleTickets.length);
                     const ticketEarlyActive = Boolean(ticket.earlyBird?.active);
                     const displayPrice = ticketEarlyActive
                       ? ticketEffectivePrice(ticket)
@@ -573,9 +626,7 @@ export function LandingPulsePage({
           <section className="pulse-night" aria-label="How the night runs">
             <div className="pulse-night-head">
               <h2 className="pulse-night-title">How the night runs</h2>
-              <p className="pulse-night-sub">
-                {tba ? 'Schedule TBA' : `${formatScheduleTime(event)} start`}
-              </p>
+              <p className="pulse-night-sub">{nightSub}</p>
             </div>
             <ol className="pulse-beats">
               {nightBeats.map((beat) => (

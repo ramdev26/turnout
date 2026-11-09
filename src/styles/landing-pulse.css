@@ -90,8 +90,15 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
+  /* Pulse page: Access Club Ctrl uses Club Ctrl red */
   color: #e8342a;
   text-decoration: none;
+}
+
+/* Ctrl page: Access Take My Bass uses Take My Bass pink */
+.landing-pulse--ctrl .pulse-eyebrow.pulse-eyebrow-link,
+.landing-pulse--ctrl .pulse-eyebrow-link {
+  color: #ff2d8f;
 }
 
 a.pulse-eyebrow-link:hover {
