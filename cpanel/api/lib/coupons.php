@@ -259,3 +259,11 @@ function increment_coupon_used_count(PDO $pdo, int $couponId): void {
   $stmt = $pdo->prepare('UPDATE event_coupons SET used_count = used_count + 1 WHERE id = ?');
   $stmt->execute([$couponId]);
 }
+
+function decrement_coupon_used_count(PDO $pdo, int $couponId): void {
+  if ($couponId <= 0) return;
+  $stmt = $pdo->prepare(
+    'UPDATE event_coupons SET used_count = CASE WHEN used_count >= 1 THEN used_count - 1 ELSE 0 END WHERE id = ?'
+  );
+  $stmt->execute([$couponId]);
+}

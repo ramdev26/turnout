@@ -5254,6 +5254,106 @@ if (preg_match('#^/orders/(\\d+)/reject-bank-transfer$#', $path, $m) && $method 
   json_response(200, ['ok' => true, 'orderId' => (string)$orderId, 'status' => 'failed']);
 }
 
+/**
+ * Permanently delete an order and reverse ticket sold counts / coupon usage.
+ * Organizer editor+ only. Use for clearing test orders so inventory goes back to zero.
+ */
+if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'DELETE') {
+  $orderId = (int)$m[1];
+  $uid = require_organizer_user_id();
+  $pdo = db();
+
+  $stmt = $pdo->prepare('SELECT id, event_id FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $row = $stmt->fetch();
+  if (!$row) json_response(404, ['error' => 'order_not_found', 'message' => 'Order not found.']);
+
+  $ev = load_event_row_or_404($pdo, (int)$row['event_id']);
+  deny_unless_event_row_access($pdo, $ev, $uid, 'editor');
+
+  $pdo->beginTransaction();
+  try {
+    $result = organizer_delete_order($pdo, $orderId);
+    $pdo->commit();
+  } catch (Throwable $e) {
+    $pdo->rollBack();
+    $code = $e->getMessage();
+    if ($code === 'order_not_found') {
+      json_response(404, ['error' => 'order_not_found', 'message' => 'Order not found.']);
+    }
+    json_response(400, [
+      'error' => 'order_delete_failed',
+      'message' => 'Could not delete this order. Try again.',
+    ]);
+  }
+
+  json_response(200, [
+    'ok' => true,
+    'orderId' => (string)$result['orderId'],
+    'releasedTickets' => (int)$result['releasedTickets'],
+  ]);
+}
+
+if ($path === '/organizer/orders/bulk-delete' && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $body = read_json_body();
+  $idsRaw = $body['orderIds'] ?? $body['ids'] ?? [];
+  if (!is_array($idsRaw) || count($idsRaw) < 1) {
+    json_response(400, ['error' => 'invalid_order_ids', 'message' => 'Select at least one order to delete.']);
+  }
+  $orderIds = [];
+  foreach ($idsRaw as $id) {
+    $n = (int)$id;
+    if ($n > 0) $orderIds[$n] = true;
+  }
+  $orderIds = array_keys($orderIds);
+  if ($orderIds === []) {
+    json_response(400, ['error' => 'invalid_order_ids', 'message' => 'Select at least one order to delete.']);
+  }
+  if (count($orderIds) > 100) {
+    json_response(400, ['error' => 'too_many_orders', 'message' => 'Delete up to 100 orders at a time.']);
+  }
+
+  $pdo = db();
+  $deleted = [];
+  $releasedTickets = 0;
+  $errors = [];
+
+  foreach ($orderIds as $orderId) {
+    $stmt = $pdo->prepare('SELECT id, event_id FROM orders WHERE id = ? LIMIT 1');
+    $stmt->execute([$orderId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+      $errors[] = ['orderId' => (string)$orderId, 'error' => 'order_not_found'];
+      continue;
+    }
+    $ev = load_event_row_or_404($pdo, (int)$row['event_id']);
+    if (!user_can_access_event_row($pdo, $ev, $uid, 'editor')) {
+      $errors[] = ['orderId' => (string)$orderId, 'error' => 'forbidden'];
+      continue;
+    }
+
+    $pdo->beginTransaction();
+    try {
+      $result = organizer_delete_order($pdo, $orderId);
+      $pdo->commit();
+      $deleted[] = (string)$orderId;
+      $releasedTickets += (int)$result['releasedTickets'];
+    } catch (Throwable $e) {
+      $pdo->rollBack();
+      $errors[] = ['orderId' => (string)$orderId, 'error' => 'order_delete_failed'];
+    }
+  }
+
+  json_response(200, [
+    'ok' => count($errors) === 0,
+    'deletedOrderIds' => $deleted,
+    'deletedCount' => count($deleted),
+    'releasedTickets' => $releasedTickets,
+    'errors' => $errors,
+  ]);
+}
+
 if (preg_match('#^/events/(\\d+)/bank-transfer-orders$#', $path, $m) && $method === 'GET') {
   $eventId = (int)$m[1];
   $uid = require_organizer_user_id();

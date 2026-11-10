@@ -332,6 +332,29 @@ function decrement_ticket_sold_count(PDO $pdo, int $ticketId, int $qty = 1): voi
   $dec->execute([$qty, $qty, $ticketId]);
 }
 
+/**
+ * Reverse inventory from normalized order line items (mirrors increment_ticket_sold_counts).
+ *
+ * @param list<array<string,mixed>> $normalizedItems
+ */
+function decrement_ticket_sold_counts(PDO $pdo, array $normalizedItems): void {
+  ensure_ticket_early_bird_columns($pdo);
+  $dec = $pdo->prepare('UPDATE tickets SET sold = CASE WHEN sold >= ? THEN sold - ? ELSE 0 END WHERE id = ?');
+  $decEarly = $pdo->prepare(
+    'UPDATE tickets SET early_bird_sold = CASE WHEN early_bird_sold >= ? THEN early_bird_sold - ? ELSE 0 END WHERE id = ?'
+  );
+  foreach ($normalizedItems as $it) {
+    if (!is_array($it)) continue;
+    $tid = (int)($it['ticketId'] ?? $it['ticket_id'] ?? 0);
+    $qty = (int)($it['quantity'] ?? 0);
+    if ($tid <= 0 || $qty <= 0) continue;
+    $dec->execute([$qty, $qty, $tid]);
+    if (($it['pricingTier'] ?? $it['pricing_tiers'] ?? '') === 'early_bird') {
+      $decEarly->execute([$qty, $qty, $tid]);
+    }
+  }
+}
+
 /** Format order total cents as PayHere amount string (e.g. 4300000 → "43000.00"). */
 function payhere_amount_format_cents(int $totalCents): string {
   $negative = $totalCents < 0;

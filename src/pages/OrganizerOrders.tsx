@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ClipboardList, Search } from 'lucide-react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, ClipboardList, Loader2, Search, Trash2 } from 'lucide-react';
 import { api } from '../api/client';
 import { Order } from '../types';
 import { formatLKR } from '../utils/money';
@@ -95,6 +95,7 @@ function parsePage(raw: string | null): number {
 export const OrganizerOrders: React.FC = () => {
   const ui = APP_FLOW_UI;
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const fieldClass = fieldClassFor(ui);
   const fieldStyle = fieldStyleFor(ui);
@@ -111,7 +112,10 @@ export const OrganizerOrders: React.FC = () => {
   const [q, setQ] = useState(qParam);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [data, setData] = useState<OrdersResponse | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const setFilters = useCallback(
     (patch: Record<string, string>, options?: { resetPage?: boolean }) => {
@@ -174,6 +178,17 @@ export const OrganizerOrders: React.FC = () => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setSelectedIds({});
+  }, [status, eventId, paymentMethod, qParam, fromParam, toParam, page]);
+
+  useEffect(() => {
+    const flash = (location.state as { flash?: string } | null)?.flash;
+    if (!flash) return;
+    setFeedback(flash);
+    navigate(location.pathname + location.search, { replace: true, state: {} });
+  }, [location.state, location.pathname, location.search, navigate]);
+
   const counts = data?.counts || { all: 0, pending: 0, paid: 0, failed: 0 };
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -195,6 +210,74 @@ export const OrganizerOrders: React.FC = () => {
     ],
     [data?.events]
   );
+
+  const selectedOrderIds = useMemo(
+    () => Object.keys(selectedIds).filter((id) => selectedIds[id]),
+    [selectedIds]
+  );
+  const allVisibleSelected =
+    !!data?.orders.length && data.orders.every((order) => selectedIds[order.id]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleSelectAllVisible = () => {
+    if (!data?.orders.length) return;
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        data.orders.forEach((order) => {
+          delete next[order.id];
+        });
+        return next;
+      });
+      return;
+    }
+    setSelectedIds((prev) => {
+      const next = { ...prev };
+      data.orders.forEach((order) => {
+        next[order.id] = true;
+      });
+      return next;
+    });
+  };
+
+  const deleteSelectedOrders = async () => {
+    if (selectedOrderIds.length < 1) return;
+    const ok = window.confirm(
+      `Delete ${selectedOrderIds.length} order${selectedOrderIds.length === 1 ? '' : 's'} permanently?\n\n` +
+        'Ticket inventory, attendees, and payment records for these orders will be cleared. This cannot be undone.'
+    );
+    if (!ok) return;
+
+    setBulkDeleting(true);
+    setError(null);
+    try {
+      const res = await api.post<{
+        deletedCount: number;
+        releasedTickets?: number;
+        errors?: { orderId: string; error: string }[];
+      }>('/api/organizer/orders/bulk-delete', { orderIds: selectedOrderIds });
+      const released = res.releasedTickets ?? 0;
+      const failed = res.errors?.length ?? 0;
+      setSelectedIds({});
+      await load();
+      setFeedback(
+        failed > 0
+          ? `Deleted ${res.deletedCount} order${res.deletedCount === 1 ? '' : 's'}` +
+              (released > 0 ? ` · ${released} tickets returned` : '') +
+              `. ${failed} could not be deleted.`
+          : `Deleted ${res.deletedCount} order${res.deletedCount === 1 ? '' : 's'}` +
+              (released > 0 ? ` · ${released} ticket${released === 1 ? '' : 's'} returned to inventory` : '') +
+              '.'
+      );
+    } catch (e: unknown) {
+      setError(formatApiError(e, 'Could not delete selected orders'));
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   const paymentOptions = [
     { value: 'all', label: 'All methods' },
@@ -233,6 +316,7 @@ export const OrganizerOrders: React.FC = () => {
     >
       <FlowPage>
         {error ? <FlowAlert variant="error">{error}</FlowAlert> : null}
+        {feedback ? <FlowAlert variant="success">{feedback}</FlowAlert> : null}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <FlowStatCard label="All orders" value={counts.all} icon={<ClipboardList className="h-5 w-5" />} />
@@ -375,48 +459,90 @@ export const OrganizerOrders: React.FC = () => {
                 Page {safePage} of {totalPages}
               </p>
             </div>
-            {data.orders.map((order) => (
+
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-3 py-2.5" style={cardMutedStyle}>
+              <label className="inline-flex items-center gap-2 text-sm font-semibold" style={{ color: ui.text }}>
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  className="h-4 w-4"
+                  style={{ accentColor: ui.accent }}
+                />
+                Select page
+              </label>
               <button
-                key={order.id}
                 type="button"
-                onClick={() => navigate(`/dashboard/orders/${order.id}`)}
-                className="flex w-full items-stretch gap-3 rounded-2xl border px-4 py-3.5 text-left transition hover:opacity-95"
+                disabled={selectedOrderIds.length < 1 || bulkDeleting}
+                onClick={() => void deleteSelectedOrders()}
+                className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-semibold text-rose-600 disabled:opacity-40"
+                style={{ borderColor: 'rgba(244,63,94,0.35)' }}
+              >
+                {bulkDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete selected{selectedOrderIds.length > 0 ? ` (${selectedOrderIds.length})` : ''}
+              </button>
+            </div>
+
+            {data.orders.map((order) => (
+              <div
+                key={order.id}
+                className="flex w-full items-stretch gap-3 rounded-2xl border px-4 py-3.5"
                 style={cardMutedStyle}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-bold" style={{ color: ui.text }}>
-                      #{order.id}
-                    </span>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
-                      style={statusStyle(order.status)}
-                    >
-                      {statusLabel(order.status)}
-                    </span>
-                    <span className="text-xs font-medium" style={{ color: ui.textSubtle }}>
-                      {paymentMethodLabel(order.paymentMethod)}
-                    </span>
+                <label
+                  className="flex items-center"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!selectedIds[order.id]}
+                    onChange={() => toggleSelect(order.id)}
+                    className="h-4 w-4"
+                    style={{ accentColor: ui.accent }}
+                    aria-label={`Select order ${order.id}`}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/dashboard/orders/${order.id}`)}
+                  className="flex min-w-0 flex-1 items-stretch gap-3 text-left transition hover:opacity-95"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm font-bold" style={{ color: ui.text }}>
+                        #{order.id}
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+                        style={statusStyle(order.status)}
+                      >
+                        {statusLabel(order.status)}
+                      </span>
+                      <span className="text-xs font-medium" style={{ color: ui.textSubtle }}>
+                        {paymentMethodLabel(order.paymentMethod)}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate font-semibold" style={{ color: ui.text }}>
+                      {order.buyerName || order.buyerEmail || 'Guest'}
+                    </p>
+                    <p className="truncate text-sm" style={{ color: ui.textMuted }}>
+                      {order.eventTitle || `Event #${order.eventId}`}
+                      {order.ticketSummary ? ` · ${order.ticketSummary}` : ''}
+                    </p>
+                    <p className="mt-0.5 text-xs" style={{ color: ui.textSubtle }}>
+                      {formatOrderDate(order.createdAt)}
+                      {order.buyerEmail ? ` · ${order.buyerEmail}` : ''}
+                    </p>
                   </div>
-                  <p className="mt-1 truncate font-semibold" style={{ color: ui.text }}>
-                    {order.buyerName || order.buyerEmail || 'Guest'}
-                  </p>
-                  <p className="truncate text-sm" style={{ color: ui.textMuted }}>
-                    {order.eventTitle || `Event #${order.eventId}`}
-                    {order.ticketSummary ? ` · ${order.ticketSummary}` : ''}
-                  </p>
-                  <p className="mt-0.5 text-xs" style={{ color: ui.textSubtle }}>
-                    {formatOrderDate(order.createdAt)}
-                    {order.buyerEmail ? ` · ${order.buyerEmail}` : ''}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end justify-between py-0.5">
-                  <span className="text-base font-bold tabular-nums" style={{ color: ui.text }}>
-                    {formatLKR(order.totalAmount)}
-                  </span>
-                  <ChevronRight className="h-4 w-4" style={{ color: ui.textMuted }} />
-                </div>
-              </button>
+                  <div className="flex shrink-0 flex-col items-end justify-between py-0.5">
+                    <span className="text-base font-bold tabular-nums" style={{ color: ui.text }}>
+                      {formatLKR(order.totalAmount)}
+                    </span>
+                    <ChevronRight className="h-4 w-4" style={{ color: ui.textMuted }} />
+                  </div>
+                </button>
+              </div>
             ))}
 
             {totalPages > 1 ? (
