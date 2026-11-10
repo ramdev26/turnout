@@ -907,9 +907,76 @@ a.pulse-eyebrow-link:hover {
   margin-top: 0.5rem;
 }
 
-.pulse-mobilebar,
-.pulse-mobilebar-spacer {
-  display: none;
+.pulse-cta-row--after-prices {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--pulse-line);
+}
+
+/* Sticky checkout bar — desktop + mobile (same idea as the mobile dock) */
+.pulse-stickybar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 55;
+  display: flex;
+  justify-content: center;
+  padding: 0.85rem 1.25rem max(0.85rem, env(safe-area-inset-bottom));
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.55) 42%, rgba(0, 0, 0, 0.88) 100%);
+}
+
+.pulse-stickybar-inner {
+  pointer-events: auto;
+  width: min(100%, 36rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--pulse-line);
+  background: rgba(0, 0, 0, 0.94);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.pulse-stickybar--ready .pulse-stickybar-inner {
+  border-color: color-mix(in srgb, var(--pulse-accent) 55%, var(--pulse-line));
+}
+
+.pulse-stickybar-meta {
+  min-width: 0;
+}
+
+.pulse-stickybar-label {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pulse-muted);
+}
+
+.pulse-stickybar-price {
+  margin: 0.15rem 0 0;
+  font-family: var(--pulse-font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--pulse-ink);
+}
+
+.pulse-cta--bar {
+  flex: 0 0 auto;
+  min-height: 2.85rem;
+  padding: 0.7rem 1.2rem;
+  font-size: 0.85rem;
+}
+
+.pulse-stickybar-spacer {
+  display: block;
+  height: calc(5.5rem + env(safe-area-inset-bottom));
 }
 
 .pulse-cta,
@@ -1168,56 +1235,36 @@ a.pulse-eyebrow-link:hover {
     font-size: 0.7rem;
   }
 
-  .pulse-cta-row--desktop {
+  .pulse-cta-row--after-prices {
     display: none;
   }
 
-  .pulse-mobilebar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 55;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.85rem;
-    padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
-    border-top: 1px solid var(--pulse-line);
+  .pulse-stickybar {
+    padding: 0;
     background: rgba(0, 0, 0, 0.94);
-    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--pulse-line);
   }
 
-  .pulse-mobilebar-spacer {
-    display: block;
+  .pulse-stickybar-inner {
+    width: 100%;
+    max-width: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: blur(10px);
+    padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+    gap: 0.85rem;
+  }
+
+  .pulse-stickybar--ready .pulse-stickybar-inner {
+    border-color: transparent;
+  }
+
+  .pulse-stickybar-spacer {
     height: calc(4.75rem + env(safe-area-inset-bottom));
   }
 
-  .pulse-mobilebar-meta {
-    min-width: 0;
-  }
-
-  .pulse-mobilebar-label {
-    margin: 0;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--pulse-muted);
-  }
-
-  .pulse-mobilebar-price {
-    margin: 0.15rem 0 0;
-    font-family: var(--pulse-font-display);
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--pulse-ink);
-  }
-
   .pulse-cta--bar {
-    flex: 0 0 auto;
-    min-height: 2.85rem;
     padding: 0.7rem 1.1rem;
     font-size: 0.82rem;
   }
@@ -1232,7 +1279,7 @@ a.pulse-eyebrow-link:hover {
     font-size: clamp(1.85rem, 10vw, 2.35rem);
   }
 
-  .pulse-mobilebar {
+  .pulse-stickybar-inner {
     gap: 0.65rem;
     padding-left: 0.85rem;
     padding-right: 0.85rem;
@@ -1268,10 +1315,12 @@ a.pulse-eyebrow-link:hover {
 
 .event-settings-mobile-preview .landing-pulse .pulse-hero-actions,
 .event-settings-desktop-preview .landing-pulse .pulse-hero-actions,
-.event-settings-mobile-preview .landing-pulse .pulse-mobilebar,
-.event-settings-desktop-preview .landing-pulse .pulse-mobilebar,
-.event-settings-mobile-preview .landing-pulse .pulse-mobilebar-spacer,
-.event-settings-desktop-preview .landing-pulse .pulse-mobilebar-spacer {
+.event-settings-mobile-preview .landing-pulse .pulse-stickybar,
+.event-settings-desktop-preview .landing-pulse .pulse-stickybar,
+.event-settings-mobile-preview .landing-pulse .pulse-stickybar-spacer,
+.event-settings-desktop-preview .landing-pulse .pulse-stickybar-spacer,
+.event-settings-mobile-preview .landing-pulse .pulse-cta-row--after-prices,
+.event-settings-desktop-preview .landing-pulse .pulse-cta-row--after-prices {
   display: none;
 }
 
