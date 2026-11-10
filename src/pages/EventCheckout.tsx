@@ -8,6 +8,7 @@ import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { EventAccessGate } from '../components/landing/EventAccessGate';
 import { loadCheckoutCart, clearCheckoutCart } from '../utils/checkoutCart';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
+import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../utils/eventExtraFee';
 import {
   getEventAccessToken,
   setEventAccessToken,
@@ -148,6 +149,13 @@ export const EventCheckout: React.FC<EventCheckoutProps> = ({ forcedSlug }) => {
       ),
     [selectedTickets, tickets]
   );
+  const payableTotal = useMemo(
+    () =>
+      Math.round(
+        (totalAmount + computeEventExtraFeeLkr(totalAmount, eventExtraFeeFromEvent(event))) * 100
+      ) / 100,
+    [totalAmount, event]
+  );
 
   useEffect(() => {
     if (!event || accessRequired || event.status !== 'published' || orderItems.length < 1 || checkoutTracked.current) {
@@ -167,7 +175,7 @@ export const EventCheckout: React.FC<EventCheckoutProps> = ({ forcedSlug }) => {
         eventId: event.id,
         eventTitle: event.title,
         eventSlug: event.slug,
-        value: totalAmount,
+        value: payableTotal,
         currency: 'LKR',
         numItems,
         contents: orderItems.map((item) => ({
@@ -178,7 +186,7 @@ export const EventCheckout: React.FC<EventCheckoutProps> = ({ forcedSlug }) => {
         })),
       }
     );
-  }, [event, accessRequired, orderItems, totalAmount]);
+  }, [event, accessRequired, orderItems, payableTotal]);
 
   const themeVars = event
     ? landingCssVars(event.customization, event.templateId)

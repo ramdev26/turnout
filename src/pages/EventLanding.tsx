@@ -8,6 +8,7 @@ import { loadLandingFont } from '../themes/landingFonts';
 import { formatLKRWhole } from '../utils/money';
 import { ticketRemaining } from '../components/landing/LandingShared';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
+import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../utils/eventExtraFee';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { EventAccessGate } from '../components/landing/EventAccessGate';
 import { saveCheckoutCart } from '../utils/checkoutCart';
@@ -203,6 +204,10 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
     (sum, ticket) => sum + ticketLineTotal(ticket, selectedTickets[ticket.id] || 0),
     0
   );
+  const payableTotal =
+    Math.round(
+      (totalAmount + computeEventExtraFeeLkr(totalAmount, eventExtraFeeFromEvent(event))) * 100
+    ) / 100;
 
   useEffect(() => {
     if (!event || !checkoutOpen || orderItems.length < 1 || mobileCheckoutTracked.current) return;
@@ -220,7 +225,7 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
         eventId: event.id,
         eventTitle: event.title,
         eventSlug: event.slug,
-        value: totalAmount,
+        value: payableTotal,
         currency: 'LKR',
         numItems,
         contents: orderItems.map((item) => ({
@@ -231,7 +236,7 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
         })),
       }
     );
-  }, [checkoutOpen, event, orderItems, totalAmount]);
+  }, [checkoutOpen, event, orderItems, payableTotal]);
 
   const hasSelectedTickets = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
 
@@ -360,7 +365,7 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
         tickets,
         selectedTickets,
         onTicketChange: handleTicketChange,
-        totalAmount,
+        totalAmount: payableTotal,
         onCheckout: handlePurchase,
         isPurchasing,
       })}
@@ -376,7 +381,7 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
             disabled={isPurchasing}
             className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-base font-bold disabled:opacity-50"
           >
-            {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKRWhole(totalAmount)}`}
+            {isPurchasing ? 'Processing…' : payableTotal <= 0 ? 'Complete registration' : `Pay ${formatLKRWhole(payableTotal)}`}
           </button>
         </div>
       )}

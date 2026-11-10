@@ -25,6 +25,7 @@ require __DIR__ . '/lib/core_schema.php';
 require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
 require __DIR__ . '/lib/coupons.php';
+require __DIR__ . '/lib/event_extra_fee.php';
 require __DIR__ . '/lib/access_codes.php';
 require __DIR__ . '/lib/organizer_orders.php';
 
@@ -1274,6 +1275,7 @@ run_boot_schema_guard('ensure_attendees_custom_fields_column', static fn () => e
 run_boot_schema_guard('ensure_organizer_workspace_tables', static fn () => ensure_organizer_workspace_tables(db()));
 run_boot_schema_guard('ensure_organizer_payment_tables', static fn () => ensure_organizer_payment_tables(db()));
 run_boot_schema_guard('ensure_event_reminders_table', static fn () => ensure_event_reminders_table(db()));
+run_boot_schema_guard('ensure_order_extra_fee_columns', static fn () => ensure_order_extra_fee_columns(db()));
 enforce_write_request_integrity($path, $method);
 
 if ($path === '/health' && $method === 'GET') {
@@ -2822,11 +2824,15 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
+  ensure_order_extra_fee_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
+  $extraFeeCents = (int)$feeApplied['extraFeeCents'];
+  $extraFeeLabel = (string)$feeApplied['label'];
+  $totalCents = (int)$feeApplied['totalCents'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'payhere_requires_positive_amount']);
@@ -2850,6 +2856,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'payhere');
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    attach_extra_fee_to_order($pdo, $orderId, $extraFeeCents, $extraFeeLabel);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
@@ -4112,6 +4119,15 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     $customization = apply_event_payment_methods_to_customization($customization, $wantPayhere, $wantBank);
   }
 
+  if (array_key_exists('extraFee', $body)) {
+    $sanitizedFee = sanitize_event_extra_fee_for_customization($body['extraFee']);
+    if ($sanitizedFee === null) {
+      unset($customization['extraFee']);
+    } else {
+      $customization['extraFee'] = $sanitizedFee;
+    }
+  }
+
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);
     if ($nextBanner !== '') $row['banner_url'] = $nextBanner;
@@ -4821,7 +4837,7 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
   $body = read_json_body();
   $pdo = db();
   ensure_event_coupons_table($pdo);
-  require_publishable_event($pdo, $eventId);
+  $ev = require_publishable_event($pdo, $eventId);
 
   $items = $body['tickets'] ?? [];
   if (!is_array($items) || count($items) < 1) {
@@ -4835,6 +4851,7 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
   if (!$coupon) {
     json_response(400, ['error' => 'invalid_coupon_code', 'message' => 'Enter a coupon code.']);
   }
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
 
   json_response(200, [
     'ok' => true,
@@ -4844,7 +4861,9 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
     'discountValue' => ((int)($coupon['discount_value_cents'] ?? 0)) / 100,
     'subtotal' => $subtotalCents / 100,
     'discountAmount' => ((int)$priced['discountCents']) / 100,
-    'total' => ((int)$priced['totalCents']) / 100,
+    'extraFeeAmount' => ((int)$feeApplied['extraFeeCents']) / 100,
+    'extraFeeLabel' => (string)$feeApplied['label'],
+    'total' => ((int)$feeApplied['totalCents']) / 100,
   ]);
 }
 
@@ -4867,16 +4886,21 @@ if ($path === '/orders' && $method === 'POST') {
   ensure_order_policy_acceptance_columns($pdo);
   ensure_order_bank_transfer_columns($pdo);
   ensure_order_coupon_columns($pdo);
+  ensure_order_extra_fee_columns($pdo);
   $ev = require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
-  if ($subtotalCents > 0 && $totalCents > 0) {
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
+  $extraFeeCents = (int)$feeApplied['extraFeeCents'];
+  $extraFeeLabel = (string)$feeApplied['label'];
+  $totalCents = (int)$feeApplied['totalCents'];
+  // Paid tickets (or free tickets with an extra fee) must use PayHere / bank transfer.
+  if ($totalCents > 0) {
     json_response(400, ['error' => 'paid_orders_use_payhere', 'message' => 'Use PayHere checkout for paid tickets.']);
   }
 
@@ -4905,6 +4929,7 @@ if ($path === '/orders' && $method === 'POST') {
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'free');
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    attach_extra_fee_to_order($pdo, $orderId, $extraFeeCents, $extraFeeLabel);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
@@ -4991,11 +5016,15 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
+  ensure_order_extra_fee_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
+  $extraFeeCents = (int)$feeApplied['extraFeeCents'];
+  $extraFeeLabel = (string)$feeApplied['label'];
+  $totalCents = (int)$feeApplied['totalCents'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'bank_transfer_requires_positive_amount']);
@@ -5019,6 +5048,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'bank_transfer');
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    attach_extra_fee_to_order($pdo, $orderId, $extraFeeCents, $extraFeeLabel);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
@@ -5050,6 +5080,8 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     'bankTransfer' => $bankDetails,
     'totalAmount' => $totalCents / 100,
     'discountAmount' => $discountCents / 100,
+    'extraFeeAmount' => $extraFeeCents / 100,
+    'extraFeeLabel' => $extraFeeCents > 0 ? $extraFeeLabel : null,
     'couponCode' => $couponRow ? (string)$couponRow['code'] : null,
   ]);
 }
@@ -5419,8 +5451,19 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       $row = array_merge($row, $extra);
     }
   }
+  if (function_exists('ensure_order_extra_fee_columns')) {
+    ensure_order_extra_fee_columns($pdo);
+    if (!array_key_exists('extra_fee_cents', $row)) {
+      $reloadFee = $pdo->prepare('SELECT extra_fee_cents, extra_fee_label FROM orders WHERE id = ? LIMIT 1');
+      $reloadFee->execute([$orderId]);
+      $feeExtra = $reloadFee->fetch() ?: [];
+      $row = array_merge($row, $feeExtra);
+    }
+  }
   $couponCode = trim((string)($row['coupon_code'] ?? ''));
   $discountCents = (int)($row['discount_amount_cents'] ?? 0);
+  $extraFeeCents = (int)($row['extra_fee_cents'] ?? 0);
+  $extraFeeLabel = trim((string)($row['extra_fee_label'] ?? ''));
 
   json_response(200, [
     'order' => array_merge([
@@ -5439,6 +5482,8 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'bankTransfer' => $bankTransferDetails,
       'couponCode' => $couponCode !== '' ? $couponCode : null,
       'discountAmount' => $discountCents > 0 ? $discountCents / 100 : 0,
+      'extraFeeAmount' => $extraFeeCents > 0 ? $extraFeeCents / 100 : 0,
+      'extraFeeLabel' => $extraFeeCents > 0 && $extraFeeLabel !== '' ? $extraFeeLabel : null,
     ], $paymentFields),
     'event' => $eventPayload,
   ]);

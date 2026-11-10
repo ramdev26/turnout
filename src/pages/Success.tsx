@@ -691,6 +691,18 @@ export const Success: React.FC = () => {
                     </div>
                     );
                   })}
+                  {(order.discountAmount || 0) > 0 ? (
+                    <div className="confirm-line-item">
+                      <span>Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span>
+                      <strong>−{formatLKRWhole(order.discountAmount || 0)}</strong>
+                    </div>
+                  ) : null}
+                  {(order.extraFeeAmount || 0) > 0 ? (
+                    <div className="confirm-line-item">
+                      <span>{order.extraFeeLabel || 'Fee'}</span>
+                      <strong>{formatLKRWhole(order.extraFeeAmount || 0)}</strong>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
