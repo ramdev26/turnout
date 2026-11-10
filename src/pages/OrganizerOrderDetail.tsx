@@ -9,6 +9,7 @@ import {
   Mail,
   Phone,
   Ticket,
+  Trash2,
   User,
   X,
 } from 'lucide-react';
@@ -81,6 +82,7 @@ export const OrganizerOrderDetail: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
@@ -135,6 +137,40 @@ export const OrganizerOrderDetail: React.FC = () => {
       setError(formatApiError(e, 'Could not reject bank transfer'));
     } finally {
       setActing(false);
+    }
+  };
+
+  const deleteOrder = async () => {
+    if (!orderId || !order) return;
+    const ticketCount =
+      order.ticketCount ||
+      order.tickets?.reduce((sum, t) => sum + (t.quantity || 0), 0) ||
+      order.attendees?.length ||
+      0;
+    const ok = window.confirm(
+      `Delete order #${order.id} permanently?\n\nThis removes the order, attendees, and payment records, and puts ticket inventory back` +
+        (ticketCount > 0 ? ` (${ticketCount} ticket${ticketCount === 1 ? '' : 's'}).` : '.') +
+        '\nThis cannot be undone.'
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await api.delete<{ ok: boolean; releasedTickets?: number }>(`/api/orders/${orderId}`);
+      const released = res.releasedTickets ?? 0;
+      navigate('/dashboard/orders', {
+        replace: true,
+        state: {
+          flash:
+            released > 0
+              ? `Order #${orderId} deleted. ${released} ticket${released === 1 ? '' : 's'} returned to inventory.`
+              : `Order #${orderId} deleted.`,
+        },
+      });
+    } catch (e: unknown) {
+      setError(formatApiError(e, 'Could not delete order'));
+      setDeleting(false);
     }
   };
 
@@ -417,6 +453,16 @@ export const OrganizerOrderDetail: React.FC = () => {
                   Public event page
                 </a>
               ) : null}
+              <button
+                type="button"
+                disabled={deleting || acting}
+                onClick={() => void deleteOrder()}
+                className="inline-flex items-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold text-rose-600 disabled:opacity-60"
+                style={{ borderColor: 'rgba(244,63,94,0.35)' }}
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete order
+              </button>
             </div>
           </div>
         ) : null}

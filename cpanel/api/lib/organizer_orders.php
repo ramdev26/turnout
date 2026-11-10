@@ -243,3 +243,86 @@ function organizer_orders_parse_date($raw): ?string {
   if (!checkdate($mo, $d, $y)) return null;
   return sprintf('%04d-%02d-%02d', $y, $mo, $d);
 }
+
+/**
+ * Fully delete an order and reverse inventory / coupon usage so event stats go back.
+ *
+ * @return array{orderId:int,releasedTickets:int,status:string}
+ */
+function organizer_delete_order(PDO $pdo, int $orderId): array {
+  if ($orderId <= 0) {
+    throw new InvalidArgumentException('invalid_order');
+  }
+
+  if (function_exists('ensure_order_coupon_columns')) {
+    ensure_order_coupon_columns($pdo);
+  }
+  if (function_exists('ensure_order_bank_transfer_columns')) {
+    ensure_order_bank_transfer_columns($pdo);
+  }
+  if (function_exists('ensure_order_extra_fee_columns')) {
+    ensure_order_extra_fee_columns($pdo);
+  }
+
+  $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? LIMIT 1');
+  $stmt->execute([$orderId]);
+  $order = $stmt->fetch();
+  if (!$order) {
+    throw new RuntimeException('order_not_found');
+  }
+
+  $status = (string)($order['status'] ?? '');
+  $items = json_decode((string)($order['tickets_json'] ?? '[]'), true);
+  if (!is_array($items)) $items = [];
+
+  $attCountStmt = $pdo->prepare('SELECT COUNT(*) FROM attendees WHERE order_id = ?');
+  $attCountStmt->execute([$orderId]);
+  $attendeeCount = (int)$attCountStmt->fetchColumn();
+
+  // Inventory was bumped when the order was fulfilled (paid / free / VIP / manual)
+  // or when attendees already exist. Pending unpaid orders never incremented sold.
+  $shouldReleaseInventory = $attendeeCount > 0 || $status === 'paid';
+
+  $released = 0;
+  if ($shouldReleaseInventory && function_exists('decrement_ticket_sold_counts')) {
+    foreach ($items as $it) {
+      if (!is_array($it)) continue;
+      $released += max(0, (int)($it['quantity'] ?? 0));
+    }
+    decrement_ticket_sold_counts($pdo, $items);
+  }
+
+  $couponId = isset($order['coupon_id']) ? (int)$order['coupon_id'] : 0;
+  if ($couponId > 0 && function_exists('decrement_coupon_used_count')) {
+    // Coupon used_count is incremented at order create (including pending).
+    decrement_coupon_used_count($pdo, $couponId);
+  }
+
+  // Delete dependent rows explicitly so MySQL SET NULL / missing CASCADE still cleans up.
+  $pdo->prepare('DELETE FROM attendees WHERE order_id = ?')->execute([$orderId]);
+  try {
+    $pdo->prepare('DELETE FROM order_attendee_requests WHERE order_id = ?')->execute([$orderId]);
+  } catch (Throwable $e) {
+    // Table may not exist on older installs.
+  }
+  try {
+    $pdo->prepare('DELETE FROM payhere_transactions WHERE order_id = ?')->execute([$orderId]);
+  } catch (Throwable $e) {
+  }
+  try {
+    $pdo->prepare('DELETE FROM transactions WHERE order_id = ?')->execute([$orderId]);
+  } catch (Throwable $e) {
+  }
+
+  $del = $pdo->prepare('DELETE FROM orders WHERE id = ?');
+  $del->execute([$orderId]);
+  if ($del->rowCount() < 1) {
+    throw new RuntimeException('order_delete_failed');
+  }
+
+  return [
+    'orderId' => $orderId,
+    'releasedTickets' => $released,
+    'status' => $status,
+  ];
+}
