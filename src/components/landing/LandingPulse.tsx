@@ -518,11 +518,19 @@ export function LandingPulsePage({
 
               <div className="pulse-hero-actions">
                 <button type="button" className="pulse-cta pulse-cta--inline landing-type-button" onClick={handleGetTickets}>
-                  Get tickets →
+                  {hasSelection ? 'Checkout →' : 'Get tickets →'}
                 </button>
                 {visibleTickets.length > 0 ? (
                   <p className="pulse-hero-from">
-                    From <strong>{fromPriceLabel}</strong>
+                    {hasSelection ? (
+                      <>
+                        Total <strong>{totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}</strong>
+                      </>
+                    ) : (
+                      <>
+                        From <strong>{fromPriceLabel}</strong>
+                      </>
+                    )}
                   </p>
                 ) : null}
               </div>
@@ -623,6 +631,22 @@ export function LandingPulsePage({
             )}
 
             <p className="pulse-prices-note">{priceNote}</p>
+
+            <div className="pulse-cta-row pulse-cta-row--after-prices">
+              <button
+                type="button"
+                className="pulse-cta landing-type-button"
+                onClick={handleGetTickets}
+                disabled={isPurchasing}
+              >
+                {isPurchasing ? 'Processing…' : hasSelection ? 'Checkout →' : 'Get tickets →'}
+              </button>
+              {hasSelection ? (
+                <p className="pulse-total">
+                  Total <strong>{totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}</strong>
+                </p>
+              ) : null}
+            </div>
           </section>
 
           <section className="pulse-night" aria-label="How the night runs">
@@ -689,47 +713,37 @@ export function LandingPulsePage({
               First release is limited. Grab your pass and we’ll see you on the dancefloor.
             </p>
           </section>
+        </div>
 
-          <div className="pulse-cta-row pulse-cta-row--desktop">
+        <div
+          className={hasSelection ? 'pulse-stickybar pulse-stickybar--ready' : 'pulse-stickybar'}
+          role="region"
+          aria-label="Ticket checkout"
+        >
+          <div className="pulse-stickybar-inner">
+            <div className="pulse-stickybar-meta">
+              <p className="pulse-stickybar-label">{hasSelection ? 'Total' : 'From'}</p>
+              <p className="pulse-stickybar-price">
+                {hasSelection
+                  ? totalAmount <= 0
+                    ? 'Free'
+                    : formatLKRWhole(totalAmount)
+                  : fromPriceLabel}
+              </p>
+            </div>
             <button
               type="button"
-              className="pulse-cta landing-type-button"
+              className="pulse-cta pulse-cta--bar landing-type-button"
               onClick={handleGetTickets}
               disabled={isPurchasing}
             >
               {isPurchasing ? 'Processing…' : hasSelection ? 'Checkout →' : 'Get tickets →'}
             </button>
-            {hasSelection ? (
-              <p className="pulse-total">
-                Total <strong>{totalAmount <= 0 ? 'Free' : formatLKRWhole(totalAmount)}</strong>
-              </p>
-            ) : null}
           </div>
-        </div>
-
-        <div className="pulse-mobilebar" role="region" aria-label="Ticket checkout">
-          <div className="pulse-mobilebar-meta">
-            <p className="pulse-mobilebar-label">{hasSelection ? 'Total' : 'From'}</p>
-            <p className="pulse-mobilebar-price">
-              {hasSelection
-                ? totalAmount <= 0
-                  ? 'Free'
-                  : formatLKRWhole(totalAmount)
-                : fromPriceLabel}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="pulse-cta pulse-cta--bar landing-type-button"
-            onClick={handleGetTickets}
-            disabled={isPurchasing}
-          >
-            {isPurchasing ? 'Processing…' : hasSelection ? 'Checkout →' : 'Get tickets →'}
-          </button>
         </div>
       </div>
       <LandingFooter event={event} />
-      <div className="pulse-mobilebar-spacer" aria-hidden />
+      <div className="pulse-stickybar-spacer" aria-hidden />
     </LandingPageShell>
   );
 }
