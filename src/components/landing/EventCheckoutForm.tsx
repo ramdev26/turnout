@@ -17,6 +17,7 @@ import { formatApiError } from '../../utils/apiError';
 import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import { resolveOrganizerTermsHtml } from '../../utils/organizerTerms';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../../utils/purchaseLimits';
+import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../../utils/eventExtraFee';
 import { EventPolicyViewerModal } from './EventPolicyViewer';
 import { useEmailDeliverability } from '../../hooks/useEmailDeliverability';
 import { checkEmailDeliverability } from '../../lib/plunkEmailVerify';
@@ -96,9 +97,21 @@ export const EventCheckoutForm: React.FC<Props> = ({
     discountAmount: number;
     subtotal: number;
     total: number;
+    extraFeeAmount?: number;
+    extraFeeLabel?: string;
   } | null>(null);
 
-  const payableTotal = appliedCoupon ? appliedCoupon.total : totalAmount;
+  const extraFeeConfig = useMemo(() => eventExtraFeeFromEvent(event), [event]);
+  const ticketSubtotal = appliedCoupon ? appliedCoupon.subtotal : totalAmount;
+  const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+  const afterDiscount = Math.max(0, ticketSubtotal - discountAmount);
+  const extraFeeAmount = appliedCoupon
+    ? Number(appliedCoupon.extraFeeAmount ?? 0)
+    : computeEventExtraFeeLkr(afterDiscount, extraFeeConfig);
+  const extraFeeLabel = appliedCoupon?.extraFeeLabel || extraFeeConfig.label || 'Fee';
+  const payableTotal = appliedCoupon
+    ? appliedCoupon.total
+    : Math.round((afterDiscount + extraFeeAmount) * 100) / 100;
 
   const { register, handleSubmit, reset, watch, setValue } = useForm<{
     buyerName: string;
@@ -148,6 +161,8 @@ export const EventCheckoutForm: React.FC<Props> = ({
         discountAmount: number;
         subtotal: number;
         total: number;
+        extraFeeAmount?: number;
+        extraFeeLabel?: string;
       }>(`/api/events/${event.id}/coupons/apply`, {
         code,
         tickets: orderItems.map((it) => ({ ticketId: it.ticketId, quantity: it.quantity })),
@@ -157,6 +172,8 @@ export const EventCheckoutForm: React.FC<Props> = ({
         discountAmount: res.discountAmount,
         subtotal: res.subtotal,
         total: res.total,
+        extraFeeAmount: res.extraFeeAmount ?? 0,
+        extraFeeLabel: res.extraFeeLabel,
       });
       setCouponInput(res.code);
     } catch (e) {
@@ -645,16 +662,27 @@ export const EventCheckoutForm: React.FC<Props> = ({
         </div>
       ) : null}
 
-      {appliedCoupon ? (
+      {appliedCoupon || extraFeeAmount > 0 ? (
         <div className="mt-2 flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
           <span>Subtotal</span>
-          <span>{formatLKRWhole(appliedCoupon.subtotal)}</span>
+          <span>{formatLKRWhole(ticketSubtotal)}</span>
         </div>
       ) : null}
-      {appliedCoupon ? (
+      {discountAmount > 0 ? (
         <div className="flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-          <span>Discount</span>
-          <span>−{formatLKRWhole(appliedCoupon.discountAmount)}</span>
+          <span>Discount{appliedCoupon?.code ? ` (${appliedCoupon.code})` : ''}</span>
+          <span>−{formatLKRWhole(discountAmount)}</span>
+        </div>
+      ) : null}
+      {extraFeeAmount > 0 ? (
+        <div className="flex justify-between text-sm" style={{ color: 'var(--landing-text-muted)' }}>
+          <span>
+            {extraFeeLabel}
+            {extraFeeConfig.enabled && extraFeeConfig.type === 'percent' && !appliedCoupon
+              ? ` (${extraFeeConfig.value}%)`
+              : ''}
+          </span>
+          <span>{formatLKRWhole(extraFeeAmount)}</span>
         </div>
       ) : null}
 

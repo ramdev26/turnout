@@ -30,6 +30,8 @@ function organizer_order_list_item(array $row, ?array $eventMeta = null): array 
 
   $couponCode = trim((string)($row['coupon_code'] ?? ''));
   $discountCents = isset($row['discount_amount_cents']) ? (int)$row['discount_amount_cents'] : 0;
+  $extraFeeCents = isset($row['extra_fee_cents']) ? (int)$row['extra_fee_cents'] : 0;
+  $extraFeeLabel = trim((string)($row['extra_fee_label'] ?? ''));
 
   $out = array_merge([
     'id' => (string)$row['id'],
@@ -46,6 +48,8 @@ function organizer_order_list_item(array $row, ?array $eventMeta = null): array 
     'status' => (string)($row['status'] ?? 'pending'),
     'couponCode' => $couponCode !== '' ? $couponCode : null,
     'discountAmount' => $discountCents > 0 ? $discountCents / 100 : 0,
+    'extraFeeAmount' => $extraFeeCents > 0 ? $extraFeeCents / 100 : 0,
+    'extraFeeLabel' => $extraFeeCents > 0 && $extraFeeLabel !== '' ? $extraFeeLabel : null,
     'createdAt' => !empty($row['created_at']) ? gmdate('c', strtotime((string)$row['created_at'])) : null,
   ], $payment);
 
@@ -74,6 +78,9 @@ function organizer_orders_query(
   }
   if (function_exists('ensure_order_coupon_columns')) {
     ensure_order_coupon_columns($pdo);
+  }
+  if (function_exists('ensure_order_extra_fee_columns')) {
+    ensure_order_extra_fee_columns($pdo);
   }
 
   $ownerPlaceholders = implode(',', array_fill(0, count($ownerIds), '?'));

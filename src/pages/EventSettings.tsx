@@ -16,15 +16,28 @@ import {
   CreditCard,
   Landmark,
   MapPin,
+  Percent,
   Plus,
   Ticket as TicketIcon,
   Trash2,
 } from 'lucide-react';
 import { api, toApiUrl } from '../api/client';
-import { Attendee, CheckoutFieldDefinition, Event, OrganizerPaidEventReadiness, Ticket as EventTicket } from '../types';
+import {
+  Attendee,
+  CheckoutFieldDefinition,
+  Event,
+  EventExtraFee,
+  OrganizerPaidEventReadiness,
+  Ticket as EventTicket,
+} from '../types';
 import { normalizeCheckoutFields } from '../utils/checkoutFields';
 import { slugify } from '../utils/slug';
 import { formatLKR } from '../utils/money';
+import {
+  DEFAULT_EVENT_EXTRA_FEE,
+  formatEventExtraFeeHint,
+  normalizeEventExtraFee,
+} from '../utils/eventExtraFee';
 import { cn } from '../utils/cn';
 import { BannerUploadSquare } from '../components/ui/BannerUploadSquare';
 import { EventLocationFields } from '../components/ui/EventLocationFields';
@@ -222,6 +235,8 @@ export const EventSettings: React.FC = () => {
   const [allowPayhere, setAllowPayhere] = useState(true);
   const [allowBankTransfer, setAllowBankTransfer] = useState(false);
   const [savingPaymentMethods, setSavingPaymentMethods] = useState(false);
+  const [extraFee, setExtraFee] = useState<EventExtraFee>(DEFAULT_EVENT_EXTRA_FEE);
+  const [savingExtraFee, setSavingExtraFee] = useState(false);
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -394,6 +409,7 @@ export const EventSettings: React.FC = () => {
               : true;
       setAllowPayhere(payhereOn);
       setAllowBankTransfer(!!ev.customization?.allowBankTransfer || !!ev.allowBankTransfer || !!pm?.bankTransfer);
+      setExtraFee(normalizeEventExtraFee(ev.customization?.extraFee));
 
       const [ticketsRes, attendeesRes, statsRes] = await Promise.all([
         api.get<{ tickets: EventTicket[] }>(`/api/events/${eventId}/tickets`),
@@ -849,6 +865,31 @@ export const EventSettings: React.FC = () => {
       await loadAll();
     } finally {
       setSavingPaymentMethods(false);
+    }
+  };
+
+  const saveExtraFee = async (next: EventExtraFee) => {
+    if (!eventId) return;
+    const payload = normalizeEventExtraFee(next);
+    setSavingExtraFee(true);
+    setError(null);
+    try {
+      const res = await api.post<{ event: Event }>(`/api/events/${eventId}/branding`, {
+        extraFee: payload,
+      });
+      setEvent(res.event);
+      setExtraFee(normalizeEventExtraFee(res.event.customization?.extraFee));
+      setFeedback(
+        payload.enabled
+          ? `Extra fee saved · ${formatEventExtraFeeHint(payload)}`
+          : 'Extra fee turned off for this event.'
+      );
+    } catch (e: unknown) {
+      const err = e as { message?: string; error?: string };
+      setError(err?.message || err?.error || 'Failed to save extra fee');
+      await loadAll();
+    } finally {
+      setSavingExtraFee(false);
     }
   };
 
@@ -1921,6 +1962,118 @@ export const EventSettings: React.FC = () => {
                 >
                   {savingTracking ? 'Saving…' : 'Save tracking for this event'}
                 </button>
+              </div>
+            </SettingsCollapsibleSection>
+
+            <SettingsCollapsibleSection
+              title="Taxes & fees"
+              subtitle={formatEventExtraFeeHint(extraFee)}
+              icon={<Percent className="h-5 w-5 shrink-0" style={{ color: ui.accent }} />}
+              open={isSectionOpen('extraFee')}
+              onToggle={() => toggleSection('extraFee')}
+              panelClassName={panelCn}
+              cardStyle={cardStyle}
+              ui={ui}
+            >
+              <p className="mb-4 text-sm" style={{ color: ui.textMuted }}>
+                Collect an extra fee from attendees at checkout for this event only. Use it for tax, a service charge,
+                or any labeled add-on. Supports a percentage or a fixed LKR amount.
+              </p>
+
+              <label className="mb-4 flex items-start gap-3 rounded-2xl border px-4 py-3.5" style={cardMutedStyle}>
+                <input
+                  type="checkbox"
+                  checked={extraFee.enabled}
+                  disabled={savingExtraFee}
+                  onChange={(e) => setExtraFee((prev) => ({ ...prev, enabled: e.target.checked }))}
+                  className="mt-1 h-4 w-4"
+                  style={{ accentColor: ui.accent }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="font-semibold" style={{ color: ui.text }}>
+                    Charge an extra fee
+                  </span>
+                  <span className="mt-0.5 block text-sm" style={{ color: ui.textMuted }}>
+                    Shown as its own line on checkout, confirmation email, and thank-you page
+                  </span>
+                </span>
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm sm:col-span-2">
+                  <span className="mb-1.5 block font-semibold" style={{ color: ui.text }}>
+                    Fee label
+                  </span>
+                  <input
+                    value={extraFee.label}
+                    disabled={savingExtraFee}
+                    onChange={(e) => setExtraFee((prev) => ({ ...prev, label: e.target.value }))}
+                    placeholder="Tax"
+                    maxLength={60}
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-semibold" style={{ color: ui.text }}>
+                    Type
+                  </span>
+                  <select
+                    value={extraFee.type}
+                    disabled={savingExtraFee}
+                    onChange={(e) =>
+                      setExtraFee((prev) => ({
+                        ...prev,
+                        type: e.target.value === 'fixed' ? 'fixed' : 'percent',
+                      }))
+                    }
+                    className={fieldClass}
+                    style={fieldStyle}
+                  >
+                    <option value="percent">Percentage (%)</option>
+                    <option value="fixed">Fixed amount (LKR)</option>
+                  </select>
+                </label>
+
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-semibold" style={{ color: ui.text }}>
+                    {extraFee.type === 'fixed' ? 'Amount (LKR)' : 'Percentage'}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={extraFee.type === 'percent' ? 100 : 1000000}
+                    step={extraFee.type === 'percent' ? 0.01 : 1}
+                    value={Number.isFinite(extraFee.value) ? extraFee.value : 0}
+                    disabled={savingExtraFee}
+                    onChange={(e) =>
+                      setExtraFee((prev) => ({
+                        ...prev,
+                        value: e.target.value === '' ? 0 : Number(e.target.value),
+                      }))
+                    }
+                    className={fieldClass}
+                    style={fieldStyle}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={savingExtraFee}
+                  onClick={() => void saveExtraFee(extraFee)}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                  style={accentButtonStyleFor(ui)}
+                >
+                  {savingExtraFee ? 'Saving…' : 'Save fee'}
+                </button>
+                {extraFee.enabled && extraFee.value > 0 ? (
+                  <p className="text-sm" style={{ color: ui.textMuted }}>
+                    Preview · {formatEventExtraFeeHint({ ...extraFee, enabled: true })} on ticket subtotal after coupons
+                  </p>
+                ) : null}
               </div>
             </SettingsCollapsibleSection>
 

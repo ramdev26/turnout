@@ -435,9 +435,24 @@ export interface EventCustomization {
     payhere?: boolean;
     bankTransfer?: boolean;
   };
+  /**
+   * Optional buyer-facing extra fee for this event (tax / service charge).
+   * Applied after coupons on the payable subtotal.
+   */
+  extraFee?: EventExtraFee;
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }
+
+/** Organizer-configured per-event fee charged to the buyer at checkout. */
+export type EventExtraFee = {
+  enabled: boolean;
+  /** Display label on checkout / emails (e.g. Tax, Service fee). */
+  label: string;
+  type: 'percent' | 'fixed';
+  /** Percent 0–100, or fixed amount in LKR. */
+  value: number;
+};
 
 export type CanvasElementType =
   | 'text'
@@ -660,6 +675,8 @@ export interface Order {
   bankTransfer?: BankTransferDetails | null;
   couponCode?: string | null;
   discountAmount?: number;
+  extraFeeAmount?: number;
+  extraFeeLabel?: string | null;
   stripeSessionId?: string;
   createdAt: string;
   /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */

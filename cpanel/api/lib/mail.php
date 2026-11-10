@@ -1290,6 +1290,10 @@ function send_buyer_order_confirmation_email(
   $organizerLabel = htmlspecialchars(trim($organizerName) !== '' ? trim($organizerName) : 'Organizer');
   $eventDate = htmlspecialchars(mail_format_event_when((string)($order['event_date'] ?? '')));
   $eventLocation = htmlspecialchars((string)($order['location'] ?? ''));
+  $discountCents = (int)($order['discount_amount_cents'] ?? 0);
+  $extraFeeCents = (int)($order['extra_fee_cents'] ?? 0);
+  $extraFeeLabel = trim((string)($order['extra_fee_label'] ?? ''));
+  if ($extraFeeLabel === '') $extraFeeLabel = 'Fee';
   $total = htmlspecialchars(mail_format_lkr_from_cents((int)($order['total_amount_cents'] ?? 0)));
   $bookingId = 'TO' . strtoupper(dechex(max(1, $orderId))) . str_pad((string)$orderId, 4, '0', STR_PAD_LEFT);
   $bookingAt = htmlspecialchars(mail_format_booking_datetime((string)($order['created_at'] ?? $order['event_date'] ?? '')));
@@ -1320,6 +1324,14 @@ function send_buyer_order_confirmation_email(
     ? '<img src="' . htmlspecialchars($bannerUrl) . '" alt="' . $eventTitle . '" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;" />'
     : '';
 
+  $feeRows = '';
+  if ($discountCents > 0) {
+    $feeRows .= mail_detail_row('Discount', '−' . htmlspecialchars(mail_format_lkr_from_cents($discountCents)));
+  }
+  if ($extraFeeCents > 0) {
+    $feeRows .= mail_detail_row(htmlspecialchars($extraFeeLabel), htmlspecialchars(mail_format_lkr_from_cents($extraFeeCents)));
+  }
+
   $inner =
     $bannerHtml .
     '<div style="padding:28px 28px 8px;text-align:center;">' .
@@ -1338,6 +1350,7 @@ function send_buyer_order_confirmation_email(
     '</table>' .
     '<table width="100%" cellpadding="0" cellspacing="0">' .
     $detailRows .
+    $feeRows .
     mail_detail_row('Total', $total, true) .
     mail_detail_row('Booking ID', htmlspecialchars($bookingId)) .
     mail_detail_row('Booking Date &amp; Time', $bookingAt) .
@@ -1454,9 +1467,16 @@ function send_attendee_ticket_email(
  * Sends purchaser confirmation plus individual ticket emails to each unique holder email.
  */
 function send_order_confirmation_email(PDO $pdo, int $orderId): bool {
+  if (function_exists('ensure_order_extra_fee_columns')) {
+    ensure_order_extra_fee_columns($pdo);
+  }
+  if (function_exists('ensure_order_coupon_columns')) {
+    ensure_order_coupon_columns($pdo);
+  }
   $stmt = $pdo->prepare(
     'SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.total_amount_cents, o.tickets_json,
             o.payment_method, o.created_at, o.event_id,
+            o.discount_amount_cents, o.extra_fee_cents, o.extra_fee_label,
             e.title AS event_title, e.event_date, e.location, e.slug, e.banner_url, e.organizer_user_id,
             e.template_id, e.customization_json
      FROM orders o
