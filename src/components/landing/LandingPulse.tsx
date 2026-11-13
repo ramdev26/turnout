@@ -96,12 +96,18 @@ function isPreferredRoomTicket(event: Event, ticket: EventTicket): boolean {
   return isTakeMyBassCopy(ticket.name);
 }
 
-/** Tickets shown on this landing — hide the sibling room’s solo pass. */
+function isBothRoomsTicket(ticket: EventTicket): boolean {
+  return /both|combo|bundle|pair/i.test(ticket.name);
+}
+
+/** Tickets shown on this landing — hide the sibling room’s solo pass; Both Rooms first. */
 function ticketsForTheme(event: Event, tickets: EventTicket[]): EventTicket[] {
-  return tickets.filter((t) => {
-    if (/both|combo|bundle|pair/i.test(t.name)) return true;
-    return !shouldHideSiblingBrand(event, t.name);
-  });
+  return tickets
+    .filter((t) => {
+      if (isBothRoomsTicket(t)) return true;
+      return !shouldHideSiblingBrand(event, t.name);
+    })
+    .sort((a, b) => Number(isBothRoomsTicket(b)) - Number(isBothRoomsTicket(a)));
 }
 
 function roomsFromTickets(event: Event, tickets: EventTicket[]): PulseRoom[] {
@@ -227,7 +233,7 @@ function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLi
 }
 
 function isFeaturedTicket(ticket: EventTicket, index: number, total: number): boolean {
-  if (/both|combo|bundle|pair/i.test(ticket.name)) return true;
+  if (isBothRoomsTicket(ticket)) return true;
   return total >= 3 && index === total - 1;
 }
 

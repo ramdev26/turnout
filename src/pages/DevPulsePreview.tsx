@@ -46,20 +46,20 @@ export const DevPulsePreview: React.FC = () => {
   const tickets = useMemo<Ticket[]>(
     () => [
       {
-        id: '1',
-        eventId: event.id,
-        name: isCtrl ? 'Club Ctrl (Early bird)' : 'Take My Bass (Early bird)',
-        price: 2500,
-        quantity: 100,
-        sold: 12,
-      },
-      {
         id: '2',
         eventId: event.id,
         name: 'Both Rooms (Early bird)',
         price: 3500,
         quantity: 80,
         sold: 8,
+      },
+      {
+        id: '1',
+        eventId: event.id,
+        name: isCtrl ? 'Club Ctrl (Early bird)' : 'Take My Bass (Early bird)',
+        price: 2500,
+        quantity: 100,
+        sold: 12,
       },
     ],
     [event.id, isCtrl]
