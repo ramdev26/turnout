@@ -96,18 +96,18 @@ function isPreferredRoomTicket(event: Event, ticket: EventTicket): boolean {
   return isTakeMyBassCopy(ticket.name);
 }
 
-function ensureSentenceEnd(text: string): string {
-  const t = text.trim();
-  if (!t) return t;
-  return /[.!?…]$/.test(t) ? t : `${t}.`;
+function isBothRoomsTicket(ticket: EventTicket): boolean {
+  return /both|combo|bundle|pair/i.test(ticket.name);
 }
 
-/** Tickets shown on this landing — hide the sibling room’s solo pass. */
+/** Tickets shown on this landing — hide the sibling room’s solo pass; Both Rooms first. */
 function ticketsForTheme(event: Event, tickets: EventTicket[]): EventTicket[] {
-  return tickets.filter((t) => {
-    if (/both|combo|bundle|pair/i.test(t.name)) return true;
-    return !shouldHideSiblingBrand(event, t.name);
-  });
+  return tickets
+    .filter((t) => {
+      if (isBothRoomsTicket(t)) return true;
+      return !shouldHideSiblingBrand(event, t.name);
+    })
+    .sort((a, b) => Number(isBothRoomsTicket(b)) - Number(isBothRoomsTicket(a)));
 }
 
 function roomsFromTickets(event: Event, tickets: EventTicket[]): PulseRoom[] {
@@ -232,79 +232,8 @@ function resolveSchedule(event: Event, _tickets: EventTicket[]): PulseScheduleLi
   return [{ label: title, time: '6 PM – 1 AM' }];
 }
 
-function resolveStory(event: Event): { kicker: string; title: string; body: string } {
-  const short = (event.customization?.heroSubtext || '').trim();
-  const desc = (event.description || '')
-    .split(/\n+/)
-    .map((l) => l.trim())
-    .filter((l) => l && !shouldHideSiblingBrand(event, l))
-    .join(' ')
-    .trim();
-
-  if (isCtrlTemplate(event)) {
-    return {
-      kicker: 'THE STORY',
-      title: ensureSentenceEnd(short || event.title || 'Club Ctrl'),
-      body: desc || short || 'More details coming soon.',
-    };
-  }
-
-  // Pulse / Take My Bass — keep the proven poster story.
-  return {
-    kicker: 'THE STORY',
-    title: 'Back in Colombo.',
-    body:
-      desc ||
-      'From 6 PM. Groovy, bouncy, bassy, hands in the air. Take My Bass returns for a full night of tech house, house and indie dance — built for the floor.',
-  };
-}
-
-type PulseBeat = { time: string; label: string; detail: string };
-
-function resolveNightBeats(event: Event): PulseBeat[] {
-  const custom = event.customization?.pulseSchedule;
-  if (Array.isArray(custom) && custom.length >= 2) {
-    return custom
-      .filter((line) => !shouldHideSiblingBrand(event, `${line.label || ''} ${line.time || ''}`))
-      .slice(0, 4)
-      .map((line) => ({
-        time: (line.time || '').trim() || 'TBA',
-        label: (line.label || '').trim() || 'Session',
-        detail: 'On the floor',
-      }));
-  }
-
-  if (isCtrlTemplate(event)) {
-    return [
-      { time: '11 PM', label: 'Doors', detail: 'Bunker opens. Dark room online.' },
-      { time: '12–2 AM', label: 'Peak hours', detail: 'Dark · industrial · heavy' },
-      { time: 'Till late', label: 'Last stretch', detail: 'Stay in the bunker. Hands in the air.' },
-    ];
-  }
-
-  return [
-    { time: '6 PM', label: 'Doors', detail: 'Floor opens. Warm-up begins.' },
-    { time: '7–11 PM', label: 'Peak hours', detail: 'Groovy · bouncy · bassy' },
-    { time: 'Till 1 AM', label: 'Last stretch', detail: 'Hands in the air. Stay on the floor.' },
-  ];
-}
-
-function resolveNightSub(event: Event): string {
-  if (event.customization?.scheduleTba) return 'Schedule TBA';
-  if (isCtrlTemplate(event)) return '11 PM till very late';
-  return '6 PM to 1 AM · one floor';
-}
-
-const SAFE_SPACE_RULES = [
-  'Everyone is welcome. Make someone feel unwelcome and you’re not.',
-  'No violence. Start something and the night ends for you.',
-  'Consent is the only vibe. Not a clear yes? It’s a no.',
-  'Crew with arm bands on the floor. Find one any time.',
-  'Ask the bar for Pine Apple. Staff help, no questions asked.',
-];
-
 function isFeaturedTicket(ticket: EventTicket, index: number, total: number): boolean {
-  if (/both|combo|bundle|pair/i.test(ticket.name)) return true;
+  if (isBothRoomsTicket(ticket)) return true;
   return total >= 3 && index === total - 1;
 }
 
@@ -380,19 +309,20 @@ export function LandingPulsePage({
   const dateLabel = tba || Number.isNaN(eventDate.getTime()) ? 'TBA' : format(eventDate, 'dd.MM.yy');
 
   const venueTba = isLocationTba(event.customization, event.location);
+  // Only show a venue line when we have a real place, or an organizer-written note.
+  // Do not fall back to “Announced to ticket holders” — that added noise without converting.
+  const venueNote = (event.customization?.pulseVenueNote || '').trim();
   const venueValue = venueTba
-    ? (event.customization?.pulseVenueNote || '').trim() || 'Announced to ticket holders'
+    ? venueNote
     : resolveEventLocationLabel(event.customization, event.location);
+  const showVenue = venueValue.trim() !== '';
   const cityLine =
     (event.customization?.pulseCityLine || '').trim() ||
-    (venueTba ? 'COLOMBO' : resolveEventLocationLabel(event.customization, event.location).toUpperCase());
+    (venueTba ? '' : resolveEventLocationLabel(event.customization, event.location).toUpperCase());
 
   const visibleTickets = useMemo(() => ticketsForTheme(event, tickets), [event, tickets]);
   const rooms = useMemo(() => resolveRooms(event, visibleTickets), [event, visibleTickets]);
   const schedule = useMemo(() => resolveSchedule(event, visibleTickets), [event, visibleTickets]);
-  const story = useMemo(() => resolveStory(event), [event]);
-  const nightBeats = useMemo(() => resolveNightBeats(event), [event]);
-  const nightSub = useMemo(() => resolveNightSub(event), [event]);
   // First release = early bird; Second release = original price.
   // While early bird is on sale, only show the first-release rate (hide original).
   const earlyBirdOnSale = visibleTickets.some((t) => Boolean(t.earlyBird?.active));
@@ -506,14 +436,16 @@ export function LandingPulsePage({
                   ))}
                 </div>
 
-                <hr className="pulse-rule" />
+                {showVenue || cityLine ? <hr className="pulse-rule" /> : null}
 
-                <div>
-                  <p className="pulse-venue-label">Venue</p>
-                  <p className="pulse-venue-value">{venueValue}</p>
-                </div>
+                {showVenue ? (
+                  <div>
+                    <p className="pulse-venue-label">Venue</p>
+                    <p className="pulse-venue-value">{venueValue}</p>
+                  </div>
+                ) : null}
 
-                <p className="pulse-city">{cityLine}</p>
+                {cityLine ? <p className="pulse-city">{cityLine}</p> : null}
               </div>
 
               <div className="pulse-hero-actions">
@@ -535,12 +467,6 @@ export function LandingPulsePage({
                 ) : null}
               </div>
             </div>
-          </section>
-
-          <section className="pulse-story" aria-label="About the night">
-            <p className="pulse-story-kicker">{story.kicker}</p>
-            <h2 className="pulse-story-title landing-type-h2">{story.title}</h2>
-            <p className="pulse-story-body">{story.body}</p>
           </section>
 
           <section id="landing-tickets" className="pulse-prices scroll-mt-24" aria-label="Prices">
@@ -649,70 +575,28 @@ export function LandingPulsePage({
             </div>
           </section>
 
-          <section className="pulse-night" aria-label="How the night runs">
-            <div className="pulse-night-head">
-              <h2 className="pulse-night-title">How the night runs</h2>
-              <p className="pulse-night-sub">{nightSub}</p>
-            </div>
-            <ol className="pulse-beats">
-              {nightBeats.map((beat) => (
-                <li key={`${beat.time}-${beat.label}`} className="pulse-beat">
-                  <p className="pulse-beat-time">{beat.time}</p>
-                  <div>
-                    <p className="pulse-beat-label">{beat.label}</p>
-                    <p className="pulse-beat-detail">{beat.detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="pulse-rooms-wrap" aria-label="The session">
-            <div className="pulse-rooms pulse-rooms--single">
-              {rooms.map((room) => (
-                <article
-                  key={`${room.kicker}-${room.title}`}
-                  className={room.emphasis ? 'pulse-room pulse-room--accent' : 'pulse-room'}
-                >
-                  <p className="pulse-room-kicker">{room.kicker}</p>
-                  <h2 className="pulse-room-title landing-type-h2">{room.title}</h2>
-                  <p className="pulse-room-body">{room.body}</p>
-                  {room.tags ? (
-                    <>
-                      <hr className="pulse-room-rule" />
-                      <p className="pulse-room-tags">{room.tags}</p>
-                    </>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="pulse-safe" aria-label="Safe space">
-            <div className="pulse-safe-head">
-              <p className="pulse-safe-kicker">Safe space</p>
-              <h2 className="pulse-safe-title landing-type-h2">Everyone is welcome.</h2>
-              <p className="pulse-safe-lead">Zero tolerance for harassment. Look after each other on the floor.</p>
-            </div>
-            <ol className="pulse-safe-list">
-              {SAFE_SPACE_RULES.map((rule, index) => (
-                <li key={rule} className="pulse-safe-item">
-                  <span className="pulse-safe-num">{index + 1}</span>
-                  <span>{rule}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="pulse-close" aria-label="Closing">
-            <p className="pulse-close-kicker">The night</p>
-            <h2 className="pulse-close-title landing-type-h2">
-              Hands in the air. <span className="pulse-headline-accent">Stay on the floor.</span>
-            </h2>
-            <p className="pulse-close-body">
-              First release is limited. Grab your pass and we’ll see you on the dancefloor.
-            </p>
-          </section>
+          {rooms.length > 0 ? (
+            <section className="pulse-rooms-wrap" aria-label="The session">
+              <div className="pulse-rooms pulse-rooms--single">
+                {rooms.map((room) => (
+                  <article
+                    key={`${room.kicker}-${room.title}`}
+                    className={room.emphasis ? 'pulse-room pulse-room--accent' : 'pulse-room'}
+                  >
+                    <p className="pulse-room-kicker">{room.kicker}</p>
+                    <h2 className="pulse-room-title landing-type-h2">{room.title}</h2>
+                    <p className="pulse-room-body">{room.body}</p>
+                    {room.tags ? (
+                      <>
+                        <hr className="pulse-room-rule" />
+                        <p className="pulse-room-tags">{room.tags}</p>
+                      </>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
         <div
