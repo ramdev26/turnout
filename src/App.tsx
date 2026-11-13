@@ -46,6 +46,7 @@ import { AdminLogs } from './pages/AdminLogs';
 import { AdminOrganizers } from './pages/AdminOrganizers';
 import { BASADMIN_BASE } from './utils/adminNav';
 import { isCustomEventHostname, isPlatformHostname, normalizeHostname } from './lib/platformHost';
+import { DevPulsePreview } from './pages/DevPulsePreview';
 
 function FullPageLoader({ dark }: { dark?: boolean }) {
   return (
@@ -464,6 +465,9 @@ export default function App() {
           />
           <Route path="/landing" element={<MarketingLanding />} />
           <Route path="/discover" element={<Home />} />
+          {import.meta.env.DEV ? (
+            <Route path="/dev/pulse-preview" element={<DevPulsePreview />} />
+          ) : null}
           <Route path="/login" element={<LoginRoute />} />
           <Route
             path="/signup"
