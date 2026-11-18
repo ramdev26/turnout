@@ -17,6 +17,7 @@ import { formatApiError } from '../../utils/apiError';
 import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import { resolveOrganizerTermsHtml } from '../../utils/organizerTerms';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../../utils/purchaseLimits';
+import { getTrackedLinkCode } from '../../lib/trackedLinkStorage';
 import { EventPolicyViewerModal } from './EventPolicyViewer';
 
 type TicketHolderInput = {
@@ -427,6 +428,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           tickets: orderItems,
           attendees,
           couponCode: appliedCoupon?.code || undefined,
+          trackedLinkCode: getTrackedLinkCode(event.id) || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
@@ -444,6 +446,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           tickets: orderItems,
           attendees,
           couponCode: appliedCoupon?.code || undefined,
+          trackedLinkCode: getTrackedLinkCode(event.id) || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
@@ -462,6 +465,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           tickets: orderItems,
           attendees,
           couponCode: appliedCoupon?.code || undefined,
+          trackedLinkCode: getTrackedLinkCode(event.id) || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
