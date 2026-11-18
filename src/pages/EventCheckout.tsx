@@ -6,6 +6,7 @@ import { landingCssVars, normalizeLandingCustomization } from '../themes/eventTh
 import { loadLandingFont } from '../themes/landingFonts';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { EventAccessGate } from '../components/landing/EventAccessGate';
+import { useLandingDocumentHead } from '../components/landing/LandingShared';
 import { loadCheckoutCart, clearCheckoutCart } from '../utils/checkoutCart';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
 import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../utils/eventExtraFee';
@@ -113,6 +114,8 @@ export const EventCheckout: React.FC<EventCheckoutProps> = ({ forcedSlug }) => {
     // Intentionally run once per route params; location.state is read on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, slug]);
+
+  useLandingDocumentHead(event);
 
   useEffect(() => {
     if (!event) return;

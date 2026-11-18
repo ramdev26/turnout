@@ -6,7 +6,7 @@ import { getLandingTemplateForEvent } from '../templates/templates';
 import { landingCssVars, normalizeLandingCustomization } from '../themes/eventThemes';
 import { loadLandingFont } from '../themes/landingFonts';
 import { formatLKRWhole } from '../utils/money';
-import { ticketRemaining } from '../components/landing/LandingShared';
+import { ticketRemaining, useLandingDocumentHead } from '../components/landing/LandingShared';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
 import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../utils/eventExtraFee';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
@@ -17,6 +17,13 @@ import {
   setEventAccessToken,
   setPendingEventAccessContext,
 } from '../lib/eventAccessToken';
+import {
+  getTrackedLinkCode,
+  markTrackedLinkClickRecorded,
+  readTrackedLinkCodeFromSearch,
+  setTrackedLinkCode,
+  shouldRecordTrackedLinkClick,
+} from '../lib/trackedLinkStorage';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../utils/purchaseLimits';
 import {
   trackOrganizerInitiateCheckout,
@@ -43,6 +50,7 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const codeFromUrl = (searchParams.get('code') || '').trim();
   const customDomainRoot = Boolean(forcedSlug);
+  const trackedFromUrl = readTrackedLinkCodeFromSearch(searchParams);
 
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -117,9 +125,30 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
         setAccessRequired(false);
         await loadTickets(nextEvent.id);
 
-        if (codeFromUrl) {
+        // Affiliate cookie (30 days): capture ?ref= / ?via= / ?aff= on first touch,
+        // then attribute later direct visits + checkout from the same browser.
+        if (trackedFromUrl) {
+          setTrackedLinkCode(nextEvent.id, trackedFromUrl);
+        }
+        const affiliateCode = trackedFromUrl || getTrackedLinkCode(nextEvent.id);
+        if (affiliateCode && shouldRecordTrackedLinkClick(nextEvent.id, affiliateCode)) {
+          try {
+            await api.post(`/api/events/${nextEvent.id}/tracked-links/click`, {
+              code: affiliateCode,
+              source: trackedFromUrl ? 'ref' : 'return',
+            });
+            markTrackedLinkClickRecorded(nextEvent.id, affiliateCode);
+          } catch {
+            // Attribution visit is best-effort; never block the landing.
+          }
+        }
+
+        if (codeFromUrl || trackedFromUrl) {
           const next = new URLSearchParams(searchParams);
           next.delete('code');
+          next.delete('ref');
+          next.delete('via');
+          next.delete('aff');
           setSearchParams(next, { replace: true });
         }
       } catch (error) {
@@ -134,9 +163,10 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, slug]);
 
+  useLandingDocumentHead(event);
+
   useEffect(() => {
     if (!event) return;
-    document.title = event.title;
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
   }, [event]);
 

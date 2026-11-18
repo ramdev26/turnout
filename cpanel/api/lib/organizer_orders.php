@@ -32,6 +32,7 @@ function organizer_order_list_item(array $row, ?array $eventMeta = null): array 
   $discountCents = isset($row['discount_amount_cents']) ? (int)$row['discount_amount_cents'] : 0;
   $extraFeeCents = isset($row['extra_fee_cents']) ? (int)$row['extra_fee_cents'] : 0;
   $extraFeeLabel = trim((string)($row['extra_fee_label'] ?? ''));
+  $trackedLinkCode = trim((string)($row['tracked_link_code'] ?? ''));
 
   $out = array_merge([
     'id' => (string)$row['id'],
@@ -50,6 +51,7 @@ function organizer_order_list_item(array $row, ?array $eventMeta = null): array 
     'discountAmount' => $discountCents > 0 ? $discountCents / 100 : 0,
     'extraFeeAmount' => $extraFeeCents > 0 ? $extraFeeCents / 100 : 0,
     'extraFeeLabel' => $extraFeeCents > 0 && $extraFeeLabel !== '' ? $extraFeeLabel : null,
+    'trackedLinkCode' => $trackedLinkCode !== '' ? $trackedLinkCode : null,
     'createdAt' => !empty($row['created_at']) ? gmdate('c', strtotime((string)$row['created_at'])) : null,
   ], $payment);
 
@@ -81,6 +83,9 @@ function organizer_orders_query(
   }
   if (function_exists('ensure_order_extra_fee_columns')) {
     ensure_order_extra_fee_columns($pdo);
+  }
+  if (function_exists('ensure_order_tracked_link_columns')) {
+    ensure_order_tracked_link_columns($pdo);
   }
 
   $ownerPlaceholders = implode(',', array_fill(0, count($ownerIds), '?'));
@@ -200,7 +205,8 @@ function organizer_orders_query(
 
   $limit = (int)($filters['limit'] ?? 20);
   if ($limit < 1) $limit = 20;
-  if ($limit > 100) $limit = 100;
+  $maxLimit = !empty($filters['export']) ? 10000 : 100;
+  if ($limit > $maxLimit) $limit = $maxLimit;
   $offset = max(0, (int)($filters['offset'] ?? 0));
 
   $sql =

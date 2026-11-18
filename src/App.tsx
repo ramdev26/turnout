@@ -21,6 +21,7 @@ import { clearAuthToken, getAuthToken } from './api/authToken';
 import { EventSettings } from './pages/EventSettings';
 import { CheckInManager } from './pages/CheckInManager';
 import { EventCoupons } from './pages/EventCoupons';
+import { EventTrackedLinks } from './pages/EventTrackedLinks';
 import { EventPurchaseLimits } from './pages/EventPurchaseLimits';
 import { StaffCheckInScanner } from './pages/StaffCheckInScanner';
 import { AttendeeLogin } from './pages/AttendeeLogin';
@@ -46,12 +47,14 @@ import { AdminLogs } from './pages/AdminLogs';
 import { AdminOrganizers } from './pages/AdminOrganizers';
 import { BASADMIN_BASE } from './utils/adminNav';
 import { isCustomEventHostname, isPlatformHostname, normalizeHostname } from './lib/platformHost';
+import { DevPulsePreview } from './pages/DevPulsePreview';
 
 function FullPageLoader({ dark }: { dark?: boolean }) {
+  const forceDark = dark || (typeof window !== 'undefined' && isCustomEventHostname());
   return (
     <div
       className="flex min-h-[60vh] items-center justify-center"
-      style={dark ? { background: '#000', minHeight: '100vh' } : undefined}
+      style={forceDark ? { background: '#000', minHeight: '100vh' } : undefined}
     >
       <div
         className="h-9 w-9 animate-spin rounded-full border-2 border-white/15 border-t-white/70"
@@ -464,6 +467,9 @@ export default function App() {
           />
           <Route path="/landing" element={<MarketingLanding />} />
           <Route path="/discover" element={<Home />} />
+          {import.meta.env.DEV ? (
+            <Route path="/dev/pulse-preview" element={<DevPulsePreview />} />
+          ) : null}
           <Route path="/login" element={<LoginRoute />} />
           <Route
             path="/signup"
@@ -662,6 +668,18 @@ export default function App() {
                 <EventCoupons />
               </RequireOrganizer>
             }
+          />
+          <Route
+            path="/dashboard/events/:eventId/affiliate-links"
+            element={
+              <RequireOrganizer>
+                <EventTrackedLinks />
+              </RequireOrganizer>
+            }
+          />
+          <Route
+            path="/dashboard/events/:eventId/tracked-links"
+            element={<Navigate to="../affiliate-links" replace />}
           />
           <Route
             path="/dashboard/events/:eventId/limits"
