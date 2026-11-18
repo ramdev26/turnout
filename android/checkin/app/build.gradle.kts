@@ -12,8 +12,8 @@ android {
         applicationId = "co.turnout.checkin"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "2.0.1"
+        versionCode = 6
+        versionName = "2.1.0"
         buildConfigField("String", "DEFAULT_API_BASE", "\"https://turnout-omega.vercel.app\"")
     }
 

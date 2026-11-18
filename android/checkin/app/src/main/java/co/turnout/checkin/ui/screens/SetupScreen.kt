@@ -1,14 +1,18 @@
 package co.turnout.checkin.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -65,9 +69,12 @@ fun SetupScreen(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        TurnoutLogo(modifier = Modifier.size(64.dp))
-        Spacer(modifier = Modifier.height(18.dp))
+
+        Spacer(modifier = Modifier.height(8.dp))
+        StaffStepChip(step = 1, total = 2, label = "Event")
+        Spacer(modifier = Modifier.height(20.dp))
+        TurnoutLogo(modifier = Modifier.size(56.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "Staff scanner",
             style = MaterialTheme.typography.headlineSmall,
@@ -75,44 +82,74 @@ fun SetupScreen(
             color = TurnoutColors.Text,
         )
         Text(
-            text = "Enter the event ID from your organizer",
+            text = "Ask your organizer for the event ID",
             style = MaterialTheme.typography.bodyMedium,
             color = TurnoutColors.TextMuted,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(28.dp))
 
-        OutlinedTextField(
-            value = eventId,
-            onValueChange = { eventId = it.filter { ch -> ch.isDigit() } },
-            label = { Text("Event ID") },
-            placeholder = { Text("e.g. 42") },
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Number,
-                imeAction = ImeAction.Done,
-            ),
-            keyboardActions = KeyboardActions(onDone = { submit() }),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            colors = turnoutFieldColors(),
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = { submit() },
-            enabled = eventId.isNotBlank(),
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = TurnoutColors.Lime500,
-                contentColor = TurnoutColors.Teal900,
-            ),
+                .background(TurnoutColors.Ink.copy(alpha = 0.65f), RoundedCornerShape(20.dp))
+                .padding(18.dp),
         ) {
-            Text("Continue", fontWeight = FontWeight.Bold)
+            Icon(
+                imageVector = Icons.Outlined.Badge,
+                contentDescription = null,
+                tint = TurnoutColors.Lime500,
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(TurnoutColors.LimeSoft, RoundedCornerShape(12.dp))
+                    .padding(8.dp),
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            OutlinedTextField(
+                value = eventId,
+                onValueChange = { eventId = it.filter { ch -> ch.isDigit() } },
+                label = { Text("Event ID") },
+                placeholder = { Text("e.g. 42") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = turnoutFieldColors(),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = { submit() },
+                enabled = eventId.isNotBlank(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TurnoutColors.Lime500,
+                    contentColor = TurnoutColors.Teal900,
+                ),
+            ) {
+                Text("Next: enter PIN", fontWeight = FontWeight.Bold)
+            }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
     }
+}
+
+@Composable
+fun StaffStepChip(step: Int, total: Int, label: String) {
+    Text(
+        text = "Step $step of $total · $label",
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = TurnoutColors.Teal900,
+        modifier = Modifier
+            .background(TurnoutColors.Lime500, RoundedCornerShape(999.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable

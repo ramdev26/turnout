@@ -13,6 +13,11 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -23,14 +28,21 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Warning
@@ -48,11 +60,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -84,14 +103,19 @@ fun ScannerScreen(
                 PackageManager.PERMISSION_GRANTED,
         )
     }
-    var showManual by remember { mutableStateOf(false) }
+    var showTools by rememberSaveable { mutableStateOf(false) }
+    var showManual by rememberSaveable { mutableStateOf(false) }
     var manualToken by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         hasCameraPermission = granted
-        if (!granted) showManual = true
+        if (!granted) {
+            showTools = true
+            showManual = true
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -106,23 +130,82 @@ fun ScannerScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(TurnoutColors.Teal900)
-            .verticalScroll(rememberScrollState()),
+            .background(TurnoutColors.Teal900),
     ) {
+        // Camera fills the screen
+        if (hasCameraPermission) {
+            QrCameraPreview(onScan = onScan)
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.QrCodeScanner,
+                        contentDescription = null,
+                        tint = TurnoutColors.Lime500,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    Text(
+                        text = "Camera permission needed",
+                        color = TurnoutColors.TextMuted,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    TextButton(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
+                        Text("Allow camera", color = TurnoutColors.Lime500)
+                    }
+                }
+            }
+        }
+
+        // Top + bottom scrims for readability
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent),
+                    ),
+                ),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(280.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f)),
+                    ),
+                ),
+        )
+
+        // Scan frame
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(240.dp)
+                .border(2.dp, TurnoutColors.Lime500.copy(alpha = 0.9f), RoundedCornerShape(28.dp)),
+        )
+
+        // Top bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (offlineEnabled) "DOOR CHECK-IN · OFFLINE" else "DOOR CHECK-IN",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = "Staff scanner",
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = TurnoutColors.Lime500,
                 )
@@ -131,134 +214,248 @@ fun ScannerScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = TurnoutColors.Text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (offlineEnabled) {
+                Text(
+                    text = "Offline",
+                    color = TurnoutColors.Teal900,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .background(TurnoutColors.Lime500, RoundedCornerShape(999.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
                 )
             }
             TextButton(onClick = onSignOut) {
-                Text("Exit", color = TurnoutColors.TextMuted)
+                Text("Exit", color = TurnoutColors.Text)
             }
         }
 
-        OfflinePanel(
-            offlineEnabled = offlineEnabled,
-            state = offlineState,
-            onToggle = onToggleOffline,
-            onDownload = onDownloadRoster,
-            onSync = onSyncPending,
+        // Bottom stack: status + tools
+        Column(
             modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 12.dp),
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp)
-                .padding(horizontal = 16.dp)
-                .background(TurnoutColors.Ink, RoundedCornerShape(24.dp)),
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (hasCameraPermission) {
-                QrCameraPreview(onScan = onScan)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .height(224.dp)
-                        .fillMaxWidth(0.72f)
-                        .border(2.dp, TurnoutColors.Lime500.copy(alpha = 0.85f), RoundedCornerShape(20.dp)),
-                )
-            } else {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+            StatusBanner(scannerState)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        showTools = !showTools
+                        if (!showTools) showManual = false
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
                 ) {
-                    Icon(Icons.Default.QrCodeScanner, null, tint = TurnoutColors.Lime500)
+                    Icon(
+                        imageVector = if (showTools) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = TurnoutColors.Text,
+                        modifier = Modifier.size(18.dp),
+                    )
                     Text(
-                        text = "Camera permission required",
-                        color = TurnoutColors.TextMuted,
-                        modifier = Modifier.padding(top = 8.dp),
+                        text = if (showTools) "Hide tools" else "Tools",
+                        color = TurnoutColors.Text,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+                OutlinedButton(
+                    onClick = {
+                        showTools = true
+                        showManual = !showManual
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Keyboard,
+                        contentDescription = null,
+                        tint = TurnoutColors.Text,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = "Manual",
+                        color = TurnoutColors.Text,
+                        modifier = Modifier.padding(start = 6.dp),
                     )
                 }
             }
-        }
 
-        StatusCard(scannerState, modifier = Modifier.padding(16.dp))
-
-        TextButton(
-            onClick = { showManual = !showManual },
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        ) {
-            Icon(Icons.Default.Keyboard, contentDescription = null, tint = TurnoutColors.TextMuted)
-            Text(
-                text = if (showManual) "Hide manual entry" else "Enter code manually",
-                color = TurnoutColors.TextMuted,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-
-        if (showManual) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            AnimatedVisibility(
+                visible = showTools,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
             ) {
-                OutlinedTextField(
-                    value = manualToken,
-                    onValueChange = { manualToken = it },
-                    placeholder = { Text("Paste token") },
-                    modifier = Modifier.weight(1f),
-                    colors = turnoutFieldColors(),
-                )
-                TextButton(
-                    onClick = {
-                        onManualSubmit(manualToken)
-                        manualToken = ""
-                    },
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(TurnoutColors.Ink.copy(alpha = 0.92f))
+                        .border(1.dp, TurnoutColors.Lime500.copy(alpha = 0.15f), RoundedCornerShape(18.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Go", color = TurnoutColors.Lime500, fontWeight = FontWeight.Bold)
+                    OfflineToolsRow(
+                        offlineEnabled = offlineEnabled,
+                        state = offlineState,
+                        onToggle = onToggleOffline,
+                        onDownload = onDownloadRoster,
+                        onSync = onSyncPending,
+                    )
+
+                    AnimatedVisibility(visible = showManual) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedTextField(
+                                value = manualToken,
+                                onValueChange = { manualToken = it },
+                                placeholder = { Text("Paste ticket code") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                colors = turnoutFieldColors(),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
+                                        if (manualToken.isNotBlank()) {
+                                            onManualSubmit(manualToken)
+                                            manualToken = ""
+                                            focusManager.clearFocus()
+                                        }
+                                    },
+                                ),
+                            )
+                            Button(
+                                onClick = {
+                                    if (manualToken.isNotBlank()) {
+                                        onManualSubmit(manualToken)
+                                        manualToken = ""
+                                        focusManager.clearFocus()
+                                    }
+                                },
+                                enabled = manualToken.isNotBlank(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = TurnoutColors.Lime500,
+                                    contentColor = TurnoutColors.Teal900,
+                                ),
+                            ) {
+                                Text("Go", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
-        } else {
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun OfflinePanel(
+private fun StatusBanner(state: ScannerUiState) {
+    val (accent, bg, icon) = when (state.status) {
+        ScanStatus.SUCCESS -> Triple(TurnoutColors.Success, TurnoutColors.Success.copy(0.18f), Icons.Default.CheckCircle)
+        ScanStatus.WARNING -> Triple(TurnoutColors.Warning, TurnoutColors.Warning.copy(0.18f), Icons.Default.Warning)
+        ScanStatus.ERROR -> Triple(TurnoutColors.Error, TurnoutColors.Error.copy(0.18f), Icons.Default.Close)
+        ScanStatus.IDLE -> Triple(TurnoutColors.Lime500, TurnoutColors.Ink.copy(0.75f), Icons.Default.QrCodeScanner)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(bg)
+            .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier
+                .size(40.dp)
+                .background(accent.copy(alpha = 0.15f), CircleShape)
+                .padding(8.dp),
+        )
+        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+            Text(
+                text = state.statusMessage,
+                color = TurnoutColors.Text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            state.lastAttendee?.let { attendee ->
+                Text(
+                    text = attendee.fullName,
+                    color = TurnoutColors.Text,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Text(
+                    text = listOfNotNull(
+                        attendee.ticketName.takeIf { it.isNotBlank() },
+                        attendee.email.takeIf { it.isNotBlank() },
+                    ).joinToString(" · "),
+                    color = TurnoutColors.TextMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfflineToolsRow(
     offlineEnabled: Boolean,
     state: OfflineUiState,
     onToggle: (Boolean) -> Unit,
     onDownload: () -> Unit,
     onSync: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .background(TurnoutColors.Ink.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
-            .border(1.dp, TurnoutColors.TextSubtle.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
-            .padding(16.dp),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CloudOff, contentDescription = null, tint = TurnoutColors.Lime500)
-                Column(modifier = Modifier.padding(start = 10.dp)) {
-                    Text(
-                        text = "Offline scans",
-                        color = TurnoutColors.Text,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "Download once, scan without signal, sync later",
-                        color = TurnoutColors.TextMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+            Icon(Icons.Default.CloudOff, contentDescription = null, tint = TurnoutColors.Lime500)
+            Column(modifier = Modifier.padding(start = 10.dp).weight(1f)) {
+                Text("Offline mode", color = TurnoutColors.Text, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = if (offlineEnabled) {
+                        buildString {
+                            append("Roster ${state.rosterCount}")
+                            if (state.rosterTotal > 0) append(" / ${state.rosterTotal}")
+                            append(" · Pending ${state.pendingCount}")
+                        }
+                    } else {
+                        "Turn on for venues with weak signal"
+                    },
+                    color = TurnoutColors.TextMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             TextButton(onClick = { onToggle(!offlineEnabled) }) {
                 Text(
@@ -270,19 +467,6 @@ private fun OfflinePanel(
         }
 
         if (offlineEnabled) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Roster ${state.rosterCount}" +
-                    if (state.rosterTotal > 0 && state.rosterTotal != state.rosterCount) {
-                        " / ${state.rosterTotal}"
-                    } else {
-                        ""
-                    } +
-                    " · Pending ${state.pendingCount}",
-                color = TurnoutColors.TextMuted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(modifier = Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onDownload,
@@ -291,89 +475,47 @@ private fun OfflinePanel(
                         containerColor = TurnoutColors.Lime500,
                         contentColor = TurnoutColors.Teal900,
                     ),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(
-                        if (state.downloading) "Downloading…"
-                        else if (state.hasRoster) "Refresh roster"
-                        else "Download roster",
+                        when {
+                            state.downloading -> "Downloading…"
+                            state.hasRoster -> "Refresh"
+                            else -> "Download"
+                        },
+                        maxLines = 1,
                     )
                 }
                 OutlinedButton(
                     onClick = onSync,
                     enabled = !state.syncing && state.pendingCount > 0,
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(
-                        if (state.syncing) "Syncing…"
-                        else if (state.pendingCount > 0) "Sync ${state.pendingCount}"
-                        else "Synced",
+                        when {
+                            state.syncing -> "Syncing…"
+                            state.pendingCount > 0 -> "Sync ${state.pendingCount}"
+                            else -> "Synced"
+                        },
                         color = TurnoutColors.Text,
+                        maxLines = 1,
                     )
                 }
             }
             state.statusMessage?.let {
-                Text(
-                    text = it,
-                    color = TurnoutColors.Lime500,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                Text(it, color = TurnoutColors.Lime400, style = MaterialTheme.typography.bodySmall)
             }
             state.error?.let {
-                Text(
-                    text = it,
-                    color = TurnoutColors.Error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
+                Text(it, color = TurnoutColors.Error, style = MaterialTheme.typography.bodySmall)
             }
             if (!state.hasRoster) {
                 Text(
-                    text = "Download the roster while you still have signal.",
+                    "Download the roster while you have signal.",
                     color = TurnoutColors.Warning,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatusCard(state: ScannerUiState, modifier: Modifier = Modifier) {
-    val (borderColor, bgColor, icon) = when (state.status) {
-        ScanStatus.SUCCESS -> Triple(TurnoutColors.Success, TurnoutColors.Success.copy(0.12f), Icons.Default.CheckCircle)
-        ScanStatus.WARNING -> Triple(TurnoutColors.Warning, TurnoutColors.Warning.copy(0.12f), Icons.Default.Warning)
-        ScanStatus.ERROR -> Triple(TurnoutColors.Error, TurnoutColors.Error.copy(0.12f), Icons.Default.Close)
-        ScanStatus.IDLE -> Triple(TurnoutColors.TextSubtle, TurnoutColors.Ink.copy(0.5f), Icons.Default.QrCodeScanner)
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(bgColor, RoundedCornerShape(20.dp))
-            .border(1.dp, borderColor.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
-            .padding(20.dp),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Icon(icon, contentDescription = null, tint = borderColor)
-            Column(modifier = Modifier.padding(start = 12.dp)) {
-                Text(text = state.statusMessage, color = TurnoutColors.Text, style = MaterialTheme.typography.bodyLarge)
-                state.lastAttendee?.let { attendee ->
-                    Text(
-                        text = attendee.fullName,
-                        color = TurnoutColors.Text,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                    Text(
-                        text = "${attendee.ticketName} · ${attendee.email}",
-                        color = TurnoutColors.TextMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
             }
         }
     }
