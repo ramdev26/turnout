@@ -69,6 +69,8 @@ function enforce_write_request_integrity(string $path, string $method): void {
   if ($path === '/organizer/billing/notify') return;
   // Public auth bootstrap endpoints are intentionally available pre-session.
   if ($path === '/auth/login' || $path === '/auth/register' || $path === '/auth/register-attendee' || $path === '/auth/google' || $path === '/auth/forgot-password' || $path === '/auth/reset-password' || $path === '/auth/verify-email' || $path === '/auth/resend-verification' || $path === '/auth/check-email') return;
+  // Mobile / API clients authenticate with Bearer tokens (no ambient cookie CSRF risk).
+  if (bearer_token_from_request() !== '') return;
   // CSRF protection is required only for authenticated cookie sessions.
   if (current_user_id() === null) return;
   if (!is_same_origin_request()) {

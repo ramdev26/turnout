@@ -1,16 +1,14 @@
 package co.turnout.checkin.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -28,69 +26,79 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.turnout.checkin.ui.components.TurnoutScrollColumn
 import co.turnout.checkin.ui.theme.TurnoutColors
 
 @Composable
 fun PinScreen(
     eventId: String,
-    apiBaseUrl: String,
+    apiBaseUrl: String = "",
     unlocking: Boolean,
     unlockError: String?,
     onUnlock: (pin: String) -> Unit,
     onBack: () -> Unit,
 ) {
     var pin by rememberSaveable { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    fun submit() {
+        if (unlocking || pin.length < 4) return
+        focusManager.clearFocus()
+        onUnlock(pin.trim())
+    }
+
+    TurnoutScrollColumn(horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(modifier = Modifier.height(8.dp))
+        StaffStepChip(step = 2, total = 2, label = "PIN")
+        Spacer(modifier = Modifier.height(24.dp))
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(TurnoutColors.Ink.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                .padding(28.dp),
-            horizontalAlignment = Alignment.Start,
+                .background(TurnoutColors.Ink.copy(alpha = 0.65f), RoundedCornerShape(20.dp))
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = null,
-                    tint = TurnoutColors.Lime500,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(TurnoutColors.LimeSoft, RoundedCornerShape(16.dp))
-                        .padding(12.dp),
-                )
-                Column(modifier = Modifier.padding(start = 16.dp)) {
-                    Text(
-                        text = "Staff check-in",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TurnoutColors.Text,
-                    )
-                    Text(
-                        text = "Event #$eventId · PIN from organizer",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TurnoutColors.TextMuted,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null,
+                tint = TurnoutColors.Lime500,
+                modifier = Modifier
+                    .size(52.dp)
+                    .background(TurnoutColors.LimeSoft, RoundedCornerShape(16.dp))
+                    .padding(12.dp),
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Enter staff PIN",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = TurnoutColors.Text,
+            )
+            Text(
+                text = "Event #$eventId",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TurnoutColors.TextMuted,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Spacer(modifier = Modifier.height(20.dp))
             OutlinedTextField(
                 value = pin,
                 onValueChange = { pin = it.filter(Char::isDigit).take(8) },
                 placeholder = { Text("••••••", letterSpacing = 8.sp) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.NumberPassword,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 textStyle = MaterialTheme.typography.headlineSmall.copy(
@@ -107,33 +115,33 @@ fun PinScreen(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
+                        .padding(top = 10.dp),
                     textAlign = TextAlign.Center,
                 )
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
             Button(
-                onClick = { onUnlock(pin.trim()) },
+                onClick = { submit() },
                 enabled = !unlocking && pin.length >= 4,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = TurnoutColors.Lime500,
                     contentColor = TurnoutColors.Teal900,
                 ),
             ) {
-                Text(if (unlocking) "Verifying…" else "Start scanning", fontWeight = FontWeight.Bold)
+                Text(
+                    if (unlocking) "Verifying…" else "Open scanner",
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
-        Text(
-            text = "Server: $apiBaseUrl · Event #$eventId · v${BuildConfig.VERSION_NAME}",
-            style = MaterialTheme.typography.labelSmall,
-            color = TurnoutColors.TextSubtle,
-            modifier = Modifier.padding(top = 12.dp),
-            textAlign = TextAlign.Center,
-        )
-        TextButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
-            Text("Change event / API", color = TurnoutColors.TextMuted)
+
+        TextButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
+            Text("Change event", color = TurnoutColors.TextMuted)
         }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
