@@ -99,9 +99,9 @@ export function landingCustomizationFromDesign(
 
 function buildLiveUi(design: LandingDesignValue, baseUi: CreateThemeUI): CreateThemeUI {
   const isDark = uiIsDark(design.displayMode, baseUi.isDark);
-  const dynamicPageBg = isDark
-    ? 'radial-gradient(ellipse 70% 52% at 50% -14%, color-mix(in srgb, var(--primary) 26%, transparent) 0%, transparent 62%), linear-gradient(165deg, color-mix(in srgb, var(--secondary) 22%, #052e30) 0%, color-mix(in srgb, var(--primary) 20%, #0d585b) 52%, #052e30 100%)'
-    : 'radial-gradient(ellipse 70% 52% at 50% -12%, color-mix(in srgb, var(--primary) 18%, transparent) 0%, transparent 60%), linear-gradient(180deg, color-mix(in srgb, var(--secondary) 10%, #ffffff) 0%, color-mix(in srgb, var(--primary) 8%, #f5f7fb) 100%)';
+  // Keep create/settings chrome on the same tokens as the public landing so
+  // page background and cards never diverge (e.g. black page + white cards).
+  const pageBg = 'var(--landing-page-bg)';
 
   const style = design.landingStyle;
   const cardBorder =
@@ -111,16 +111,11 @@ function buildLiveUi(design: LandingDesignValue, baseUi: CreateThemeUI): CreateT
 
   return {
     ...baseUi,
-    pageBg: dynamicPageBg,
+    pageBg,
     headerBg: 'color-mix(in srgb, var(--landing-page-bg) 62%, var(--landing-surface) 38%)',
     footerBg: 'color-mix(in srgb, var(--landing-page-bg) 68%, var(--landing-surface) 32%)',
     borderColor: cardBorder,
-    cardBg:
-      style === 'glass'
-        ? undefined
-        : style === 'minimal'
-          ? 'var(--landing-surface)'
-          : 'var(--landing-surface)',
+    cardBg: style === 'glass' ? undefined : 'var(--landing-surface)',
     cardMutedBg: 'var(--landing-surface-muted)',
     fieldBg: 'color-mix(in srgb, var(--landing-surface) 76%, transparent)',
     pillBg: 'color-mix(in srgb, var(--landing-surface) 78%, transparent)',

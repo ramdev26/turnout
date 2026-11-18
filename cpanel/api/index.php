@@ -25,7 +25,10 @@ require __DIR__ . '/lib/core_schema.php';
 require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
 require __DIR__ . '/lib/coupons.php';
+require __DIR__ . '/lib/event_extra_fee.php';
 require __DIR__ . '/lib/access_codes.php';
+require __DIR__ . '/lib/organizer_orders.php';
+require __DIR__ . '/lib/tracked_links.php';
 
 set_cors_headers_for_same_domain();
 
@@ -186,11 +189,11 @@ function absolute_public_url(string $url): string {
   return ($https ? 'https' : 'http') . '://' . $host . '/' . ltrim($url, '/');
 }
 
-function share_meta_description(string $raw): string {
+function share_meta_description(string $raw, string $fallbackTitle = 'this event'): string {
   $text = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
   $text = preg_replace('/\s+/u', ' ', trim($text)) ?? '';
   if ($text === '') {
-    return 'View event details and tickets on Turnout.';
+    return 'Get tickets for ' . trim($fallbackTitle) . '.';
   }
   if (mb_strlen($text) > 220) {
     return rtrim(mb_substr($text, 0, 217)) . '...';
@@ -198,12 +201,20 @@ function share_meta_description(string $raw): string {
   return $text;
 }
 
-function render_share_meta_page(array $event): void {
+function render_share_meta_page(array $event, bool $brandedRoot = false): void {
   $eventTitle = trim((string)($event['title'] ?? 'Event'));
-  $organizerName = trim((string)($event['organizerName'] ?? 'Organizer'));
-  $metaTitle = trim($eventTitle . ' | ' . $organizerName);
-  if ($metaTitle === '|' || $metaTitle === '') $metaTitle = 'Turnout Event';
-  $description = share_meta_description((string)($event['description'] ?? ''));
+  $organizerName = trim((string)($event['organizerName'] ?? ''));
+  $metaTitle = $eventTitle !== '' ? $eventTitle : 'Event';
+  if ($organizerName !== '' && !str_contains(mb_strtolower($metaTitle), mb_strtolower($organizerName))) {
+    $metaTitle = trim($eventTitle . ' · ' . $organizerName);
+  }
+
+  $customization = is_array($event['customization'] ?? null) ? $event['customization'] : [];
+  $short = trim((string)($customization['heroSubtext'] ?? ''));
+  $description = share_meta_description(
+    $short !== '' ? $short : (string)($event['description'] ?? ''),
+    $eventTitle
+  );
 
   $imageUrl = absolute_public_url((string)($event['bannerUrl'] ?? ''));
   $slug = trim((string)($event['slug'] ?? ''));
@@ -211,7 +222,18 @@ function render_share_meta_page(array $event): void {
   $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
     || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
   $origin = $host !== '' ? (($https ? 'https' : 'http') . '://' . $host) : '';
-  $canonical = ($origin !== '' && $slug !== '') ? ($origin . '/e/' . rawurlencode($slug)) : '';
+  $customDomain = trim((string)($event['customDomain'] ?? ''));
+  $requestHost = strtolower(preg_replace('#:\d+$#', '', $host) ?? $host);
+  if (str_starts_with($requestHost, 'www.')) $requestHost = substr($requestHost, 4);
+  $onBrandedHost = $brandedRoot
+    || ($customDomain !== '' && strtolower($customDomain) === $requestHost);
+  $canonical = '';
+  if ($origin !== '') {
+    $canonical = $onBrandedHost
+      ? ($origin . '/')
+      : ($slug !== '' ? ($origin . '/e/' . rawurlencode($slug)) : $origin);
+  }
+  $siteName = $organizerName !== '' ? $organizerName : $eventTitle;
 
   header('Content-Type: text/html; charset=utf-8');
   header('Cache-Control: public, max-age=60, s-maxage=300');
@@ -220,7 +242,7 @@ function render_share_meta_page(array $event): void {
   echo '<meta name="viewport" content="width=device-width, initial-scale=1" />';
   echo '<title>' . html_escape($metaTitle) . '</title>';
   echo '<meta name="description" content="' . html_escape($description) . '" />';
-  echo '<meta property="og:site_name" content="Turnout" />';
+  echo '<meta property="og:site_name" content="' . html_escape($siteName) . '" />';
   echo '<meta property="og:type" content="website" />';
   echo '<meta property="og:title" content="' . html_escape($metaTitle) . '" />';
   echo '<meta property="og:description" content="' . html_escape($description) . '" />';
@@ -282,7 +304,8 @@ function maybe_serve_event_share_preview(string $path, string $method): void {
       exit;
     }
     $event = map_public_event_row($row, $pdo);
-    render_share_meta_page($event);
+    $brandedRoot = isset($_GET['share_branded']) && (string)$_GET['share_branded'] === '1';
+    render_share_meta_page($event, $brandedRoot);
   } catch (Throwable $e) {
     error_log(sprintf('[turnout] share preview failed for %s: %s', $slug, $e->getMessage()));
     http_response_code(500);
@@ -1118,10 +1141,15 @@ function payhere_cfg(): array {
   }
 
   // Merchant secrets are domain-specific in PayHere. Prefer configured APP_BASE_URL
-  // (must match an approved domain in PayHere Integrations) over preview hostnames.
+  // (must match an approved domain in PayHere Integrations) over preview / custom hosts.
   $configuredBase = rtrim((string)($p['app_base_url'] ?? ''), '/');
   $requestBase = rtrim(payhere_request_base_url(), '/');
   $appBase = $configuredBase !== '' ? $configuredBase : $requestBase;
+  if ($appBase === '') {
+    $appBase = 'https://app.bigturnout.co';
+  }
+  // Apex bigturnout.co is the marketing site (Apache) — SPA + PayHere live on app.*.
+  $appBase = payhere_normalize_spa_public_base($appBase);
   if ($appBase === '') {
     json_response(500, ['error' => 'payhere_missing_app_base_url']);
   }
@@ -1134,6 +1162,97 @@ function payhere_cfg(): array {
     'secret_source' => $secretSource,
     'notify_url' => $notifyUrl,
     'app_base_url' => $appBase,
+  ];
+}
+
+/**
+ * Map marketing apex → SPA origin. Checkout must never launch on bigturnout.co
+ * (Apache 404); PayHere works on app.bigturnout.co.
+ */
+function payhere_normalize_spa_public_base(string $base): string {
+  $base = rtrim(trim($base), '/');
+  if ($base === '') return 'https://app.bigturnout.co';
+  if (function_exists('canonical_public_app_origin')) {
+    return canonical_public_app_origin($base);
+  }
+  $host = strtolower((string)(parse_url($base, PHP_URL_HOST) ?: ''));
+  if ($host === 'bigturnout.co' || $host === 'www.bigturnout.co') {
+    return 'https://app.bigturnout.co';
+  }
+  return $base;
+}
+
+/** Public origin PayHere merchant credentials are registered against (platform Turnout Pay). */
+function payhere_platform_public_base(array $cfg): string {
+  $base = rtrim((string)($cfg['app_base_url'] ?? ''), '/');
+  return payhere_normalize_spa_public_base($base);
+}
+
+function payhere_host_from_base(string $base): string {
+  $host = parse_url($base, PHP_URL_HOST);
+  return is_string($host) ? normalize_event_hostname($host) : '';
+}
+
+/**
+ * Hosts allowed to start PayHere checkout with platform merchant credentials.
+ * Custom event domains and the marketing apex are NOT included — those must hop
+ * to app.bigturnout.co or PayHere returns PH-0013 / Apache 404.
+ */
+function payhere_platform_authorized_hosts(array $cfg): array {
+  $hosts = [];
+  $platformHost = payhere_host_from_base(payhere_platform_public_base($cfg));
+  if ($platformHost !== '') $hosts[] = $platformHost;
+  // Do not treat apex bigturnout.co as authorized — it is not the SPA.
+  foreach (['app.bigturnout.co', 'localhost', '127.0.0.1'] as $h) {
+    $hosts[] = normalize_event_hostname($h);
+  }
+  if (function_exists('domain_platform_hosts')) {
+    foreach (domain_platform_hosts() as $h) {
+      $normalized = normalize_event_hostname((string)$h);
+      if ($normalized === 'bigturnout.co' || $normalized === 'www.bigturnout.co') {
+        continue;
+      }
+      $hosts[] = $normalized;
+    }
+  }
+  return array_values(array_unique(array_filter($hosts)));
+}
+
+function payhere_request_host_is_platform_authorized(array $cfg): bool {
+  $requestHost = payhere_host_from_base(payhere_request_base_url());
+  if ($requestHost === '') return false;
+  return in_array($requestHost, payhere_platform_authorized_hosts($cfg), true);
+}
+
+/**
+ * Build browser return/cancel bases + whether checkout must hop to the PayHere-approved origin.
+ *
+ * @return array{browser_base:string,checkout_origin:string,notify_url:string,requires_domain_hop:bool}
+ */
+function payhere_checkout_origin_plan(array $cfg): array {
+  $platformBase = payhere_platform_public_base($cfg);
+  $requestBase = rtrim(payhere_request_base_url(), '/');
+  $gatewayMode = (string)($cfg['gateway_mode'] ?? 'turnout');
+
+  // Own-gateway merchants register their own domains in PayHere — stay on the request host.
+  if ($gatewayMode === 'own_payhere') {
+    $browserBase = $requestBase !== '' ? $requestBase : $platformBase;
+    return [
+      'browser_base' => $browserBase,
+      'checkout_origin' => $browserBase,
+      'notify_url' => $browserBase . '/api/payhere/notify',
+      'requires_domain_hop' => false,
+    ];
+  }
+
+  // Turnout Pay: credentials belong to APP_BASE_URL. Start PayHere only from that origin.
+  $browserBase = $requestBase !== '' ? $requestBase : $platformBase;
+  $requiresHop = $requestBase !== '' && !payhere_request_host_is_platform_authorized($cfg);
+  return [
+    'browser_base' => $browserBase,
+    'checkout_origin' => $platformBase,
+    'notify_url' => $platformBase . '/api/payhere/notify',
+    'requires_domain_hop' => $requiresHop,
   ];
 }
 
@@ -1159,6 +1278,7 @@ run_boot_schema_guard('ensure_attendees_custom_fields_column', static fn () => e
 run_boot_schema_guard('ensure_organizer_workspace_tables', static fn () => ensure_organizer_workspace_tables(db()));
 run_boot_schema_guard('ensure_organizer_payment_tables', static fn () => ensure_organizer_payment_tables(db()));
 run_boot_schema_guard('ensure_event_reminders_table', static fn () => ensure_event_reminders_table(db()));
+run_boot_schema_guard('ensure_order_extra_fee_columns', static fn () => ensure_order_extra_fee_columns(db()));
 enforce_write_request_integrity($path, $method);
 
 if ($path === '/health' && $method === 'GET') {
@@ -2065,6 +2185,86 @@ if ($path === '/me/organizer-profile' && $method === 'POST') {
     upsert_organizer_terms_html($pdo, $uid, (string)$body['termsHtml']);
   }
 
+  if (
+    array_key_exists('metaPixelId', $body)
+    || array_key_exists('gaMeasurementId', $body)
+    || array_key_exists('tiktokPixelId', $body)
+    || array_key_exists('googleAdsId', $body)
+    || array_key_exists('googleAdsConversionLabel', $body)
+    || array_key_exists('customHeadHtml', $body)
+  ) {
+    $existingMarketing = load_organizer_profile_row($pdo, $uid);
+    $metaRaw = array_key_exists('metaPixelId', $body)
+      ? (string)($body['metaPixelId'] ?? '')
+      : (string)($existingMarketing['meta_pixel_id'] ?? '');
+    $gaRaw = array_key_exists('gaMeasurementId', $body)
+      ? (string)($body['gaMeasurementId'] ?? '')
+      : (string)($existingMarketing['ga_measurement_id'] ?? '');
+    $tiktokRaw = array_key_exists('tiktokPixelId', $body)
+      ? (string)($body['tiktokPixelId'] ?? '')
+      : (string)($existingMarketing['tiktok_pixel_id'] ?? '');
+    $adsIdRaw = array_key_exists('googleAdsId', $body)
+      ? (string)($body['googleAdsId'] ?? '')
+      : (string)($existingMarketing['google_ads_id'] ?? '');
+    $adsLabelRaw = array_key_exists('googleAdsConversionLabel', $body)
+      ? (string)($body['googleAdsConversionLabel'] ?? '')
+      : (string)($existingMarketing['google_ads_conversion_label'] ?? '');
+    $customHeadRaw = array_key_exists('customHeadHtml', $body)
+      ? (string)($body['customHeadHtml'] ?? '')
+      : (string)($existingMarketing['custom_head_html'] ?? '');
+
+    $metaPixelId = normalize_meta_pixel_id($metaRaw);
+    if ($metaPixelId === false) {
+      json_response(400, [
+        'error' => 'invalid_meta_pixel_id',
+        'message' => 'Meta Pixel ID must be a numeric Pixel ID from Events Manager.',
+      ]);
+    }
+    $gaMeasurementId = normalize_ga_measurement_id($gaRaw);
+    if ($gaMeasurementId === false) {
+      json_response(400, [
+        'error' => 'invalid_ga_measurement_id',
+        'message' => 'Google Analytics ID must look like G-XXXXXXXXXX.',
+      ]);
+    }
+    $tiktokPixelId = normalize_tiktok_pixel_id($tiktokRaw);
+    if ($tiktokPixelId === false) {
+      json_response(400, [
+        'error' => 'invalid_tiktok_pixel_id',
+        'message' => 'TikTok Pixel ID must be the alphanumeric Pixel ID from TikTok Events Manager.',
+      ]);
+    }
+    $googleAdsId = normalize_google_ads_id($adsIdRaw);
+    if ($googleAdsId === false) {
+      json_response(400, [
+        'error' => 'invalid_google_ads_id',
+        'message' => 'Google Ads ID must look like AW-123456789.',
+      ]);
+    }
+    $googleAdsConversionLabel = normalize_google_ads_conversion_label($adsLabelRaw);
+    if ($googleAdsConversionLabel === false) {
+      json_response(400, [
+        'error' => 'invalid_google_ads_conversion_label',
+        'message' => 'Google Ads conversion label looks invalid.',
+      ]);
+    }
+    $customHeadHtml = normalize_custom_head_html($customHeadRaw);
+    if ($customHeadHtml === false) {
+      json_response(400, [
+        'error' => 'invalid_custom_head_html',
+        'message' => 'Custom head code must be under 20KB and use head tags only (script, meta, link, style, noscript). Do not include html/body/iframe tags.',
+      ]);
+    }
+    upsert_organizer_marketing_tags($pdo, $uid, [
+      'metaPixelId' => $metaPixelId,
+      'gaMeasurementId' => $gaMeasurementId,
+      'tiktokPixelId' => $tiktokPixelId,
+      'googleAdsId' => $googleAdsId,
+      'googleAdsConversionLabel' => $googleAdsConversionLabel,
+      'customHeadHtml' => $customHeadHtml,
+    ]);
+  }
+
   json_response(200, ['ok' => true, 'profile' => organizer_profile_api_shape($pdo, $uid), 'user' => load_user_profile($uid)]);
 }
 
@@ -2627,11 +2827,16 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
+  ensure_order_extra_fee_columns($pdo);
+  ensure_order_tracked_link_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
+  $extraFeeCents = (int)$feeApplied['extraFeeCents'];
+  $extraFeeLabel = (string)$feeApplied['label'];
+  $totalCents = (int)$feeApplied['totalCents'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'payhere_requires_positive_amount']);
@@ -2655,9 +2860,11 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'payhere');
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    attach_extra_fee_to_order($pdo, $orderId, $extraFeeCents, $extraFeeLabel);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
+    attach_tracked_link_code_from_body($pdo, $eventId, $orderId, $body);
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([
@@ -2679,20 +2886,18 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     json_response(400, ['error' => 'invalid_event_organizer']);
   }
   $cfg = payhere_cfg_for_organizer($pdo, $organizerUserId);
-  // Always use the current request origin for browser return/cancel + webhook callback.
-  // This avoids stale admin/base-url values causing redirects to checkout or missed notify.
-  $requestBase = rtrim(payhere_request_base_url(), '/');
-  if ($requestBase !== '') {
-    $cfg['app_base_url'] = $requestBase;
-    $cfg['notify_url'] = $requestBase . '/api/payhere/notify';
-  }
+  $originPlan = payhere_checkout_origin_plan($cfg);
+  $cfg['notify_url'] = $originPlan['notify_url'];
+  $cfg['app_base_url'] = $originPlan['checkout_origin'];
+
   $merchantId = $cfg['merchant_id'];
   $merchantSecret = $cfg['merchant_secret'];
   $currency = 'LKR';
   $orderIdStr = (string)$orderId;
   $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
-  $returnUrl = $cfg['app_base_url'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
-  $cancelUrl = $cfg['app_base_url'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+  // Return the buyer to the branded host after PayHere; start checkout on the approved origin.
+  $returnUrl = $originPlan['browser_base'] . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+  $cancelUrl = $originPlan['browser_base'] . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
 
   // Best-effort name split
   $firstName = $buyerName !== '' ? explode(' ', $buyerName)[0] : 'Customer';
@@ -2715,6 +2920,10 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     $cancelUrl
   );
 
+  $launchUrl = $originPlan['checkout_origin'] . '/payhere/launch?order_id=' . rawurlencode($orderIdStr)
+    . '&token=' . rawurlencode($accessToken)
+    . '&return_origin=' . rawurlencode($originPlan['browser_base']);
+
   json_response(200, [
     'orderId' => $orderIdStr,
     'accessToken' => $accessToken,
@@ -2723,6 +2932,101 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     'hash' => $checkout['hash'],
     'fields' => $checkout,
     'sdkPayment' => $checkout,
+    'checkoutOrigin' => $originPlan['checkout_origin'],
+    'requiresDomainHop' => $originPlan['requires_domain_hop'],
+    'launchUrl' => $launchUrl,
+  ]);
+}
+
+/**
+ * Rebuild PayHere checkout fields for a pending order (used after hopping to the approved domain).
+ */
+if (preg_match('#^/payhere/checkout/(\\d+)$#', $path, $m) && $method === 'GET') {
+  $orderId = (int)$m[1];
+  $accessToken = trim((string)($_GET['token'] ?? ''));
+  if ($accessToken === '') {
+    json_response(400, ['error' => 'missing_token', 'message' => 'Missing checkout token.']);
+  }
+  if (order_access_token_payload($accessToken, $orderId) === null) {
+    json_response(403, ['error' => 'forbidden', 'message' => 'Invalid or expired checkout session.']);
+  }
+
+  $pdo = db();
+  $stmt = $pdo->prepare(
+    'SELECT o.*, e.title AS event_title, e.organizer_user_id
+     FROM orders o
+     INNER JOIN events e ON e.id = o.event_id
+     WHERE o.id = ?
+     LIMIT 1'
+  );
+  $stmt->execute([$orderId]);
+  $order = $stmt->fetch();
+  if (!$order) {
+    json_response(404, ['error' => 'order_not_found']);
+  }
+  if (strtolower(trim((string)($order['status'] ?? ''))) !== 'pending') {
+    json_response(400, [
+      'error' => 'order_not_pending',
+      'message' => 'This order is no longer awaiting payment.',
+      'order' => ['id' => (string)$orderId, 'status' => (string)($order['status'] ?? '')],
+    ]);
+  }
+
+  $organizerUserId = (int)($order['organizer_user_id'] ?? 0);
+  if ($organizerUserId <= 0) {
+    json_response(400, ['error' => 'invalid_event_organizer']);
+  }
+
+  $cfg = payhere_cfg_for_organizer($pdo, $organizerUserId);
+  $originPlan = payhere_checkout_origin_plan($cfg);
+  $cfg['notify_url'] = $originPlan['notify_url'];
+  $cfg['app_base_url'] = $originPlan['checkout_origin'];
+
+  $returnOrigin = rtrim(trim((string)($_GET['return_origin'] ?? '')), '/');
+  if ($returnOrigin !== '' && preg_match('#^https://[a-z0-9.-]+$#i', $returnOrigin)) {
+    $browserBase = $returnOrigin;
+  } else {
+    $browserBase = $originPlan['browser_base'];
+  }
+
+  $orderIdStr = (string)$orderId;
+  $returnUrl = $browserBase . '/payhere/return?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+  $cancelUrl = $browserBase . '/payhere/cancel?order_id=' . rawurlencode($orderIdStr) . '&token=' . rawurlencode($accessToken);
+
+  $buyerName = trim((string)($order['buyer_name'] ?? ''));
+  $buyerEmail = strtolower(trim((string)($order['buyer_email'] ?? '')));
+  $buyerPhone = trim((string)($order['buyer_phone'] ?? ''));
+  $firstName = $buyerName !== '' ? explode(' ', $buyerName)[0] : 'Customer';
+  $lastName = $buyerName !== '' ? trim(substr($buyerName, strlen($firstName))) : '';
+  if ($lastName === '') $lastName = ' ';
+
+  $checkout = payhere_checkout_payment(
+    $cfg,
+    (string)$cfg['merchant_id'],
+    (string)$cfg['merchant_secret'],
+    $orderIdStr,
+    (int)$order['total_amount_cents'],
+    'LKR',
+    (string)($order['event_title'] ?? 'Event'),
+    $firstName,
+    $lastName,
+    $buyerEmail,
+    $buyerPhone !== '' ? $buyerPhone : '0000000000',
+    $returnUrl,
+    $cancelUrl
+  );
+
+  $actionUrl = $cfg['sandbox'] ? 'https://sandbox.payhere.lk/pay/checkout' : 'https://www.payhere.lk/pay/checkout';
+  json_response(200, [
+    'orderId' => $orderIdStr,
+    'accessToken' => $accessToken,
+    'actionUrl' => $actionUrl,
+    'sandbox' => $cfg['sandbox'],
+    'hash' => $checkout['hash'],
+    'fields' => $checkout,
+    'sdkPayment' => $checkout,
+    'checkoutOrigin' => $originPlan['checkout_origin'],
+    'requiresDomainHop' => false,
   ]);
 }
 
@@ -3235,15 +3539,25 @@ if ($path === '/public/config' && $method === 'GET') {
   ]);
 }
 
-// Resolve custom hostname → event slug (edge middleware + diagnostics)
+// Resolve custom hostname → event slug (+ optional /tmb, /cc path aliases)
 if (preg_match('#^/events/by-host/(.+)$#', $path, $m) && $method === 'GET') {
   $host = normalize_event_hostname(urldecode($m[1]));
   if ($host === '' || is_reserved_platform_host($host)) {
     json_response(404, ['error' => 'host_not_mapped']);
   }
-  $slug = lookup_event_slug_by_host(db(), $host);
-  if ($slug === null) json_response(404, ['error' => 'host_not_mapped']);
-  json_response(200, ['host' => $host, 'slug' => $slug, 'path' => '/e/' . $slug]);
+  $map = lookup_host_event_map(db(), $host);
+  if ($map === null) json_response(404, ['error' => 'host_not_mapped']);
+  $alias = strtolower(trim((string)($_GET['path'] ?? ''), '/'));
+  $slug = $map['slug'];
+  if ($alias !== '' && isset($map['paths'][$alias])) {
+    $slug = $map['paths'][$alias];
+  }
+  json_response(200, [
+    'host' => $host,
+    'slug' => $slug,
+    'path' => '/e/' . $slug,
+    'paths' => $map['paths'],
+  ]);
 }
 
 // Public published events list
@@ -3356,13 +3670,22 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'GET') {
   $row = load_event_row_or_404($pdo, $eventId);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
-  $domain = (string)($row['custom_domain'] ?? '');
+  $customization = json_decode((string)($row['customization_json'] ?? ''), true);
+  if (!is_array($customization)) $customization = [];
+  $domain = trim((string)($row['custom_domain'] ?? ''));
+  if ($domain === '') $domain = normalize_event_hostname((string)($customization['customDomain'] ?? ''));
+  $domainPath = event_row_domain_path($row);
   $dns = $domain !== '' ? domain_dns_instructions($domain) : null;
   $vercel = $domain !== '' ? vercel_get_project_domain($domain) : ['ok' => false, 'skipped' => true];
+  $publicUrl = null;
+  if ($domain !== '') {
+    $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
+  }
 
   json_response(200, [
     'customDomain' => $domain !== '' ? $domain : null,
-    'publicUrl' => $domain !== '' ? ('https://' . $domain) : null,
+    'customDomainPath' => $domainPath,
+    'publicUrl' => $publicUrl,
     'defaultUrl' => '/e/' . $row['slug'],
     'dns' => $dns,
     'vercel' => $vercel,
@@ -3377,26 +3700,48 @@ if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'POST') {
   $body = read_json_body();
   $domainRaw = trim((string)($body['domain'] ?? ''));
   if ($domainRaw === '') json_response(400, ['error' => 'invalid_domain']);
+  $pathRaw = array_key_exists('path', $body) ? trim((string)$body['path']) : null;
+
+  // Allow pasting "tickets.example.com/cc" into the domain field.
+  $domainRaw = preg_replace('#^https?://#i', '', $domainRaw) ?? $domainRaw;
+  if (($pathRaw === null || $pathRaw === '') && preg_match('#^([^/?#]+)/([a-z0-9][a-z0-9-]{0,30}[a-z0-9]?)$#i', $domainRaw, $dm)) {
+    $domainRaw = $dm[1];
+    $pathRaw = $dm[2];
+  }
 
   $pdo = db();
   $row = load_event_row_or_404($pdo, $eventId);
   deny_unless_event_row_access($pdo, $row, $uid, 'editor');
 
   $domain = normalize_event_hostname($domainRaw);
-  if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like events.yourbrand.com']);
+  if (!is_valid_event_hostname($domain)) json_response(400, ['error' => 'invalid_domain', 'message' => 'Enter a valid domain like tickets.yourbrand.com']);
   if (is_reserved_platform_host($domain)) json_response(400, ['error' => 'domain_reserved']);
 
-  sync_event_custom_domain($pdo, $eventId, $domain);
-  $vercel = vercel_add_project_domain($domain);
-  $dns = domain_dns_instructions($domain);
+  try {
+    $pathToSave = ($pathRaw !== null && $pathRaw !== '') ? $pathRaw : null;
+    sync_event_custom_domain($pdo, $eventId, $domain, $pathToSave);
+    $vercel = vercel_add_project_domain($domain);
+    $dns = domain_dns_instructions($domain);
+    $fresh = load_event_row_or_404($pdo, $eventId);
+    $domainPath = event_row_domain_path($fresh);
+    $publicUrl = 'https://' . $domain . ($domainPath ? ('/' . $domainPath) : '');
 
-  json_response(200, [
-    'ok' => true,
-    'customDomain' => $domain,
-    'publicUrl' => 'https://' . $domain,
-    'dns' => $dns,
-    'vercel' => $vercel,
-  ]);
+    json_response(200, [
+      'ok' => true,
+      'customDomain' => $domain,
+      'customDomainPath' => $domainPath,
+      'publicUrl' => $publicUrl,
+      'dns' => $dns,
+      'vercel' => $vercel,
+    ]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] domain connect failed event=%d: %s', $eventId, $e->getMessage()));
+    json_response(500, [
+      'error' => 'domain_connect_failed',
+      'message' => 'Could not connect this domain path. Please try again, or use a different path like tmb or cc.',
+      'debug' => is_debug_mode_enabled() ? $e->getMessage() : null,
+    ]);
+  }
 }
 
 if (preg_match('#^/events/(\\d+)/domain$#', $path, $m) && $method === 'DELETE') {
@@ -3421,11 +3766,10 @@ if (preg_match('#^/events/(\\d+)/domain/verify$#', $path, $m) && $method === 'PO
   $vercel = vercel_get_project_domain($domain);
   $dnsOk = false;
   $records = @dns_get_record($domain, DNS_CNAME);
-  $target = strtolower(domain_cname_target());
   if (is_array($records)) {
     foreach ($records as $rec) {
       $val = strtolower((string)($rec['target'] ?? ''));
-      if ($val !== '' && (str_contains($val, 'vercel') || $val === $target || str_ends_with($val, '.vercel-dns.com'))) {
+      if (domain_cname_points_to_platform($val)) {
         $dnsOk = true;
         break;
       }
@@ -3780,6 +4124,15 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
     $customization = apply_event_payment_methods_to_customization($customization, $wantPayhere, $wantBank);
   }
 
+  if (array_key_exists('extraFee', $body)) {
+    $sanitizedFee = sanitize_event_extra_fee_for_customization($body['extraFee']);
+    if ($sanitizedFee === null) {
+      unset($customization['extraFee']);
+    } else {
+      $customization['extraFee'] = $sanitizedFee;
+    }
+  }
+
   if (array_key_exists('bannerUrl', $body)) {
     $nextBanner = trim((string)$body['bannerUrl']);
     if ($nextBanner !== '') $row['banner_url'] = $nextBanner;
@@ -3805,7 +4158,7 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   }
 
   $templateId = trim((string)($body['templateId'] ?? ''));
-  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-7', 'template-8', 'template-10', 'template-canvas'];
+  $allowedTemplates = ['template-2', 'template-5', 'template-6', 'template-7', 'template-8', 'template-10', 'template-11', 'template-12', 'template-canvas'];
   $legacyTemplates = ['template-1', 'template-3', 'template-4'];
   if ($templateId !== '' && in_array($templateId, $allowedTemplates, true)) {
     $row['template_id'] = $templateId;
@@ -3824,6 +4177,24 @@ if (preg_match('#^/events/(\\d+)/branding$#', $path, $m) && $method === 'POST') 
   } elseif (empty($customization['heroSubtext']) && !empty($row['description'])) {
     // Backfill only when never set, so legacy events still show a subtitle.
     $customization['heroSubtext'] = mb_substr((string)$row['description'], 0, 100);
+  }
+  if (array_key_exists('pulseHeaderLinkLabel', $body)) {
+    $label = mb_substr(trim((string)$body['pulseHeaderLinkLabel']), 0, 80);
+    if ($label === '') unset($customization['pulseHeaderLinkLabel']);
+    else $customization['pulseHeaderLinkLabel'] = $label;
+  }
+  if (array_key_exists('pulseHeaderLink', $body)) {
+    $link = trim((string)$body['pulseHeaderLink']);
+    if ($link === '') {
+      unset($customization['pulseHeaderLink']);
+    } elseif (preg_match('#^(https?:\/\/|\/)[^\s]+$#i', $link)) {
+      $customization['pulseHeaderLink'] = mb_substr($link, 0, 500);
+    } else {
+      json_response(400, [
+        'error' => 'invalid_pulse_header_link',
+        'message' => 'Enter a valid link (https://… or a path starting with /).',
+      ]);
+    }
   }
 
   $upd = $pdo->prepare(
@@ -4471,7 +4842,7 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
   $body = read_json_body();
   $pdo = db();
   ensure_event_coupons_table($pdo);
-  require_publishable_event($pdo, $eventId);
+  $ev = require_publishable_event($pdo, $eventId);
 
   $items = $body['tickets'] ?? [];
   if (!is_array($items) || count($items) < 1) {
@@ -4485,6 +4856,7 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
   if (!$coupon) {
     json_response(400, ['error' => 'invalid_coupon_code', 'message' => 'Enter a coupon code.']);
   }
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
 
   json_response(200, [
     'ok' => true,
@@ -4494,8 +4866,183 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
     'discountValue' => ((int)($coupon['discount_value_cents'] ?? 0)) / 100,
     'subtotal' => $subtotalCents / 100,
     'discountAmount' => ((int)$priced['discountCents']) / 100,
-    'total' => ((int)$priced['totalCents']) / 100,
+    'extraFeeAmount' => ((int)$feeApplied['extraFeeCents']) / 100,
+    'extraFeeLabel' => (string)$feeApplied['label'],
+    'total' => ((int)$feeApplied['totalCents']) / 100,
   ]);
+}
+
+// ---- Event tracked links (artist / ad attribution) ----
+if (preg_match('#^/events/(\\d+)/tracked-links$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  ensure_event_tracked_links_table($pdo);
+  ensure_order_tracked_link_columns($pdo);
+
+  $statsById = tracked_link_sales_stats_by_id($pdo, $eventId);
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE event_id = ? ORDER BY id DESC');
+  $stmt->execute([$eventId]);
+  $links = [];
+  while ($row = $stmt->fetch()) {
+    $id = (int)$row['id'];
+    $links[] = tracked_link_api_shape($row, $statsById[$id] ?? []);
+  }
+  json_response(200, ['links' => $links]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracked-links$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_tracked_links_table($pdo);
+
+  $code = normalize_tracked_link_code((string)($body['code'] ?? ''));
+  $label = trim((string)($body['label'] ?? ''));
+  if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,64}$/', $code)) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_code',
+      'message' => 'Code must be 2–64 characters (letters, numbers, _ or -).',
+    ]);
+  }
+  if ($label === '') {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Add a label (artist name, ad campaign, etc.).',
+    ]);
+  }
+  if (mb_strlen($label) > 160) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Label must be 160 characters or fewer.',
+    ]);
+  }
+
+  $active = !array_key_exists('active', $body) || !empty($body['active']);
+
+  try {
+    $ins = $pdo->prepare(
+      'INSERT INTO event_tracked_links (event_id, code, label, active) VALUES (?, ?, ?, ?)'
+    );
+    $ins->execute([$eventId, $code, $label, $active ? 1 : 0]);
+    $id = (int)$pdo->lastInsertId();
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] tracked link create failed: %s', $e->getMessage()));
+    json_response(400, [
+      'error' => 'tracked_link_create_failed',
+      'message' => 'Could not create link. That code may already exist for this event.',
+    ]);
+  }
+
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$id, $eventId]);
+  json_response(201, ['link' => tracked_link_api_shape($stmt->fetch())]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracked-links/(\\d+)$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $linkId = (int)$m[2];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_tracked_links_table($pdo);
+
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$linkId, $eventId]);
+  $existing = $stmt->fetch();
+  if (!$existing) {
+    json_response(404, ['error' => 'tracked_link_not_found', 'message' => 'Tracked link not found.']);
+  }
+
+  $code = array_key_exists('code', $body)
+    ? normalize_tracked_link_code((string)$body['code'])
+    : (string)$existing['code'];
+  if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,64}$/', $code)) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_code',
+      'message' => 'Code must be 2–64 characters (letters, numbers, _ or -).',
+    ]);
+  }
+
+  $label = array_key_exists('label', $body)
+    ? trim((string)$body['label'])
+    : (string)($existing['label'] ?? '');
+  if ($label === '') {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Add a label (artist name, ad campaign, etc.).',
+    ]);
+  }
+  if (mb_strlen($label) > 160) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Label must be 160 characters or fewer.',
+    ]);
+  }
+
+  $active = array_key_exists('active', $body)
+    ? (!empty($body['active']) ? 1 : 0)
+    : (int)(bool)$existing['active'];
+
+  try {
+    $upd = $pdo->prepare(
+      'UPDATE event_tracked_links SET code = ?, label = ?, active = ? WHERE id = ? AND event_id = ?'
+    );
+    $upd->execute([$code, $label, $active, $linkId, $eventId]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] tracked link update failed: %s', $e->getMessage()));
+    json_response(400, [
+      'error' => 'tracked_link_update_failed',
+      'message' => 'Could not update link. That code may already exist for this event.',
+    ]);
+  }
+
+  $statsById = tracked_link_sales_stats_by_id($pdo, $eventId);
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$linkId, $eventId]);
+  json_response(200, [
+    'link' => tracked_link_api_shape($stmt->fetch(), $statsById[$linkId] ?? []),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracked-links/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $linkId = (int)$m[2];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_tracked_links_table($pdo);
+
+  $del = $pdo->prepare('DELETE FROM event_tracked_links WHERE id = ? AND event_id = ?');
+  $del->execute([$linkId, $eventId]);
+  if ($del->rowCount() < 1) {
+    json_response(404, ['error' => 'tracked_link_not_found', 'message' => 'Tracked link not found.']);
+  }
+  json_response(200, ['ok' => true]);
+}
+
+/** Public: record a landing click for an active tracked link (no auth). */
+if (preg_match('#^/events/(\\d+)/tracked-links/click$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  ensure_event_tracked_links_table($pdo);
+  try {
+    require_publishable_event($pdo, $eventId);
+  } catch (Throwable $e) {
+    json_response(200, ['ok' => true]);
+  }
+
+  $code = normalize_tracked_link_code((string)($body['code'] ?? $body['ref'] ?? $body['via'] ?? ''));
+  $link = $code !== '' ? load_active_tracked_link($pdo, $eventId, $code) : null;
+  if ($link) {
+    increment_tracked_link_click_count($pdo, (int)$link['id']);
+  }
+  json_response(200, ['ok' => true]);
 }
 
 // ---- Orders ----
@@ -4517,16 +5064,22 @@ if ($path === '/orders' && $method === 'POST') {
   ensure_order_policy_acceptance_columns($pdo);
   ensure_order_bank_transfer_columns($pdo);
   ensure_order_coupon_columns($pdo);
+  ensure_order_extra_fee_columns($pdo);
+  ensure_order_tracked_link_columns($pdo);
   $ev = require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
-  if ($subtotalCents > 0 && $totalCents > 0) {
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
+  $extraFeeCents = (int)$feeApplied['extraFeeCents'];
+  $extraFeeLabel = (string)$feeApplied['label'];
+  $totalCents = (int)$feeApplied['totalCents'];
+  // Paid tickets (or free tickets with an extra fee) must use PayHere / bank transfer.
+  if ($totalCents > 0) {
     json_response(400, ['error' => 'paid_orders_use_payhere', 'message' => 'Use PayHere checkout for paid tickets.']);
   }
 
@@ -4555,9 +5108,11 @@ if ($path === '/orders' && $method === 'POST') {
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'free');
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    attach_extra_fee_to_order($pdo, $orderId, $extraFeeCents, $extraFeeLabel);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
+    attach_tracked_link_code_from_body($pdo, $eventId, $orderId, $body);
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
     increment_ticket_sold_counts($pdo, $normalizedItems);
 
@@ -4641,11 +5196,16 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
+  ensure_order_extra_fee_columns($pdo);
+  ensure_order_tracked_link_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
-  $totalCents = (int)$priced['totalCents'];
   $discountCents = (int)$priced['discountCents'];
   $couponRow = $priced['coupon'];
+  $feeApplied = apply_event_extra_fee_cents($ev, (int)$priced['totalCents']);
+  $extraFeeCents = (int)$feeApplied['extraFeeCents'];
+  $extraFeeLabel = (string)$feeApplied['label'];
+  $totalCents = (int)$feeApplied['totalCents'];
 
   if ($totalCents <= 0) {
     json_response(400, ['error' => 'bank_transfer_requires_positive_amount']);
@@ -4669,9 +5229,11 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     mark_order_policy_acceptance($pdo, $orderId);
     set_order_payment_method($pdo, $orderId, 'bank_transfer');
     attach_coupon_to_order($pdo, $orderId, $couponRow, $discountCents);
+    attach_extra_fee_to_order($pdo, $orderId, $extraFeeCents, $extraFeeLabel);
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
+    attach_tracked_link_code_from_body($pdo, $eventId, $orderId, $body);
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([
@@ -4700,6 +5262,8 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     'bankTransfer' => $bankDetails,
     'totalAmount' => $totalCents / 100,
     'discountAmount' => $discountCents / 100,
+    'extraFeeAmount' => $extraFeeCents / 100,
+    'extraFeeLabel' => $extraFeeCents > 0 ? $extraFeeLabel : null,
     'couponCode' => $couponRow ? (string)$couponRow['code'] : null,
   ]);
 }
@@ -4943,10 +5507,10 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       }
     }
   }
-  $isOrganizerOwner = ($uid !== null) && ((int)($eventOwner['organizer_user_id'] ?? 0) === $uid);
+  $isOrganizerAccess = ($uid !== null) && user_can_access_event($pdo, (int)$row['event_id'], $uid, 'viewer');
   $tokenPayload = $accessToken !== '' ? order_access_token_payload($accessToken, $orderId) : null;
   $hasAccessToken = $tokenPayload !== null;
-  if (!$isBuyer && !$isOrganizerOwner && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
+  if (!$isBuyer && !$isOrganizerAccess && !$hasAccessToken) json_response(403, ['error' => 'forbidden']);
 
   if ($hasAccessToken && (string)$row['status'] === 'pending') {
     $pm = trim((string)($row['payment_method'] ?? ''));
@@ -5050,7 +5614,7 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
   }
 
   $eventPayload = null;
-  if ($hasAccessToken || $isBuyer || $isOrganizerOwner) {
+  if ($hasAccessToken || $isBuyer || $isOrganizerAccess) {
     $evStmt = $pdo->prepare('SELECT * FROM events WHERE id = ? LIMIT 1');
     $evStmt->execute([(int)$row['event_id']]);
     $evRow = $evStmt->fetch();
@@ -5058,6 +5622,30 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       $eventPayload = map_public_event_row($evRow, $pdo);
     }
   }
+
+  if (function_exists('ensure_order_coupon_columns')) {
+    ensure_order_coupon_columns($pdo);
+    // Reload coupon fields if the SELECT * above ran before migration.
+    if (!array_key_exists('coupon_code', $row)) {
+      $reload = $pdo->prepare('SELECT coupon_code, discount_amount_cents FROM orders WHERE id = ? LIMIT 1');
+      $reload->execute([$orderId]);
+      $extra = $reload->fetch() ?: [];
+      $row = array_merge($row, $extra);
+    }
+  }
+  if (function_exists('ensure_order_extra_fee_columns')) {
+    ensure_order_extra_fee_columns($pdo);
+    if (!array_key_exists('extra_fee_cents', $row)) {
+      $reloadFee = $pdo->prepare('SELECT extra_fee_cents, extra_fee_label FROM orders WHERE id = ? LIMIT 1');
+      $reloadFee->execute([$orderId]);
+      $feeExtra = $reloadFee->fetch() ?: [];
+      $row = array_merge($row, $feeExtra);
+    }
+  }
+  $couponCode = trim((string)($row['coupon_code'] ?? ''));
+  $discountCents = (int)($row['discount_amount_cents'] ?? 0);
+  $extraFeeCents = (int)($row['extra_fee_cents'] ?? 0);
+  $extraFeeLabel = trim((string)($row['extra_fee_label'] ?? ''));
 
   json_response(200, [
     'order' => array_merge([
@@ -5074,6 +5662,10 @@ if (preg_match('#^/orders/(\\d+)$#', $path, $m) && $method === 'GET') {
       'attendees' => $att,
       'viewScope' => $viewScope,
       'bankTransfer' => $bankTransferDetails,
+      'couponCode' => $couponCode !== '' ? $couponCode : null,
+      'discountAmount' => $discountCents > 0 ? $discountCents / 100 : 0,
+      'extraFeeAmount' => $extraFeeCents > 0 ? $extraFeeCents / 100 : 0,
+      'extraFeeLabel' => $extraFeeCents > 0 && $extraFeeLabel !== '' ? $extraFeeLabel : null,
     ], $paymentFields),
     'event' => $eventPayload,
   ]);
@@ -5431,6 +6023,141 @@ if (preg_match('#^/public/events/(\\d+)/sessions$#', $path, $m) && $method === '
     ];
   }
   json_response(200, ['sessions' => $sessions]);
+}
+
+// ---- Event visitor tracking (Meta Pixel / GA overrides) ----
+if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  $row = load_event_row_or_404($pdo, $eventId);
+  $mapped = map_public_event_row($row, $pdo);
+  json_response(200, [
+    'metaPixelId' => $mapped['eventMetaPixelId'] ?? null,
+    'gaMeasurementId' => $mapped['eventGaMeasurementId'] ?? null,
+    'tiktokPixelId' => $mapped['eventTiktokPixelId'] ?? null,
+    'googleAdsId' => $mapped['eventGoogleAdsId'] ?? null,
+    'googleAdsConversionLabel' => $mapped['eventGoogleAdsConversionLabel'] ?? null,
+    'customHeadHtml' => $mapped['eventCustomHeadHtml'] ?? null,
+    'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
+    'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
+    'organizationTiktokPixelId' => $mapped['organizationTiktokPixelId'] ?? null,
+    'organizationGoogleAdsId' => $mapped['organizationGoogleAdsId'] ?? null,
+    'organizationGoogleAdsConversionLabel' => $mapped['organizationGoogleAdsConversionLabel'] ?? null,
+    'organizationCustomHeadHtml' => $mapped['organizationCustomHeadHtml'] ?? null,
+    'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
+    'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
+    'effectiveTiktokPixelId' => $mapped['tiktokPixelId'] ?? null,
+    'effectiveGoogleAdsId' => $mapped['googleAdsId'] ?? null,
+    'effectiveGoogleAdsConversionLabel' => $mapped['googleAdsConversionLabel'] ?? null,
+    'effectiveCustomHeadHtml' => $mapped['customHeadHtml'] ?? null,
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracking$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  $row = load_event_row_or_404($pdo, $eventId);
+  $existing = event_marketing_overrides_from_row($row);
+
+  $metaRaw = array_key_exists('metaPixelId', $body)
+    ? (string)($body['metaPixelId'] ?? '')
+    : (string)($existing['metaPixelId'] ?? '');
+  $gaRaw = array_key_exists('gaMeasurementId', $body)
+    ? (string)($body['gaMeasurementId'] ?? '')
+    : (string)($existing['gaMeasurementId'] ?? '');
+  $tiktokRaw = array_key_exists('tiktokPixelId', $body)
+    ? (string)($body['tiktokPixelId'] ?? '')
+    : (string)($existing['tiktokPixelId'] ?? '');
+  $adsIdRaw = array_key_exists('googleAdsId', $body)
+    ? (string)($body['googleAdsId'] ?? '')
+    : (string)($existing['googleAdsId'] ?? '');
+  $adsLabelRaw = array_key_exists('googleAdsConversionLabel', $body)
+    ? (string)($body['googleAdsConversionLabel'] ?? '')
+    : (string)($existing['googleAdsConversionLabel'] ?? '');
+  $customHeadRaw = array_key_exists('customHeadHtml', $body)
+    ? (string)($body['customHeadHtml'] ?? '')
+    : (string)($existing['customHeadHtml'] ?? '');
+
+  $metaPixelId = normalize_meta_pixel_id($metaRaw);
+  if ($metaPixelId === false) {
+    json_response(400, [
+      'error' => 'invalid_meta_pixel_id',
+      'message' => 'Meta Pixel ID must be a numeric Pixel ID from Events Manager.',
+    ]);
+  }
+  $gaMeasurementId = normalize_ga_measurement_id($gaRaw);
+  if ($gaMeasurementId === false) {
+    json_response(400, [
+      'error' => 'invalid_ga_measurement_id',
+      'message' => 'Google Analytics ID must look like G-XXXXXXXXXX.',
+    ]);
+  }
+  $tiktokPixelId = normalize_tiktok_pixel_id($tiktokRaw);
+  if ($tiktokPixelId === false) {
+    json_response(400, [
+      'error' => 'invalid_tiktok_pixel_id',
+      'message' => 'TikTok Pixel ID must be the alphanumeric Pixel ID from TikTok Events Manager.',
+    ]);
+  }
+  $googleAdsId = normalize_google_ads_id($adsIdRaw);
+  if ($googleAdsId === false) {
+    json_response(400, [
+      'error' => 'invalid_google_ads_id',
+      'message' => 'Google Ads ID must look like AW-123456789.',
+    ]);
+  }
+  $googleAdsConversionLabel = normalize_google_ads_conversion_label($adsLabelRaw);
+  if ($googleAdsConversionLabel === false) {
+    json_response(400, [
+      'error' => 'invalid_google_ads_conversion_label',
+      'message' => 'Google Ads conversion label looks invalid.',
+    ]);
+  }
+  $customHeadHtml = normalize_custom_head_html($customHeadRaw);
+  if ($customHeadHtml === false) {
+    json_response(400, [
+      'error' => 'invalid_custom_head_html',
+      'message' => 'Custom head code must be under 20KB and use head tags only (script, meta, link, style, noscript). Do not include html/body/iframe tags.',
+    ]);
+  }
+
+  $overrides = set_event_marketing_overrides($pdo, $eventId, [
+    'metaPixelId' => $metaPixelId,
+    'gaMeasurementId' => $gaMeasurementId,
+    'tiktokPixelId' => $tiktokPixelId,
+    'googleAdsId' => $googleAdsId,
+    'googleAdsConversionLabel' => $googleAdsConversionLabel,
+    'customHeadHtml' => $customHeadHtml,
+  ]);
+  $fresh = load_event_row_or_404($pdo, $eventId);
+  $mapped = map_public_event_row($fresh, $pdo);
+  json_response(200, [
+    'ok' => true,
+    'metaPixelId' => $overrides['metaPixelId'],
+    'gaMeasurementId' => $overrides['gaMeasurementId'],
+    'tiktokPixelId' => $overrides['tiktokPixelId'],
+    'googleAdsId' => $overrides['googleAdsId'],
+    'googleAdsConversionLabel' => $overrides['googleAdsConversionLabel'],
+    'customHeadHtml' => $overrides['customHeadHtml'],
+    'organizationMetaPixelId' => $mapped['organizationMetaPixelId'] ?? null,
+    'organizationGaMeasurementId' => $mapped['organizationGaMeasurementId'] ?? null,
+    'organizationTiktokPixelId' => $mapped['organizationTiktokPixelId'] ?? null,
+    'organizationGoogleAdsId' => $mapped['organizationGoogleAdsId'] ?? null,
+    'organizationGoogleAdsConversionLabel' => $mapped['organizationGoogleAdsConversionLabel'] ?? null,
+    'organizationCustomHeadHtml' => $mapped['organizationCustomHeadHtml'] ?? null,
+    'effectiveMetaPixelId' => $mapped['metaPixelId'] ?? null,
+    'effectiveGaMeasurementId' => $mapped['gaMeasurementId'] ?? null,
+    'effectiveTiktokPixelId' => $mapped['tiktokPixelId'] ?? null,
+    'effectiveGoogleAdsId' => $mapped['googleAdsId'] ?? null,
+    'effectiveGoogleAdsConversionLabel' => $mapped['googleAdsConversionLabel'] ?? null,
+    'effectiveCustomHeadHtml' => $mapped['customHeadHtml'] ?? null,
+    'event' => $mapped,
+  ]);
 }
 
 // ---- Purchase limits (ticket restrictions) ----
@@ -7500,6 +8227,128 @@ if ($path === '/organizer/dashboard-stats' && $method === 'GET') {
     'byEvent' => $byEvent,
     'earnings' => organizer_earnings_api_shape($pdo, $uid),
   ]);
+}
+
+if ($path === '/organizer/orders' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ownerIds = organizer_accessible_owner_ids($pdo, $uid);
+  $result = organizer_orders_query($pdo, $ownerIds, [
+    'status' => trim((string)($_GET['status'] ?? 'all')),
+    'eventId' => (int)($_GET['eventId'] ?? 0),
+    'paymentMethod' => trim((string)($_GET['paymentMethod'] ?? '')),
+    'q' => trim((string)($_GET['q'] ?? '')),
+    'from' => trim((string)($_GET['from'] ?? '')),
+    'to' => trim((string)($_GET['to'] ?? '')),
+    'limit' => (int)($_GET['limit'] ?? 20),
+    'offset' => (int)($_GET['offset'] ?? 0),
+  ]);
+
+  $events = [];
+  if ($ownerIds !== []) {
+    $eventsStmt = $pdo->prepare(
+      'SELECT id, title, slug FROM events WHERE organizer_user_id IN (' .
+      implode(',', array_fill(0, count($ownerIds), '?')) .
+      ') ORDER BY created_at DESC'
+    );
+    $eventsStmt->execute($ownerIds);
+    while ($ev = $eventsStmt->fetch()) {
+      $events[] = [
+        'id' => (string)$ev['id'],
+        'title' => (string)$ev['title'],
+        'slug' => (string)$ev['slug'],
+      ];
+    }
+  }
+
+  json_response(200, [
+    'orders' => $result['orders'],
+    'total' => $result['total'],
+    'counts' => $result['counts'],
+    'limit' => $result['limit'] ?? 20,
+    'offset' => $result['offset'] ?? 0,
+    'from' => $result['from'] ?? null,
+    'to' => $result['to'] ?? null,
+    'events' => $events,
+  ]);
+}
+
+/** CSV export — same filters as /organizer/orders (status, event, method, search, dates). */
+if ($path === '/organizer/orders.csv' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ownerIds = organizer_accessible_owner_ids($pdo, $uid);
+  $result = organizer_orders_query($pdo, $ownerIds, [
+    'status' => trim((string)($_GET['status'] ?? 'all')),
+    'eventId' => (int)($_GET['eventId'] ?? 0),
+    'paymentMethod' => trim((string)($_GET['paymentMethod'] ?? '')),
+    'q' => trim((string)($_GET['q'] ?? '')),
+    'from' => trim((string)($_GET['from'] ?? '')),
+    'to' => trim((string)($_GET['to'] ?? '')),
+    'limit' => 10000,
+    'offset' => 0,
+    'export' => true,
+  ]);
+
+  $stamp = gmdate('Ymd-His');
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="turnout-orders-' . $stamp . '.csv"');
+  header('Cache-Control: no-store, max-age=0');
+
+  $out = fopen('php://output', 'w');
+  // UTF-8 BOM helps Excel open Sri Lankan / Unicode names correctly.
+  fwrite($out, "\xEF\xBB\xBF");
+  fputcsv($out, [
+    'order_id',
+    'created_at',
+    'status',
+    'payment_method',
+    'event_id',
+    'event_title',
+    'event_slug',
+    'buyer_name',
+    'buyer_email',
+    'buyer_phone',
+    'ticket_count',
+    'tickets',
+    'subtotal_before_discount',
+    'discount_amount',
+    'coupon_code',
+    'extra_fee_amount',
+    'extra_fee_label',
+    'total_amount',
+    'tracked_link_code',
+  ]);
+
+  foreach ($result['orders'] as $order) {
+    $total = (float)($order['totalAmount'] ?? 0);
+    $discount = (float)($order['discountAmount'] ?? 0);
+    $extraFee = (float)($order['extraFeeAmount'] ?? 0);
+    $subtotal = max(0, $total + $discount - $extraFee);
+    fputcsv($out, [
+      (string)($order['id'] ?? ''),
+      (string)($order['createdAt'] ?? ''),
+      (string)($order['status'] ?? ''),
+      (string)($order['paymentMethod'] ?? ''),
+      (string)($order['eventId'] ?? ''),
+      (string)($order['eventTitle'] ?? ''),
+      (string)($order['eventSlug'] ?? ''),
+      (string)($order['buyerName'] ?? ''),
+      (string)($order['buyerEmail'] ?? ''),
+      (string)($order['buyerPhone'] ?? ''),
+      (int)($order['ticketCount'] ?? 0),
+      (string)($order['ticketSummary'] ?? ''),
+      number_format($subtotal, 2, '.', ''),
+      number_format($discount, 2, '.', ''),
+      (string)($order['couponCode'] ?? ''),
+      number_format($extraFee, 2, '.', ''),
+      (string)($order['extraFeeLabel'] ?? ''),
+      number_format($total, 2, '.', ''),
+      (string)($order['trackedLinkCode'] ?? ''),
+    ]);
+  }
+  fclose($out);
+  exit;
 }
 
 if ($path === '/organizer/earnings' && $method === 'GET') {

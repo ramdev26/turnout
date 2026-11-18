@@ -1,13 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Event, Ticket, OrderItem } from '../types';
 import { api } from '../api/client';
 import { getLandingTemplateForEvent } from '../templates/templates';
 import { landingCssVars, normalizeLandingCustomization } from '../themes/eventThemes';
 import { loadLandingFont } from '../themes/landingFonts';
 import { formatLKRWhole } from '../utils/money';
-import { ticketRemaining } from '../components/landing/LandingShared';
+import { ticketRemaining, useLandingDocumentHead } from '../components/landing/LandingShared';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
+import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../utils/eventExtraFee';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
 import { EventAccessGate } from '../components/landing/EventAccessGate';
 import { saveCheckoutCart } from '../utils/checkoutCart';
@@ -16,7 +17,19 @@ import {
   setEventAccessToken,
   setPendingEventAccessContext,
 } from '../lib/eventAccessToken';
+import {
+  getTrackedLinkCode,
+  markTrackedLinkClickRecorded,
+  readTrackedLinkCodeFromSearch,
+  setTrackedLinkCode,
+  shouldRecordTrackedLinkClick,
+} from '../lib/trackedLinkStorage';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../utils/purchaseLimits';
+import {
+  trackOrganizerInitiateCheckout,
+  trackOrganizerViewContent,
+} from '../lib/organizerMarketingTags';
+import { ensureOrganizerCustomHead } from '../lib/organizerCustomHead';
 
 type EventFetchResult = {
   event: Event;
@@ -24,11 +37,20 @@ type EventFetchResult = {
   accessToken?: string | null;
 };
 
-export const EventLanding: React.FC = () => {
-  const { eventId, slug } = useParams<{ eventId?: string; slug?: string }>();
+type EventLandingProps = {
+  /** When set (custom domain root), load by slug without putting `/e/:slug` in the URL. */
+  forcedSlug?: string;
+};
+
+export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
+  const { eventId, slug: paramSlug } = useParams<{ eventId?: string; slug?: string }>();
+  const slug = forcedSlug || paramSlug;
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const codeFromUrl = (searchParams.get('code') || '').trim();
+  const customDomainRoot = Boolean(forcedSlug);
+  const trackedFromUrl = readTrackedLinkCodeFromSearch(searchParams);
 
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -37,6 +59,8 @@ export const EventLanding: React.FC = () => {
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const viewContentTracked = useRef(false);
+  const mobileCheckoutTracked = useRef(false);
 
   const orderItems = useMemo<OrderItem[]>(
     () =>
@@ -101,9 +125,30 @@ export const EventLanding: React.FC = () => {
         setAccessRequired(false);
         await loadTickets(nextEvent.id);
 
-        if (codeFromUrl) {
+        // Affiliate cookie (30 days): capture ?ref= / ?via= / ?aff= on first touch,
+        // then attribute later direct visits + checkout from the same browser.
+        if (trackedFromUrl) {
+          setTrackedLinkCode(nextEvent.id, trackedFromUrl);
+        }
+        const affiliateCode = trackedFromUrl || getTrackedLinkCode(nextEvent.id);
+        if (affiliateCode && shouldRecordTrackedLinkClick(nextEvent.id, affiliateCode)) {
+          try {
+            await api.post(`/api/events/${nextEvent.id}/tracked-links/click`, {
+              code: affiliateCode,
+              source: trackedFromUrl ? 'ref' : 'return',
+            });
+            markTrackedLinkClickRecorded(nextEvent.id, affiliateCode);
+          } catch {
+            // Attribution visit is best-effort; never block the landing.
+          }
+        }
+
+        if (codeFromUrl || trackedFromUrl) {
           const next = new URLSearchParams(searchParams);
           next.delete('code');
+          next.delete('ref');
+          next.delete('via');
+          next.delete('aff');
           setSearchParams(next, { replace: true });
         }
       } catch (error) {
@@ -118,11 +163,39 @@ export const EventLanding: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, slug]);
 
+  useLandingDocumentHead(event);
+
   useEffect(() => {
     if (!event) return;
-    document.title = event.title;
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
   }, [event]);
+
+  useEffect(() => {
+    if (!event || event.status !== 'published') return;
+    ensureOrganizerCustomHead({
+      organizationCustomHeadHtml: event.organizationCustomHeadHtml,
+      eventCustomHeadHtml: event.eventCustomHeadHtml,
+    });
+  }, [event]);
+
+  useEffect(() => {
+    if (!event || accessRequired || event.status !== 'published' || viewContentTracked.current) return;
+    viewContentTracked.current = true;
+    trackOrganizerViewContent(
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
+      {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventSlug: event.slug,
+      }
+    );
+  }, [event, accessRequired]);
 
   const limitsSummary = useMemo(
     () => (event ? purchaseLimitsSummary(purchaseLimitsFromEvent(event)) : null),
@@ -161,6 +234,39 @@ export const EventLanding: React.FC = () => {
     (sum, ticket) => sum + ticketLineTotal(ticket, selectedTickets[ticket.id] || 0),
     0
   );
+  const payableTotal =
+    Math.round(
+      (totalAmount + computeEventExtraFeeLkr(totalAmount, eventExtraFeeFromEvent(event))) * 100
+    ) / 100;
+
+  useEffect(() => {
+    if (!event || !checkoutOpen || orderItems.length < 1 || mobileCheckoutTracked.current) return;
+    mobileCheckoutTracked.current = true;
+    const numItems = orderItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    trackOrganizerInitiateCheckout(
+      {
+        metaPixelId: event.metaPixelId,
+        gaMeasurementId: event.gaMeasurementId,
+        tiktokPixelId: event.tiktokPixelId,
+        googleAdsId: event.googleAdsId,
+        googleAdsConversionLabel: event.googleAdsConversionLabel,
+      },
+      {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventSlug: event.slug,
+        value: payableTotal,
+        currency: 'LKR',
+        numItems,
+        contents: orderItems.map((item) => ({
+          id: item.ticketId,
+          quantity: item.quantity,
+          item_price: item.price,
+          name: item.name,
+        })),
+      }
+    );
+  }, [checkoutOpen, event, orderItems, payableTotal]);
 
   const hasSelectedTickets = tickets.some((t) => (selectedTickets[t.id] || 0) > 0);
 
@@ -174,9 +280,14 @@ export const EventLanding: React.FC = () => {
         selectedTickets,
         savedAt: Date.now(),
       });
+      const brandedBase = location.pathname.replace(/\/$/, '') || '';
       const checkoutPath = eventId
         ? `/events/${eventId}/checkout`
-        : `/e/${slug}/checkout`;
+        : customDomainRoot
+          ? !brandedBase || brandedBase === '/'
+            ? '/checkout'
+            : `${brandedBase}/checkout`
+          : `/e/${slug}/checkout`;
       navigate(checkoutPath, { state: { selectedTickets } });
       return;
     }
@@ -190,13 +301,14 @@ export const EventLanding: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-11 w-11 animate-spin rounded-full border-2 border-white/20 border-t-[var(--primary)]" />
-          <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-            Loading event…
-          </p>
-        </div>
+      <div
+        className="flex min-h-screen items-center justify-center"
+        style={{ background: customDomainRoot ? '#000' : undefined }}
+      >
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-white/70"
+          aria-label="Loading"
+        />
       </div>
     );
   }
@@ -283,7 +395,7 @@ export const EventLanding: React.FC = () => {
         tickets,
         selectedTickets,
         onTicketChange: handleTicketChange,
-        totalAmount,
+        totalAmount: payableTotal,
         onCheckout: handlePurchase,
         isPurchasing,
       })}
@@ -299,7 +411,7 @@ export const EventLanding: React.FC = () => {
             disabled={isPurchasing}
             className="landing-btn-primary flex w-full items-center justify-center rounded-2xl py-3.5 text-base font-bold disabled:opacity-50"
           >
-            {isPurchasing ? 'Processing…' : totalAmount <= 0 ? 'Complete registration' : `Pay ${formatLKRWhole(totalAmount)}`}
+            {isPurchasing ? 'Processing…' : payableTotal <= 0 ? 'Complete registration' : `Pay ${formatLKRWhole(payableTotal)}`}
           </button>
         </div>
       )}

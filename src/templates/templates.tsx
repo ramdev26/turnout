@@ -9,6 +9,7 @@ import { LandingArenaPage } from '../components/landing/LandingArena';
 import { LandingArenaNovaPage } from '../components/landing/LandingArenaNova';
 import { LandingSpotlightPage } from '../components/landing/LandingSpotlight';
 import { LandingGatherPage } from '../components/landing/LandingGather';
+import { LandingPulsePage } from '../components/landing/LandingPulse';
 import {
   AboutBlock,
   CheckoutPanel,
@@ -25,10 +26,24 @@ import {
   TicketsSection,
 } from '../components/landing/LandingShared';
 
-export type TemplateId = 'template-2' | 'template-5' | 'template-6' | 'template-7' | 'template-8' | 'template-10' | 'template-canvas';
+export type TemplateId =
+  | 'template-2'
+  | 'template-5'
+  | 'template-6'
+  | 'template-7'
+  | 'template-8'
+  | 'template-10'
+  | 'template-11'
+  | 'template-12'
+  | 'template-canvas';
 
 /** Layout templates organizers can pick in the design console (excludes custom canvas). */
 export type LayoutTemplateId = Exclude<TemplateId, 'template-canvas'>;
+
+/** Pulse (pink) + Ctrl (Club Ctrl red) share the same poster landing layout. */
+export function isPulseFamilyTemplate(id?: string | null): boolean {
+  return id === 'template-11' || id === 'template-12';
+}
 
 export const LANDING_LAYOUT_TEMPLATES: {
   id: LayoutTemplateId;
@@ -41,6 +56,8 @@ export const LANDING_LAYOUT_TEMPLATES: {
   { id: 'template-10', name: 'Arena Nova', description: 'Refined arena layout with immersive media and polished mobile UX' },
   { id: 'template-7', name: 'Spotlight', description: 'Featured banner with sticky booking card' },
   { id: 'template-5', name: 'Classic', description: 'Clean single-column stack' },
+  { id: 'template-11', name: 'Pulse', description: 'Dark club-poster layout with rooms and price table' },
+  { id: 'template-12', name: 'Ctrl', description: 'Same club-poster layout in Club Ctrl red (#e8342a)' },
 ];
 
 const LEGACY_TEMPLATE_IDS = new Set(['template-1', 'template-3', 'template-4']);
@@ -52,7 +69,9 @@ export function resolveLayoutTemplateId(id?: string | null): LayoutTemplateId {
     id === 'template-6' ||
     id === 'template-10' ||
     id === 'template-7' ||
-    id === 'template-8'
+    id === 'template-8' ||
+    id === 'template-11' ||
+    id === 'template-12'
   ) {
     return id;
   }
@@ -318,6 +337,22 @@ const TemplateGather: LandingTemplate = {
   render: (props) => <LandingGatherPage {...props} />,
 };
 
+const TemplatePulse: LandingTemplate = {
+  id: 'template-11',
+  name: 'Pulse',
+  description: 'Dark club-poster layout with stacked brand, room cards, and release price table.',
+  previewSeed: 'pulse-club',
+  render: (props) => <LandingPulsePage {...props} />,
+};
+
+const TemplateCtrl: LandingTemplate = {
+  id: 'template-12',
+  name: 'Ctrl',
+  description: 'Club Ctrl red club-poster layout — same Pulse structure with #e8342a accent.',
+  previewSeed: 'ctrl-club',
+  render: (props) => <LandingPulsePage {...props} />,
+};
+
 export const landingTemplates: LandingTemplate[] = [
   TemplateShowcase,
   TemplateGather,
@@ -325,6 +360,8 @@ export const landingTemplates: LandingTemplate[] = [
   TemplateArenaNova,
   TemplateSpotlight,
   TemplateClassic,
+  TemplatePulse,
+  TemplateCtrl,
 ];
 
 export function getLandingTemplate(id: string | undefined): LandingTemplate {

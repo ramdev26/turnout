@@ -23,11 +23,13 @@ import { withTemplateDesignDefaults } from '../../themes/templateDefaults';
 import {
   LANDING_DESIGN_OVERRIDE_RESET,
   LANDING_LAYOUT_TEMPLATES,
+  isPulseFamilyTemplate,
   type LandingDesignValue,
 } from './LandingCustomizer';
 import type { LandingButtonShadow } from '../../types';
 import { cn } from '../../utils/cn';
 import { TurnoutColorPicker } from '../ui/TurnoutColorPicker';
+import { isLightHex } from '../../themes/eventThemes';
 
 type DockControl = 'pageColors' | 'textColors' | 'fonts' | 'textStyle' | 'buttonStyle' | null;
 
@@ -357,9 +359,23 @@ function RoleTypeBlock({
 /** Reset colours/fonts/sizes to the selected template defaults. */
 const applyTemplate = (design: LandingDesignValue, templateId: LandingDesignValue['templateId']): LandingDesignValue => {
   const next = withTemplateDesignDefaults(design, templateId);
+  const pulseDefaults = isPulseFamilyTemplate(next.templateId)
+    ? {
+        pageBackgroundColor: '#000000',
+        surfaceColor: '#141414',
+        surfaceMutedColor: '#0f0f0f',
+        buttonColor: next.templateId === 'template-12' ? '#E8342A' : '#FF2D8F',
+        buttonTextColor: '#000000',
+        headingColor: '#ffffff',
+        bodyTextColor: '#ffffff',
+        mutedTextColor: '#8c8c8c',
+        borderColor: '#2a2a2a',
+      }
+    : {};
   return {
     ...design,
     ...LANDING_DESIGN_OVERRIDE_RESET,
+    ...pulseDefaults,
     templateId: next.templateId,
     primaryColor: next.primaryColor,
     secondaryColor: next.secondaryColor,
@@ -450,6 +466,34 @@ const TemplateThumb: React.FC<{
         <div className="h-3 w-3/4 rounded-sm bg-white/35" />
         <div className="h-1.5 w-1/2 rounded-sm bg-white/20" />
         <div className="w-2/3 flex-1 rounded-sm bg-white/15" />
+      </div>
+    ),
+    'template-11': (
+      <div className="flex h-full flex-col gap-1 p-1.5" style={{ background: '#050505' }}>
+        <div className="flex justify-between gap-1">
+          <div className="h-3 w-8 rounded-[2px] bg-white/80" />
+          <div className="h-2 w-6 rounded-[2px] bg-[#ff2d8f]/80" />
+        </div>
+        <div className="h-5 w-4/5 rounded-[2px] bg-white/70" />
+        <div className="h-2 w-1/2 rounded-[2px] bg-[#ff2d8f]/70" />
+        <div className="mt-auto grid grid-cols-2 gap-1">
+          <div className="h-4 rounded-[2px] border border-white/25 bg-black" />
+          <div className="h-4 rounded-[2px] border border-[#ff2d8f]/50 bg-black" />
+        </div>
+      </div>
+    ),
+    'template-12': (
+      <div className="flex h-full flex-col gap-1 p-1.5" style={{ background: '#050505' }}>
+        <div className="flex justify-between gap-1">
+          <div className="h-3 w-8 rounded-[2px] bg-white/80" />
+          <div className="h-2 w-6 rounded-[2px] bg-[#e8342a]/80" />
+        </div>
+        <div className="h-5 w-4/5 rounded-[2px] bg-white/70" />
+        <div className="h-2 w-1/2 rounded-[2px] bg-[#e8342a]/70" />
+        <div className="mt-auto grid grid-cols-2 gap-1">
+          <div className="h-4 rounded-[2px] border border-white/25 bg-black" />
+          <div className="h-4 rounded-[2px] border border-[#e8342a]/50 bg-black" />
+        </div>
       </div>
     ),
   }[id];
@@ -570,8 +614,13 @@ export function LandingDesignDock({
   const toggle = (control: DockControl) => setOpen((cur) => (cur === control ? null : control));
 
   const selectTemplate = (templateId: LandingDesignValue['templateId']) => {
-    // Keep organizer colour / font / size draft when switching layouts.
-    onDesignChange({ ...design, templateId });
+    // Pulse / Ctrl own a black poster system — apply the palette when selected.
+    if (isPulseFamilyTemplate(templateId)) {
+      onDesignChange(applyTemplate(design, templateId));
+    } else {
+      // Keep organizer colour / font / size draft when switching other layouts.
+      onDesignChange({ ...design, templateId });
+    }
     setOpen(null);
   };
 
@@ -820,7 +869,22 @@ export function LandingDesignDock({
                     label="Page background"
                     value={design.pageBackgroundColor}
                     fallback="#ffffff"
-                    onChange={(hex) => update({ pageBackgroundColor: hex })}
+                    onChange={(hex) => {
+                      const patch: Partial<LandingDesignValue> = { pageBackgroundColor: hex };
+                      // Dark page → dark cards/tone so the whole composition follows.
+                      if (!isLightHex(hex)) {
+                        if (!design.surfaceColor || isLightHex(design.surfaceColor)) {
+                          patch.surfaceColor = '#141414';
+                        }
+                        if (!design.surfaceMutedColor || isLightHex(design.surfaceMutedColor)) {
+                          patch.surfaceMutedColor = '#0f0f0f';
+                        }
+                        if (design.displayMode !== 'dark') {
+                          patch.displayMode = 'dark';
+                        }
+                      }
+                      update(patch);
+                    }}
                     onClear={() => update({ pageBackgroundColor: undefined })}
                   />
 

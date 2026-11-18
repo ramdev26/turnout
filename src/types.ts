@@ -109,11 +109,25 @@ export type OrganizerProfile = {
   bankStatementDocUploaded?: boolean;
   /** Organization Terms & Conditions (HTML). */
   termsHtml?: string | null;
+  /** Meta (Facebook) Pixel ID applied to all public event pages. */
+  metaPixelId?: string | null;
+  /** Google Analytics 4 Measurement ID (G-XXXXXXXX) for all public event pages. */
+  gaMeasurementId?: string | null;
+  /** TikTok Pixel ID for all public event pages. */
+  tiktokPixelId?: string | null;
+  /** Google Ads tag ID (AW-XXXXXXXX). */
+  googleAdsId?: string | null;
+  /** Optional Google Ads purchase conversion label (used as AW-ID/label). */
+  googleAdsConversionLabel?: string | null;
+  /** Custom HTML/JS snippets injected into <head> on all public event pages. */
+  customHeadHtml?: string | null;
 };
 
 export type OrganizerPaidEventRequirements = {
   needsBusinessDetails: boolean;
   needsBankDetails: boolean;
+  /** Soft flag — bank needed before payout/disbursement, not before publish. */
+  needsBankDetailsForPayout?: boolean;
   needsOwnPayhereCredentials: boolean;
   needsBillingCard: boolean;
   turnoutDocsOverride?: boolean;
@@ -121,6 +135,8 @@ export type OrganizerPaidEventRequirements = {
 
 export type OrganizerPaidEventReadiness = {
   isReady: boolean;
+  /** True when bank details are on file (or admin override) for payouts. */
+  payoutReady?: boolean;
   gatewayMode: OrganizerGatewayMode;
   requirements: OrganizerPaidEventRequirements;
   missing: string[];
@@ -286,6 +302,18 @@ export interface EventCustomization {
   borderColor?: string;
   headerBgColor?: string;
   footerBgColor?: string;
+  /** Event-level Meta Pixel override (empty = organization default). */
+  metaPixelId?: string | null;
+  /** Event-level GA4 Measurement ID override (empty = organization default). */
+  gaMeasurementId?: string | null;
+  /** Event-level TikTok Pixel override. */
+  tiktokPixelId?: string | null;
+  /** Event-level Google Ads ID override (AW-…). */
+  googleAdsId?: string | null;
+  /** Event-level Google Ads purchase conversion label override. */
+  googleAdsConversionLabel?: string | null;
+  /** Additional custom <head> HTML for this event only (additive to organization). */
+  customHeadHtml?: string | null;
   /** Typography role colours (H1 = headingColor; P = bodyTextColor). */
   h2Color?: string;
   h3Color?: string;
@@ -351,8 +379,36 @@ export interface EventCustomization {
   onlineUrl?: string;
   heroText: string;
   heroSubtext: string;
+  /** Pulse template — poster eyebrow (top-right). */
+  pulseEyebrow?: string;
+  /** Pulse template — top-right header link label (e.g. Access Club Ctrl). */
+  pulseHeaderLinkLabel?: string;
+  /** Pulse template — top-right header link URL (external or absolute). */
+  pulseHeaderLink?: string;
+  /** Pulse template — giant headline (e.g. TICKETS OPEN NOW.). */
+  pulseHeadline?: string;
+  /** Pulse template — line under headline. */
+  pulseTagline?: string;
+  /** Pulse template — venue note when TBA / private. */
+  pulseVenueNote?: string;
+  /** Pulse template — small city / venue footer line. */
+  pulseCityLine?: string;
+  /** Pulse template — optional schedule lines under the date. */
+  pulseSchedule?: { label: string; time: string }[];
+  /** Pulse template — room cards (max 2 used). */
+  pulseRooms?: {
+    kicker?: string;
+    title?: string;
+    body?: string;
+    tags?: string;
+    emphasis?: boolean;
+  }[];
+  /** Pulse template — footnote under the price table. */
+  pulsePriceNote?: string;
   layout: 'standard' | 'centered' | 'split';
   customDomain?: string;
+  /** Short path on a shared custom domain (e.g. tmb → tickets.example.com/tmb). */
+  customDomainPath?: string;
   dnsProvider?: 'cloudflare' | 'godaddy' | 'namecheap' | 'other';
   dnsRecordType?: 'CNAME' | 'A';
   dnsRecordTarget?: string;
@@ -379,9 +435,24 @@ export interface EventCustomization {
     payhere?: boolean;
     bankTransfer?: boolean;
   };
+  /**
+   * Optional buyer-facing extra fee for this event (tax / service charge).
+   * Applied after coupons on the payable subtotal.
+   */
+  extraFee?: EventExtraFee;
   canvas?: CanvasDesign; // legacy freeform
   sections?: SectionDesign;
 }
+
+/** Organizer-configured per-event fee charged to the buyer at checkout. */
+export type EventExtraFee = {
+  enabled: boolean;
+  /** Display label on checkout / emails (e.g. Tax, Service fee). */
+  label: string;
+  type: 'percent' | 'fixed';
+  /** Percent 0–100, or fixed amount in LKR. */
+  value: number;
+};
 
 export type CanvasElementType =
   | 'text'
@@ -445,6 +516,36 @@ export interface Event {
   organizerLogoUrl?: string | null;
   /** Organizer Terms & Conditions HTML for checkout acceptance */
   organizerTermsHtml?: string | null;
+  /** Effective Meta Pixel ID (event override, else organization default) */
+  metaPixelId?: string | null;
+  /** Effective Google Analytics 4 Measurement ID (event override, else organization default) */
+  gaMeasurementId?: string | null;
+  /** Effective TikTok Pixel ID */
+  tiktokPixelId?: string | null;
+  /** Effective Google Ads ID (AW-…) */
+  googleAdsId?: string | null;
+  /** Effective Google Ads purchase conversion label */
+  googleAdsConversionLabel?: string | null;
+  /** Combined organization + event custom <head> HTML */
+  customHeadHtml?: string | null;
+  /** Event-only Meta Pixel override (null/empty = use organization default) */
+  eventMetaPixelId?: string | null;
+  /** Event-only GA4 Measurement ID override (null/empty = use organization default) */
+  eventGaMeasurementId?: string | null;
+  eventTiktokPixelId?: string | null;
+  eventGoogleAdsId?: string | null;
+  eventGoogleAdsConversionLabel?: string | null;
+  /** Event-only additional custom <head> HTML */
+  eventCustomHeadHtml?: string | null;
+  /** Organization default Meta Pixel ID */
+  organizationMetaPixelId?: string | null;
+  /** Organization default GA4 Measurement ID */
+  organizationGaMeasurementId?: string | null;
+  organizationTiktokPixelId?: string | null;
+  organizationGoogleAdsId?: string | null;
+  organizationGoogleAdsConversionLabel?: string | null;
+  /** Organization default custom <head> HTML */
+  organizationCustomHeadHtml?: string | null;
   /** True when this event accepts bank transfer and organizer bank details are complete */
   allowBankTransfer?: boolean;
   /** True when card/online PayHere checkout is enabled for this event */
@@ -556,11 +657,15 @@ export interface OrderItem {
 export interface Order {
   id: string;
   eventId: string;
+  eventTitle?: string | null;
+  eventSlug?: string | null;
   buyerId?: string;
   buyerName?: string | null;
   buyerPhone?: string | null;
   buyerEmail: string;
   tickets: OrderItem[];
+  ticketCount?: number;
+  ticketSummary?: string | null;
   totalAmount: number;
   status: 'pending' | 'paid' | 'failed';
   paymentMethod?: 'free' | 'payhere' | 'bank_transfer' | 'manual' | 'complimentary' | 'manual_cash' | 'manual_bank' | 'manual_card' | 'manual_other' | string;
@@ -568,6 +673,10 @@ export interface Order {
   bankTransferSlipUploadedAt?: string | null;
   bankTransferConfirmedAt?: string | null;
   bankTransfer?: BankTransferDetails | null;
+  couponCode?: string | null;
+  discountAmount?: number;
+  extraFeeAmount?: number;
+  extraFeeLabel?: string | null;
   stripeSessionId?: string;
   createdAt: string;
   /** `attendee` when opened via a ticket-holder email link (only their pass(es)). */

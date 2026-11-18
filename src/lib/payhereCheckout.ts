@@ -35,6 +35,12 @@ export type PayHereInitiateResponse = {
   hash?: string;
   fields?: Record<string, string | boolean | undefined>;
   sdkPayment?: Record<string, unknown>;
+  /** Approved PayHere origin (platform APP_BASE_URL for Turnout Pay). */
+  checkoutOrigin?: string;
+  /** True when the buyer must leave a custom domain before PayHere starts (avoids PH-0013). */
+  requiresDomainHop?: boolean;
+  /** Full URL on checkoutOrigin that starts PayHere for this order. */
+  launchUrl?: string;
 };
 
 type PayHereSdk = {

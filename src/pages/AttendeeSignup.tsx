@@ -8,6 +8,7 @@ import { AuthFlowLayout } from '../components/auth/AuthFlowLayout';
 import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import { FlowAlert, FlowButton, FlowInput, FlowLabel } from '../components/flow/FlowPrimitives';
 import { APP_FLOW_UI } from '../components/flow/FlowPrimitives';
+import { useEmailDeliverability } from '../hooks/useEmailDeliverability';
 
 const schema = z.object({
   displayName: z.string().min(2, 'Name is required'),
@@ -25,11 +26,21 @@ export const AttendeeSignup: React.FC = () => {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
+  const emailValue = watch('email') || '';
+  const emailCheck = useEmailDeliverability(emailValue);
+
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
+    const check = await emailCheck.recheck(values.email);
+    if (check && !check.deliverable) {
+      setServerError(check.message || 'This email does not look deliverable.');
+      return;
+    }
     try {
       const res = await api.post<{
         ok?: boolean;
@@ -65,16 +76,41 @@ export const AttendeeSignup: React.FC = () => {
         </label>
         <label className="flex flex-col gap-1.5">
           <FlowLabel>Email</FlowLabel>
-          <FlowInput {...register('email')} type="email" placeholder="you@example.com" />
+          <FlowInput {...register('email')} type="email" autoComplete="email" placeholder="you@example.com" />
           {errors.email?.message && <span className="text-xs text-red-600">{errors.email.message}</span>}
+          {emailCheck.checking && (
+            <span className="text-xs" style={{ color: ui.textMuted }}>
+              Checking email…
+            </span>
+          )}
+          {!emailCheck.checking && emailCheck.message && (
+            <span className="text-xs text-red-600">{emailCheck.message}</span>
+          )}
+          {!emailCheck.checking && emailCheck.suggestedEmail ? (
+            <button
+              type="button"
+              className="self-start text-xs font-semibold underline-offset-2 hover:underline"
+              style={{ color: ui.accent }}
+              onClick={() => {
+                setValue('email', emailCheck.suggestedEmail!, { shouldValidate: true, shouldDirty: true });
+                setServerError(null);
+              }}
+            >
+              Use {emailCheck.suggestedEmail}
+            </button>
+          ) : null}
         </label>
         <label className="flex flex-col gap-1.5">
           <FlowLabel>Password</FlowLabel>
-          <FlowInput {...register('password')} type="password" />
+          <FlowInput {...register('password')} type="password" autoComplete="new-password" />
           {errors.password?.message && <span className="text-xs text-red-600">{errors.password.message}</span>}
         </label>
         {serverError && <FlowAlert variant="error">{serverError}</FlowAlert>}
-        <FlowButton type="submit" disabled={isSubmitting} className="mt-2 h-11 w-full">
+        <FlowButton
+          type="submit"
+          disabled={isSubmitting || emailCheck.checking || (!emailCheck.deliverable && !!emailValue)}
+          className="mt-2 h-11 w-full"
+        >
           {isSubmitting ? 'Creating...' : 'Create attendee account'}
         </FlowButton>
       </form>

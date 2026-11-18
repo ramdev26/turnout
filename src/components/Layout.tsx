@@ -16,6 +16,7 @@ import { adminMainNav, BASADMIN_BASE } from '../utils/adminNav';
 import { attendeeMainNav } from '../utils/attendeeNav';
 import { eventWorkspaceNav, organizationSettingsSubNav, organizerMainNav } from '../utils/organizerNav';
 import type { AppNavLink } from '../utils/appNav';
+import { isCustomEventHostname } from '../lib/platformHost';
 
 const ui = EVENT_THEMES.minimal.ui;
 
@@ -25,19 +26,22 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const location = useLocation();
   const path = location.pathname;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const customEventHost = isCustomEventHostname();
 
   const isPublicLanding =
+    customEventHost ||
+    path === '/checkout' ||
     /^\/e\/[^/]+$/.test(path) ||
     /^\/e\/[^/]+\/checkout$/.test(path) ||
     (/^\/events\/[^/]+$/.test(path) && !/^\/events\/(new|themes)$/.test(path)) ||
     (/^\/events\/[^/]+\/checkout$/.test(path) && !/^\/events\/(new|themes)\//.test(path));
   const isStaffCheckin = /^\/staff\/checkin\/[^/]+$/.test(path);
   const isOrganizerConsole =
-    /^\/dashboard/.test(path) || /^\/events\/(new|themes)/.test(path);
-  const isAttendeeConsole = /^\/attendee/.test(path) && path !== '/attendee/signup';
-  const isAdminConsole = /^\/basadmin/.test(path) || /^\/admin/.test(path);
+    !customEventHost && (/^\/dashboard/.test(path) || /^\/events\/(new|themes)/.test(path));
+  const isAttendeeConsole = !customEventHost && /^\/attendee/.test(path) && path !== '/attendee/signup';
+  const isAdminConsole = !customEventHost && (/^\/basadmin/.test(path) || /^\/admin/.test(path));
   const isAuthPage =
-    path === '/' ||
+    (!customEventHost && path === '/') ||
     path === '/login' ||
     path === `${BASADMIN_BASE}/login` ||
     path === '/signup' ||
@@ -47,9 +51,16 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const isMarketingHome = path === '/landing';
   const isOrderConfirmation = /^\/orders\/\d+\/success$/.test(path);
-  const isPaymentReturn = /^\/payhere\/(return|cancel)$/.test(path);
+  const isPaymentReturn = /^\/payhere\/(return|cancel|launch)$/.test(path);
 
-  const hideChrome = isPublicLanding || isStaffCheckin || isMarketingHome || isOrderConfirmation || isPaymentReturn;
+  // Custom domains never show Turnout header/footer/sidebar — including while loading.
+  const hideChrome =
+    customEventHost ||
+    isPublicLanding ||
+    isStaffCheckin ||
+    isMarketingHome ||
+    isOrderConfirmation ||
+    isPaymentReturn;
   const isAppFlow = isOrganizerConsole || isAttendeeConsole || isAdminConsole || isAuthPage;
   const chromeThemed = !hideChrome;
 

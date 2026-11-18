@@ -1,8 +1,10 @@
 import {
   Building2,
   CalendarCheck,
+  ClipboardList,
   Gauge,
   LayoutDashboard,
+  Link2,
   Plus,
   Settings,
   Tag,
@@ -15,6 +17,7 @@ export type FlowNavLink = AppNavLink;
 export const organizerMainNav: AppNavLink[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/events/themes', label: 'Create', icon: Plus, exact: true, matchPaths: ['/events/new'] },
+  { to: '/dashboard/orders', label: 'Orders', icon: ClipboardList, exact: true, matchPaths: ['/dashboard/orders'] },
   { to: '/dashboard/earnings', label: 'Earnings', icon: Wallet, exact: true },
   { to: '/dashboard/organization', label: 'Organization', icon: Building2, exact: true },
 ];
@@ -24,6 +27,7 @@ export function eventWorkspaceNav(eventId: string): AppNavLink[] {
     { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', icon: Settings, exact: true },
     { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in', icon: CalendarCheck },
     { to: `/dashboard/events/${eventId}/coupons`, label: 'Coupons', icon: Tag },
+    { to: `/dashboard/events/${eventId}/affiliate-links`, label: 'Affiliate links', icon: Link2 },
     { to: `/dashboard/events/${eventId}/limits`, label: 'Limits', icon: Gauge, exact: true },
   ];
 }
@@ -32,12 +36,14 @@ export function organizationSettingsSubNav(): AppNavLink[] {
   return [
     { to: '/dashboard/organization#org-profile', label: 'Profile', exact: true },
     { to: '/dashboard/organization#org-terms', label: 'Terms', exact: true },
+    { to: '/dashboard/organization#org-tracking', label: 'Tracking', exact: true },
     { to: '/dashboard/organization#org-payments', label: 'Payments', exact: true },
   ];
 }
 
 export function isOrganizerDashboardPath(pathname: string): boolean {
   if (pathname === '/dashboard') return true;
+  if (pathname === '/dashboard/orders' || pathname.startsWith('/dashboard/orders/')) return true;
   if (pathname === '/dashboard/earnings') return true;
   if (pathname === '/dashboard/organization') return true;
   if (pathname === '/events/themes' || pathname === '/events/new') return true;

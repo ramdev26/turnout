@@ -781,6 +781,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                     <FlowLabel>Merchant secret</FlowLabel>
                     <FlowInput
                       type="password"
+                      name="turnout-payhere-merchant-secret"
+                      autoComplete="new-password"
                       value={merchantSecret}
                       disabled={!isOwner}
                       onChange={(e) => setMerchantSecret(e.target.value)}
@@ -939,6 +941,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                       <FlowLabel>Koko merchant secret</FlowLabel>
                       <FlowInput
                         type="password"
+                        name="turnout-koko-merchant-secret"
+                        autoComplete="new-password"
                         value={kokoMerchantSecret}
                         disabled={!isOwner}
                         onChange={(e) => setKokoMerchantSecret(e.target.value)}
@@ -985,6 +989,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                       <FlowLabel>Mintpay merchant secret</FlowLabel>
                       <FlowInput
                         type="password"
+                        name="turnout-mintpay-merchant-secret"
+                        autoComplete="new-password"
                         value={mintpayMerchantSecret}
                         disabled={!isOwner}
                         onChange={(e) => setMintpayMerchantSecret(e.target.value)}
@@ -1080,6 +1086,8 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               <label className="flex flex-col gap-1.5 sm:col-span-2">
                 <FlowLabel>Account name</FlowLabel>
                 <FlowInput
+                  name="turnout-bank-account-holder"
+                  autoComplete="organization"
                   value={bankAccountHolderName}
                   disabled={!isOwner}
                   onChange={(e) => setBankAccountHolderName(e.target.value)}
@@ -1106,7 +1114,12 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
               <label className="flex flex-col gap-1.5 sm:col-span-2">
                 <FlowLabel>Account number</FlowLabel>
                 <FlowInput
-                  type="password"
+                  type="text"
+                  inputMode="numeric"
+                  name="turnout-bank-account-number"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={bankAccountNumber}
                   disabled={!isOwner}
                   onChange={(e) => setBankAccountNumber(e.target.value)}
@@ -1122,7 +1135,11 @@ export const OrganizerPaymentSettingsPanel: React.FC<Props> = ({ isOwner, onFeed
                   <p className="text-xs" style={{ color: ui.textMuted }}>
                     Account number is saved. Leave blank to keep the current number.
                   </p>
-                ) : null}
+                ) : (
+                  <p className="text-xs" style={{ color: ui.textMuted }}>
+                    Enter the bank account number only — not your Turnout login password.
+                  </p>
+                )}
               </label>
               <label className="flex flex-col gap-1.5">
                 <FlowLabel>Account type</FlowLabel>

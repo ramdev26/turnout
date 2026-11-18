@@ -331,7 +331,7 @@
   overflow: hidden;
   border: 1px solid var(--sp-line);
   border-radius: 0.85rem;
-  background: #fff;
+  background: var(--landing-surface, #fff);
 }
 
 .sp-map-embed.venue-map,
@@ -391,7 +391,7 @@
 
 .sp-map-caption {
   padding: 0.85rem 1rem;
-  background: #fff;
+  background: var(--landing-surface, #fff);
   border-top: 1px solid var(--sp-line);
 }
 
@@ -420,7 +420,7 @@
 .sp-ticket {
   border: 1px solid var(--sp-line);
   border-radius: 0.75rem;
-  background: #fff;
+  background: var(--landing-surface, #fff);
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -514,7 +514,7 @@
   gap: 0.15rem;
   border: 1px solid var(--sp-line);
   border-radius: 0.45rem;
-  background: #fff;
+  background: var(--landing-surface, #fff);
   overflow: hidden;
 }
 
@@ -642,7 +642,7 @@
   height: 2rem;
   border: 1px solid var(--sp-line);
   border-radius: 9999px;
-  background: #fff;
+  background: var(--landing-surface, #fff);
   color: var(--sp-muted);
   cursor: pointer;
 }
@@ -785,7 +785,7 @@
   inset-inline: 0;
   bottom: 0;
   z-index: 55;
-  background: #fff;
+  background: var(--landing-surface, #fff);
   border-top: 1px solid var(--sp-line);
   box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.1);
 }

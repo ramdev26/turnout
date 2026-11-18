@@ -9,6 +9,7 @@ import './styles/landing-arena.css';
 import './styles/landing-arena-nova.css';
 import './styles/landing-spotlight.css';
 import './styles/landing-gather.css';
+import './styles/landing-pulse.css';
 
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 
