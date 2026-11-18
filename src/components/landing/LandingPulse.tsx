@@ -323,14 +323,15 @@ export function LandingPulsePage({
   const visibleTickets = useMemo(() => ticketsForTheme(event, tickets), [event, tickets]);
   const rooms = useMemo(() => resolveRooms(event, visibleTickets), [event, visibleTickets]);
   const schedule = useMemo(() => resolveSchedule(event, visibleTickets), [event, visibleTickets]);
-  // First release = early bird; Second release = original price.
-  // While early bird is on sale, only show the first-release rate (hide original).
+  // Second release is the current public wave (first release / early bird is done).
+  // If a limited second-release window is still flagged active via earlyBird, keep the On sale badge.
+  const releaseLabel = 'Second release';
   const earlyBirdOnSale = visibleTickets.some((t) => Boolean(t.earlyBird?.active));
   const priceNote =
     (event.customization?.pulsePriceNote || '').trim() ||
     (earlyBirdOnSale
-      ? 'First release is limited. Original prices apply after this release ends.'
-      : 'Select a room pass below, then continue to checkout.');
+      ? 'Second release is limited. Select a room pass below, then continue to checkout.'
+      : 'Second release — select a room pass below, then continue to checkout.');
 
   const hasSelection = useMemo(
     () => visibleTickets.some((t) => (selectedTickets[t.id] || 0) > 0),
@@ -482,16 +483,16 @@ export function LandingPulsePage({
                 <thead>
                   <tr>
                     <th scope="col">Room</th>
-                    {earlyBirdOnSale ? (
-                      <th scope="col">
+                    <th scope="col">
+                      {earlyBirdOnSale ? (
                         <span className="pulse-th-sale">
                           <span className="pulse-onsale">On sale</span>
-                          <span>First release</span>
+                          <span>{releaseLabel}</span>
                         </span>
-                      </th>
-                    ) : (
-                      <th scope="col">Price</th>
-                    )}
+                      ) : (
+                        releaseLabel
+                      )}
+                    </th>
                     <th scope="col">Select</th>
                   </tr>
                 </thead>
@@ -504,11 +505,7 @@ export function LandingPulsePage({
                     const displayPrice = ticketEarlyActive
                       ? ticketEffectivePrice(ticket)
                       : ticket.price;
-                    const priceLabel = earlyBirdOnSale
-                      ? ticketEarlyActive
-                        ? 'First release'
-                        : 'Price'
-                      : 'Price';
+                    const priceLabel = releaseLabel;
                     return (
                       <tr
                         key={ticket.id}

@@ -48,7 +48,7 @@ export const DevPulsePreview: React.FC = () => {
       {
         id: '2',
         eventId: event.id,
-        name: 'Both Rooms (Early bird)',
+        name: 'Both Rooms (Second release)',
         price: 3500,
         quantity: 80,
         sold: 8,
@@ -56,7 +56,7 @@ export const DevPulsePreview: React.FC = () => {
       {
         id: '1',
         eventId: event.id,
-        name: isCtrl ? 'Club Ctrl (Early bird)' : 'Take My Bass (Early bird)',
+        name: isCtrl ? 'Club Ctrl (Second release)' : 'Take My Bass (Second release)',
         price: 2500,
         quantity: 100,
         sold: 12,
