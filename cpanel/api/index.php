@@ -8271,6 +8271,84 @@ if ($path === '/organizer/orders' && $method === 'GET') {
   ]);
 }
 
+/** CSV export — same filters as /organizer/orders (status, event, method, search, dates). */
+if ($path === '/organizer/orders.csv' && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $pdo = db();
+  $ownerIds = organizer_accessible_owner_ids($pdo, $uid);
+  $result = organizer_orders_query($pdo, $ownerIds, [
+    'status' => trim((string)($_GET['status'] ?? 'all')),
+    'eventId' => (int)($_GET['eventId'] ?? 0),
+    'paymentMethod' => trim((string)($_GET['paymentMethod'] ?? '')),
+    'q' => trim((string)($_GET['q'] ?? '')),
+    'from' => trim((string)($_GET['from'] ?? '')),
+    'to' => trim((string)($_GET['to'] ?? '')),
+    'limit' => 10000,
+    'offset' => 0,
+    'export' => true,
+  ]);
+
+  $stamp = gmdate('Ymd-His');
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="turnout-orders-' . $stamp . '.csv"');
+  header('Cache-Control: no-store, max-age=0');
+
+  $out = fopen('php://output', 'w');
+  // UTF-8 BOM helps Excel open Sri Lankan / Unicode names correctly.
+  fwrite($out, "\xEF\xBB\xBF");
+  fputcsv($out, [
+    'order_id',
+    'created_at',
+    'status',
+    'payment_method',
+    'event_id',
+    'event_title',
+    'event_slug',
+    'buyer_name',
+    'buyer_email',
+    'buyer_phone',
+    'ticket_count',
+    'tickets',
+    'subtotal_before_discount',
+    'discount_amount',
+    'coupon_code',
+    'extra_fee_amount',
+    'extra_fee_label',
+    'total_amount',
+    'tracked_link_code',
+  ]);
+
+  foreach ($result['orders'] as $order) {
+    $total = (float)($order['totalAmount'] ?? 0);
+    $discount = (float)($order['discountAmount'] ?? 0);
+    $extraFee = (float)($order['extraFeeAmount'] ?? 0);
+    $subtotal = max(0, $total + $discount - $extraFee);
+    fputcsv($out, [
+      (string)($order['id'] ?? ''),
+      (string)($order['createdAt'] ?? ''),
+      (string)($order['status'] ?? ''),
+      (string)($order['paymentMethod'] ?? ''),
+      (string)($order['eventId'] ?? ''),
+      (string)($order['eventTitle'] ?? ''),
+      (string)($order['eventSlug'] ?? ''),
+      (string)($order['buyerName'] ?? ''),
+      (string)($order['buyerEmail'] ?? ''),
+      (string)($order['buyerPhone'] ?? ''),
+      (int)($order['ticketCount'] ?? 0),
+      (string)($order['ticketSummary'] ?? ''),
+      number_format($subtotal, 2, '.', ''),
+      number_format($discount, 2, '.', ''),
+      (string)($order['couponCode'] ?? ''),
+      number_format($extraFee, 2, '.', ''),
+      (string)($order['extraFeeLabel'] ?? ''),
+      number_format($total, 2, '.', ''),
+      (string)($order['trackedLinkCode'] ?? ''),
+    ]);
+  }
+  fclose($out);
+  exit;
+}
+
 if ($path === '/organizer/earnings' && $method === 'GET') {
   $uid = require_organizer_user_id();
   $pdo = db();

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ClipboardList, Search } from 'lucide-react';
-import { api } from '../api/client';
+import { ChevronLeft, ChevronRight, ClipboardList, Download, Search } from 'lucide-react';
+import { api, toApiUrl } from '../api/client';
+import { getAuthToken } from '../api/authToken';
 import { Order } from '../types';
 import { formatLKR } from '../utils/money';
 import { formatApiError } from '../utils/apiError';
@@ -110,6 +111,7 @@ export const OrganizerOrders: React.FC = () => {
 
   const [q, setQ] = useState(qParam);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OrdersResponse | null>(null);
 
@@ -225,6 +227,42 @@ export const OrganizerOrders: React.FC = () => {
     setFilters({ from: '', to: '' });
   };
 
+  const exportCsv = async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      params.set('status', status);
+      if (eventId) params.set('eventId', eventId);
+      if (paymentMethod && paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
+      if (qParam.trim()) params.set('q', qParam.trim());
+      if (fromParam) params.set('from', fromParam);
+      if (toParam) params.set('to', toParam);
+      const token = getAuthToken();
+      const res = await fetch(toApiUrl(`/api/organizer/orders.csv?${params.toString()}`), {
+        credentials: 'include',
+        headers: {
+          Accept: 'text/csv',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        throw new Error('Export failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `turnout-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setError(formatApiError(e, 'Could not download CSV. Make sure you are signed in.'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <OrganizerFlowShell
       title="Orders"
@@ -242,6 +280,22 @@ export const OrganizerOrders: React.FC = () => {
         </div>
 
         <FlowCard>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm" style={{ color: ui.textMuted }}>
+              Filters apply to the list and to CSV export.
+            </p>
+            <button
+              type="button"
+              onClick={() => void exportCsv()}
+              disabled={exporting || loading || total === 0}
+              className="inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold disabled:opacity-40"
+              style={{ borderColor: ui.borderColor, color: ui.text }}
+              title="Download CSV using the current filters"
+            >
+              <Download className={cn('h-4 w-4', exporting && 'animate-pulse')} />
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {statusTabs.map((tab) => {
               const active = status === tab.id;
