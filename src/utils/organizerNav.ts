@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Gauge,
   LayoutDashboard,
+  Link2,
   Plus,
   Settings,
   Tag,
@@ -26,6 +27,7 @@ export function eventWorkspaceNav(eventId: string): AppNavLink[] {
     { to: `/dashboard/events/${eventId}/settings`, label: 'Settings', icon: Settings, exact: true },
     { to: `/dashboard/events/${eventId}/checkin`, label: 'Check-in', icon: CalendarCheck },
     { to: `/dashboard/events/${eventId}/coupons`, label: 'Coupons', icon: Tag },
+    { to: `/dashboard/events/${eventId}/tracked-links`, label: 'Tracked links', icon: Link2 },
     { to: `/dashboard/events/${eventId}/limits`, label: 'Limits', icon: Gauge, exact: true },
   ];
 }

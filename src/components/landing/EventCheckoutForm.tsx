@@ -18,6 +18,7 @@ import { resolveEventPolicyHtml } from '../../utils/eventPolicy';
 import { resolveOrganizerTermsHtml } from '../../utils/organizerTerms';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../../utils/purchaseLimits';
 import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../../utils/eventExtraFee';
+import { getTrackedLinkCode } from '../../lib/trackedLinkStorage';
 import { EventPolicyViewerModal } from './EventPolicyViewer';
 import { useEmailDeliverability } from '../../hooks/useEmailDeliverability';
 import { checkEmailDeliverability } from '../../lib/plunkEmailVerify';
@@ -470,6 +471,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           tickets: orderItems,
           attendees,
           couponCode: appliedCoupon?.code || undefined,
+          trackedLinkCode: getTrackedLinkCode(event.id) || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
@@ -487,6 +489,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           tickets: orderItems,
           attendees,
           couponCode: appliedCoupon?.code || undefined,
+          trackedLinkCode: getTrackedLinkCode(event.id) || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
@@ -505,6 +508,7 @@ export const EventCheckoutForm: React.FC<Props> = ({
           tickets: orderItems,
           attendees,
           couponCode: appliedCoupon?.code || undefined,
+          trackedLinkCode: getTrackedLinkCode(event.id) || undefined,
           acceptedOrganizerTerms: true,
           acceptedEventPolicy: true,
         });
