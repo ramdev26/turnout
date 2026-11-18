@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.turnout.checkin.BuildConfig
 import co.turnout.checkin.ui.theme.TurnoutColors
 
 @Composable

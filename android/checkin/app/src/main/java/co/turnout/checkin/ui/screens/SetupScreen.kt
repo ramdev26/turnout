@@ -10,8 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -28,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import co.turnout.checkin.BuildConfig
 import co.turnout.checkin.data.CheckInSession
+import co.turnout.checkin.ui.components.TurnoutBackground
 import co.turnout.checkin.ui.components.TurnoutLogo
 import co.turnout.checkin.ui.theme.TurnoutColors
 
@@ -35,27 +41,43 @@ import co.turnout.checkin.ui.theme.TurnoutColors
 fun SetupScreen(
     session: CheckInSession,
     onContinue: (apiBaseUrl: String, eventId: String) -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     var apiBase by rememberSaveable { mutableStateOf(session.apiBaseUrl.ifBlank { BuildConfig.DEFAULT_API_BASE }) }
     var eventId by rememberSaveable { mutableStateOf(session.eventId) }
 
+    TurnoutBackground {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (onBack != null) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.Start),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = TurnoutColors.Text,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         TurnoutLogo(modifier = Modifier.size(72.dp))
         Spacer(modifier = Modifier.height(20.dp))
         Text(
-            text = "Turnout Check-in",
+            text = "Staff scanner",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = TurnoutColors.Text,
         )
         Text(
-            text = "Door scanner for your event",
+            text = "Door check-in with event ID + staff PIN",
             style = MaterialTheme.typography.bodyMedium,
             color = TurnoutColors.TextMuted,
         )
@@ -100,6 +122,7 @@ fun SetupScreen(
         ) {
             Text("Continue", fontWeight = FontWeight.Bold)
         }
+    }
     }
 }
 

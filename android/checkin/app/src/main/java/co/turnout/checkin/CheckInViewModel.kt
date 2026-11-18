@@ -107,6 +107,28 @@ class CheckInViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun unlockDirect(
+        apiBaseUrl: String,
+        eventId: String,
+        staffPin: String,
+        eventTitle: String,
+    ) {
+        viewModelScope.launch {
+            store.unlockDirect(apiBaseUrl, eventId, staffPin, eventTitle)
+            refreshOfflineStats(eventId)
+            _scannerState.value = ScannerUiState()
+        }
+    }
+
+    fun resetStaffSession() {
+        viewModelScope.launch {
+            store.clearAll()
+            _scannerState.value = ScannerUiState()
+            _offlineState.value = OfflineUiState()
+            _unlockError.value = null
+        }
+    }
+
     fun verifyPin(pin: String) {
         val current = session.value
         if (current.eventId.isBlank()) {

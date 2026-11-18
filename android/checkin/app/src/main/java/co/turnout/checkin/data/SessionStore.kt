@@ -70,4 +70,27 @@ class SessionStore(private val context: Context) {
             prefs[eventTitleKey] = ""
         }
     }
+
+    suspend fun unlockDirect(
+        apiBaseUrl: String,
+        eventId: String,
+        staffPin: String,
+        eventTitle: String,
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[apiBaseKey] = CheckInApi.normalizeApiBaseUrl(apiBaseUrl)
+            prefs[eventIdKey] = eventId.trim()
+            prefs[staffPinKey] = staffPin
+            prefs[eventTitleKey] = eventTitle
+        }
+    }
+
+    suspend fun clearAll() {
+        context.dataStore.edit { prefs ->
+            prefs[eventIdKey] = ""
+            prefs[staffPinKey] = ""
+            prefs[eventTitleKey] = ""
+            prefs[offlineEnabledKey] = false
+        }
+    }
 }
