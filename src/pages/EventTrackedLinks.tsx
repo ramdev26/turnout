@@ -70,6 +70,7 @@ export const EventTrackedLinks: React.FC = () => {
   const navLinks = useMemo(() => (eventId ? eventWorkspaceNav(eventId) : []), [eventId]);
 
   const [eventSlug, setEventSlug] = useState<string | null>(null);
+  const [customPublicUrl, setCustomPublicUrl] = useState<string | null>(null);
   const [links, setLinks] = useState<EventTrackedLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,11 +81,16 @@ export const EventTrackedLinks: React.FC = () => {
   const [editing, setEditing] = useState<EventTrackedLink | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
 
+  /** Prefer the event custom domain (e.g. tickets.takemybass.com/tmb); fall back to app.bigturnout.co/e/slug. */
   const landingBase = useMemo(() => {
+    const custom = (customPublicUrl || '').trim().replace(/\/+$/, '');
+    if (custom) return custom;
     if (eventSlug) return absoluteAppUrl(`/e/${eventSlug}`);
     if (eventId) return absoluteAppUrl(`/events/${eventId}`);
     return '';
-  }, [eventId, eventSlug]);
+  }, [customPublicUrl, eventId, eventSlug]);
+
+  const usingCustomDomain = Boolean((customPublicUrl || '').trim());
 
   const trackedUrl = useCallback(
     (code: string) => {
@@ -100,12 +106,16 @@ export const EventTrackedLinks: React.FC = () => {
     setLoading(true);
     setErr(null);
     try {
-      const [linksRes, eventRes] = await Promise.all([
+      const [linksRes, eventRes, domainRes] = await Promise.all([
         api.get<{ links: EventTrackedLink[] }>(`/api/events/${eventId}/tracked-links`),
         api.get<{ event: Event }>(`/api/events/${eventId}`),
+        api
+          .get<{ publicUrl: string | null; customDomain: string | null }>(`/api/events/${eventId}/domain`)
+          .catch(() => ({ publicUrl: null, customDomain: null })),
       ]);
       setLinks(linksRes.links || []);
       setEventSlug(eventRes.event?.slug || null);
+      setCustomPublicUrl(domainRes.publicUrl || null);
     } catch (e) {
       setErr(formatApiError(e, 'Could not load tracked links'));
     } finally {
@@ -233,8 +243,15 @@ export const EventTrackedLinks: React.FC = () => {
       <FlowPage className="max-w-5xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-xl text-sm" style={{ color: ui.textMuted }}>
-            Share <span className="font-mono">?ref=CODE</span> links. Guests who buy after opening a link are attributed
-            to that code (first touch for the session). No discount — attribution only.
+            Share <span className="font-mono">?ref=CODE</span> links
+            {usingCustomDomain ? ' on your custom domain' : ''}. Guests who buy after opening a link are attributed to
+            that code (first touch for the session). No discount — attribution only.
+            {!usingCustomDomain ? (
+              <>
+                {' '}
+                Connect a custom domain in Settings to copy branded links instead of app.bigturnout.co.
+              </>
+            ) : null}
           </p>
           <div className="flex flex-wrap gap-2">
             <FlowButton variant="secondary" onClick={() => void load()} disabled={loading}>
