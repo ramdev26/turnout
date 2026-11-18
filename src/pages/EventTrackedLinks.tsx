@@ -117,7 +117,7 @@ export const EventTrackedLinks: React.FC = () => {
       setEventSlug(eventRes.event?.slug || null);
       setCustomPublicUrl(domainRes.publicUrl || null);
     } catch (e) {
-      setErr(formatApiError(e, 'Could not load tracked links'));
+      setErr(formatApiError(e, 'Could not load affiliate links'));
     } finally {
       setLoading(false);
     }
@@ -167,12 +167,12 @@ export const EventTrackedLinks: React.FC = () => {
         setMsg(`Updated ${code}`);
       } else {
         await api.post(`/api/events/${eventId}/tracked-links`, payload);
-        setMsg(`Created tracked link ${code}`);
+        setMsg(`Created affiliate link ${code}`);
       }
       setEditorOpen(false);
       await load();
     } catch (e) {
-      setErr(formatApiError(e, 'Could not save tracked link'));
+      setErr(formatApiError(e, 'Could not save affiliate link'));
     } finally {
       setSaving(false);
     }
@@ -187,7 +187,7 @@ export const EventTrackedLinks: React.FC = () => {
       setMsg(`${link.code} ${link.active ? 'disabled' : 'enabled'}`);
       await load();
     } catch (e) {
-      setErr(formatApiError(e, 'Could not update tracked link'));
+      setErr(formatApiError(e, 'Could not update affiliate link'));
     } finally {
       setBusyId(null);
     }
@@ -195,7 +195,7 @@ export const EventTrackedLinks: React.FC = () => {
 
   const deleteLink = async (link: EventTrackedLink) => {
     if (!eventId) return;
-    if (!window.confirm(`Delete tracked link ${link.code}? Past sales already stored on orders stay attributed.`)) {
+    if (!window.confirm(`Delete affiliate link ${link.code}? Past sales already stored on orders stay attributed.`)) {
       return;
     }
     setBusyId(link.id);
@@ -205,7 +205,7 @@ export const EventTrackedLinks: React.FC = () => {
       setMsg(`Deleted ${link.code}`);
       await load();
     } catch (e) {
-      setErr(formatApiError(e, 'Could not delete tracked link'));
+      setErr(formatApiError(e, 'Could not delete affiliate link'));
     } finally {
       setBusyId(null);
     }
@@ -235,8 +235,8 @@ export const EventTrackedLinks: React.FC = () => {
 
   return (
     <OrganizerFlowShell
-      title="Tracked links"
-      subtitle="One link per artist or ad — see clicks and paid sales per link"
+      title="Affiliate links"
+      subtitle="One link per artist or ad — cookie tracks visits and sales for 30 days"
       navLinks={navLinks}
       maxWidth="wide"
     >
@@ -244,8 +244,9 @@ export const EventTrackedLinks: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-xl text-sm" style={{ color: ui.textMuted }}>
             Share <span className="font-mono">?ref=CODE</span> links
-            {usingCustomDomain ? ' on your custom domain' : ''}. Guests who buy after opening a link are attributed to
-            that code (first touch for the session). No discount — attribution only.
+            {usingCustomDomain ? ' on your custom domain' : ''}. A cookie remembers the first affiliate for{' '}
+            <strong>30 days</strong>, so if someone opens the link today and buys from the direct landing page later,
+            the visit and order still count. No discount — attribution only.
             {!usingCustomDomain ? (
               <>
                 {' '}
@@ -274,7 +275,7 @@ export const EventTrackedLinks: React.FC = () => {
             style={{ color: ui.text }}
           >
             {[
-              { label: 'Clicks', value: String(totals.clicks) },
+              { label: 'Visits', value: String(totals.clicks) },
               { label: 'Paid orders', value: String(totals.orders) },
               { label: 'Tickets', value: String(totals.tickets) },
               { label: 'Revenue', value: formatLKRWhole(totals.revenue) },
@@ -292,13 +293,13 @@ export const EventTrackedLinks: React.FC = () => {
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm" style={{ color: ui.textMuted }}>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading tracked links…
+            Loading affiliate links…
           </div>
         ) : links.length === 0 ? (
           <div className="rounded-2xl border p-8 text-center" style={cardStyle}>
             <Link2 className="mx-auto h-8 w-8" style={{ color: ui.accent }} />
             <h3 className="mt-3 text-base font-bold" style={{ color: ui.text }}>
-              No tracked links yet
+              No affiliate links yet
             </h3>
             <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
               Create one per artist or ad campaign — e.g. DJ_NOVA or IG_STORY.
@@ -339,7 +340,7 @@ export const EventTrackedLinks: React.FC = () => {
                         {link.label}
                       </p>
                       <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
-                        {link.clickCount} clicks · {link.orderCount} paid orders · {link.ticketCount} tickets ·{' '}
+                        {link.clickCount} visits · {link.orderCount} paid orders · {link.ticketCount} tickets ·{' '}
                         {formatLKRWhole(link.revenue)}
                       </p>
                       {url ? (
@@ -394,7 +395,7 @@ export const EventTrackedLinks: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold">{editing ? 'Edit tracked link' : 'New tracked link'}</h2>
+                    <h2 className="text-lg font-bold">{editing ? 'Edit affiliate link' : 'New affiliate link'}</h2>
                     <p className="mt-1 text-sm" style={{ color: ui.textMuted }}>
                       Label is for you; code goes in the share URL.
                     </p>

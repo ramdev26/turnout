@@ -125,16 +125,21 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
         setAccessRequired(false);
         await loadTickets(nextEvent.id);
 
-        const refCode = trackedFromUrl || getTrackedLinkCode(nextEvent.id);
+        // Affiliate cookie (30 days): capture ?ref= / ?via= / ?aff= on first touch,
+        // then attribute later direct visits + checkout from the same browser.
         if (trackedFromUrl) {
           setTrackedLinkCode(nextEvent.id, trackedFromUrl);
         }
-        if (refCode && shouldRecordTrackedLinkClick(nextEvent.id, refCode)) {
+        const affiliateCode = trackedFromUrl || getTrackedLinkCode(nextEvent.id);
+        if (affiliateCode && shouldRecordTrackedLinkClick(nextEvent.id, affiliateCode)) {
           try {
-            await api.post(`/api/events/${nextEvent.id}/tracked-links/click`, { code: refCode });
-            markTrackedLinkClickRecorded(nextEvent.id, refCode);
+            await api.post(`/api/events/${nextEvent.id}/tracked-links/click`, {
+              code: affiliateCode,
+              source: trackedFromUrl ? 'ref' : 'return',
+            });
+            markTrackedLinkClickRecorded(nextEvent.id, affiliateCode);
           } catch {
-            // Attribution click is best-effort; never block the landing.
+            // Attribution visit is best-effort; never block the landing.
           }
         }
 
@@ -143,6 +148,7 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
           next.delete('code');
           next.delete('ref');
           next.delete('via');
+          next.delete('aff');
           setSearchParams(next, { replace: true });
         }
       } catch (error) {

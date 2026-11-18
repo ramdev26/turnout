@@ -669,12 +669,16 @@ export default function App() {
             }
           />
           <Route
-            path="/dashboard/events/:eventId/tracked-links"
+            path="/dashboard/events/:eventId/affiliate-links"
             element={
               <RequireOrganizer>
                 <EventTrackedLinks />
               </RequireOrganizer>
             }
+          />
+          <Route
+            path="/dashboard/events/:eventId/tracked-links"
+            element={<Navigate to="../affiliate-links" replace />}
           />
           <Route
             path="/dashboard/events/:eventId/limits"
