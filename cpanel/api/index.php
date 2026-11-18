@@ -26,6 +26,7 @@ require __DIR__ . '/lib/sms.php';
 require __DIR__ . '/lib/event_reminders.php';
 require __DIR__ . '/lib/coupons.php';
 require __DIR__ . '/lib/access_codes.php';
+require __DIR__ . '/lib/tracked_links.php';
 
 set_cors_headers_for_same_domain();
 
@@ -2625,6 +2626,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
+  ensure_order_tracked_link_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
   $totalCents = (int)$priced['totalCents'];
@@ -2656,6 +2658,7 @@ if ($path === '/payhere/initiate' && $method === 'POST') {
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
+    attach_tracked_link_code_from_body($pdo, $eventId, $orderId, $body);
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([
@@ -4496,6 +4499,179 @@ if (preg_match('#^/events/(\\d+)/coupons/apply$#', $path, $m) && $method === 'PO
   ]);
 }
 
+// ---- Event tracked links (artist / ad attribution) ----
+if (preg_match('#^/events/(\\d+)/tracked-links$#', $path, $m) && $method === 'GET') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'viewer');
+  ensure_event_tracked_links_table($pdo);
+  ensure_order_tracked_link_columns($pdo);
+
+  $statsById = tracked_link_sales_stats_by_id($pdo, $eventId);
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE event_id = ? ORDER BY id DESC');
+  $stmt->execute([$eventId]);
+  $links = [];
+  while ($row = $stmt->fetch()) {
+    $id = (int)$row['id'];
+    $links[] = tracked_link_api_shape($row, $statsById[$id] ?? []);
+  }
+  json_response(200, ['links' => $links]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracked-links$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_tracked_links_table($pdo);
+
+  $code = normalize_tracked_link_code((string)($body['code'] ?? ''));
+  $label = trim((string)($body['label'] ?? ''));
+  if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,64}$/', $code)) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_code',
+      'message' => 'Code must be 2–64 characters (letters, numbers, _ or -).',
+    ]);
+  }
+  if ($label === '') {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Add a label (artist name, ad campaign, etc.).',
+    ]);
+  }
+  if (mb_strlen($label) > 160) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Label must be 160 characters or fewer.',
+    ]);
+  }
+
+  $active = !array_key_exists('active', $body) || !empty($body['active']);
+
+  try {
+    $ins = $pdo->prepare(
+      'INSERT INTO event_tracked_links (event_id, code, label, active) VALUES (?, ?, ?, ?)'
+    );
+    $ins->execute([$eventId, $code, $label, $active ? 1 : 0]);
+    $id = (int)$pdo->lastInsertId();
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] tracked link create failed: %s', $e->getMessage()));
+    json_response(400, [
+      'error' => 'tracked_link_create_failed',
+      'message' => 'Could not create link. That code may already exist for this event.',
+    ]);
+  }
+
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$id, $eventId]);
+  json_response(201, ['link' => tracked_link_api_shape($stmt->fetch())]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracked-links/(\\d+)$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $linkId = (int)$m[2];
+  $body = read_json_body();
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_tracked_links_table($pdo);
+
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$linkId, $eventId]);
+  $existing = $stmt->fetch();
+  if (!$existing) {
+    json_response(404, ['error' => 'tracked_link_not_found', 'message' => 'Tracked link not found.']);
+  }
+
+  $code = array_key_exists('code', $body)
+    ? normalize_tracked_link_code((string)$body['code'])
+    : (string)$existing['code'];
+  if ($code === '' || !preg_match('/^[A-Z0-9_-]{2,64}$/', $code)) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_code',
+      'message' => 'Code must be 2–64 characters (letters, numbers, _ or -).',
+    ]);
+  }
+
+  $label = array_key_exists('label', $body)
+    ? trim((string)$body['label'])
+    : (string)($existing['label'] ?? '');
+  if ($label === '') {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Add a label (artist name, ad campaign, etc.).',
+    ]);
+  }
+  if (mb_strlen($label) > 160) {
+    json_response(400, [
+      'error' => 'invalid_tracked_link_label',
+      'message' => 'Label must be 160 characters or fewer.',
+    ]);
+  }
+
+  $active = array_key_exists('active', $body)
+    ? (!empty($body['active']) ? 1 : 0)
+    : (int)(bool)$existing['active'];
+
+  try {
+    $upd = $pdo->prepare(
+      'UPDATE event_tracked_links SET code = ?, label = ?, active = ? WHERE id = ? AND event_id = ?'
+    );
+    $upd->execute([$code, $label, $active, $linkId, $eventId]);
+  } catch (Throwable $e) {
+    error_log(sprintf('[turnout] tracked link update failed: %s', $e->getMessage()));
+    json_response(400, [
+      'error' => 'tracked_link_update_failed',
+      'message' => 'Could not update link. That code may already exist for this event.',
+    ]);
+  }
+
+  $statsById = tracked_link_sales_stats_by_id($pdo, $eventId);
+  $stmt = $pdo->prepare('SELECT * FROM event_tracked_links WHERE id = ? AND event_id = ? LIMIT 1');
+  $stmt->execute([$linkId, $eventId]);
+  json_response(200, [
+    'link' => tracked_link_api_shape($stmt->fetch(), $statsById[$linkId] ?? []),
+  ]);
+}
+
+if (preg_match('#^/events/(\\d+)/tracked-links/(\\d+)/delete$#', $path, $m) && $method === 'POST') {
+  $uid = require_organizer_user_id();
+  $eventId = (int)$m[1];
+  $linkId = (int)$m[2];
+  $pdo = db();
+  require_event_owner($pdo, $eventId, $uid, 'editor');
+  ensure_event_tracked_links_table($pdo);
+
+  $del = $pdo->prepare('DELETE FROM event_tracked_links WHERE id = ? AND event_id = ?');
+  $del->execute([$linkId, $eventId]);
+  if ($del->rowCount() < 1) {
+    json_response(404, ['error' => 'tracked_link_not_found', 'message' => 'Tracked link not found.']);
+  }
+  json_response(200, ['ok' => true]);
+}
+
+/** Public: record a landing click for an active tracked link (no auth). */
+if (preg_match('#^/events/(\\d+)/tracked-links/click$#', $path, $m) && $method === 'POST') {
+  $eventId = (int)$m[1];
+  $body = read_json_body();
+  $pdo = db();
+  ensure_event_tracked_links_table($pdo);
+  try {
+    require_publishable_event($pdo, $eventId);
+  } catch (Throwable $e) {
+    json_response(200, ['ok' => true]);
+  }
+
+  $code = normalize_tracked_link_code((string)($body['code'] ?? $body['ref'] ?? $body['via'] ?? ''));
+  $link = $code !== '' ? load_active_tracked_link($pdo, $eventId, $code) : null;
+  if ($link) {
+    increment_tracked_link_click_count($pdo, (int)$link['id']);
+  }
+  json_response(200, ['ok' => true]);
+}
+
 // ---- Orders ----
 if ($path === '/orders' && $method === 'POST') {
   $body = read_json_body();
@@ -4515,6 +4691,7 @@ if ($path === '/orders' && $method === 'POST') {
   ensure_order_policy_acceptance_columns($pdo);
   ensure_order_bank_transfer_columns($pdo);
   ensure_order_coupon_columns($pdo);
+  ensure_order_tracked_link_columns($pdo);
   $ev = require_publishable_event($pdo, $eventId);
   $normalized = normalize_order_items_from_db($pdo, $eventId, $items);
   $subtotalCents = (int)$normalized['totalCents'];
@@ -4556,6 +4733,7 @@ if ($path === '/orders' && $method === 'POST') {
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
+    attach_tracked_link_code_from_body($pdo, $eventId, $orderId, $body);
     upsert_transaction($pdo, $eventId, $buyerId, $orderId, $totalCents, 'paid', null);
     increment_ticket_sold_counts($pdo, $normalizedItems);
 
@@ -4639,6 +4817,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
   $subtotalCents = (int)$normalized['totalCents'];
   $normalizedItems = $normalized['items'];
   ensure_order_coupon_columns($pdo);
+  ensure_order_tracked_link_columns($pdo);
   $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : '';
   $priced = apply_coupon_code_to_subtotal($pdo, $eventId, $subtotalCents, $couponCode);
   $totalCents = (int)$priced['totalCents'];
@@ -4670,6 +4849,7 @@ if ($path === '/orders/bank-transfer' && $method === 'POST') {
     if ($couponRow) {
       increment_coupon_used_count($pdo, (int)$couponRow['id']);
     }
+    attach_tracked_link_code_from_body($pdo, $eventId, $orderId, $body);
 
     $attInsert = $pdo->prepare('INSERT INTO order_attendee_requests (order_id, attendees_json) VALUES (?, ?)');
     $attInsert->execute([

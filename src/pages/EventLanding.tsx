@@ -16,6 +16,13 @@ import {
   setEventAccessToken,
   setPendingEventAccessContext,
 } from '../lib/eventAccessToken';
+import {
+  getTrackedLinkCode,
+  markTrackedLinkClickRecorded,
+  readTrackedLinkCodeFromSearch,
+  setTrackedLinkCode,
+  shouldRecordTrackedLinkClick,
+} from '../lib/trackedLinkStorage';
 import { purchaseLimitsFromEvent, purchaseLimitsSummary } from '../utils/purchaseLimits';
 
 type EventFetchResult = {
@@ -29,6 +36,7 @@ export const EventLanding: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const codeFromUrl = (searchParams.get('code') || '').trim();
+  const trackedFromUrl = readTrackedLinkCodeFromSearch(searchParams);
 
   const [event, setEvent] = useState<Event | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -101,9 +109,24 @@ export const EventLanding: React.FC = () => {
         setAccessRequired(false);
         await loadTickets(nextEvent.id);
 
-        if (codeFromUrl) {
+        const refCode = trackedFromUrl || getTrackedLinkCode(nextEvent.id);
+        if (trackedFromUrl) {
+          setTrackedLinkCode(nextEvent.id, trackedFromUrl);
+        }
+        if (refCode && shouldRecordTrackedLinkClick(nextEvent.id, refCode)) {
+          try {
+            await api.post(`/api/events/${nextEvent.id}/tracked-links/click`, { code: refCode });
+            markTrackedLinkClickRecorded(nextEvent.id, refCode);
+          } catch {
+            // Attribution click is best-effort; never block the landing.
+          }
+        }
+
+        if (codeFromUrl || trackedFromUrl) {
           const next = new URLSearchParams(searchParams);
           next.delete('code');
+          next.delete('ref');
+          next.delete('via');
           setSearchParams(next, { replace: true });
         }
       } catch (error) {
