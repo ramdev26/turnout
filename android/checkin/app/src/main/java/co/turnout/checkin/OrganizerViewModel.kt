@@ -12,6 +12,7 @@ import co.turnout.checkin.data.OrganizerApi
 import co.turnout.checkin.data.OrganizerAttendee
 import co.turnout.checkin.data.OrganizerAuth
 import co.turnout.checkin.data.OrganizerEvent
+import co.turnout.checkin.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -96,11 +97,11 @@ class OrganizerViewModel(application: Application) : AndroidViewModel(applicatio
         _scannerReady.value = null
     }
 
-    fun login(apiBaseUrl: String, email: String, password: String, onSuccess: () -> Unit) {
+    fun login(email: String, password: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _loginState.value = LoginUiState(loading = true)
             try {
-                val normalizedBase = CheckInApi.normalizeApiBaseUrl(apiBaseUrl)
+                val normalizedBase = CheckInApi.normalizeApiBaseUrl(BuildConfig.DEFAULT_API_BASE)
                 val result = withContext(Dispatchers.IO) {
                     OrganizerApi(normalizedBase).login(email, password)
                 }

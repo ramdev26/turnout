@@ -91,11 +91,10 @@ class MainActivity : ComponentActivity() {
 
                     composable("organizer_login") {
                         OrganizerLoginScreen(
-                            initialApiBase = auth.apiBaseUrl,
                             loginState = loginState,
                             onBack = { navController.popBackStack() },
-                            onLogin = { api, email, password ->
-                                organizerVm.login(api, email, password) {
+                            onLogin = { email, password ->
+                                organizerVm.login(email, password) {
                                     navController.navigate("organizer_events") {
                                         popUpTo("organizer_login") { inclusive = true }
                                     }

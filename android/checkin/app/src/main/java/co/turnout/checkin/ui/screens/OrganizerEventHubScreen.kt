@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.turnout.checkin.EventHubUiState
@@ -58,7 +61,9 @@ fun OrganizerEventHubScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding(),
         ) {
             Row(
                 modifier = Modifier
@@ -216,17 +221,30 @@ private fun StatTile(
         modifier = modifier
             .background(TurnoutColors.Ink.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
             .border(1.dp, TurnoutColors.Lime500.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-            .padding(14.dp),
+            .padding(horizontal = 10.dp, vertical = 12.dp),
     ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = TurnoutColors.TextSubtle)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = TurnoutColors.TextSubtle,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
         Text(
             value,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = TurnoutColors.Text,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        Text(hint, style = MaterialTheme.typography.labelSmall, color = TurnoutColors.TextMuted)
+        Text(
+            hint,
+            style = MaterialTheme.typography.labelSmall,
+            color = TurnoutColors.TextMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
