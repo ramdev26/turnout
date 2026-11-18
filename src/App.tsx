@@ -50,10 +50,11 @@ import { isCustomEventHostname, isPlatformHostname, normalizeHostname } from './
 import { DevPulsePreview } from './pages/DevPulsePreview';
 
 function FullPageLoader({ dark }: { dark?: boolean }) {
+  const forceDark = dark || (typeof window !== 'undefined' && isCustomEventHostname());
   return (
     <div
       className="flex min-h-[60vh] items-center justify-center"
-      style={dark ? { background: '#000', minHeight: '100vh' } : undefined}
+      style={forceDark ? { background: '#000', minHeight: '100vh' } : undefined}
     >
       <div
         className="h-9 w-9 animate-spin rounded-full border-2 border-white/15 border-t-white/70"

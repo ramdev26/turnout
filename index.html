@@ -11,20 +11,24 @@
     <link rel="icon" type="image/svg+xml" href="/turnout-favicon.svg" />
     <script>
       (function () {
-        var host = (location.hostname || '').toLowerCase();
+        var host = (location.hostname || '').toLowerCase().replace(/^www\./, '');
         var platform =
           host === 'localhost' ||
           host === '127.0.0.1' ||
           host === 'app.bigturnout.co' ||
           host === 'bigturnout.co' ||
-          host === 'www.bigturnout.co' ||
           host === 'domains.bigturnout.co' ||
           host.slice(-11) === '.vercel.app';
         if (platform) return;
-        // Custom event domains: no Turnout chrome in the initial document.
-        document.title = '';
-        var icon = document.querySelector('link[rel="icon"]');
-        if (icon) icon.setAttribute('href', 'data:,');
+        // Custom event domains: strip Turnout title/favicon before React loads.
+        document.title = '\u200b';
+        document.documentElement.style.background = '#000';
+        if (document.body) document.body.style.background = '#000';
+        document
+          .querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]')
+          .forEach(function (el) {
+            el.setAttribute('href', 'data:,');
+          });
         var desc = document.querySelector('meta[name="description"]');
         if (desc) desc.setAttribute('content', '');
       })();

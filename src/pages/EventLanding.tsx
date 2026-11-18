@@ -6,7 +6,7 @@ import { getLandingTemplateForEvent } from '../templates/templates';
 import { landingCssVars, normalizeLandingCustomization } from '../themes/eventThemes';
 import { loadLandingFont } from '../themes/landingFonts';
 import { formatLKRWhole } from '../utils/money';
-import { ticketRemaining } from '../components/landing/LandingShared';
+import { ticketRemaining, useLandingDocumentHead } from '../components/landing/LandingShared';
 import { ticketEffectivePrice, ticketLineTotal } from '../utils/ticketPricing';
 import { computeEventExtraFeeLkr, eventExtraFeeFromEvent } from '../utils/eventExtraFee';
 import { EventCheckoutForm } from '../components/landing/EventCheckoutForm';
@@ -163,9 +163,10 @@ export const EventLanding: React.FC<EventLandingProps> = ({ forcedSlug }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, slug]);
 
+  useLandingDocumentHead(event);
+
   useEffect(() => {
     if (!event) return;
-    document.title = event.title;
     loadLandingFont(normalizeLandingCustomization(event.customization, event.templateId).fontFamily);
   }, [event]);
 

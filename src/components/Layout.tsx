@@ -37,9 +37,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     (/^\/events\/[^/]+\/checkout$/.test(path) && !/^\/events\/(new|themes)\//.test(path));
   const isStaffCheckin = /^\/staff\/checkin\/[^/]+$/.test(path);
   const isOrganizerConsole =
-    /^\/dashboard/.test(path) || /^\/events\/(new|themes)/.test(path);
-  const isAttendeeConsole = /^\/attendee/.test(path) && path !== '/attendee/signup';
-  const isAdminConsole = /^\/basadmin/.test(path) || /^\/admin/.test(path);
+    !customEventHost && (/^\/dashboard/.test(path) || /^\/events\/(new|themes)/.test(path));
+  const isAttendeeConsole = !customEventHost && /^\/attendee/.test(path) && path !== '/attendee/signup';
+  const isAdminConsole = !customEventHost && (/^\/basadmin/.test(path) || /^\/admin/.test(path));
   const isAuthPage =
     (!customEventHost && path === '/') ||
     path === '/login' ||
@@ -53,7 +53,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isOrderConfirmation = /^\/orders\/\d+\/success$/.test(path);
   const isPaymentReturn = /^\/payhere\/(return|cancel|launch)$/.test(path);
 
-  const hideChrome = isPublicLanding || isStaffCheckin || isMarketingHome || isOrderConfirmation || isPaymentReturn;
+  // Custom domains never show Turnout header/footer/sidebar — including while loading.
+  const hideChrome =
+    customEventHost ||
+    isPublicLanding ||
+    isStaffCheckin ||
+    isMarketingHome ||
+    isOrderConfirmation ||
+    isPaymentReturn;
   const isAppFlow = isOrganizerConsole || isAttendeeConsole || isAdminConsole || isAuthPage;
   const chromeThemed = !hideChrome;
 
